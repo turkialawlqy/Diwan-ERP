@@ -12,7 +12,7 @@ class AccountController extends Controller
 {
     public function index(Request $request): Response
     {
-        $query = Account::with(['parent', 'children'])->orderBy('code');
+        $query = Account::with(['parent'])->withCount(['children', 'journalLines'])->orderBy('code');
 
         if ($request->filled('search')) {
             $search = $request->input('search');
@@ -38,7 +38,7 @@ class AccountController extends Controller
             'total_accounts_count' => Account::count(),
         ];
 
-        $parentAccounts = Account::where('is_parent', true)->get(['id', 'code', 'name_ar', 'type']);
+        $parentAccounts = Account::where('is_parent', true)->orderBy('code')->get(['id', 'code', 'name_ar', 'type']);
 
         return Inertia::render('Accounting/Accounts/Index', [
             'accounts' => $accounts,
@@ -61,6 +61,13 @@ class AccountController extends Controller
             'balance' => 'nullable|numeric',
         ]);
 
+        if (!empty($validated['parent_id'])) {
+            $parent = Account::find($validated['parent_id']);
+            if ($parent && !$parent->is_parent) {
+                $parent->update(['is_parent' => true]);
+            }
+        }
+
         Account::create([
             'code' => $validated['code'],
             'name_ar' => $validated['name_ar'],
@@ -75,5 +82,46 @@ class AccountController extends Controller
 
         return redirect()->route('accounting.accounts.index')
             ->with('success', 'تم إضافة الحساب المحاسبي بنجاح');
+    }
+
+    public function update(Request $request, Account $account)
+    {
+        $validated = $request->validate([
+            'code' => 'required|string|max:50',
+            'name_ar' => 'required|string|max:255',
+            'name_en' => 'nullable|string|max:255',
+            'parent_id' => 'nullable|exists:accounts,id',
+            'type' => 'required|in:asset,liability,equity,revenue,expense',
+            'nature' => 'required|in:debit,credit',
+            'is_parent' => 'boolean',
+            'balance' => 'nullable|numeric',
+            'is_active' => 'boolean',
+        ]);
+
+        // Prevent making account its own parent
+        if (!empty($validated['parent_id']) && (int)$validated['parent_id'] === (int)$account->id) {
+            return back()->with('error', 'لا يمكن جعل الحساب تابعاً لنفسه');
+        }
+
+        $account->update($validated);
+
+        return redirect()->route('accounting.accounts.index')
+            ->with('success', 'تم تحديث بيانات الحساب بنجاح');
+    }
+
+    public function destroy(Account $account)
+    {
+        if ($account->children()->exists()) {
+            return back()->with('error', 'لا يمكن حذف الحساب لأنه يحتوي على حسابات فرعية متفرعة منه. يجب نقلها أو حذفها أولاً.');
+        }
+
+        if ($account->journalLines()->exists()) {
+            return back()->with('error', 'لا يمكن حذف الحساب نظراً لوجود قيود يومية وعمليات محاسبية مسجلة عليه.');
+        }
+
+        $account->delete();
+
+        return redirect()->route('accounting.accounts.index')
+            ->with('success', 'تم حذف الحساب بنجاح');
     }
 }

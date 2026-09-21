@@ -155,6 +155,8 @@ Route::middleware(['auth'])->group(function () {
         // Chart of Accounts
         Route::get('/accounts', [\App\Http\Controllers\Accounting\AccountController::class, 'index'])->name('accounts.index');
         Route::post('/accounts', [\App\Http\Controllers\Accounting\AccountController::class, 'store'])->name('accounts.store');
+        Route::put('/accounts/{account}', [\App\Http\Controllers\Accounting\AccountController::class, 'update'])->name('accounts.update');
+        Route::delete('/accounts/{account}', [\App\Http\Controllers\Accounting\AccountController::class, 'destroy'])->name('accounts.destroy');
 
         // Journal Entries
         Route::get('/journals', [\App\Http\Controllers\Accounting\JournalEntryController::class, 'index'])->name('journals.index');
