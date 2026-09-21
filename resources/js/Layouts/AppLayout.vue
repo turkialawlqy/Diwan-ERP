@@ -1,0 +1,74 @@
+<script setup>
+import { ref, computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
+import AppSidebar from '../Components/AppSidebar.vue';
+import AppTopBar from '../Components/AppTopBar.vue';
+import ImpersonationBanner from '../Components/ImpersonationBanner.vue';
+import { CheckCircleIcon, ExclamationCircleIcon, XMarkIcon } from '@heroicons/vue/24/outline';
+
+const page = usePage();
+const isSidebarOpen = ref(false);
+
+const impersonation = computed(() => page.props.impersonation);
+const flash = computed(() => page.props.flash);
+
+const showFlash = ref(true);
+const dismissFlash = () => {
+    showFlash.value = false;
+};
+</script>
+
+<template>
+    <div class="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+        <!-- Super Admin Impersonation Notice Banner -->
+        <ImpersonationBanner :impersonation="impersonation" />
+
+        <div class="flex-1 flex">
+            <!-- Right Navigation Sidebar (in RTL) -->
+            <AppSidebar 
+                :is-open="isSidebarOpen" 
+                @close-sidebar="isSidebarOpen = false" 
+            />
+
+            <!-- Main Content Shell (Padded for 256px sidebar on the end side in RTL) -->
+            <div class="flex-1 flex flex-col min-w-0 lg:pe-64 transition-all">
+                <!-- Top Sticky Navbar -->
+                <AppTopBar @toggle-sidebar="isSidebarOpen = !isSidebarOpen" />
+
+                <!-- Flash Notification Banner -->
+                <div v-if="showFlash && (flash?.success || flash?.error)" class="px-4 sm:px-8 pt-4">
+                    <div 
+                        v-if="flash.success" 
+                        class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center justify-between text-xs sm:text-sm font-semibold shadow-xs"
+                    >
+                        <div class="flex items-center gap-2">
+                            <CheckCircleIcon class="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                            <span>{{ flash.success }}</span>
+                        </div>
+                        <button @click="dismissFlash" class="text-emerald-600 hover:text-emerald-900">
+                            <XMarkIcon class="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    <div 
+                        v-if="flash.error" 
+                        class="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 flex items-center justify-between text-xs sm:text-sm font-semibold shadow-xs"
+                    >
+                        <div class="flex items-center gap-2">
+                            <ExclamationCircleIcon class="w-5 h-5 text-red-600 flex-shrink-0" />
+                            <span>{{ flash.error }}</span>
+                        </div>
+                        <button @click="dismissFlash" class="text-red-600 hover:text-red-900">
+                            <XMarkIcon class="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Page Content Slot -->
+                <main class="flex-1 p-4 sm:p-6 lg:p-8">
+                    <slot />
+                </main>
+            </div>
+        </div>
+    </div>
+</template>
