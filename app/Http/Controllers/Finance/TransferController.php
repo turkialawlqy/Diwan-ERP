@@ -82,16 +82,8 @@ class TransferController extends Controller
             $from->decrement('current_balance', $amount);
             $to->increment('current_balance', $amount);
 
-            // Generate Journal Entry
-            // Generate Journal Entry number using MAX to avoid race conditions
-            $lastEntry = JournalEntry::where('entry_number', 'like', 'JV-'.date('y').'-%')
-                ->orderByRaw('CAST(SUBSTRING_INDEX(entry_number, "-", -1) AS UNSIGNED) DESC')
-                ->value('entry_number');
-            $nextEntrySeq = $lastEntry
-                ? ((int) substr($lastEntry, strrpos($lastEntry, '-') + 1)) + 1
-                : 1;
-            $entryNumber = sprintf('JV-%s-%05d', date('y'), $nextEntrySeq);
-            $transferRef = 'TRF-'.($validated['reference'] ?? sprintf('%s%04d', date('ymd'), $nextEntrySeq));
+            $entryNumber = $this->nextNumber('journal_entry', $validated['transfer_date']);
+            $transferRef = $validated['reference'] ?? $this->nextNumber('transfer', $validated['transfer_date']);
 
             $desc = "تحويل مالي من [{$from->name}] إلى [{$to->name}]".($validated['notes'] ? ' - '.$validated['notes'] : '');
 

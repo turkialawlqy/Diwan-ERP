@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Vite;
@@ -106,9 +107,13 @@ class AppServiceProvider extends ServiceProvider
                 return false;
             }
 
+            static $softDeletes = [];
+            $softDeletes[$table] ??= Schema::hasColumn($table, 'deleted_at');
+
             return DB::table($table)
                 ->where($column, $value)
                 ->where('company_id', $tenantId)
+                ->when($softDeletes[$table], fn ($q) => $q->whereNull('deleted_at'))
                 ->exists();
         }, 'القيمة المحددة غير صالحة.');
     }
@@ -147,6 +152,17 @@ class AppServiceProvider extends ServiceProvider
         // Invoice creation: max 20 per minute per authenticated user
         RateLimiter::for('invoices', function (Request $request) {
             return Limit::perMinute(20)->by($request->user()?->id ?? $request->ip());
+        });
+
+        // Every company route: per user, plus a per-company ceiling so one tenant
+        // cannot starve the shared infrastructure for everyone else.
+        RateLimiter::for('tenant-web', function (Request $request) {
+            $companyId = app(TenantManager::class)->getTenantId() ?? 'none';
+
+            return [
+                Limit::perMinute((int) config('tenancy.rate_limit_per_user', 300))->by('user:'.($request->user()?->id ?? $request->ip())),
+                Limit::perMinute((int) config('tenancy.rate_limit_per_company', 3000))->by('company:'.$companyId),
+            ];
         });
 
         // General API: max 120 per minute per user/IP

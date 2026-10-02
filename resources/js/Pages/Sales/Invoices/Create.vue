@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { createRemoteLookup } from '@/lookup';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import axios from 'axios';
@@ -44,6 +45,9 @@ const today = new Date().toISOString().split('T')[0];
 // Local state for dynamic lookup lists
 const customersList = ref([...(props.customers || [])]);
 const productsList = ref([...(props.products || [])]);
+// Lists hold only a first slice; typing fetches more matches from the server.
+const searchCustomersRemote = createRemoteLookup('lookup.customers', customersList);
+const searchProductsRemote = createRemoteLookup('lookup.products', productsList);
 const categoriesList = ref([...(props.categories || [])]);
 const unitsList = ref([...(props.units || [])]);
 
@@ -147,6 +151,8 @@ if (selectedCustomer.value) {
     customerSearch.value = selectedCustomer.value.name;
 }
 
+watch(customerSearch, (q) => searchCustomersRemote(q));
+
 const filteredCustomers = computed(() => {
     const q = customerSearch.value.trim().toLowerCase();
     if (!q) return customersList.value.slice(0, 15);
@@ -194,6 +200,7 @@ const isSavingProduct = ref(false);
 const productModalErrors = ref({});
 
 const getFilteredProducts = (query) => {
+    searchProductsRemote(query);
     const q = (query || '').trim().toLowerCase();
     if (!q) return productsList.value.slice(0, 15);
     return productsList.value.filter(p => 

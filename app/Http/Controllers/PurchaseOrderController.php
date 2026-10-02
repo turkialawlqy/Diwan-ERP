@@ -87,14 +87,7 @@ class PurchaseOrderController extends Controller
                 ]);
             }
 
-            $year = date('y');
-            $lastInvoice = PurchaseInvoice::where('invoice_number', 'like', "BILL-{$year}-%")
-                ->orderByRaw('CAST(SUBSTRING_INDEX(invoice_number, "-", -1) AS UNSIGNED) DESC')
-                ->value('invoice_number');
-            $nextSeq = $lastInvoice
-                ? ((int) substr($lastInvoice, strrpos($lastInvoice, '-') + 1)) + 1
-                : 1;
-            $invoiceNumber = sprintf('BILL-%s-%06d', $year, $nextSeq);
+            $invoiceNumber = $this->nextNumber('purchase_invoice');
 
             $purchaseInvoice = PurchaseInvoice::create([
                 'company_id' => $companyId,

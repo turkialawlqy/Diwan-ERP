@@ -4,10 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\Company;
 use App\Models\PrintTemplate;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class TemplateDesignerTest extends TestCase
 {
+    use RefreshDatabase;
+
     protected $user;
 
     protected $company;
@@ -16,7 +19,7 @@ class TemplateDesignerTest extends TestCase
     {
         parent::setUp();
 
-        $this->company = Company::first() ?? Company::factory()->create();
+        $this->company = Company::factory()->create();
         $this->user = $this->userWithRole($this->company);
     }
 

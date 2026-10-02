@@ -72,23 +72,17 @@ class QuotationController extends Controller
 
         $customers = Customer::where('status', 'active')
             ->orderBy('name')
+            ->limit(500)
             ->get(['id', 'name', 'company_name', 'tax_number', 'phone']);
 
         $branches = Branch::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
 
         $products = Product::where('is_active', true)
+            ->orderBy('name_ar')
+            ->limit(500)
             ->get(['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'tax_rate']);
 
-        $year = date('y');
-        $branchId = $branches->first()?->id;
-        $lastNumber = Quotation::where('quotation_number', 'like', "QUO-{$year}-{$branchId}-%")
-            ->orderByRaw('CAST(SUBSTRING_INDEX(quotation_number, "-", -1) AS UNSIGNED) DESC')
-            ->value('quotation_number');
-
-        $nextSeq = $lastNumber
-            ? ((int) substr($lastNumber, strrpos($lastNumber, '-') + 1)) + 1
-            : 1;
-        $suggestedNumber = sprintf('QUO-%s-%s-%06d', $year, $branchId, $nextSeq);
+        $suggestedNumber = $this->peekNumber('quotation');
 
         return Inertia::render('Sales/Quotations/Create', [
             'customers' => $customers,
@@ -108,7 +102,7 @@ class QuotationController extends Controller
         $validated = $request->validate([
             'customer_id' => 'required|tenant_exists:customers,id',
             'branch_id' => 'nullable|tenant_exists:branches,id',
-            'quotation_number' => 'required|string|max:50',
+            'quotation_number' => 'nullable|string|max:50', // ignored: assigned by the system
             'quotation_date' => 'required|date',
             'valid_until' => 'nullable|date',
             'notes' => 'nullable|string',
@@ -167,7 +161,7 @@ class QuotationController extends Controller
                 'branch_id' => $validated['branch_id'] ?? null,
                 'customer_id' => $validated['customer_id'],
                 'user_id' => auth()->id(),
-                'quotation_number' => $validated['quotation_number'],
+                'quotation_number' => $this->nextNumber('quotation', $validated['quotation_date']),
                 'quotation_date' => $validated['quotation_date'],
                 'valid_until' => $validated['valid_until'] ?? null,
                 'subtotal' => $subtotal,
@@ -226,9 +220,7 @@ class QuotationController extends Controller
                 ]);
             }
 
-            $year = date('y');
-            $count = Invoice::count() + 1;
-            $invoiceNumber = sprintf('INV-%s-1-%06d', $year, $count);
+            $invoiceNumber = $this->nextNumber('sales_invoice');
 
             $timestamp = Carbon::now()->format('Y-m-d\TH:i:s\Z');
             $zatcaQr = ZatcaService::generateQrCode(

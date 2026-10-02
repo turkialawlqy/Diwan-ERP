@@ -37,4 +37,10 @@ return [
     */
     'allow_dev_override' => (bool) env('TENANCY_ALLOW_DEV_OVERRIDE', true),
 
+    /*
+    | Request rate limits for company routes (requests per minute).
+    */
+    'rate_limit_per_user' => (int) env('TENANCY_RATE_LIMIT_USER', 300),
+    'rate_limit_per_company' => (int) env('TENANCY_RATE_LIMIT_COMPANY', 3000),
+
 ];

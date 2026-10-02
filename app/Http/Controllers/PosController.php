@@ -22,6 +22,8 @@ use Inertia\Inertia;
 
 class PosController extends Controller
 {
+    protected const PRODUCT_PAGE = 60;
+
     /**
      * Main POS Entry Point: Either Open Session or POS Terminal.
      */
@@ -44,14 +46,18 @@ class PosController extends Controller
             ]);
         }
 
-        // Active session exists -> Load POS Terminal
-        $products = Product::where('is_active', true)
-            ->with(['category', 'unit', 'stocks'])
-            ->get();
+        // Active session exists -> Load POS Terminal with a bounded first page of
+        // products; the terminal searches the rest through productSearch().
+        $products = $this->productQuery($session->register?->warehouse_id)
+            ->limit(self::PRODUCT_PAGE)
+            ->get()
+            ->each->append('total_stock');
 
-        $categories = Category::where('is_active', true)->get();
+        $categories = Category::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
 
         $customers = Customer::where('status', 'active')
+            ->latest('id')
+            ->limit(200)
             ->get(['id', 'name', 'phone', 'tax_number', 'current_balance']);
 
         $company = app(TenantManager::class)->getCompany();
@@ -63,6 +69,50 @@ class PosController extends Controller
             'customers' => $customers,
             'company' => $company,
         ]);
+    }
+
+    /**
+     * Product search for the terminal (name / SKU / barcode, optional category).
+     * An exact barcode or SKU match is returned first so scanners work.
+     */
+    public function productSearch(Request $request)
+    {
+        $validated = $request->validate([
+            'q' => 'nullable|string|max:100',
+            'category_id' => 'nullable|integer',
+            'exact' => 'nullable|boolean',
+        ]);
+
+        $session = PosSession::where('user_id', auth()->id())->where('status', 'opened')->with('register')->latest()->first();
+        $q = trim((string) ($validated['q'] ?? ''));
+
+        $query = $this->productQuery($session?->register?->warehouse_id)
+            ->when($validated['category_id'] ?? null, fn ($query, $categoryId) => $query->where('category_id', $categoryId));
+
+        if ($q !== '') {
+            if ($request->boolean('exact')) {
+                $query->where(fn ($w) => $w->where('barcode', $q)->orWhere('sku', $q));
+            } else {
+                $query->where(fn ($w) => $w->where('name_ar', 'like', "%{$q}%")
+                    ->orWhere('name_en', 'like', "%{$q}%")
+                    ->orWhere('sku', 'like', "{$q}%")
+                    ->orWhere('barcode', 'like', "{$q}%"));
+            }
+        }
+
+        return response()->json(['data' => $query->limit(self::PRODUCT_PAGE)->get()->each->append('total_stock')]);
+    }
+
+    /**
+     * Active products with stock in the session warehouse (or all warehouses).
+     */
+    protected function productQuery(?int $warehouseId)
+    {
+        return Product::query()
+            ->where('is_active', true)
+            ->select(['id', 'category_id', 'unit_id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'tax_rate', 'track_inventory', 'image'])
+            ->withSum(['stocks' => fn ($q) => $warehouseId ? $q->where('warehouse_id', $warehouseId) : $q], 'quantity')
+            ->orderBy('name_ar');
     }
 
     /**
@@ -185,14 +235,7 @@ class PosController extends Controller
                 $taxAmount
             );
 
-            // Auto-generate order number using MAX to avoid race conditions
-            $lastOrder = PosOrder::where('order_number', 'like', 'POS-'.date('y').'-%')
-                ->orderByRaw('CAST(SUBSTRING_INDEX(order_number, "-", -1) AS UNSIGNED) DESC')
-                ->value('order_number');
-            $nextSeq = $lastOrder
-                ? ((int) substr($lastOrder, strrpos($lastOrder, '-') + 1)) + 1
-                : 1;
-            $orderNumber = sprintf('POS-%s-%06d', date('y'), $nextSeq);
+            $orderNumber = $this->nextNumber('pos_order');
 
             // 1. Create linked Simplified Tax Invoice
             $invoice = Invoice::create([
@@ -200,7 +243,7 @@ class PosController extends Controller
                 'branch_id' => $session->register?->branch_id ?? Branch::first()?->id,
                 'customer_id' => $validated['customer_id'] ?? Customer::first()?->id,
                 'user_id' => auth()->id(),
-                'invoice_number' => sprintf('INV-POS-%s-%06d', date('y'), $nextSeq),
+                'invoice_number' => $this->nextNumber('pos_invoice'),
                 'invoice_date' => Carbon::now()->toDateString(),
                 'supply_date' => Carbon::now()->toDateString(),
                 'subtotal' => $subtotal,

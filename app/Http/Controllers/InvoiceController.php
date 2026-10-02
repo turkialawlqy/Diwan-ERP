@@ -94,13 +94,16 @@ class InvoiceController extends Controller
         $tenantManager = app(TenantManager::class);
         $company = $tenantManager->getCompany();
 
+        // First slice only; the form searches the rest via /lookup/*.
         $customers = Customer::where('status', 'active')
             ->orderBy('name')
+            ->limit(200)
             ->get(['id', 'name', 'company_name', 'tax_number', 'phone', 'current_balance']);
 
         $products = Product::where('is_active', true)
             ->with(['category', 'unit'])
             ->orderBy('name_ar')
+            ->limit(200)
             ->get(['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'purchase_price', 'tax_rate', 'unit_id', 'category_id', 'description']);
 
         $categories = Category::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
@@ -146,16 +149,8 @@ class InvoiceController extends Controller
             $warehouses = Warehouse::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
         }
 
-        // Auto-generate invoice number using MAX to avoid race conditions
-        $year = date('y');
-        $branchId = $branches->first()?->id;
-        $lastNumber = Invoice::where('invoice_number', 'like', "INV-{$year}-{$branchId}-%")
-            ->orderByRaw('CAST(SUBSTRING_INDEX(invoice_number, "-", -1) AS UNSIGNED) DESC')
-            ->value('invoice_number');
-        $nextSeq = $lastNumber
-            ? ((int) substr($lastNumber, strrpos($lastNumber, '-') + 1)) + 1
-            : 1;
-        $suggestedNumber = sprintf('INV-%s-%s-%06d', $year, $branchId, $nextSeq);
+        // Preview only; the definitive number is reserved when the invoice is saved.
+        $suggestedNumber = $this->peekNumber('sales_invoice');
 
         $bankAccounts = BankAccount::where('company_id', $company?->id)
             ->where('is_active', true)
@@ -186,7 +181,7 @@ class InvoiceController extends Controller
         $validated = $request->validate([
             'customer_id' => 'required|tenant_exists:customers,id',
             'branch_id' => 'nullable|tenant_exists:branches,id',
-            'invoice_number' => 'required|string|max:50',
+            'invoice_number' => 'nullable|string|max:50', // ignored: assigned by the system
             'reference_number' => 'nullable|string|max:50',
             'invoice_date' => 'required|date',
             'due_date' => 'nullable|date',
@@ -211,6 +206,9 @@ class InvoiceController extends Controller
         $company = $tenantManager->getCompany();
 
         $invoice = DB::transaction(function () use ($validated, $company) {
+            // Sequential, race-safe number reserved inside the transaction.
+            $validated['invoice_number'] = $this->nextNumber('sales_invoice', $validated['invoice_date']);
+
             $subtotal = 0;
             $taxAmount = 0;
             $itemsToCreate = [];
@@ -466,16 +464,7 @@ class InvoiceController extends Controller
                 $paidAccount = $isCash ? $accCash : ($accBank ?? $accCash);
             }
 
-            // Generate entry number
-            $lastEntry = JournalEntry::where('company_id', $companyId)
-                ->where('entry_number', 'like', 'JV-'.date('y').'-%')
-                ->orderByDesc('id')
-                ->first();
-            $nextSeq = 1;
-            if ($lastEntry && preg_match('/JV-\d+-(\d+)/', $lastEntry->entry_number, $matches)) {
-                $nextSeq = (int) $matches[1] + 1;
-            }
-            $entryNumber = 'JV-'.date('y').'-'.str_pad($nextSeq, 6, '0', STR_PAD_LEFT);
+            $entryNumber = $this->nextNumber('journal_entry', $invoice->invoice_date);
 
             $customerName = $invoice->customer ? ($invoice->customer->name ?? $invoice->customer->company_name) : 'عميل عام';
 

@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
-    use Auditable, BelongsToCompany, HasFactory;
+    use Auditable, BelongsToCompany, HasFactory, SoftDeletes;
 
     protected $fillable = [
         'company_id',
@@ -36,21 +37,42 @@ class Product extends Model
         'purchase_price' => 'decimal:2',
         'selling_price' => 'decimal:2',
         'tax_rate' => 'decimal:2',
-        'min_stock_alert' => 'decimal:2',
+        'min_stock_alert' => 'decimal:4',
         'track_inventory' => 'boolean',
         'is_active' => 'boolean',
     ];
 
-    protected $appends = ['name', 'total_stock'];
+    // total_stock is appended explicitly by listings that need it (see withStockTotal).
+    protected $appends = ['name'];
 
     public function getNameAttribute(): string
     {
         return app()->getLocale() === 'en' && $this->name_en ? $this->name_en : ($this->name_ar ?? '');
     }
 
+    /**
+     * Total stock across warehouses. Uses withSum('stocks', 'quantity') or the
+     * loaded relation when available so listing products is not N+1.
+     */
     public function getTotalStockAttribute(): float
     {
+        if (array_key_exists('stocks_sum_quantity', $this->attributes)) {
+            return (float) $this->attributes['stocks_sum_quantity'];
+        }
+
+        if ($this->relationLoaded('stocks')) {
+            return (float) $this->stocks->sum('quantity');
+        }
+
         return (float) $this->stocks()->sum('quantity');
+    }
+
+    /**
+     * Eager-load the stock total for listings.
+     */
+    public function scopeWithStockTotal($query)
+    {
+        return $query->withSum('stocks', 'quantity');
     }
 
     public function category(): BelongsTo

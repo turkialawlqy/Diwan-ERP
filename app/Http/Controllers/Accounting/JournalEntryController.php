@@ -65,8 +65,7 @@ class JournalEntryController extends Controller
         }
 
         return DB::transaction(function () use ($validated, $totalDebit, $totalCredit) {
-            $count = JournalEntry::count() + 1;
-            $entryNumber = 'JV-'.date('y').'-'.str_pad($count, 6, '0', STR_PAD_LEFT);
+            $entryNumber = $this->nextNumber('journal_entry', $validated['date']);
 
             $entry = JournalEntry::create([
                 'entry_number' => $entryNumber,

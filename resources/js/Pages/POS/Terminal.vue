@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import axios from 'axios';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import AlOstazLogo from '../../Components/AlOstazLogo.vue';
 import QRCode from 'qrcode';
@@ -45,23 +46,37 @@ const tenderAmount = ref(0);
 const latestOrder = ref(null);
 const receiptQrUrl = ref('');
 
-// Filtered Products
-const filteredProducts = computed(() => {
-    let list = props.products || [];
-    if (selectedCategoryId.value !== 'all') {
-        list = list.filter(p => p.category_id === selectedCategoryId.value);
+// Products are searched on the server (the catalogue can hold millions of items);
+// the page only ever keeps one bounded result set.
+const products = ref(props.products || []);
+const isSearching = ref(false);
+let searchTimer = null;
+let searchSeq = 0;
+
+const fetchProducts = async (params = {}) => {
+    const seq = ++searchSeq;
+    isSearching.value = true;
+    try {
+        const { data } = await axios.get(route('pos.products.search'), {
+            params: {
+                q: searchQuery.value.trim() || undefined,
+                category_id: selectedCategoryId.value !== 'all' ? selectedCategoryId.value : undefined,
+                ...params,
+            },
+        });
+        if (seq === searchSeq) products.value = data.data;
+        return data.data;
+    } finally {
+        if (seq === searchSeq) isSearching.value = false;
     }
-    if (searchQuery.value.trim()) {
-        const q = searchQuery.value.toLowerCase().trim();
-        list = list.filter(p => 
-            p.name_ar.toLowerCase().includes(q) ||
-            (p.name_en && p.name_en.toLowerCase().includes(q)) ||
-            (p.sku && p.sku.toLowerCase().includes(q)) ||
-            (p.barcode && p.barcode.toLowerCase().includes(q))
-        );
-    }
-    return list;
+};
+
+watch([searchQuery, selectedCategoryId], () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => fetchProducts(), 250);
 });
+
+const filteredProducts = computed(() => products.value);
 
 // Cart Calculations
 const cartSubtotal = computed(() => {
@@ -98,14 +113,18 @@ const addToCart = (product) => {
 };
 
 // Barcode Scan / Enter handler
-const handleBarcodeEnter = () => {
+const handleBarcodeEnter = async () => {
     const query = searchQuery.value.trim();
     if (!query) return;
 
-    const matched = props.products.find(p => 
-        (p.barcode && p.barcode === query) || 
-        (p.sku && p.sku.toLowerCase() === query.toLowerCase())
-    );
+    const isExact = (p) => (p.barcode && p.barcode === query) || (p.sku && p.sku.toLowerCase() === query.toLowerCase());
+    let matched = products.value.find(isExact);
+
+    if (!matched) {
+        clearTimeout(searchTimer);
+        const results = await fetchProducts({ q: query, exact: 1, category_id: undefined });
+        matched = results.find(isExact);
+    }
 
     if (matched) {
         addToCart(matched);

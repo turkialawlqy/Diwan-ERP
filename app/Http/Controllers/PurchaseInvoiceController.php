@@ -58,12 +58,15 @@ class PurchaseInvoiceController extends Controller
             ->paginate($this->perPage($request))
             ->withQueryString();
 
-        $allInvoices = PurchaseInvoice::all();
+        // One aggregate query instead of loading every invoice into memory.
+        $totals = PurchaseInvoice::query()
+            ->selectRaw('COUNT(*) as cnt, COALESCE(SUM(total), 0) as total, COALESCE(SUM(paid_amount), 0) as paid, COALESCE(SUM(remaining_amount), 0) as due')
+            ->first();
         $stats = [
-            'total_invoices_count' => $allInvoices->count(),
-            'total_purchases_amount' => $allInvoices->sum('total'),
-            'total_paid_amount' => $allInvoices->sum('paid_amount'),
-            'total_due_amount' => $allInvoices->sum('remaining_amount'),
+            'total_invoices_count' => (int) $totals->cnt,
+            'total_purchases_amount' => (float) $totals->total,
+            'total_paid_amount' => (float) $totals->paid,
+            'total_due_amount' => (float) $totals->due,
         ];
 
         return Inertia::render('Purchases/Invoices/Index', [
@@ -87,6 +90,8 @@ class PurchaseInvoiceController extends Controller
         $company = $tenantManager->getCompany();
 
         $suppliers = Supplier::where('status', 'active')
+            ->orderBy('name')
+            ->limit(200)
             ->get(['id', 'name', 'company_name', 'tax_number', 'phone', 'current_balance']);
 
         $branches = Branch::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
@@ -106,15 +111,16 @@ class PurchaseInvoiceController extends Controller
             $warehouses = Warehouse::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
         }
 
+        // First slice only; the form searches the rest via /lookup/*.
         $products = Product::where('is_active', true)
+            ->orderBy('name_ar')
+            ->limit(200)
             ->get(['id', 'name_ar', 'name_en', 'sku', 'barcode', 'purchase_price', 'selling_price', 'tax_rate']);
 
         $categories = Category::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
         $units = Unit::all(['id', 'name_ar', 'name_en']);
 
-        $year = date('y');
-        $count = PurchaseInvoice::count() + 1;
-        $suggestedNumber = sprintf('BILL-%s-%06d', $year, $count);
+        $suggestedNumber = $this->peekNumber('purchase_invoice');
 
         return Inertia::render('Purchases/Invoices/Create', [
             'suppliers' => $suppliers,
@@ -137,7 +143,7 @@ class PurchaseInvoiceController extends Controller
             'supplier_id' => 'required|tenant_exists:suppliers,id',
             'warehouse_id' => 'required|tenant_exists:warehouses,id',
             'branch_id' => 'nullable|tenant_exists:branches,id',
-            'invoice_number' => 'required|string|max:50',
+            'invoice_number' => 'nullable|string|max:50', // ignored: assigned by the system
             'supplier_invoice_number' => 'nullable|string|max:50',
             'invoice_date' => 'required|date',
             'due_date' => 'nullable|date',
@@ -163,6 +169,8 @@ class PurchaseInvoiceController extends Controller
         }
 
         $invoice = DB::transaction(function () use ($validated, $companyId) {
+            $validated['invoice_number'] = $this->nextNumber('purchase_invoice', $validated['invoice_date']);
+
             $subtotal = 0;
             $taxAmount = 0;
             $itemsData = [];
@@ -254,7 +262,7 @@ class PurchaseInvoiceController extends Controller
                     'company_id' => $companyId,
                     'supplier_id' => $validated['supplier_id'],
                     'purchase_invoice_id' => $purchaseInvoice->id,
-                    'payment_number' => 'SPAY-'.date('y').'-'.sprintf('%06d', SupplierPayment::count() + 1),
+                    'payment_number' => $this->nextNumber('supplier_payment', $validated['invoice_date']),
                     'amount' => $paidAmount,
                     'payment_date' => $validated['invoice_date'],
                     'payment_method' => $validated['payment_method'],

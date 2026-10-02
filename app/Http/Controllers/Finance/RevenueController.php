@@ -70,8 +70,7 @@ class RevenueController extends Controller
         $tax = $validated['tax_amount'] ?? round($validated['amount'] * 0.15, 2);
         $total = $validated['amount'] + $tax;
 
-        $count = Revenue::count() + 1;
-        $revenueNumber = 'REV-'.date('y').'-'.str_pad($count, 6, '0', STR_PAD_LEFT);
+        $revenueNumber = $this->nextNumber('revenue', $validated['revenue_date'] ?? null);
 
         $revenue = Revenue::create([
             'revenue_number' => $revenueNumber,

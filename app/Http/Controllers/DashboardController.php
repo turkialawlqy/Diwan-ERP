@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Services\TenantManager;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -27,20 +28,34 @@ class DashboardController extends Controller
         $lastMonthEnd = Carbon::now()->subMonth()->endOfMonth();
 
         // === KPI Metrics (Real Data) ===
-        $todaySales = (float) Invoice::whereDate('invoice_date', $today)->sum('total');
-        $monthSales = (float) Invoice::whereDate('invoice_date', '>=', $startOfMonth)->sum('total');
-        $lastMonthSales = (float) Invoice::whereBetween('invoice_date', [$lastMonthStart, $lastMonthEnd])->sum('total');
+        // Range predicates (not whereDate/whereMonth) so (company_id, invoice_date)
+        // indexes are used; aggregates are cached briefly per company.
+        $cacheKey = 'dashboard:'.$tenantManager->getTenantId().':'.$today->toDateString();
+        $cached = Cache::remember($cacheKey.':kpis', now()->addMinutes(5), function () use ($today, $startOfMonth, $lastMonthStart, $lastMonthEnd) {
+            return [
+                'today' => (float) Invoice::whereBetween('invoice_date', [$today->toDateString(), $today->toDateString().' 23:59:59'])->sum('total'),
+                'month' => (float) Invoice::where('invoice_date', '>=', $startOfMonth->toDateString())->sum('total'),
+                'last_month' => (float) Invoice::whereBetween('invoice_date', [$lastMonthStart->toDateString(), $lastMonthEnd->toDateTimeString()])->sum('total'),
+                'month_count' => Invoice::where('invoice_date', '>=', $startOfMonth->toDateString())->count(),
+                'last_month_count' => Invoice::whereBetween('invoice_date', [$lastMonthStart->toDateString(), $lastMonthEnd->toDateTimeString()])->count(),
+                'receivables' => (float) Customer::where('status', 'active')->sum('current_balance'),
+            ];
+        });
+
+        $todaySales = $cached['today'];
+        $monthSales = $cached['month'];
+        $lastMonthSales = $cached['last_month'];
         $monthSalesTrend = $lastMonthSales > 0
             ? round((($monthSales - $lastMonthSales) / $lastMonthSales) * 100, 1)
             : 0;
 
-        $invoicesCount = Invoice::whereDate('invoice_date', '>=', $startOfMonth)->count();
-        $lastMonthInvoicesCount = Invoice::whereBetween('invoice_date', [$lastMonthStart, $lastMonthEnd])->count();
+        $invoicesCount = $cached['month_count'];
+        $lastMonthInvoicesCount = $cached['last_month_count'];
         $invoicesCountTrend = $lastMonthInvoicesCount > 0
             ? round((($invoicesCount - $lastMonthInvoicesCount) / $lastMonthInvoicesCount) * 100, 1)
             : 0;
 
-        $receivables = (float) Customer::where('status', 'active')->sum('current_balance');
+        $receivables = $cached['receivables'];
 
         $kpis = [
             'today_sales' => number_format($todaySales, 2),
@@ -81,6 +96,7 @@ class DashboardController extends Controller
                 DB::raw('SUM(invoice_items.total) as revenue')
             )
             ->where('invoices.company_id', $tenantManager->getTenantId())
+            ->where('invoices.invoice_date', '>=', Carbon::now()->subDays(90)->toDateString())
             ->groupBy('invoice_items.item_name')
             ->orderByDesc('revenue')
             ->limit(4)
@@ -98,9 +114,14 @@ class DashboardController extends Controller
         for ($i = 5; $i >= 0; $i--) {
             $date = Carbon::now()->subMonths($i);
             $months[] = $date->translatedFormat('F');
-            $salesData[] = (float) Invoice::whereYear('invoice_date', $date->year)
-                ->whereMonth('invoice_date', $date->month)
-                ->sum('total');
+            $salesData[] = Cache::remember(
+                $cacheKey.':month:'.$date->format('Y-m'),
+                now()->addMinutes($i === 0 ? 5 : 60),
+                fn () => (float) Invoice::whereBetween('invoice_date', [
+                    $date->copy()->startOfMonth()->toDateString(),
+                    $date->copy()->endOfMonth()->toDateTimeString(),
+                ])->sum('total')
+            );
         }
 
         $salesChart = [

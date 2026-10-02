@@ -66,6 +66,7 @@ class CreditNoteController extends Controller
 
         $customers = Customer::where('status', 'active')
             ->orderBy('name')
+            ->limit(500)
             ->get(['id', 'name', 'company_name', 'tax_number', 'phone', 'current_balance']);
 
         // Recent invoices for selection if not pre-selected
@@ -74,15 +75,7 @@ class CreditNoteController extends Controller
             ->limit(50)
             ->get(['id', 'invoice_number', 'customer_id', 'total', 'invoice_date']);
 
-        $year = date('y');
-        $lastNumber = CreditNote::where('credit_note_number', 'like', "CN-{$year}-%")
-            ->orderByRaw('CAST(SUBSTRING_INDEX(credit_note_number, "-", -1) AS UNSIGNED) DESC')
-            ->value('credit_note_number');
-
-        $nextSeq = $lastNumber
-            ? ((int) substr($lastNumber, strrpos($lastNumber, '-') + 1)) + 1
-            : 1;
-        $suggestedNumber = sprintf('CN-%s-%06d', $year, $nextSeq);
+        $suggestedNumber = $this->peekNumber('credit_note');
 
         return Inertia::render('Sales/Returns/Create', [
             'customers' => $customers,
@@ -102,7 +95,7 @@ class CreditNoteController extends Controller
         $validated = $request->validate([
             'customer_id' => 'required|tenant_exists:customers,id',
             'invoice_id' => 'nullable|tenant_exists:invoices,id',
-            'credit_note_number' => 'required|string|max:50',
+            'credit_note_number' => 'nullable|string|max:50', // ignored: assigned by the system
             'credit_note_date' => 'required|date',
             'subtotal' => 'required|numeric|min:0.01',
             'tax_amount' => 'required|numeric|min:0',
@@ -128,7 +121,7 @@ class CreditNoteController extends Controller
                 'company_id' => $company->id,
                 'customer_id' => $validated['customer_id'],
                 'invoice_id' => $validated['invoice_id'] ?? null,
-                'credit_note_number' => $validated['credit_note_number'],
+                'credit_note_number' => $this->nextNumber('credit_note', $validated['credit_note_date']),
                 'credit_note_date' => $validated['credit_note_date'],
                 'subtotal' => $validated['subtotal'],
                 'tax_amount' => $validated['tax_amount'],

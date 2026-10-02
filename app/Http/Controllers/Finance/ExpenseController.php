@@ -70,8 +70,7 @@ class ExpenseController extends Controller
         $tax = $validated['tax_amount'] ?? round($validated['amount'] * 0.15, 2);
         $total = $validated['amount'] + $tax;
 
-        $count = Expense::count() + 1;
-        $expenseNumber = 'EXP-'.date('y').'-'.str_pad($count, 6, '0', STR_PAD_LEFT);
+        $expenseNumber = $this->nextNumber('expense', $validated['expense_date'] ?? null);
 
         $expense = Expense::create([
             'expense_number' => $expenseNumber,

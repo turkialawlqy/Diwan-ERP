@@ -13,9 +13,7 @@ class CustomerController extends Controller
      */
     protected function getNextCustomerCode(): string
     {
-        $count = Customer::count() + 1;
-
-        return '1-'.str_pad($count, 6, '0', STR_PAD_LEFT);
+        return $this->nextNumber('customer');
     }
 
     /**
@@ -69,7 +67,7 @@ class CustomerController extends Controller
                 'customer_type' => $type,
             ],
             'stats' => $stats,
-            'nextCode' => $this->getNextCustomerCode(),
+            'nextCode' => $this->peekNumber('customer'),
         ]);
     }
 
@@ -79,7 +77,7 @@ class CustomerController extends Controller
     public function create()
     {
         return Inertia::render('Sales/Clients/Create', [
-            'nextCode' => $this->getNextCustomerCode(),
+            'nextCode' => $this->peekNumber('customer'),
         ]);
     }
 

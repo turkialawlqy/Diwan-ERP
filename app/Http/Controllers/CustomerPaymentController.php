@@ -65,8 +65,7 @@ class CustomerPaymentController extends Controller
         ]);
 
         DB::transaction(function () use ($validated) {
-            $paymentCount = CustomerPayment::count() + 1;
-            $paymentNumber = sprintf('REC-%s-%05d', date('y'), $paymentCount);
+            $paymentNumber = $this->nextNumber('customer_payment', $validated['payment_date']);
 
             $payment = CustomerPayment::create(array_merge($validated, [
                 'company_id' => auth()->user()->company_id,

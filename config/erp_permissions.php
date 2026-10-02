@@ -186,6 +186,9 @@ return [
     'routes' => [
         'dashboard' => 'dashboard.main.view',
         'files.show' => '@authenticated',
+        'lookup.customers' => ['sales.clients.view', 'sales.invoices.create', 'sales.quotations.create', 'sales.returns.create', 'sales.payments.create', 'pos.terminal.use'],
+        'lookup.products' => ['inventory.products.view', 'sales.invoices.create', 'sales.quotations.create', 'purchases.invoices.create', 'purchases.orders.create', 'pos.terminal.use'],
+        'lookup.suppliers' => ['purchases.suppliers.view', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.payments.create'],
         'accounting.accounts.index' => 'accounting.accounts.view',
         'accounting.accounts.store' => 'accounting.accounts.create',
         'accounting.accounts.update' => 'accounting.accounts.edit',
@@ -234,6 +237,7 @@ return [
         'inventory.warehouses.destroy' => 'inventory.warehouses.delete',
         'pos.index' => 'pos.terminal.use',
         'pos.history' => 'pos.history.view',
+        'pos.products.search' => 'pos.terminal.use',
         'pos.order.process' => 'pos.terminal.use',
         'pos.session.open' => 'pos.sessions.create',
         'pos.session.close' => 'pos.sessions.edit',

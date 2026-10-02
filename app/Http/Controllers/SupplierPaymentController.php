@@ -38,7 +38,7 @@ class SupplierPaymentController extends Controller
             ->paginate($this->perPage($request))
             ->withQueryString();
 
-        $suppliers = Supplier::where('status', 'active')->get(['id', 'name', 'current_balance']);
+        $suppliers = Supplier::where('status', 'active')->orderBy('name')->limit(500)->get(['id', 'name', 'current_balance']);
         $unpaidInvoices = PurchaseInvoice::where('remaining_amount', '>', 0)
             ->with('supplier:id,name')
             ->get(['id', 'supplier_id', 'invoice_number', 'total', 'remaining_amount']);
@@ -82,13 +82,7 @@ class SupplierPaymentController extends Controller
         }
 
         DB::transaction(function () use ($validated, $companyId) {
-            $lastPayment = SupplierPayment::where('payment_number', 'like', 'SPAY-'.date('y').'-%')
-                ->orderByRaw('CAST(SUBSTRING_INDEX(payment_number, "-", -1) AS UNSIGNED) DESC')
-                ->value('payment_number');
-            $nextSeq = $lastPayment
-                ? ((int) substr($lastPayment, strrpos($lastPayment, '-') + 1)) + 1
-                : 1;
-            $paymentNumber = sprintf('SPAY-%s-%06d', date('y'), $nextSeq);
+            $paymentNumber = $this->nextNumber('supplier_payment', $validated['payment_date']);
 
             $payment = SupplierPayment::create([
                 'company_id' => $companyId,

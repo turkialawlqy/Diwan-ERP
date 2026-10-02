@@ -40,6 +40,7 @@ class ProductController extends Controller
         $products = $query->orderBy('created_at', 'desc')
             ->paginate($this->perPage($request))
             ->withQueryString();
+        $products->getCollection()->each->append('total_stock');
 
         $categories = Category::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
 
@@ -76,7 +77,7 @@ class ProductController extends Controller
             'categories' => $categories,
             'units' => $units,
             'warehouses' => $warehouses,
-            'suggestedSku' => 'PRD-'.date('y').'-'.sprintf('%05d', Product::count() + 1),
+            'suggestedSku' => $this->peekNumber('product'),
         ]);
     }
 
@@ -121,7 +122,7 @@ class ProductController extends Controller
                 'unit_id' => $validated['unit_id'] ?? null,
                 'name_ar' => $validated['name_ar'],
                 'name_en' => $validated['name_en'] ?? null,
-                'sku' => $validated['sku'] ?? ('PRD-'.date('y').'-'.sprintf('%05d', Product::count() + 1)),
+                'sku' => $validated['sku'] ?? $this->nextNumber('product'),
                 'barcode' => $validated['barcode'] ?? null,
                 'description' => $validated['description'] ?? null,
                 'purchase_price' => $purchasePrice,

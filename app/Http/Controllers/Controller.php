@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Documents\DocumentNumberService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 abstract class Controller
 {
@@ -15,5 +17,22 @@ abstract class Controller
         return max(1, min($max, (int) $request->input('per_page', $default)));
     }
 
-    //
+    /**
+     * Reserve the next number for a document type (see config/documents.php).
+     * Call inside the transaction that creates the document.
+     */
+    protected function nextNumber(string $type, $date = null): string
+    {
+        return app(DocumentNumberService::class)
+            ->next($type, $date ? Carbon::parse($date) : null);
+    }
+
+    /**
+     * Preview the next number without reserving it.
+     */
+    protected function peekNumber(string $type, $date = null): string
+    {
+        return app(DocumentNumberService::class)
+            ->peek($type, $date ? Carbon::parse($date) : null);
+    }
 }

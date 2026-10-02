@@ -23,6 +23,7 @@ use App\Http\Controllers\HR\PayrollController;
 use App\Http\Controllers\InventoryOperationController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\LocaleController;
+use App\Http\Controllers\LookupController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
@@ -85,9 +86,16 @@ Route::middleware(['auth'])->group(function () {
 });
 
 // Company (tenant) ERP routes: authenticated user + resolved tenant required.
-Route::middleware(['auth', 'tenant', 'erp.authorize'])->group(function () {
+Route::middleware(['auth', 'tenant', 'erp.authorize', 'throttle:tenant-web'])->group(function () {
     // 1. Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Type-ahead lookups for document forms (bounded results).
+    Route::prefix('lookup')->name('lookup.')->group(function () {
+        Route::get('/customers', [LookupController::class, 'customers'])->name('customers');
+        Route::get('/products', [LookupController::class, 'products'])->name('products');
+        Route::get('/suppliers', [LookupController::class, 'suppliers'])->name('suppliers');
+    });
 
     // Private tenant files (attachments) — streamed only to the owning company.
     Route::get('/files/{token}', [FileController::class, 'show'])
@@ -142,6 +150,7 @@ Route::middleware(['auth', 'tenant', 'erp.authorize'])->group(function () {
             ->name('order.process')
             ->middleware('throttle:pos-orders');
         Route::get('/history', [PosController::class, 'history'])->name('history');
+        Route::get('/products/search', [PosController::class, 'productSearch'])->name('products.search');
     });
 
     // 6. Inventory Module

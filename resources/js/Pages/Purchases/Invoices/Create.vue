@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { createRemoteLookup } from '@/lookup';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -80,6 +81,11 @@ const selectedSupplier = computed(() => {
 if (selectedSupplier.value) {
     supplierSearch.value = selectedSupplier.value.name;
 }
+
+// Lists hold only a first slice; typing fetches more matches from the server.
+const searchSuppliersRemote = createRemoteLookup('lookup.suppliers', suppliersList);
+const searchProductsRemote = createRemoteLookup('lookup.products', productsList);
+watch(supplierSearch, (q) => searchSuppliersRemote(q));
 
 const filteredSuppliers = computed(() => {
     const q = supplierSearch.value.trim().toLowerCase();
@@ -197,6 +203,7 @@ const isNonExistingProduct = (name) => {
 };
 
 const getFilteredProducts = (query) => {
+    searchProductsRemote(query);
     const q = (query || '').trim().toLowerCase();
     if (!q) return productsList.value.slice(0, 15);
     return productsList.value.filter(p => 

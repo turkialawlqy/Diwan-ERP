@@ -20,7 +20,7 @@ class PayrollController extends Controller
         $stats = [
             'total_payrolls_count' => Payroll::count(),
             'total_paid_amount' => Payroll::sum('net_total'),
-            'current_month_payroll' => Payroll::where('month', (int)date('m'))->where('year', (int)date('Y'))->value('net_total') ?? 0,
+            'current_month_payroll' => Payroll::where('month', (int) date('m'))->where('year', (int) date('Y'))->value('net_total') ?? 0,
         ];
 
         $employees = Employee::where('status', 'active')->get(['id', 'name', 'job_title', 'basic_salary', 'housing_allowance', 'transport_allowance', 'other_allowances', 'total_salary']);
@@ -47,11 +47,10 @@ class PayrollController extends Controller
         }
 
         return DB::transaction(function () use ($validated, $activeEmployees) {
-            $count = Payroll::count() + 1;
-            $payrollNumber = 'PAY-' . date('y') . '-' . str_pad($count, 6, '0', STR_PAD_LEFT);
+            $payrollNumber = $this->nextNumber('payroll');
 
             $totalBasic = $activeEmployees->sum('basic_salary');
-            $totalAllowances = $activeEmployees->sum(fn($e) => $e->housing_allowance + $e->transport_allowance + $e->other_allowances);
+            $totalAllowances = $activeEmployees->sum(fn ($e) => $e->housing_allowance + $e->transport_allowance + $e->other_allowances);
             $netTotal = $totalBasic + $totalAllowances;
 
             $payroll = Payroll::create([

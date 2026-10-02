@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Cache;
 
 class Company extends Model
 {
@@ -53,8 +54,8 @@ class Company extends Model
 
         $cleanPath = ltrim(str_replace('/storage/', '', $this->logo), '/');
 
-        if (file_exists(public_path('storage/' . $cleanPath))) {
-            return asset('storage/' . $cleanPath);
+        if (file_exists(public_path('storage/'.$cleanPath))) {
+            return asset('storage/'.$cleanPath);
         }
 
         return $this->logo;
@@ -90,10 +91,12 @@ class Company extends Model
      */
     public function setting(string $key, $default = null)
     {
-        $setting = $this->settings()->where('key', $key)->first();
-        if (!$setting) {
+        $setting = $this->cachedSettings()[$key] ?? null;
+        if (! $setting) {
             return $default;
         }
+
+        $setting = (object) $setting;
 
         return match ($setting->type) {
             'boolean' => filter_var($setting->value, FILTER_VALIDATE_BOOLEAN),
@@ -101,6 +104,28 @@ class Company extends Model
             'json' => json_decode($setting->value, true),
             default => $setting->value,
         };
+    }
+
+    /**
+     * All settings of the company, cached (invalidated by CompanySetting events).
+     */
+    public function cachedSettings(): array
+    {
+        return Cache::remember(
+            static::settingsCacheKey($this->id),
+            now()->addHours(6),
+            fn () => CompanySetting::withoutGlobalScopes()
+                ->where('company_id', $this->id)
+                ->get(['key', 'value', 'type'])
+                ->keyBy('key')
+                ->map(fn ($s) => ['value' => $s->value, 'type' => $s->type])
+                ->all()
+        );
+    }
+
+    public static function settingsCacheKey(int $companyId): string
+    {
+        return "company:{$companyId}:settings";
     }
 
     /**

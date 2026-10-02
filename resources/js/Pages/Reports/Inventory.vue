@@ -11,7 +11,7 @@ import {
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
-    products: Array,
+    products: Object,
     stats: Object,
 });
 
@@ -114,29 +114,29 @@ const printReport = () => {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            <tr v-for="prod in products" :key="prod.id" class="hover:bg-slate-50/50 transition">
+                            <tr v-for="prod in products.data" :key="prod.id" class="hover:bg-slate-50/50 transition">
                                 <td class="py-3 px-4 font-mono font-bold text-indigo-600">
-                                    {{ prod.sku || prod.barcode || '-' }}
+                                    {{ prod.sku || '-' }}
                                 </td>
                                 <td class="py-3 px-4 font-bold text-slate-900">
                                     {{ prod.name_ar }}
                                 </td>
                                 <td class="py-3 px-4 text-slate-600 text-3xs">
-                                    {{ prod.category?.name_ar || 'عام' }}
+                                    {{ prod.category || 'عام' }}
                                 </td>
                                 <td class="py-3 px-4 font-mono text-slate-700 text-end">
-                                    {{ formatCurrency(prod.cost_price) }} ﷼
+                                    {{ formatCurrency(prod.purchase_price) }} ﷼
                                 </td>
                                 <td class="py-3 px-4 font-mono text-slate-700 text-end">
-                                    {{ formatCurrency(prod.sale_price) }} ﷼
+                                    {{ formatCurrency(prod.selling_price) }} ﷼
                                 </td>
                                 <td class="py-3 px-4 text-center font-mono font-bold">
-                                    <span :class="prod.stocks?.reduce((acc, s) => acc + s.quantity, 0) <= prod.alert_quantity ? 'text-rose-600' : 'text-slate-800'">
-                                        {{ prod.stocks?.reduce((acc, s) => acc + s.quantity, 0) || 0 }}
+                                    <span :class="prod.is_low ? 'text-rose-600' : 'text-slate-800'">
+                                        {{ Number(prod.total_stock) }}
                                     </span>
                                 </td>
                                 <td class="py-3 px-4 font-mono font-black text-emerald-600 text-end">
-                                    {{ formatCurrency((prod.cost_price || 0) * (prod.stocks?.reduce((acc, s) => acc + s.quantity, 0) || 0)) }} ﷼
+                                    {{ formatCurrency(prod.stock_value) }} ﷼
                                 </td>
                             </tr>
                         </tbody>
@@ -149,6 +149,14 @@ const printReport = () => {
                             </tr>
                         </tfoot>
                     </table>
+                </div>
+
+                <div v-if="products.last_page > 1" class="no-print flex items-center justify-between p-4 border-t border-slate-100 text-xs text-slate-500">
+                    <span>الصفحة {{ products.current_page }} من {{ products.last_page }} ({{ products.total }} صنف)</span>
+                    <div class="flex gap-2">
+                        <Link v-if="products.prev_page_url" :href="products.prev_page_url" preserve-scroll class="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50">السابق</Link>
+                        <Link v-if="products.next_page_url" :href="products.next_page_url" preserve-scroll class="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50">التالي</Link>
+                    </div>
                 </div>
             </div>
         </div>

@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
+use App\Services\Documents\DocumentNumberService;
 use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Customer extends Model
 {
-    use Auditable, BelongsToCompany, HasFactory;
+    use Auditable, BelongsToCompany, HasFactory, SoftDeletes;
 
     protected $fillable = [
         'company_id',
@@ -54,8 +56,8 @@ class Customer extends Model
     {
         static::creating(function ($customer) {
             if (empty($customer->code) && ! empty($customer->company_id)) {
-                $count = static::where('company_id', $customer->company_id)->count() + 1;
-                $customer->code = '1-'.str_pad($count, 6, '0', STR_PAD_LEFT);
+                $customer->code = app(DocumentNumberService::class)
+                    ->next('customer', null, (int) $customer->company_id);
             }
         });
     }
