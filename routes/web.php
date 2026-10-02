@@ -39,8 +39,10 @@ Route::middleware(['auth'])->group(function () {
 
     // 3. Super Admin Routes
     Route::prefix('super-admin')->name('super-admin.')->group(function () {
-        // Leave Impersonation route (must be before wildcard {company})
-        Route::post('/impersonate/leave', [ImpersonationController::class, 'leave'])->name('impersonate.leave');
+        // Leave Impersonation route - requires auth + must be actually impersonating
+        Route::post('/impersonate/leave', [ImpersonationController::class, 'leave'])
+            ->name('impersonate.leave')
+            ->middleware('super_admin');
 
         Route::middleware(['super_admin'])->group(function () {
             Route::get('/dashboard', [SuperAdminDashboardController::class, 'index'])->name('dashboard');
@@ -53,13 +55,17 @@ Route::middleware(['auth'])->group(function () {
         // Invoices
         Route::get('/invoices', [\App\Http\Controllers\InvoiceController::class, 'index'])->name('invoices.index');
         Route::get('/invoices/create', [\App\Http\Controllers\InvoiceController::class, 'create'])->name('invoices.create');
-        Route::post('/invoices', [\App\Http\Controllers\InvoiceController::class, 'store'])->name('invoices.store');
+        Route::post('/invoices', [\App\Http\Controllers\InvoiceController::class, 'store'])
+            ->name('invoices.store')
+            ->middleware('throttle:invoices');
         Route::get('/invoices/{invoice}', [\App\Http\Controllers\InvoiceController::class, 'show'])->name('invoices.show');
         Route::get('/invoices/{invoice}/print', [\App\Http\Controllers\InvoiceController::class, 'print'])->name('invoices.print');
         Route::delete('/invoices/{invoice}', [\App\Http\Controllers\InvoiceController::class, 'destroy'])->name('invoices.destroy');
 
         // Quotations
         Route::get('/quotations', [\App\Http\Controllers\QuotationController::class, 'index'])->name('quotations.index');
+        Route::get('/quotations/create', [\App\Http\Controllers\QuotationController::class, 'create'])->name('quotations.create');
+        Route::post('/quotations', [\App\Http\Controllers\QuotationController::class, 'store'])->name('quotations.store');
         Route::get('/quotations/{quotation}', [\App\Http\Controllers\QuotationController::class, 'show'])->name('quotations.show');
         Route::post('/quotations/{quotation}/convert', [\App\Http\Controllers\QuotationController::class, 'convertToInvoice'])->name('quotations.convert');
 
@@ -67,13 +73,18 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/clients', [\App\Http\Controllers\CustomerController::class, 'index'])->name('clients.index');
         Route::get('/clients/create', [\App\Http\Controllers\CustomerController::class, 'create'])->name('clients.create');
         Route::post('/clients', [\App\Http\Controllers\CustomerController::class, 'store'])->name('clients.store');
+        Route::post('/clients/upload-attachment', [\App\Http\Controllers\CustomerController::class, 'uploadAttachment'])->name('clients.upload-attachment');
         Route::get('/clients/{client}', [\App\Http\Controllers\CustomerController::class, 'show'])->name('clients.show');
+        Route::get('/clients/{client}/statement', [\App\Http\Controllers\CustomerController::class, 'statement'])->name('clients.statement');
         Route::get('/clients/{client}/edit', [\App\Http\Controllers\CustomerController::class, 'edit'])->name('clients.edit');
         Route::put('/clients/{client}', [\App\Http\Controllers\CustomerController::class, 'update'])->name('clients.update');
         Route::delete('/clients/{client}', [\App\Http\Controllers\CustomerController::class, 'destroy'])->name('clients.destroy');
 
         // Returns & Payments
         Route::get('/returns', [\App\Http\Controllers\CreditNoteController::class, 'index'])->name('returns.index');
+        Route::get('/returns/create', [\App\Http\Controllers\CreditNoteController::class, 'create'])->name('returns.create');
+        Route::post('/returns', [\App\Http\Controllers\CreditNoteController::class, 'store'])->name('returns.store');
+        Route::get('/returns/{creditNote}', [\App\Http\Controllers\CreditNoteController::class, 'show'])->name('returns.show');
         Route::get('/payments', [\App\Http\Controllers\CustomerPaymentController::class, 'index'])->name('payments.index');
         Route::post('/payments', [\App\Http\Controllers\CustomerPaymentController::class, 'store'])->name('payments.store');
     });
@@ -83,7 +94,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/', [\App\Http\Controllers\PosController::class, 'index'])->name('index');
         Route::post('/session/open', [\App\Http\Controllers\PosController::class, 'openSession'])->name('session.open');
         Route::post('/session/{session}/close', [\App\Http\Controllers\PosController::class, 'closeSession'])->name('session.close');
-        Route::post('/order', [\App\Http\Controllers\PosController::class, 'processOrder'])->name('order.process');
+        Route::post('/order', [\App\Http\Controllers\PosController::class, 'processOrder'])
+            ->name('order.process')
+            ->middleware('throttle:pos-orders');
         Route::get('/history', [\App\Http\Controllers\PosController::class, 'history'])->name('history');
     });
 
@@ -99,11 +112,15 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/categories', [\App\Http\Controllers\CategoryController::class, 'index'])->name('categories.index');
         Route::post('/categories', [\App\Http\Controllers\CategoryController::class, 'store'])->name('categories.store');
         Route::delete('/categories/{category}', [\App\Http\Controllers\CategoryController::class, 'destroy'])->name('categories.destroy');
-
-        Route::get('/operations', fn () => Inertia::render('Inventory/Operations/Index'))->name('operations.index');
-        Route::get('/vouchers', fn () => Inertia::render('Inventory/Vouchers/Index'))->name('vouchers.index');
-        Route::get('/warehouses', fn () => Inertia::render('Inventory/Warehouses/Index'))->name('warehouses.index');
-        Route::get('/counts', fn () => Inertia::render('Inventory/Counts/Index'))->name('counts.index');
+        Route::get('/operations', [\App\Http\Controllers\InventoryOperationController::class, 'index'])->name('operations.index');
+        Route::post('/operations/transfer', [\App\Http\Controllers\InventoryOperationController::class, 'transfer'])->name('operations.transfer');
+        Route::post('/operations/adjust', [\App\Http\Controllers\InventoryOperationController::class, 'adjust'])->name('operations.adjust');
+        Route::get('/warehouses', [\App\Http\Controllers\WarehouseController::class, 'index'])->name('warehouses.index');
+        Route::post('/warehouses', [\App\Http\Controllers\WarehouseController::class, 'store'])->name('warehouses.store');
+        Route::put('/warehouses/{warehouse}', [\App\Http\Controllers\WarehouseController::class, 'update'])->name('warehouses.update');
+        Route::delete('/warehouses/{warehouse}', [\App\Http\Controllers\WarehouseController::class, 'destroy'])->name('warehouses.destroy');
+        Route::get('/counts', [\App\Http\Controllers\StockCountController::class, 'index'])->name('counts.index');
+        Route::post('/counts/reconcile', [\App\Http\Controllers\StockCountController::class, 'reconcile'])->name('counts.reconcile');
     });
 
     // 7. Purchases Module
@@ -147,7 +164,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/banks', [\App\Http\Controllers\Finance\BankAccountController::class, 'store'])->name('banks.store');
         Route::delete('/banks/{bank}', [\App\Http\Controllers\Finance\BankAccountController::class, 'destroy'])->name('banks.destroy');
 
-        Route::get('/transfers', fn () => Inertia::render('Finance/Transfers/Index'))->name('transfers.index');
+        Route::get('/transfers', [\App\Http\Controllers\Finance\TransferController::class, 'index'])->name('transfers.index');
+        Route::post('/transfers', [\App\Http\Controllers\Finance\TransferController::class, 'store'])->name('transfers.store');
     });
 
     // 9. Accounting Module
@@ -179,8 +197,14 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // 11. Users & Roles
-    Route::get('/users', fn () => Inertia::render('Users/Index'))->name('users.index');
-    Route::get('/roles', fn () => Inertia::render('Roles/Index'))->name('roles.index');
+    Route::get('/users', [\App\Http\Controllers\UserController::class, 'index'])->name('users.index');
+    Route::post('/users', [\App\Http\Controllers\UserController::class, 'store'])->name('users.store');
+    Route::put('/users/{user}', [\App\Http\Controllers\UserController::class, 'update'])->name('users.update');
+    Route::delete('/users/{user}', [\App\Http\Controllers\UserController::class, 'destroy'])->name('users.destroy');
+
+    Route::get('/roles', [\App\Http\Controllers\RoleController::class, 'index'])->name('roles.index');
+    Route::post('/roles', [\App\Http\Controllers\RoleController::class, 'store'])->name('roles.store');
+    Route::delete('/roles/{role}', [\App\Http\Controllers\RoleController::class, 'destroy'])->name('roles.destroy');
 
     // 12. HR Module
     Route::prefix('hr')->name('hr.')->group(function () {
@@ -198,9 +222,19 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/branches/{branch}', [\App\Http\Controllers\BranchController::class, 'destroy'])->name('branches.destroy');
 
     Route::get('/templates', [\App\Http\Controllers\TemplateController::class, 'index'])->name('templates.index');
+    Route::post('/templates', [\App\Http\Controllers\TemplateController::class, 'store'])->name('templates.store');
+    Route::get('/templates/{template}/designer', [\App\Http\Controllers\TemplateController::class, 'designer'])->name('templates.designer');
     Route::put('/templates/{template}', [\App\Http\Controllers\TemplateController::class, 'update'])->name('templates.update');
+    Route::post('/templates/{template}/duplicate', [\App\Http\Controllers\TemplateController::class, 'duplicate'])->name('templates.duplicate');
+    Route::post('/templates/{template}/default', [\App\Http\Controllers\TemplateController::class, 'setDefault'])->name('templates.default');
+    Route::delete('/templates/{template}', [\App\Http\Controllers\TemplateController::class, 'destroy'])->name('templates.destroy');
+    Route::get('/templates/preview-invoice/{invoice}', [\App\Http\Controllers\TemplateController::class, 'getInvoicePreview'])->name('templates.preview-invoice');
 
-    Route::get('/settings', fn () => Inertia::render('Settings/Index'))->name('settings.index');
+    Route::get('/settings', [\App\Http\Controllers\CompanySettingController::class, 'index'])->name('settings.index');
+    Route::put('/settings', [\App\Http\Controllers\CompanySettingController::class, 'update'])->name('settings.update');
+    Route::post('/settings/logo', [\App\Http\Controllers\CompanySettingController::class, 'uploadLogo'])->name('settings.logo.upload');
+    Route::delete('/settings/logo', [\App\Http\Controllers\CompanySettingController::class, 'deleteLogo'])->name('settings.logo.delete');
+    Route::post('/settings/zatca/onboard', [\App\Http\Controllers\CompanySettingController::class, 'onboardZatca'])->name('settings.zatca.onboard');
 });
 
 require __DIR__.'/auth.php';

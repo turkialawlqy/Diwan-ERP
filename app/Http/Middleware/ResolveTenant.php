@@ -44,14 +44,19 @@ class ResolveTenant
             $company = Company::where('custom_domain', $host)->first();
         }
 
-        // 4. Fallback for Local Dev / Testing (Header, Query Param, Authenticated User's Company, or first Company)
+        // 4. Fallback for Local Dev / Testing ONLY (Header, Query Param, Authenticated User's Company, or first Company)
         if (!$company) {
-            if ($devSubdomain = $request->query('tenant') ?? $request->header('X-Tenant')) {
-                $company = Company::where('subdomain', $devSubdomain)->first();
+            if (app()->environment('local', 'testing')) {
+                if ($devSubdomain = $request->query('tenant') ?? $request->header('X-Tenant')) {
+                    $company = Company::where('subdomain', $devSubdomain)->first();
+                } elseif ($request->user() && $request->user()->company_id) {
+                    $company = $request->user()->company;
+                } else {
+                    $company = Company::first();
+                }
             } elseif ($request->user() && $request->user()->company_id) {
+                // In production, only resolve from authenticated user's company
                 $company = $request->user()->company;
-            } elseif (app()->environment('local')) {
-                $company = Company::first();
             }
         }
 

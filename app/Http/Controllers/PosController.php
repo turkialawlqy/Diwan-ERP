@@ -18,6 +18,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class PosController extends Controller
@@ -75,8 +76,11 @@ class PosController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $company = app(TenantManager::class)->getCompany() ?? \App\Models\Company::first();
-        $companyId = $company?->id ?? auth()->user()?->company_id ?? 1;
+        $company = app(TenantManager::class)->getCompany();
+        if (!$company) {
+            return redirect()->route('dashboard')->with('error', 'لم يتم تحديد المنشأة. يرجى تسجيل الدخول مرة أخرى.');
+        }
+        $companyId = $company->id;
 
         $session = PosSession::create([
             'company_id' => $companyId,
@@ -112,7 +116,10 @@ class PosController extends Controller
         ]);
 
         $session = PosSession::with('register')->findOrFail($validated['session_id']);
-        $company = app(TenantManager::class)->getCompany() ?? \App\Models\Company::first();
+        $company = app(TenantManager::class)->getCompany();
+        if (!$company) {
+            return back()->with('error', 'لم يتم تحديد المنشأة.');
+        }
         $warehouseId = $session->register?->warehouse_id;
 
         $order = DB::transaction(function () use ($validated, $session, $company, $warehouseId) {
@@ -149,8 +156,14 @@ class PosController extends Controller
                 if ($warehouseId) {
                     $stock = InventoryStock::where('product_id', $item['product_id'])
                         ->where('warehouse_id', $warehouseId)
+                        ->lockForUpdate()
                         ->first();
                     if ($stock) {
+                        if ($stock->quantity < $qty) {
+                            throw ValidationException::withMessages([
+                                'items' => "الكمية المتوفرة من \"{$item['item_name']}\" غير كافية (المتوفر: {$stock->quantity})",
+                            ]);
+                        }
                         $stock->decrement('quantity', $qty);
                     }
                 }
@@ -172,9 +185,14 @@ class PosController extends Controller
                 $taxAmount
             );
 
-            // Auto-generate order number
-            $orderCount = PosOrder::count() + 1;
-            $orderNumber = sprintf("POS-%s-%06d", date('y'), $orderCount);
+            // Auto-generate order number using MAX to avoid race conditions
+            $lastOrder = PosOrder::where('order_number', 'like', 'POS-' . date('y') . '-%')
+                ->orderByRaw('CAST(SUBSTRING_INDEX(order_number, "-", -1) AS UNSIGNED) DESC')
+                ->value('order_number');
+            $nextSeq = $lastOrder 
+                ? ((int) substr($lastOrder, strrpos($lastOrder, '-') + 1)) + 1 
+                : 1;
+            $orderNumber = sprintf("POS-%s-%06d", date('y'), $nextSeq);
 
             // 1. Create linked Simplified Tax Invoice
             $invoice = Invoice::create([
@@ -182,7 +200,7 @@ class PosController extends Controller
                 'branch_id' => $session->register?->branch_id ?? Branch::first()?->id,
                 'customer_id' => $validated['customer_id'] ?? Customer::first()?->id,
                 'user_id' => auth()->id(),
-                'invoice_number' => "INV-POS-" . sprintf("%06d", $orderCount),
+                'invoice_number' => sprintf("INV-POS-%s-%06d", date('y'), $nextSeq),
                 'invoice_date' => Carbon::now()->toDateString(),
                 'supply_date' => Carbon::now()->toDateString(),
                 'subtotal' => $subtotal,

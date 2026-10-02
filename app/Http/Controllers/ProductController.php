@@ -92,41 +92,48 @@ class ProductController extends Controller
             'sku' => 'nullable|string|max:100',
             'barcode' => 'nullable|string|max:100',
             'description' => 'nullable|string',
-            'purchase_price' => 'required|numeric|min:0',
+            'purchase_price' => 'nullable|numeric|min:0',
             'selling_price' => 'required|numeric|min:0',
             'tax_rate' => 'nullable|numeric|min:0',
             'min_stock_alert' => 'nullable|numeric|min:0',
-            'track_inventory' => 'boolean',
-            'type' => 'required|in:product,service',
+            'track_inventory' => 'nullable|boolean',
+            'type' => 'nullable|in:product,service',
             'initial_stock' => 'nullable|numeric|min:0',
             'warehouse_id' => 'nullable|exists:warehouses,id',
         ]);
 
-        $companyId = app(\App\Services\TenantManager::class)->getTenantId() 
-            ?? auth()->user()?->company_id 
-            ?? \App\Models\Company::first()?->id ?? 1;
+        $companyId = app(\App\Services\TenantManager::class)->getTenantId()
+            ?? auth()->user()?->company_id;
 
-        DB::transaction(function () use ($validated, $companyId) {
+        if (!$companyId) {
+            abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
+        }
+
+        $product = DB::transaction(function () use ($validated, $companyId) {
+            $productType = $validated['type'] ?? 'product';
+            $purchasePrice = $validated['purchase_price'] ?? 0;
+            $trackInventory = isset($validated['track_inventory']) ? (bool) $validated['track_inventory'] : ($productType === 'product');
+
             $product = Product::create([
                 'company_id' => $companyId,
                 'category_id' => $validated['category_id'] ?? null,
                 'unit_id' => $validated['unit_id'] ?? null,
                 'name_ar' => $validated['name_ar'],
                 'name_en' => $validated['name_en'] ?? null,
-                'sku' => $validated['sku'] ?? ('PRD-' . uniqid()),
+                'sku' => $validated['sku'] ?? ('PRD-' . date('y') . '-' . sprintf('%05d', Product::count() + 1)),
                 'barcode' => $validated['barcode'] ?? null,
                 'description' => $validated['description'] ?? null,
-                'purchase_price' => $validated['purchase_price'],
+                'purchase_price' => $purchasePrice,
                 'selling_price' => $validated['selling_price'],
                 'tax_rate' => $validated['tax_rate'] ?? 15.00,
                 'min_stock_alert' => $validated['min_stock_alert'] ?? 5,
-                'track_inventory' => $validated['track_inventory'] ?? true,
-                'type' => $validated['type'],
+                'track_inventory' => $trackInventory,
+                'type' => $productType,
                 'is_active' => true,
             ]);
 
             $initialStock = (float) ($validated['initial_stock'] ?? 0);
-            if ($initialStock > 0 && $validated['type'] === 'product') {
+            if ($initialStock > 0 && $productType === 'product') {
                 $warehouseId = $validated['warehouse_id'] ?? Warehouse::first()?->id;
                 if ($warehouseId) {
                     InventoryStock::create([
@@ -137,7 +144,18 @@ class ProductController extends Controller
                     ]);
                 }
             }
+
+            return $product;
         });
+
+        if ($request->wantsJson() || $request->ajax()) {
+            $product->load(['category', 'unit']);
+            return response()->json([
+                'success' => true,
+                'product' => $product,
+                'message' => 'تمت إضافة المنتج بنجاح',
+            ], 201);
+        }
 
         return redirect()->route('inventory.products.index')->with('success', 'تمت إضافة المنتج بنجاح');
     }

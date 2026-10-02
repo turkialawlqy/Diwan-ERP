@@ -71,14 +71,22 @@ class PurchaseOrderController extends Controller
             return back()->with('error', 'تم تحويل أمر الشراء هذا إلى فاتورة شراء مسبقاً');
         }
 
-        $companyId = app(TenantManager::class)->getTenantId() 
-            ?? auth()->user()?->company_id 
-            ?? \App\Models\Company::first()?->id ?? 1;
+        $companyId = app(TenantManager::class)->getTenantId()
+            ?? auth()->user()?->company_id;
+
+        if (!$companyId) {
+            abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
+        }
 
         $invoice = DB::transaction(function () use ($order, $companyId) {
             $year = date('y');
-            $count = PurchaseInvoice::count() + 1;
-            $invoiceNumber = sprintf("BILL-%s-%06d", $year, $count);
+            $lastInvoice = PurchaseInvoice::where('invoice_number', 'like', "BILL-{$year}-%")
+                ->orderByRaw('CAST(SUBSTRING_INDEX(invoice_number, "-", -1) AS UNSIGNED) DESC')
+                ->value('invoice_number');
+            $nextSeq = $lastInvoice
+                ? ((int) substr($lastInvoice, strrpos($lastInvoice, '-') + 1)) + 1
+                : 1;
+            $invoiceNumber = sprintf("BILL-%s-%06d", $year, $nextSeq);
 
             $purchaseInvoice = PurchaseInvoice::create([
                 'company_id' => $companyId,

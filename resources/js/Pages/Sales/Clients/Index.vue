@@ -1,7 +1,10 @@
 <script setup>
 import { ref } from 'vue';
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
+import CustomerModal from './CustomerModal.vue';
+import CustomerViewModal from './CustomerViewModal.vue';
+import axios from 'axios';
 import {
     PlusIcon,
     MagnifyingGlassIcon,
@@ -12,84 +15,70 @@ import {
     EyeIcon,
     PencilSquareIcon,
     TrashIcon,
-    XMarkIcon,
     ChevronLeftIcon,
     UserPlusIcon,
     UsersIcon,
     CheckIcon,
     PhoneIcon,
-    EnvelopeIcon,
+    DocumentTextIcon,
+    PrinterIcon,
+    BuildingOfficeIcon,
+    UserIcon,
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
     customers: Object,
     filters: Object,
     stats: Object,
+    nextCode: {
+        type: String,
+        default: '1-000001',
+    },
 });
 
 const isFilterOpen = ref(false);
-const isAddModalOpen = ref(false);
-const editingCustomer = ref(null);
 const search = ref(props.filters?.search || '');
 const status = ref(props.filters?.status || '');
+const customerType = ref(props.filters?.customer_type || '');
 const activeMenu = ref(null);
 
-const form = useForm({
-    name: '',
-    company_name: '',
-    phone: '',
-    email: '',
-    tax_number: '',
-    commercial_registration: '',
-    address: '',
-    city: 'الرياض',
-    postal_code: '',
-    credit_limit: 0,
-    opening_balance: 0,
-    status: 'active',
-    notes: '',
-});
+// Modal states
+const isAddEditModalOpen = ref(false);
+const editingCustomer = ref(null);
+
+const isViewModalOpen = ref(false);
+const viewingCustomer = ref(null);
 
 const openAddModal = () => {
     editingCustomer.value = null;
-    form.reset();
-    isAddModalOpen.value = true;
+    isAddEditModalOpen.value = true;
 };
 
 const openEditModal = (client) => {
     editingCustomer.value = client;
-    form.name = client.name;
-    form.company_name = client.company_name;
-    form.phone = client.phone;
-    form.email = client.email;
-    form.tax_number = client.tax_number;
-    form.commercial_registration = client.commercial_registration;
-    form.address = client.address;
-    form.city = client.city || 'الرياض';
-    form.postal_code = client.postal_code;
-    form.credit_limit = client.credit_limit;
-    form.opening_balance = client.opening_balance;
-    form.status = client.status;
-    form.notes = client.notes;
-    isAddModalOpen.value = true;
+    isAddEditModalOpen.value = true;
 };
 
-const submitCustomer = () => {
-    if (editingCustomer.value) {
-        form.put(route('sales.clients.update', editingCustomer.value.id), {
-            onSuccess: () => {
-                isAddModalOpen.value = false;
-                form.reset();
-            }
+const openViewModal = async (client) => {
+    viewingCustomer.value = { ...client };
+    isViewModalOpen.value = true;
+
+    // Load full relationships (invoices, payments, quotations)
+    try {
+        const res = await axios.get(route('sales.clients.show', client.id), {
+            headers: { 'Accept': 'application/json' },
         });
-    } else {
-        form.post(route('sales.clients.store'), {
-            onSuccess: () => {
-                isAddModalOpen.value = false;
-                form.reset();
-            }
-        });
+        if (res.data?.client) {
+            viewingCustomer.value = res.data.client;
+        }
+    } catch (err) {
+        console.error('Failed to load full customer details', err);
     }
+};
+
+const handleCustomerSaved = () => {
+    isAddEditModalOpen.value = false;
+    router.reload({ preserveScroll: true });
 };
 
 const toggleMenu = (id) => {
@@ -101,15 +90,21 @@ const closeMenu = () => {
 };
 
 const applyFilters = () => {
-    router.get(route('sales.clients.index'), {
-        search: search.value || undefined,
-        status: status.value || undefined,
-    }, { preserveState: true, replace: true });
+    router.get(
+        route('sales.clients.index'),
+        {
+            search: search.value || undefined,
+            status: status.value || undefined,
+            customer_type: customerType.value || undefined,
+        },
+        { preserveState: true, replace: true }
+    );
 };
 
 const resetFilters = () => {
     search.value = '';
     status.value = '';
+    customerType.value = '';
     router.get(route('sales.clients.index'), {}, { preserveState: true, replace: true });
 };
 
@@ -122,7 +117,7 @@ const deleteCustomer = (id, name) => {
 };
 
 const formatCurrency = (val) => {
-    if (!val || Number(val) === 0) return '-';
+    if (val === null || val === undefined || Number(val) === 0) return '-';
     return Number(val).toLocaleString('en-US', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
@@ -134,8 +129,8 @@ const formatCurrency = (val) => {
     <AppLayout>
         <Head title="إدارة العملاء" />
 
-        <div class="space-y-5" @click="closeMenu">
-            <!-- Top Breadcrumbs & Action Bar (Matching live screenshot) -->
+        <div class="space-y-5" @click="closeMenu" dir="rtl">
+            <!-- Top Breadcrumbs & Action Bar -->
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <!-- Breadcrumbs Ribbon -->
                 <div class="flex items-center gap-2">
@@ -150,61 +145,88 @@ const formatCurrency = (val) => {
                     <!-- Refresh Button -->
                     <button 
                         @click="router.reload()" 
+                        class="p-2 bg-white border border-slate-200/80 rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-100 transition-colors shadow-xs"
                         title="تحديث البيانات"
-                        class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-xs transition-all"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
                     </button>
                 </div>
 
                 <!-- Action Buttons -->
-                <div class="flex items-center gap-2">
-                    <!-- Search & Filter Toggle Button -->
-                    <button 
-                        @click.stop="isFilterOpen = !isFilterOpen"
+                <div class="flex items-center gap-3">
+                    <button
+                        @click="isFilterOpen = !isFilterOpen"
                         :class="[
-                            'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm transition-all duration-150 shadow-xs border',
-                            isFilterOpen 
+                            'inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-semibold transition-all shadow-xs',
+                            isFilterOpen || search || status || customerType
                                 ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
-                                : 'bg-slate-100/90 border-slate-200 text-slate-700 hover:bg-slate-200/80'
+                                : 'bg-white border-slate-200/80 text-slate-600 hover:bg-slate-50'
                         ]"
                     >
-                        <MagnifyingGlassIcon class="w-4 h-4 text-indigo-600" />
-                        <span>البحث والتصفية</span>
+                        <MagnifyingGlassIcon class="w-4 h-4 text-slate-400" />
+                        <span>تصفية وبحث</span>
                     </button>
 
-                    <!-- Add Client Button -->
-                    <button 
+                    <button
                         @click="openAddModal"
-                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
+                        class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs hover:shadow-indigo-500/20 transition-all"
                     >
                         <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>إضافة</span>
+                        <span>إضافة عميل</span>
                     </button>
                 </div>
             </div>
 
-            <!-- Collapsible Search & Filter Panel -->
+            <!-- Summary KPI Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي العملاء</p>
+                    <p class="text-xl sm:text-2xl font-black text-slate-800">{{ stats?.total_customers || 0 }}</p>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">العملاء النشطون</p>
+                    <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ stats?.active_customers || 0 }}</p>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي الأرصدة المستحقة</p>
+                    <p class="text-xl sm:text-2xl font-black text-rose-500 font-mono">{{ formatCurrency(stats?.total_receivables) }}</p>
+                </div>
+            </div>
+
+            <!-- Filter Panel -->
             <transition
-                enter-active-class="transition duration-200 ease-out"
+                enter-active-class="transition duration-150 ease-out"
                 enter-from-class="transform -translate-y-2 opacity-0"
                 enter-to-class="transform translate-y-0 opacity-100"
-                leave-active-class="transition duration-150 ease-in"
+                leave-active-class="transition duration-100 ease-in"
                 leave-from-class="transform translate-y-0 opacity-100"
                 leave-to-class="transform -translate-y-2 opacity-0"
             >
-                <div v-if="isFilterOpen" class="bg-white rounded-2xl border border-indigo-100/80 p-5 shadow-sm space-y-4">
+                <div v-if="isFilterOpen" class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm space-y-4">
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <!-- Search Keyword -->
-                        <div class="sm:col-span-2">
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">اسم العميل، الهاتف، أو الرقم الضريبي</label>
+                        <!-- Search -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">بحث بالاسم أو الكود أو الهاتف أو الضريبي</label>
                             <input 
                                 v-model="search"
                                 @keyup.enter="applyFilters"
                                 type="text" 
-                                placeholder="بحث عن عميل..."
+                                placeholder="اكتب للبحث..."
                                 class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                             />
+                        </div>
+
+                        <!-- Type -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">نوع العميل</label>
+                            <select 
+                                v-model="customerType" 
+                                class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                            >
+                                <option value="">الكل (فردي وتجاري)</option>
+                                <option value="commercial">تجاري</option>
+                                <option value="individual">فردي</option>
+                            </select>
                         </div>
 
                         <!-- Status -->
@@ -238,17 +260,17 @@ const formatCurrency = (val) => {
                 </div>
             </transition>
 
-            <!-- Clients Table Container (Exact visual match to live system) -->
+            <!-- Clients Table Container -->
             <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-right border-collapse">
                         <thead>
-                            <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <th class="py-4 px-6 text-start">الاسم</th>
+                            <tr class="border-b border-slate-200 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                <th class="py-4 px-6 text-start">العميل والكود</th>
+                                <th class="py-4 px-6 text-start">النوع</th>
+                                <th class="py-4 px-6 text-start">بيانات الاتصال</th>
                                 <th class="py-4 px-6 text-start">الرصيد</th>
-                                <th class="py-4 px-6 text-center w-12">
-                                    <span class="sr-only">إجراءات</span>
-                                </th>
+                                <th class="py-4 px-6 text-center w-24">إجراءات</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
@@ -260,21 +282,53 @@ const formatCurrency = (val) => {
                                 <!-- Client Name & Code -->
                                 <td class="py-4 px-6">
                                     <div class="flex items-center gap-2">
-                                        <span class="font-bold text-slate-800 hover:text-indigo-600 transition-colors cursor-pointer" @click="openEditModal(c)">
+                                        <button
+                                            type="button"
+                                            @click="openViewModal(c)"
+                                            class="font-bold text-slate-800 hover:text-indigo-600 transition-colors text-start"
+                                            title="عرض تفاصيل العميل"
+                                        >
                                             {{ c.name }}
-                                        </span>
+                                        </button>
                                         <span class="text-xs font-mono text-slate-400">
-                                            #1-{{ String(c.id).padStart(6, '0') }}
+                                            #{{ c.code || ('1-' + String(c.id).padStart(6, '0')) }}
                                         </span>
                                     </div>
-                                    <div v-if="c.phone || c.tax_number" class="flex items-center gap-3 text-2xs text-slate-400 mt-1">
-                                        <span v-if="c.phone" class="flex items-center gap-1">
-                                            <PhoneIcon class="w-3 h-3 text-slate-300" />
-                                            <span>{{ c.phone }}</span>
-                                        </span>
-                                        <span v-if="c.tax_number" class="font-mono">
-                                            الرقم الضريبي: {{ c.tax_number }}
-                                        </span>
+                                    <div v-if="c.tax_number || c.commercial_registration" class="flex items-center gap-3 text-2xs text-slate-400 mt-1 font-mono">
+                                        <span v-if="c.tax_number">الرقم الضريبي: {{ c.tax_number }}</span>
+                                        <span v-if="c.commercial_registration">السجل: {{ c.commercial_registration }}</span>
+                                    </div>
+                                </td>
+
+                                <!-- Type -->
+                                <td class="py-4 px-6 whitespace-nowrap">
+                                    <span
+                                        :class="[
+                                            'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-2xs font-bold border',
+                                            c.customer_type === 'individual'
+                                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                        ]"
+                                    >
+                                        <UserIcon v-if="c.customer_type === 'individual'" class="w-3 h-3" />
+                                        <BuildingOfficeIcon v-else class="w-3 h-3" />
+                                        <span>{{ c.customer_type === 'individual' ? 'فردي' : 'تجاري' }}</span>
+                                    </span>
+                                </td>
+
+                                <!-- Contact Info -->
+                                <td class="py-4 px-6">
+                                    <div class="space-y-0.5 text-xs text-slate-600">
+                                        <div v-if="c.contact_name" class="font-medium text-slate-700">
+                                            {{ c.contact_name }}
+                                        </div>
+                                        <div v-if="c.phone || c.mobile" class="flex items-center gap-1.5 text-slate-500 font-mono text-2xs">
+                                            <PhoneIcon class="w-3 h-3 text-slate-400" />
+                                            <span>{{ c.phone || c.mobile }}</span>
+                                        </div>
+                                        <div v-if="c.city" class="text-2xs text-slate-400">
+                                            {{ c.city }}
+                                        </div>
                                     </div>
                                 </td>
 
@@ -290,43 +344,90 @@ const formatCurrency = (val) => {
                                     </span>
                                 </td>
 
-                                <!-- Actions Dropdown -->
-                                <td class="py-4 px-6 text-center relative" @click.stop>
-                                    <button 
-                                        @click="toggleMenu(c.id)"
-                                        class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                                        title="خيارات"
-                                    >
-                                        <EllipsisVerticalIcon class="w-5 h-5" />
-                                    </button>
+                                <!-- Actions Dropdown & Quick Buttons -->
+                                <td class="py-4 px-6 text-center" @click.stop>
+                                    <div class="flex items-center justify-center gap-1">
+                                        <!-- View Modal Button -->
+                                        <button
+                                            type="button"
+                                            @click="openViewModal(c)"
+                                            class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                            title="عرض عميل"
+                                        >
+                                            <EyeIcon class="w-4 h-4" />
+                                        </button>
 
-                                    <!-- Popover Menu -->
-                                    <div 
-                                        v-if="activeMenu === c.id"
-                                        class="absolute start-0 sm:start-auto end-6 top-12 w-44 bg-white rounded-xl shadow-lg border border-slate-100 py-1.5 z-30 animate-in fade-in zoom-in-95 duration-100 text-xs font-medium text-slate-700"
-                                    >
-                                        <button 
-                                            @click="openEditModal(c); closeMenu()"
-                                            class="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 hover:text-indigo-600 transition-colors text-start"
+                                        <!-- Edit Modal Button -->
+                                        <button
+                                            type="button"
+                                            @click="openEditModal(c)"
+                                            class="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                            title="تعديل العميل"
                                         >
-                                            <PencilSquareIcon class="w-4 h-4 text-slate-400" />
-                                            <span>تعديل البيانات</span>
+                                            <PencilSquareIcon class="w-4 h-4" />
                                         </button>
-                                        <div class="h-px bg-slate-100 my-1"></div>
-                                        <button 
-                                            @click="deleteCustomer(c.id, c.name)"
-                                            class="w-full flex items-center gap-2 px-4 py-2 text-rose-600 hover:bg-rose-50 transition-colors text-start"
+
+                                        <!-- Statement Link -->
+                                        <Link
+                                            :href="route('sales.clients.statement', c.id)"
+                                            class="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                                            title="كشف حساب"
                                         >
-                                            <TrashIcon class="w-4 h-4 text-rose-500" />
-                                            <span>حذف العميل</span>
-                                        </button>
+                                            <DocumentTextIcon class="w-4 h-4" />
+                                        </Link>
+
+                                        <!-- More Actions Popover -->
+                                        <div class="relative">
+                                            <button 
+                                                @click="toggleMenu(c.id)"
+                                                class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                                title="خيارات إضافية"
+                                            >
+                                                <EllipsisVerticalIcon class="w-4 h-4" />
+                                            </button>
+
+                                            <div 
+                                                v-if="activeMenu === c.id"
+                                                class="absolute end-0 top-8 w-44 bg-white rounded-xl shadow-lg border border-slate-100 py-1.5 z-30 animate-in fade-in zoom-in-95 duration-100 text-xs font-medium text-slate-700"
+                                            >
+                                                <button 
+                                                    @click="openViewModal(c); closeMenu()"
+                                                    class="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 hover:text-indigo-600 transition-colors text-start"
+                                                >
+                                                    <EyeIcon class="w-4 h-4 text-slate-400" />
+                                                    <span>عرض العميل</span>
+                                                </button>
+                                                <button 
+                                                    @click="openEditModal(c); closeMenu()"
+                                                    class="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 hover:text-emerald-600 transition-colors text-start"
+                                                >
+                                                    <PencilSquareIcon class="w-4 h-4 text-slate-400" />
+                                                    <span>تعديل البيانات</span>
+                                                </button>
+                                                <Link 
+                                                    :href="route('sales.clients.statement', c.id)"
+                                                    class="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 hover:text-amber-600 transition-colors text-start"
+                                                >
+                                                    <DocumentTextIcon class="w-4 h-4 text-slate-400" />
+                                                    <span>كشف الحساب</span>
+                                                </Link>
+                                                <div class="h-px bg-slate-100 my-1"></div>
+                                                <button 
+                                                    @click="deleteCustomer(c.id, c.name)"
+                                                    class="w-full flex items-center gap-2 px-4 py-2 text-rose-600 hover:bg-rose-50 transition-colors text-start"
+                                                >
+                                                    <TrashIcon class="w-4 h-4 text-rose-500" />
+                                                    <span>حذف العميل</span>
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
 
                             <!-- Empty State -->
                             <tr v-if="!customers.data || customers.data.length === 0">
-                                <td colspan="3" class="py-12 text-center text-slate-400">
+                                <td colspan="5" class="py-12 text-center text-slate-400">
                                     <div class="flex flex-col items-center justify-center gap-2">
                                         <UsersIcon class="w-10 h-10 text-slate-300 stroke-1" />
                                         <p class="font-semibold text-slate-500">لا يوجد عملاء مضافين حتى الآن</p>
@@ -343,221 +444,43 @@ const formatCurrency = (val) => {
                     </table>
                 </div>
 
-                <!-- Live-Style Pagination Footer -->
-                <div class="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-medium">
-                    <div class="flex items-center gap-2">
-                        <span>الإجمالي {{ customers.total || 0 }}.</span>
-                        <span>لكل صفحة:</span>
-                        <select 
-                            :value="customers.per_page"
-                            @change="router.get(route('sales.clients.index'), { per_page: $event.target.value }, { preserveState: true })"
-                            class="text-xs rounded-lg border-slate-200 py-1 pe-6 ps-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                        >
-                            <option value="10">10</option>
-                            <option value="20">20</option>
-                            <option value="50">50</option>
-                        </select>
-                    </div>
-
-                    <!-- Page Navigation -->
-                    <div class="flex items-center gap-2">
-                        <span>الصفحة {{ customers.current_page }} من {{ customers.last_page || 1 }}.</span>
-                        <div class="flex items-center gap-1">
-                            <Link 
-                                v-if="customers.prev_page_url" 
-                                :href="customers.prev_page_url"
-                                class="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
-                            >
-                                <ChevronRightIcon class="w-3.5 h-3.5 rtl:rotate-180" />
-                            </Link>
-                            <button 
-                                v-else 
-                                disabled 
-                                class="p-1.5 rounded-lg border border-slate-100 text-slate-300 cursor-not-allowed"
-                            >
-                                <ChevronRightIcon class="w-3.5 h-3.5 rtl:rotate-180" />
-                            </button>
-
-                            <span class="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold flex items-center justify-center">
-                                {{ customers.current_page }}
-                            </span>
-
-                            <Link 
-                                v-if="customers.next_page_url" 
-                                :href="customers.next_page_url"
-                                class="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
-                            >
-                                <ChevronLeftIcon class="w-3.5 h-3.5 rtl:rotate-180" />
-                            </Link>
-                            <button 
-                                v-else 
-                                disabled 
-                                class="p-1.5 rounded-lg border border-slate-100 text-slate-300 cursor-not-allowed"
-                            >
-                                <ChevronLeftIcon class="w-3.5 h-3.5 rtl:rotate-180" />
-                            </button>
-                        </div>
+                <!-- Pagination Footer -->
+                <div class="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+                    <p>
+                        عرض <span class="font-bold text-slate-700">{{ customers.from || 0 }}</span> إلى <span class="font-bold text-slate-700">{{ customers.to || 0 }}</span> من إجمالي <span class="font-bold text-slate-700">{{ customers.total || 0 }}</span> عميل
+                    </p>
+                    <div v-if="customers?.links && customers.links.length > 3" class="flex items-center gap-1">
+                        <Link 
+                            v-for="(link, i) in customers.links" 
+                            :key="i"
+                            :href="link.url || '#'"
+                            v-html="link.label"
+                            :class="[
+                                'px-3 py-1.5 text-xs rounded-lg transition-all',
+                                link.active ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:bg-slate-100',
+                                !link.url ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''
+                            ]"
+                        />
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Add/Edit Customer Modal Dialog -->
-        <div 
-            v-if="isAddModalOpen" 
-            class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4"
-        >
-            <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 space-y-6 animate-in zoom-in-95 duration-150">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-                            <UserPlusIcon class="w-5 h-5" />
-                        </div>
-                        <div>
-                            <h3 class="text-base font-black text-slate-800">
-                                {{ editingCustomer ? 'تعديل بيانات العميل' : 'إضافة عميل جديد' }}
-                            </h3>
-                            <p class="text-2xs text-slate-400">سجل بيانات العميل لإصدار الفواتير وعروض الأسعار</p>
-                        </div>
-                    </div>
-                    <button @click="isAddModalOpen = false" class="text-slate-400 hover:text-slate-600 p-1">
-                        <XMarkIcon class="w-5 h-5" />
-                    </button>
-                </div>
+        <!-- Add/Edit Customer Modal (Exact matching screenshots 2 & 3) -->
+        <CustomerModal
+            :show="isAddEditModalOpen"
+            :customer="editingCustomer"
+            :nextCode="nextCode"
+            @close="isAddEditModalOpen = false"
+            @saved="handleCustomerSaved"
+        />
 
-                <form @submit.prevent="submitCustomer" class="space-y-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <!-- Customer Name -->
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">الاسم الكامل <span class="text-rose-500">*</span></label>
-                            <input 
-                                v-model="form.name" 
-                                type="text" 
-                                required
-                                placeholder="مثال: شركة مدن الراقية..." 
-                                class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500"
-                            />
-                        </div>
-
-                        <!-- Company Name -->
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">اسم المؤسسة / التجاري</label>
-                            <input 
-                                v-model="form.company_name" 
-                                type="text" 
-                                placeholder="اسم السجل التجاري..." 
-                                class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500"
-                            />
-                        </div>
-
-                        <!-- Phone -->
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف</label>
-                            <input 
-                                v-model="form.phone" 
-                                type="text" 
-                                placeholder="05XXXXXXXX" 
-                                class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500"
-                            />
-                        </div>
-
-                        <!-- Email -->
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">البريد الإلكتروني</label>
-                            <input 
-                                v-model="form.email" 
-                                type="email" 
-                                placeholder="client@company.com" 
-                                class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500"
-                            />
-                        </div>
-
-                        <!-- Tax Number (15 digits Saudi VAT) -->
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">الرقم الضريبي (15 رقم)</label>
-                            <input 
-                                v-model="form.tax_number" 
-                                type="text" 
-                                maxlength="15"
-                                placeholder="3XXXXXXXXXXXX03" 
-                                class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 font-mono"
-                            />
-                        </div>
-
-                        <!-- Commercial Registration -->
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">رقم السجل التجاري</label>
-                            <input 
-                                v-model="form.commercial_registration" 
-                                type="text" 
-                                placeholder="1010XXXXXX" 
-                                class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 font-mono"
-                            />
-                        </div>
-
-                        <!-- City & Address -->
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">المدينة</label>
-                            <input 
-                                v-model="form.city" 
-                                type="text" 
-                                placeholder="الرياض" 
-                                class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500"
-                            />
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">العنوان الوطني / الحي</label>
-                            <input 
-                                v-model="form.address" 
-                                type="text" 
-                                placeholder="حي العليا - شارع التحلية..." 
-                                class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500"
-                            />
-                        </div>
-
-                        <!-- Opening Balance (Only on create) -->
-                        <div v-if="!editingCustomer">
-                            <label class="block text-xs font-bold text-slate-700 mb-1">الرصيد الافتتاحي (ر.س)</label>
-                            <input 
-                                v-model="form.opening_balance" 
-                                type="number" 
-                                step="0.01" 
-                                class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 font-mono"
-                            />
-                        </div>
-
-                        <!-- Credit Limit -->
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">الحد الائتماني (ر.س)</label>
-                            <input 
-                                v-model="form.credit_limit" 
-                                type="number" 
-                                step="0.01" 
-                                class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 font-mono"
-                            />
-                        </div>
-                    </div>
-
-                    <!-- Actions -->
-                    <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                        <button 
-                            type="button" 
-                            @click="isAddModalOpen = false" 
-                            class="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-                        >
-                            إلغاء
-                        </button>
-                        <button 
-                            type="submit" 
-                            :disabled="form.processing"
-                            class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs hover:shadow-indigo-500/20 transition-all disabled:opacity-50"
-                        >
-                            {{ form.processing ? 'جاري الحفظ...' : (editingCustomer ? 'حفظ التعديلات' : 'إضافة العميل') }}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+        <!-- View Customer Modal (Exact matching screenshot 1) -->
+        <CustomerViewModal
+            :show="isViewModalOpen"
+            :customer="viewingCustomer"
+            @close="isViewModalOpen = false"
+            @edit="openEditModal"
+        />
     </AppLayout>
 </template>

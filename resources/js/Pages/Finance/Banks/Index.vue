@@ -70,45 +70,47 @@ const formatCurrency = (val) => {
         <div class="space-y-5">
             <!-- Header Ribbon -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div class="flex items-center gap-2">
-                    <button 
-                        @click="openAddModal"
-                        class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-indigo-500/20 transition-all flex items-center gap-1.5"
-                    >
-                        <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>إضافة حساب بنكي / خزينة</span>
-                    </button>
-                </div>
-
                 <!-- Breadcrumb & Refresh -->
                 <div class="flex items-center gap-2">
                     <Link 
                         :href="route('finance.banks.index')"
-                        class="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-2xs"
+                        class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-xs"
                         title="تحديث البيانات"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
                     </Link>
 
-                    <nav class="flex items-center gap-1.5 text-xs text-slate-500 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs">
-                        <Link :href="route('dashboard')" class="hover:text-indigo-600 transition-colors">
-                            <HomeIcon class="w-3.5 h-3.5" />
+                    <nav class="inline-flex items-center bg-white border border-slate-200/80 rounded-xl px-4 py-2 text-xs sm:text-sm font-medium text-slate-600 shadow-xs">
+                        <Link :href="route('dashboard')" class="hover:text-indigo-600 flex items-center transition-colors">
+                            <HomeIcon class="w-4 h-4 ml-1.5 text-slate-400" />
+                            <span>الرئيسية</span>
                         </Link>
-                        <ChevronRightIcon class="w-3 h-3 text-slate-400 rotate-180" />
-                        <span>المالية</span>
-                        <ChevronRightIcon class="w-3 h-3 text-slate-400 rotate-180" />
-                        <span class="text-slate-900 font-semibold">الخزائن والبنوك</span>
+                        <ChevronRightIcon class="w-3.5 h-3.5 mx-2 text-slate-400 rtl:rotate-180" />
+                        <span class="text-slate-500">المالية</span>
+                        <ChevronRightIcon class="w-3.5 h-3.5 mx-2 text-slate-400 rtl:rotate-180" />
+                        <span class="text-indigo-600 font-bold">الخزائن والبنوك</span>
                     </nav>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex items-center gap-2">
+                    <button 
+                        @click="openAddModal"
+                        class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-indigo-500/20 transition-all flex items-center gap-1.5"
+                    >
+                        <PlusIcon class="w-4 h-4 stroke-2" />
+                        <span>إضافة حساب بنكي / خزينة</span>
+                    </button>
                 </div>
             </div>
 
             <!-- KPI Cards -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs flex items-center justify-between">
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
                     <div class="space-y-1">
-                        <span class="text-3xs font-bold text-slate-400">إجمالي السيولة النقدية</span>
+                        <span class="text-xs font-bold text-slate-500">إجمالي السيولة النقدية</span>
                         <h3 class="text-lg font-black font-mono text-indigo-600">
-                            {{ formatCurrency(stats?.total_liquidity) }} <span class="text-xs font-normal">﷼</span>
+                            {{ formatCurrency(stats?.total_liquidity) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                         </h3>
                     </div>
                     <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -116,11 +118,11 @@ const formatCurrency = (val) => {
                     </div>
                 </div>
 
-                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs flex items-center justify-between">
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
                     <div class="space-y-1">
-                        <span class="text-3xs font-bold text-slate-400">أرصدة الحسابات البنكية ({{ stats?.bank_count || 0 }})</span>
+                        <span class="text-xs font-bold text-slate-500">أرصدة الحسابات البنكية ({{ stats?.bank_count || 0 }})</span>
                         <h3 class="text-lg font-black font-mono text-sky-600">
-                            {{ formatCurrency(stats?.total_bank_balance) }} <span class="text-xs font-normal">﷼</span>
+                            {{ formatCurrency(stats?.total_bank_balance) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                         </h3>
                     </div>
                     <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
@@ -128,11 +130,11 @@ const formatCurrency = (val) => {
                     </div>
                 </div>
 
-                <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs flex items-center justify-between">
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
                     <div class="space-y-1">
-                        <span class="text-3xs font-bold text-slate-400">أرصدة الخزائن النقدية ({{ stats?.cash_count || 0 }})</span>
+                        <span class="text-xs font-bold text-slate-500">أرصدة الخزائن النقدية ({{ stats?.cash_count || 0 }})</span>
                         <h3 class="text-lg font-black font-mono text-emerald-600">
-                            {{ formatCurrency(stats?.total_cash_balance) }} <span class="text-xs font-normal">﷼</span>
+                            {{ formatCurrency(stats?.total_cash_balance) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                         </h3>
                     </div>
                     <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -146,7 +148,7 @@ const formatCurrency = (val) => {
                 <div 
                     v-for="acc in accounts" 
                     :key="acc.id"
-                    class="bg-white rounded-2xl border border-slate-100 p-5 shadow-2xs hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between"
+                    class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between"
                 >
                     <div class="space-y-3">
                         <div class="flex items-start justify-between">

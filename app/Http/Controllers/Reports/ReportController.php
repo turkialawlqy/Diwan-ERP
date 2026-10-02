@@ -17,12 +17,15 @@ class ReportController extends Controller
 {
     public function sales(Request $request): Response
     {
+        $totalSales = (float) Invoice::sum('total');
+        $totalCogs = (float) PurchaseInvoice::sum('total');
+
         $stats = [
-            'total_sales' => Invoice::sum('total'),
+            'total_sales' => $totalSales,
             'total_tax' => Invoice::sum('tax_amount'),
             'invoices_count' => Invoice::count(),
             'total_payments_received' => CustomerPayment::sum('amount'),
-            'gross_profit' => Invoice::sum('total') - (Invoice::sum('subtotal') * 0.65), // approximate 35% margin
+            'gross_profit' => $totalSales - $totalCogs,
         ];
 
         return Inertia::render('Reports/Sales', [
@@ -37,10 +40,10 @@ class ReportController extends Controller
         $stats = [
             'total_products' => $products->count(),
             'total_stock_value' => $products->sum(function ($p) {
-                return $p->cost_price * $p->stocks->sum('quantity');
+                return (float) ($p->purchase_price ?? 0) * (float) $p->stocks->sum('quantity');
             }),
             'low_stock_count' => $products->filter(function ($p) {
-                return $p->stocks->sum('quantity') <= $p->alert_quantity;
+                return $p->min_stock_alert !== null && (float) $p->stocks->sum('quantity') <= (float) $p->min_stock_alert;
             })->count(),
         ];
 

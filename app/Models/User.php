@@ -25,7 +25,6 @@ class User extends Authenticatable
         'email',
         'password',
         'company_id',
-        'is_super_admin',
         'phone',
         'avatar',
         'branch_id',

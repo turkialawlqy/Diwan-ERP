@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\Product;
 use App\Models\Quotation;
 use App\Models\QuotationItem;
 use App\Models\Invoice;
@@ -58,6 +60,135 @@ class QuotationController extends Controller
             ],
             'stats' => $stats,
         ]);
+    }
+
+    /**
+     * Show form for creating a new quotation.
+     */
+    public function create()
+    {
+        $tenantManager = app(TenantManager::class);
+        $company = $tenantManager->getCompany();
+
+        $customers = Customer::where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name', 'company_name', 'tax_number', 'phone']);
+
+        $branches = Branch::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
+
+        $products = Product::where('is_active', true)
+            ->get(['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'tax_rate']);
+
+        $year = date('y');
+        $branchId = $branches->first()?->id ?? 1;
+        $lastNumber = Quotation::where('quotation_number', 'like', "QUO-{$year}-{$branchId}-%")
+            ->orderByRaw('CAST(SUBSTRING_INDEX(quotation_number, "-", -1) AS UNSIGNED) DESC')
+            ->value('quotation_number');
+
+        $nextSeq = $lastNumber 
+            ? ((int) substr($lastNumber, strrpos($lastNumber, '-') + 1)) + 1 
+            : 1;
+        $suggestedNumber = sprintf("QUO-%s-%s-%06d", $year, $branchId, $nextSeq);
+
+        return Inertia::render('Sales/Quotations/Create', [
+            'customers' => $customers,
+            'branches' => $branches,
+            'products' => $products,
+            'suggestedNumber' => $suggestedNumber,
+            'company' => $company,
+            'defaultTaxRate' => 15.00,
+        ]);
+    }
+
+    /**
+     * Store a newly created quotation.
+     */
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'customer_id' => 'required|exists:customers,id',
+            'branch_id' => 'nullable|exists:branches,id',
+            'quotation_number' => 'required|string|max:50',
+            'quotation_date' => 'required|date',
+            'valid_until' => 'nullable|date',
+            'notes' => 'nullable|string',
+            'terms' => 'nullable|string',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'nullable|integer',
+            'items.*.item_name' => 'required|string|max:255',
+            'items.*.description' => 'nullable|string',
+            'items.*.quantity' => 'required|numeric|min:0.01',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.tax_rate' => 'nullable|numeric|min:0',
+        ]);
+
+        $tenantManager = app(TenantManager::class);
+        $company = $tenantManager->getCompany();
+
+        $quotation = DB::transaction(function () use ($validated, $company) {
+            $subtotal = 0;
+            $taxAmount = 0;
+            $discountTotal = 0;
+            $itemsToCreate = [];
+
+            foreach ($validated['items'] as $itemData) {
+                $qty = (float) $itemData['quantity'];
+                $price = (float) $itemData['unit_price'];
+                $discount = (float) ($itemData['discount'] ?? 0);
+                $taxRate = (float) ($itemData['tax_rate'] ?? 15.00);
+
+                $itemSubtotal = ($qty * $price) - $discount;
+                $itemTax = $itemSubtotal * ($taxRate / 100);
+                $itemTotal = $itemSubtotal + $itemTax;
+
+                $subtotal += $itemSubtotal;
+                $taxAmount += $itemTax;
+                $discountTotal += $discount;
+
+                $itemsToCreate[] = [
+                    'product_id' => $itemData['product_id'] ?? null,
+                    'item_name' => $itemData['item_name'],
+                    'description' => $itemData['description'] ?? null,
+                    'quantity' => $qty,
+                    'unit_price' => $price,
+                    'discount' => $discount,
+                    'tax_rate' => $taxRate,
+                    'tax_amount' => $itemTax,
+                    'subtotal' => $itemSubtotal,
+                    'total' => $itemTotal,
+                ];
+            }
+
+            $total = $subtotal + $taxAmount;
+
+            $quotation = Quotation::create([
+                'company_id' => $company->id,
+                'branch_id' => $validated['branch_id'] ?? null,
+                'customer_id' => $validated['customer_id'],
+                'user_id' => auth()->id(),
+                'quotation_number' => $validated['quotation_number'],
+                'quotation_date' => $validated['quotation_date'],
+                'valid_until' => $validated['valid_until'] ?? null,
+                'subtotal' => $subtotal,
+                'discount_amount' => $discountTotal,
+                'tax_rate' => 15.00,
+                'tax_amount' => $taxAmount,
+                'total' => $total,
+                'status' => 'draft',
+                'notes' => $validated['notes'] ?? null,
+                'terms' => $validated['terms'] ?? null,
+            ]);
+
+            foreach ($itemsToCreate as $item) {
+                $quotation->items()->create($item);
+            }
+
+            return $quotation;
+        });
+
+        return redirect()->route('sales.quotations.show', $quotation->id)
+            ->with('success', 'تم إنشاء عرض السعر بنجاح');
     }
 
     /**

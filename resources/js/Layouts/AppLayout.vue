@@ -19,24 +19,25 @@ const dismissFlash = () => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+    <div class="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white print:bg-white print:min-h-0 print:p-0 print:m-0 print:block">
         <!-- Super Admin Impersonation Notice Banner -->
-        <ImpersonationBanner :impersonation="impersonation" />
+        <ImpersonationBanner class="print:hidden" :impersonation="impersonation" />
 
-        <div class="flex-1 flex">
+        <div class="flex-1 flex print:block">
             <!-- Right Navigation Sidebar (in RTL) -->
             <AppSidebar 
+                class="print:hidden"
                 :is-open="isSidebarOpen" 
                 @close-sidebar="isSidebarOpen = false" 
             />
 
-            <!-- Main Content Shell (Padded for 256px sidebar on the end side in RTL) -->
-            <div class="flex-1 flex flex-col min-w-0 lg:pe-64 transition-all">
+            <!-- Main Content Shell (Padded for 256px sidebar on the start side: Right in RTL, Left in LTR) -->
+            <div class="flex-1 flex flex-col min-w-0 lg:ps-64 transition-all print:ps-0 print:p-0 print:m-0 print:block">
                 <!-- Top Sticky Navbar -->
-                <AppTopBar @toggle-sidebar="isSidebarOpen = !isSidebarOpen" />
+                <AppTopBar class="print:hidden" @toggle-sidebar="isSidebarOpen = !isSidebarOpen" />
 
                 <!-- Flash Notification Banner -->
-                <div v-if="showFlash && (flash?.success || flash?.error)" class="px-4 sm:px-8 pt-4">
+                <div v-if="showFlash && (flash?.success || flash?.error)" class="px-4 sm:px-8 pt-4 print:hidden">
                     <div 
                         v-if="flash.success" 
                         class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center justify-between text-xs sm:text-sm font-semibold shadow-xs"
@@ -65,7 +66,7 @@ const dismissFlash = () => {
                 </div>
 
                 <!-- Page Content Slot -->
-                <main class="flex-1 p-4 sm:p-6 lg:p-8">
+                <main class="flex-1 p-4 sm:p-6 lg:p-8 print:p-0 print:m-0 print:block">
                     <slot />
                 </main>
             </div>

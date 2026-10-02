@@ -33,6 +33,7 @@ class Invoice extends Model
         'remaining_amount',
         'payment_status',
         'payment_method',
+        'bank_account_id',
         'notes',
         'terms',
         'zatca_uuid',
@@ -83,5 +84,10 @@ class Invoice extends Model
     public function creditNotes(): HasMany
     {
         return $this->hasMany(CreditNote::class);
+    }
+
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class);
     }
 }

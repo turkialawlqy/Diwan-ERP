@@ -73,13 +73,21 @@ class SupplierPaymentController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $companyId = app(TenantManager::class)->getTenantId() 
-            ?? auth()->user()?->company_id 
-            ?? \App\Models\Company::first()?->id ?? 1;
+        $companyId = app(TenantManager::class)->getTenantId()
+            ?? auth()->user()?->company_id;
+
+        if (!$companyId) {
+            abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
+        }
 
         DB::transaction(function () use ($validated, $companyId) {
-            $paymentCount = SupplierPayment::count() + 1;
-            $paymentNumber = sprintf("SPAY-%s-%06d", date('y'), $paymentCount);
+            $lastPayment = SupplierPayment::where('payment_number', 'like', 'SPAY-' . date('y') . '-%')
+                ->orderByRaw('CAST(SUBSTRING_INDEX(payment_number, "-", -1) AS UNSIGNED) DESC')
+                ->value('payment_number');
+            $nextSeq = $lastPayment
+                ? ((int) substr($lastPayment, strrpos($lastPayment, '-') + 1)) + 1
+                : 1;
+            $paymentNumber = sprintf("SPAY-%s-%06d", date('y'), $nextSeq);
 
             $payment = SupplierPayment::create([
                 'company_id' => $companyId,

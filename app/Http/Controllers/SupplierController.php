@@ -70,13 +70,16 @@ class SupplierController extends Controller
             'opening_balance' => 'nullable|numeric',
         ]);
 
-        $companyId = app(TenantManager::class)->getTenantId() 
-            ?? auth()->user()?->company_id 
-            ?? \App\Models\Company::first()?->id ?? 1;
+        $companyId = app(TenantManager::class)->getTenantId()
+            ?? auth()->user()?->company_id;
+
+        if (!$companyId) {
+            abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
+        }
 
         $openingBal = (float) ($validated['opening_balance'] ?? 0);
 
-        Supplier::create([
+        $supplier = Supplier::create([
             'company_id' => $companyId,
             'name' => $validated['name'],
             'company_name' => $validated['company_name'] ?? null,
@@ -91,6 +94,14 @@ class SupplierController extends Controller
             'current_balance' => $openingBal,
             'status' => 'active',
         ]);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'supplier' => $supplier,
+                'message' => 'تمت إضافة المورد بنجاح',
+            ], 201);
+        }
 
         return back()->with('success', 'تمت إضافة المورد بنجاح');
     }

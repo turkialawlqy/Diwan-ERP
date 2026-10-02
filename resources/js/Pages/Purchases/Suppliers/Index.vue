@@ -118,122 +118,115 @@ const formatCurrency = (val) => {
         <Head title="إدارة الموردين - الأستاذ" />
 
         <div class="space-y-5" @click="activeMenu = null">
-            <!-- 1. Header Ribbon -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <!-- Header Ribbon -->
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <!-- Breadcrumbs Ribbon -->
+                <div class="flex items-center gap-2">
+                    <div class="inline-flex items-center bg-white border border-slate-200/80 rounded-xl px-4 py-2 text-xs sm:text-sm font-medium text-slate-600 shadow-xs">
+                        <Link :href="route('dashboard')" class="text-slate-400 hover:text-indigo-600 transition-colors flex items-center">
+                            <HomeIcon class="w-4 h-4" />
+                        </Link>
+                        <ChevronRightIcon class="w-3.5 h-3.5 text-slate-300 mx-2 rtl:rotate-180" />
+                        <span class="text-slate-500">المشتريات</span>
+                        <ChevronRightIcon class="w-3.5 h-3.5 text-slate-300 mx-2 rtl:rotate-180" />
+                        <span class="text-indigo-600 font-bold">الموردين</span>
+                    </div>
+                    <button 
+                        @click="handleSearch"
+                        title="تحديث البيانات"
+                        class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-xs transition-all"
+                    >
+                        <ArrowPathIcon class="w-4 h-4" />
+                    </button>
+                </div>
+
+                <!-- Action Buttons -->
                 <div class="flex items-center gap-2">
                     <button 
+                        @click.stop="isFilterOpen = !isFilterOpen"
+                        :class="[
+                            'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm transition-all duration-150 shadow-xs border',
+                            isFilterOpen || search || status
+                                ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
+                                : 'bg-slate-100/90 border-slate-200 text-slate-700 hover:bg-slate-200/80'
+                        ]"
+                    >
+                        <MagnifyingGlassIcon class="w-4 h-4 text-indigo-600" />
+                        <span>البحث والتصفية</span>
+                    </button>
+                    <button 
                         @click="openAddModal"
-                        class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-indigo-500/20 transition-all flex items-center gap-1.5"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >
                         <PlusIcon class="w-4 h-4 stroke-2" />
                         <span>إضافة مورد</span>
                     </button>
-
-                    <button 
-                        @click="isFilterOpen = !isFilterOpen"
-                        :class="[
-                            'px-4 py-2 rounded-xl text-xs font-semibold border transition-colors flex items-center gap-1.5',
-                            isFilterOpen || search || status
-                                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold' 
-                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                        ]"
-                    >
-                        <MagnifyingGlassIcon class="w-4 h-4" />
-                        <span>البحث والتصفية</span>
-                    </button>
-                </div>
-
-                <!-- Breadcrumb & Refresh -->
-                <div class="flex items-center gap-2">
-                    <button 
-                        @click="handleSearch"
-                        class="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-2xs"
-                        title="تحديث البيانات"
-                    >
-                        <ArrowPathIcon class="w-4 h-4" />
-                    </button>
-
-                    <div class="inline-flex items-center bg-white border border-slate-200/80 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-600 shadow-2xs">
-                        <Link :href="route('dashboard')" class="text-slate-400 hover:text-indigo-600 transition-colors flex items-center">
-                            <HomeIcon class="w-3.5 h-3.5" />
-                        </Link>
-                        <ChevronRightIcon class="w-3.5 h-3.5 text-slate-300 mx-1.5 rtl:rotate-180" />
-                        <span class="text-slate-400">المشتريات</span>
-                        <ChevronRightIcon class="w-3.5 h-3.5 text-slate-300 mx-1.5 rtl:rotate-180" />
-                        <span class="text-indigo-600 font-bold">الموردين</span>
-                    </div>
                 </div>
             </div>
 
-            <!-- Filter Panel -->
-            <div v-show="isFilterOpen" class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs space-y-3">
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                        <label class="block text-3xs font-bold text-slate-500 mb-1">بحث بالاسم / الشركة / الهاتف / الضريبي</label>
-                        <input 
-                            v-model="search"
-                            @keyup.enter="handleSearch"
-                            type="text" 
-                            placeholder="اكتب للبحث..." 
-                            class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 focus:border-indigo-500 font-medium"
-                        />
-                    </div>
-                    <div>
-                        <label class="block text-3xs font-bold text-slate-500 mb-1">الحالة</label>
-                        <select 
-                            v-model="status" 
-                            class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2 focus:border-indigo-500 font-medium"
-                        >
-                            <option value="">جميع الحالات</option>
-                            <option value="active">نشط</option>
-                            <option value="inactive">غير نشط</option>
-                        </select>
-                    </div>
-                    <div class="flex items-end gap-2">
-                        <button 
-                            @click="handleSearch"
-                            class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors"
-                        >
-                            تطبيق
-                        </button>
-                        <button 
-                            @click="resetFilter"
-                            class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-medium transition-colors"
-                        >
-                            إعادة تعيين
-                        </button>
+            <!-- Collapsible Filter Panel -->
+            <transition
+                enter-active-class="transition duration-200 ease-out"
+                enter-from-class="transform -translate-y-2 opacity-0"
+                enter-to-class="transform translate-y-0 opacity-100"
+                leave-active-class="transition duration-150 ease-in"
+                leave-from-class="transform translate-y-0 opacity-100"
+                leave-to-class="transform -translate-y-2 opacity-0"
+            >
+                <div v-if="isFilterOpen" class="bg-white rounded-2xl border border-indigo-100/80 p-5 shadow-sm space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">بحث بالاسم / الشركة / الهاتف / الضريبي</label>
+                            <input 
+                                v-model="search"
+                                @keyup.enter="handleSearch"
+                                type="text" 
+                                placeholder="اكتب للبحث..." 
+                                class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                            />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">الحالة</label>
+                            <select 
+                                v-model="status" 
+                                class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                            >
+                                <option value="">جميع الحالات</option>
+                                <option value="active">نشط</option>
+                                <option value="inactive">غير نشط</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end gap-2">
+                            <button 
+                                @click="handleSearch"
+                                class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
+                            >
+                                تطبيق التصفية
+                            </button>
+                            <button 
+                                @click="resetFilter"
+                                class="px-4 py-2.5 text-xs font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
+                            >
+                                إعادة ضبط
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </transition>
 
             <!-- KPI Stats Cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs flex items-center justify-between">
-                    <div>
-                        <p class="text-2xs font-bold text-slate-400">إجمالي الموردين</p>
-                        <h3 class="text-lg font-black text-slate-900 mt-0.5">{{ stats?.total_suppliers || 0 }}</h3>
-                    </div>
-                    <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                        <TruckIcon class="w-5 h-5" />
-                    </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي الموردين</p>
+                    <p class="text-xl sm:text-2xl font-black text-slate-800">{{ stats?.total_suppliers || 0 }}</p>
                 </div>
-                <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs flex items-center justify-between">
-                    <div>
-                        <p class="text-2xs font-bold text-slate-400">المستحقات الحالية للموردين</p>
-                        <h3 class="text-lg font-black text-rose-600 font-mono mt-0.5">{{ formatCurrency(stats?.total_payable) }} ﷼</h3>
-                    </div>
-                    <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-sm">
-                        ﷼
-                    </div>
+                <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">المستحقات الحالية للموردين</p>
+                    <p class="text-xl sm:text-2xl font-black text-rose-500">{{ formatCurrency(stats?.total_payable) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
                 </div>
-                <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs flex items-center justify-between">
-                    <div>
-                        <p class="text-2xs font-bold text-slate-400">الموردين النشطين</p>
-                        <h3 class="text-lg font-black text-emerald-600 mt-0.5">{{ stats?.active_suppliers || 0 }}</h3>
-                    </div>
-                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <CheckIcon class="w-5 h-5 stroke-2" />
-                    </div>
+                <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">الموردين النشطين</p>
+                    <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ stats?.active_suppliers || 0 }}</p>
                 </div>
             </div>
 
@@ -242,14 +235,14 @@ const formatCurrency = (val) => {
                 <div class="overflow-x-auto">
                     <table class="w-full text-right text-xs">
                         <thead>
-                            <tr class="bg-slate-50/75 border-b border-slate-200/80 text-slate-500 font-bold">
-                                <th class="py-3 px-4">اسم المورد</th>
-                                <th class="py-3 px-4">الشركة والنشاط</th>
-                                <th class="py-3 px-4">الرقم الضريبي</th>
-                                <th class="py-3 px-4">الهاتف / التواصل</th>
-                                <th class="py-3 px-4">الرصيد المستحق</th>
-                                <th class="py-3 px-4 text-center">الحالة</th>
-                                <th class="py-3 px-4 text-center">الإجراءات</th>
+                            <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                <th class="py-4 px-6 text-start">اسم المورد</th>
+                                <th class="py-4 px-6 text-start">الشركة والنشاط</th>
+                                <th class="py-4 px-6 text-start">الرقم الضريبي</th>
+                                <th class="py-4 px-6 text-start">الهاتف / التواصل</th>
+                                <th class="py-4 px-6 text-start">الرصيد المستحق</th>
+                                <th class="py-4 px-6 text-center">الحالة</th>
+                                <th class="py-4 px-6 text-center">الإجراءات</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 text-slate-700">
@@ -258,7 +251,7 @@ const formatCurrency = (val) => {
                                 :key="supplier.id"
                                 class="hover:bg-slate-50/50 transition-colors"
                             >
-                                <td class="py-3.5 px-4 font-bold text-slate-900">
+                                <td class="py-4 px-6 font-bold text-slate-900">
                                     <div class="flex items-center gap-2">
                                         <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 font-bold flex items-center justify-center text-xs flex-shrink-0">
                                             {{ supplier.name.charAt(0) }}
@@ -269,24 +262,24 @@ const formatCurrency = (val) => {
                                         </div>
                                     </div>
                                 </td>
-                                <td class="py-3.5 px-4 text-slate-600">
+                                <td class="py-4 px-6 text-slate-600">
                                     {{ supplier.company_name || '-' }}
                                 </td>
-                                <td class="py-3.5 px-4 font-mono text-3xs text-slate-600">
+                                <td class="py-4 px-6 font-mono text-3xs text-slate-600">
                                     {{ supplier.tax_number || '-' }}
                                 </td>
-                                <td class="py-3.5 px-4 font-mono text-3xs text-slate-600">
+                                <td class="py-4 px-6 font-mono text-3xs text-slate-600">
                                     <div class="flex items-center gap-1.5">
                                         <PhoneIcon class="w-3.5 h-3.5 text-slate-400" />
                                         <span>{{ supplier.phone || '-' }}</span>
                                     </div>
                                 </td>
-                                <td class="py-3.5 px-4 font-mono font-bold">
+                                <td class="py-4 px-6 font-mono font-bold">
                                     <span :class="supplier.current_balance > 0 ? 'text-rose-600' : 'text-slate-800'">
                                         {{ formatCurrency(supplier.current_balance) }} <span class="text-3xs font-normal">﷼</span>
                                     </span>
                                 </td>
-                                <td class="py-3.5 px-4 text-center">
+                                <td class="py-4 px-6 text-center">
                                     <span 
                                         :class="[
                                             'px-2 py-0.5 rounded-full text-3xs font-bold inline-block',
@@ -298,7 +291,7 @@ const formatCurrency = (val) => {
                                         {{ supplier.status === 'active' ? 'نشط' : 'معطل' }}
                                     </span>
                                 </td>
-                                <td class="py-3.5 px-4 text-center">
+                                <td class="py-4 px-6 text-center">
                                     <div class="flex items-center justify-center gap-1.5">
                                         <button 
                                             @click="openEditModal(supplier)"
@@ -324,6 +317,59 @@ const formatCurrency = (val) => {
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Pagination Footer -->
+                <div class="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-medium">
+                    <div class="flex items-center gap-2">
+                        <span>الإجمالي {{ suppliers.total || 0 }}.</span>
+                        <span>لكل صفحة:</span>
+                        <select 
+                            :value="suppliers.per_page"
+                            @change="router.get(route('purchases.suppliers.index'), { per_page: $event.target.value }, { preserveState: true })"
+                            class="text-xs rounded-lg border-slate-200 py-1 pe-6 ps-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                        >
+                            <option value="10">10</option>
+                            <option value="20">20</option>
+                            <option value="50">50</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span>الصفحة {{ suppliers.current_page }} من {{ suppliers.last_page || 1 }}.</span>
+                        <div class="flex items-center gap-1">
+                            <Link 
+                                v-if="suppliers.prev_page_url" 
+                                :href="suppliers.prev_page_url"
+                                class="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+                            >
+                                <ChevronRightIcon class="w-3.5 h-3.5 rtl:rotate-180" />
+                            </Link>
+                            <button 
+                                v-else 
+                                disabled 
+                                class="p-1.5 rounded-lg border border-slate-100 text-slate-300 cursor-not-allowed"
+                            >
+                                <ChevronRightIcon class="w-3.5 h-3.5 rtl:rotate-180" />
+                            </button>
+                            <span class="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold flex items-center justify-center">
+                                {{ suppliers.current_page }}
+                            </span>
+                            <Link 
+                                v-if="suppliers.next_page_url" 
+                                :href="suppliers.next_page_url"
+                                class="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+                            >
+                                <ChevronLeftIcon class="w-3.5 h-3.5 rtl:rotate-180" />
+                            </Link>
+                            <button 
+                                v-else 
+                                disabled 
+                                class="p-1.5 rounded-lg border border-slate-100 text-slate-300 cursor-not-allowed"
+                            >
+                                <ChevronLeftIcon class="w-3.5 h-3.5 rtl:rotate-180" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 

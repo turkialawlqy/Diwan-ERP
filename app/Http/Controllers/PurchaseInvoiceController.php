@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
+use App\Models\Category;
 use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseInvoiceItem;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
+use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Services\TenantManager;
 use Carbon\Carbon;
@@ -83,13 +85,34 @@ class PurchaseInvoiceController extends Controller
      */
     public function create()
     {
+        $tenantManager = app(TenantManager::class);
+        $company = $tenantManager->getCompany();
+
         $suppliers = Supplier::where('status', 'active')
             ->get(['id', 'name', 'company_name', 'tax_number', 'phone', 'current_balance']);
 
-        $warehouses = Warehouse::all(['id', 'name']);
         $branches = Branch::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
+
+        $warehouses = Warehouse::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
+        if ($warehouses->isEmpty() && $company) {
+            Warehouse::firstOrCreate(
+                ['company_id' => $company->id, 'code' => 'WH-01'],
+                [
+                    'name_ar' => 'المستودع الرئيسي',
+                    'name_en' => 'Main Warehouse',
+                    'branch_id' => $branches->first()?->id,
+                    'is_main' => true,
+                    'is_active' => true,
+                ]
+            );
+            $warehouses = Warehouse::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
+        }
+
         $products = Product::where('is_active', true)
-            ->get(['id', 'name_ar', 'name_en', 'sku', 'barcode', 'purchase_price', 'tax_rate']);
+            ->get(['id', 'name_ar', 'name_en', 'sku', 'barcode', 'purchase_price', 'selling_price', 'tax_rate']);
+
+        $categories = Category::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
+        $units = Unit::all(['id', 'name_ar', 'name_en']);
 
         $year = date('y');
         $count = PurchaseInvoice::count() + 1;
@@ -100,6 +123,8 @@ class PurchaseInvoiceController extends Controller
             'warehouses' => $warehouses,
             'branches' => $branches,
             'products' => $products,
+            'categories' => $categories,
+            'units' => $units,
             'suggestedNumber' => $suggestedNumber,
             'defaultTaxRate' => 15.00,
         ]);
@@ -132,9 +157,12 @@ class PurchaseInvoiceController extends Controller
             'items.*.tax_rate' => 'nullable|numeric|min:0',
         ]);
 
-        $companyId = app(TenantManager::class)->getTenantId() 
-            ?? auth()->user()?->company_id 
-            ?? \App\Models\Company::first()?->id ?? 1;
+        $companyId = app(TenantManager::class)->getTenantId()
+            ?? auth()->user()?->company_id;
+
+        if (!$companyId) {
+            abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
+        }
 
         $invoice = DB::transaction(function () use ($validated, $companyId) {
             $subtotal = 0;
@@ -259,31 +287,11 @@ class PurchaseInvoiceController extends Controller
     }
 
     /**
-     * Remove the specified purchase invoice.
+     * Remove the specified purchase invoice (Blocked by accounting principles).
      */
     public function destroy(PurchaseInvoice $invoice)
     {
-        DB::transaction(function () use ($invoice) {
-            // Rollback stock
-            foreach ($invoice->items as $item) {
-                if ($item->product_id && $invoice->warehouse_id) {
-                    $stock = InventoryStock::where('product_id', $item->product_id)
-                        ->where('warehouse_id', $invoice->warehouse_id)
-                        ->first();
-                    if ($stock) {
-                        $stock->decrement('quantity', min($stock->quantity, $item->quantity));
-                    }
-                }
-            }
-
-            // Rollback supplier balance
-            if ($invoice->remaining_amount > 0 && $invoice->supplier) {
-                $invoice->supplier->decrement('current_balance', $invoice->remaining_amount);
-            }
-
-            $invoice->delete();
-        });
-
-        return redirect()->route('purchases.invoices.index')->with('success', 'تم حذف فاتورة الشراء وتسوية المخزون بنجاح');
+        return redirect()->route('purchases.invoices.index')
+            ->with('error', 'وفقاً للأصول والمعايير المحاسبية، يُمنع حذف فواتير الشراء المسجلة للحفاظ على التسلسل المالي وسلامة المخزون وأرصدة الموردين. يمكنك تسجيل مرتجع مشتريات بدلاً من الحذف.');
     }
 }

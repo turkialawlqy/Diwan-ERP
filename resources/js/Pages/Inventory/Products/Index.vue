@@ -177,12 +177,32 @@ const formatCurrency = (val) => {
                 </div>
             </transition>
 
-            <!-- Products Table Container (Matches inventory_products_page_1789920455492.png) -->
+            <!-- KPI Mini Summary Bar -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي المنتجات</p>
+                    <p class="text-xl sm:text-2xl font-black text-slate-800">{{ stats?.total_products ?? products.total ?? 0 }}</p>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">التصنيفات المتاحة</p>
+                    <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ stats?.total_categories ?? categories?.length ?? 0 }}</p>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">منخفضة المخزون</p>
+                    <p class="text-xl sm:text-2xl font-black text-amber-600">{{ stats?.low_stock_count ?? 0 }}</p>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">المعروض بالصفحة</p>
+                    <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ products.data?.length ?? 0 }}</p>
+                </div>
+            </div>
+
+            <!-- Products Table Container -->
             <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-right border-collapse">
                         <thead>
-                            <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                            <tr class="border-b border-slate-200 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
                                 <th class="py-4 px-6 text-start">الاسم</th>
                                 <th class="py-4 px-6 text-start">المخزون</th>
                                 <th class="py-4 px-6 text-start">سعر الشراء</th>
@@ -293,60 +313,23 @@ const formatCurrency = (val) => {
                     </table>
                 </div>
 
-                <!-- Live-Style Pagination Footer -->
-                <div class="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-medium">
-                    <div class="flex items-center gap-2">
-                        <span>الإجمالي {{ products.total || 0 }}.</span>
-                        <span>لكل صفحة:</span>
-                        <select 
-                            :value="products.per_page"
-                            @change="router.get(route('inventory.products.index'), { per_page: $event.target.value }, { preserveState: true })"
-                            class="text-xs rounded-lg border-slate-200 py-1 pe-6 ps-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                        >
-                            <option value="10">10</option>
-                            <option value="20">20</option>
-                            <option value="50">50</option>
-                        </select>
-                    </div>
-
-                    <!-- Page Navigation -->
-                    <div class="flex items-center gap-2">
-                        <span>الصفحة {{ products.current_page }} من {{ products.last_page || 1 }}.</span>
-                        <div class="flex items-center gap-1">
-                            <Link 
-                                v-if="products.prev_page_url" 
-                                :href="products.prev_page_url"
-                                class="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
-                            >
-                                <ChevronRightIcon class="w-3.5 h-3.5 rtl:rotate-180" />
-                            </Link>
-                            <button 
-                                v-else 
-                                disabled 
-                                class="p-1.5 rounded-lg border border-slate-100 text-slate-300 cursor-not-allowed"
-                            >
-                                <ChevronRightIcon class="w-3.5 h-3.5 rtl:rotate-180" />
-                            </button>
-
-                            <span class="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold flex items-center justify-center">
-                                {{ products.current_page }}
-                            </span>
-
-                            <Link 
-                                v-if="products.next_page_url" 
-                                :href="products.next_page_url"
-                                class="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
-                            >
-                                <ChevronLeftIcon class="w-3.5 h-3.5 rtl:rotate-180" />
-                            </Link>
-                            <button 
-                                v-else 
-                                disabled 
-                                class="p-1.5 rounded-lg border border-slate-100 text-slate-300 cursor-not-allowed"
-                            >
-                                <ChevronLeftIcon class="w-3.5 h-3.5 rtl:rotate-180" />
-                            </button>
-                        </div>
+                <!-- Pagination Footer -->
+                <div class="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+                    <p>
+                        عرض <span class="font-bold text-slate-700">{{ products.from || 0 }}</span> إلى <span class="font-bold text-slate-700">{{ products.to || 0 }}</span> من إجمالي <span class="font-bold text-slate-700">{{ products.total || 0 }}</span> منتج
+                    </p>
+                    <div v-if="products?.links && products.links.length > 3" class="flex items-center gap-1">
+                        <Link 
+                            v-for="(link, i) in products.links" 
+                            :key="i"
+                            :href="link.url || '#'"
+                            v-html="link.label"
+                            :class="[
+                                'px-3 py-1.5 text-xs rounded-lg transition-all',
+                                link.active ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:bg-slate-100',
+                                !link.url ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''
+                            ]"
+                        />
                     </div>
                 </div>
             </div>

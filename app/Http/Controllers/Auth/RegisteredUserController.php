@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\Currency;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Services\TenantManager;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -54,6 +55,7 @@ class RegisteredUserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'phone' => 'required|string|max:20',
+            'currency' => ['nullable', 'string', Rule::in(['SAR', 'AED', 'USD', 'EUR', 'EGP', 'KWD', 'BHD', 'OMR', 'QAR'])],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ], [
             'subdomain.regex' => 'النطاق الفرعي يجب أن يحتوي على أحرف إنجليزية وأرقام وعلامة (-) فقط ولا يبدأ أو ينتهي بشرطة.',
@@ -64,6 +66,20 @@ class RegisteredUserController extends Controller
         $user = DB::transaction(function () use ($request) {
             $basicPlan = SubscriptionPlan::where('slug', 'basic')->first();
 
+            $currenciesMeta = [
+                'SAR' => ['name_ar' => 'ريال سعودي', 'name_en' => 'Saudi Riyal', 'symbol_ar' => 'ر.س', 'symbol_en' => 'SAR'],
+                'AED' => ['name_ar' => 'درهم إماراتي', 'name_en' => 'UAE Dirham', 'symbol_ar' => 'د.إ', 'symbol_en' => 'AED'],
+                'USD' => ['name_ar' => 'دولار أمريكي', 'name_en' => 'US Dollar', 'symbol_ar' => '$', 'symbol_en' => 'USD'],
+                'EUR' => ['name_ar' => 'يورو', 'name_en' => 'Euro', 'symbol_ar' => '€', 'symbol_en' => 'EUR'],
+                'EGP' => ['name_ar' => 'جنيه مصري', 'name_en' => 'Egyptian Pound', 'symbol_ar' => 'ج.م', 'symbol_en' => 'EGP'],
+                'KWD' => ['name_ar' => 'دينار كويتي', 'name_en' => 'Kuwaiti Dinar', 'symbol_ar' => 'د.ك', 'symbol_en' => 'KWD'],
+                'BHD' => ['name_ar' => 'دينار بحريني', 'name_en' => 'Bahraini Dinar', 'symbol_ar' => 'د.ب', 'symbol_en' => 'BHD'],
+                'OMR' => ['name_ar' => 'ريال عماني', 'name_en' => 'Omani Rial', 'symbol_ar' => 'ر.ع', 'symbol_en' => 'OMR'],
+                'QAR' => ['name_ar' => 'ريال قطري', 'name_en' => 'Qatari Rial', 'symbol_ar' => 'ر.ق', 'symbol_en' => 'QAR'],
+            ];
+            $selectedCurrencyCode = $request->input('currency', 'SAR');
+            $currencyInfo = $currenciesMeta[$selectedCurrencyCode] ?? $currenciesMeta['SAR'];
+
             // 1. Create Tenant Company
             $company = Company::create([
                 'name' => $request->company_name,
@@ -73,11 +89,17 @@ class RegisteredUserController extends Controller
                 'status' => 'trial',
                 'trial_ends_at' => now()->addDays(14),
                 'subscription_plan_id' => $basicPlan?->id,
-                'currency' => 'SAR',
+                'currency' => $selectedCurrencyCode,
                 'timezone' => 'Asia/Riyadh',
                 'language' => 'ar',
                 'is_verified' => false,
             ]);
+
+            // Activate the new company as the current tenant immediately so that
+            // every tenant-scoped record created below (branch, currency, user)
+            // is unambiguously attached to it, regardless of any fallback tenant
+            // resolution middleware may have applied to this (pre-login) request.
+            app(TenantManager::class)->setTenant($company);
 
             // 2. Create Default Main Branch
             $branch = Branch::create([
@@ -90,14 +112,14 @@ class RegisteredUserController extends Controller
                 'is_active' => true,
             ]);
 
-            // 3. Create Default Currency (SAR)
+            // 3. Create Default Currency Record
             Currency::create([
                 'company_id' => $company->id,
-                'name_ar' => 'ريال سعودي',
-                'name_en' => 'Saudi Riyal',
-                'code' => 'SAR',
-                'symbol_ar' => 'ر.س',
-                'symbol_en' => 'SAR',
+                'name_ar' => $currencyInfo['name_ar'],
+                'name_en' => $currencyInfo['name_en'],
+                'code' => $selectedCurrencyCode,
+                'symbol_ar' => $currencyInfo['symbol_ar'],
+                'symbol_en' => $currencyInfo['symbol_en'],
                 'exchange_rate' => 1.000000,
                 'is_default' => true,
             ]);

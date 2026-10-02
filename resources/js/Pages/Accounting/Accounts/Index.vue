@@ -133,6 +133,27 @@ const getAccountLevel = (acc) => {
     return level;
 };
 
+// Calculate Effective Balance (sum of child leaves for parent accounts, or direct balance for leaf accounts)
+const getAccountEffectiveBalance = (acc) => {
+    if (!acc.is_parent && (!acc.children_count || acc.children_count === 0)) {
+        return Number(acc.balance || 0);
+    }
+    let sum = 0;
+    const findDescendants = (parentId) => {
+        (props.accounts || []).forEach(child => {
+            if (child.parent_id === parentId) {
+                if (!child.is_parent && (!child.children_count || child.children_count === 0)) {
+                    sum += Number(child.balance || 0);
+                } else {
+                    findDescendants(child.id);
+                }
+            }
+        });
+    };
+    findDescendants(acc.id);
+    return sum;
+};
+
 // Suggest next available child code based on parent
 const suggestChildCode = (parentId) => {
     if (!parentId) return '';
@@ -287,7 +308,48 @@ const typeBadgeColors = {
         <div class="space-y-5">
             <!-- Header Ribbon -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <!-- Breadcrumb & Refresh -->
                 <div class="flex items-center gap-2">
+                    <button 
+                        @click="handleSearch"
+                        class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-xs"
+                        title="تحديث البيانات"
+                    >
+                        <ArrowPathIcon class="w-4 h-4" />
+                    </button>
+
+                    <nav class="inline-flex items-center bg-white border border-slate-200/80 rounded-xl px-4 py-2 text-xs sm:text-sm font-medium text-slate-600 shadow-xs">
+                        <Link :href="route('dashboard')" class="hover:text-indigo-600 flex items-center transition-colors">
+                            <HomeIcon class="w-4 h-4 ml-1.5 text-slate-400" />
+                            <span>الرئيسية</span>
+                        </Link>
+                        <ChevronRightIcon class="w-3.5 h-3.5 mx-2 text-slate-400 rtl:rotate-180" />
+                        <span class="text-slate-500">المحاسبة</span>
+                        <ChevronRightIcon class="w-3.5 h-3.5 mx-2 text-slate-400 rtl:rotate-180" />
+                        <span class="text-indigo-600 font-bold">دليل الحسابات</span>
+                    </nav>
+                </div>
+
+                <!-- Action Buttons & Tree Controls -->
+                <div class="flex items-center gap-2">
+                    <button 
+                        @click="expandAll"
+                        class="px-3.5 py-2.5 bg-white border border-slate-200/80 text-slate-700 hover:text-indigo-600 hover:bg-slate-50 rounded-xl text-xs font-semibold shadow-xs transition flex items-center gap-1.5"
+                        title="توسيع كافة فروع شجرة الحسابات"
+                    >
+                        <ArrowsPointingOutIcon class="w-4 h-4" />
+                        <span>توسيع الكل</span>
+                    </button>
+
+                    <button 
+                        @click="collapseAll"
+                        class="px-3.5 py-2.5 bg-white border border-slate-200/80 text-slate-700 hover:text-indigo-600 hover:bg-slate-50 rounded-xl text-xs font-semibold shadow-xs transition flex items-center gap-1.5"
+                        title="طي كافة فروع شجرة الحسابات"
+                    >
+                        <ArrowsPointingInIcon class="w-4 h-4" />
+                        <span>طي الكل</span>
+                    </button>
+
                     <button 
                         @click="openAddModal"
                         class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-indigo-500/20 transition-all flex items-center gap-1.5"
@@ -295,89 +357,49 @@ const typeBadgeColors = {
                         <PlusIcon class="w-4 h-4 stroke-2" />
                         <span>إضافة حساب رئيسي جديد</span>
                     </button>
-
-                    <!-- Expand / Collapse All Tree Controls -->
-                    <button 
-                        @click="expandAll"
-                        class="px-3 py-2 bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 hover:bg-slate-50 rounded-xl text-xs font-semibold shadow-2xs transition flex items-center gap-1.5"
-                        title="توسيع كافة فروع شجرة الحسابات"
-                    >
-                        <ArrowsPointingOutIcon class="w-3.5 h-3.5" />
-                        <span>توسيع الكل</span>
-                    </button>
-
-                    <button 
-                        @click="collapseAll"
-                        class="px-3 py-2 bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 hover:bg-slate-50 rounded-xl text-xs font-semibold shadow-2xs transition flex items-center gap-1.5"
-                        title="طي كافة فروع شجرة الحسابات"
-                    >
-                        <ArrowsPointingInIcon class="w-3.5 h-3.5" />
-                        <span>طي الكل</span>
-                    </button>
-                </div>
-
-                <!-- Breadcrumb & Refresh -->
-                <div class="flex items-center gap-2">
-                    <button 
-                        @click="handleSearch"
-                        class="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-2xs"
-                        title="تحديث البيانات"
-                    >
-                        <ArrowPathIcon class="w-4 h-4" />
-                    </button>
-
-                    <nav class="flex items-center gap-1.5 text-xs text-slate-500 bg-white border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs">
-                        <Link :href="route('dashboard')" class="hover:text-indigo-600 transition-colors">
-                            <HomeIcon class="w-3.5 h-3.5" />
-                        </Link>
-                        <ChevronRightIcon class="w-3 h-3 text-slate-400 rotate-180" />
-                        <span>المحاسبة</span>
-                        <ChevronRightIcon class="w-3 h-3 text-slate-400 rotate-180" />
-                        <span class="text-slate-900 font-semibold">دليل الحسابات</span>
-                    </nav>
                 </div>
             </div>
 
             <!-- KPI Cards -->
-            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-2xs space-y-1 cursor-pointer hover:border-indigo-300 transition" @click="setTypeFilter('asset')">
-                    <span class="text-3xs font-bold text-slate-400">الأصول (Assets)</span>
-                    <h3 class="text-sm sm:text-base font-black font-mono text-indigo-600 truncate">
-                        {{ formatCurrency(stats?.total_assets) }} ﷼
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-1 cursor-pointer hover:border-indigo-300 transition" @click="setTypeFilter('asset')">
+                    <span class="text-xs font-bold text-slate-500">الأصول (Assets)</span>
+                    <h3 class="text-lg font-black font-mono text-indigo-600 truncate">
+                        {{ formatCurrency(stats?.total_assets) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                     </h3>
                 </div>
 
-                <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-2xs space-y-1 cursor-pointer hover:border-amber-300 transition" @click="setTypeFilter('liability')">
-                    <span class="text-3xs font-bold text-slate-400">الخصوم (Liabilities)</span>
-                    <h3 class="text-sm sm:text-base font-black font-mono text-amber-600 truncate">
-                        {{ formatCurrency(stats?.total_liabilities) }} ﷼
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-1 cursor-pointer hover:border-amber-300 transition" @click="setTypeFilter('liability')">
+                    <span class="text-xs font-bold text-slate-500">الخصوم (Liabilities)</span>
+                    <h3 class="text-lg font-black font-mono text-amber-600 truncate">
+                        {{ formatCurrency(stats?.total_liabilities) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                     </h3>
                 </div>
 
-                <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-2xs space-y-1 cursor-pointer hover:border-purple-300 transition" @click="setTypeFilter('equity')">
-                    <span class="text-3xs font-bold text-slate-400">حقوق الملكية (Equity)</span>
-                    <h3 class="text-sm sm:text-base font-black font-mono text-purple-600 truncate">
-                        {{ formatCurrency(stats?.total_equity) }} ﷼
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-1 cursor-pointer hover:border-purple-300 transition" @click="setTypeFilter('equity')">
+                    <span class="text-xs font-bold text-slate-500">حقوق الملكية (Equity)</span>
+                    <h3 class="text-lg font-black font-mono text-purple-600 truncate">
+                        {{ formatCurrency(stats?.total_equity) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                     </h3>
                 </div>
 
-                <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-2xs space-y-1 cursor-pointer hover:border-emerald-300 transition" @click="setTypeFilter('revenue')">
-                    <span class="text-3xs font-bold text-slate-400">الإيرادات (Revenues)</span>
-                    <h3 class="text-sm sm:text-base font-black font-mono text-emerald-600 truncate">
-                        {{ formatCurrency(stats?.total_revenues) }} ﷼
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-1 cursor-pointer hover:border-emerald-300 transition" @click="setTypeFilter('revenue')">
+                    <span class="text-xs font-bold text-slate-500">الإيرادات (Revenues)</span>
+                    <h3 class="text-lg font-black font-mono text-emerald-600 truncate">
+                        {{ formatCurrency(stats?.total_revenues) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                     </h3>
                 </div>
 
-                <div class="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-2xs space-y-1 cursor-pointer hover:border-rose-300 transition" @click="setTypeFilter('expense')">
-                    <span class="text-3xs font-bold text-slate-400">المصروفات (Expenses)</span>
-                    <h3 class="text-sm sm:text-base font-black font-mono text-rose-600 truncate">
-                        {{ formatCurrency(stats?.total_expenses) }} ﷼
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-1 cursor-pointer hover:border-rose-300 transition" @click="setTypeFilter('expense')">
+                    <span class="text-xs font-bold text-slate-500">المصروفات (Expenses)</span>
+                    <h3 class="text-lg font-black font-mono text-rose-600 truncate">
+                        {{ formatCurrency(stats?.total_expenses) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                     </h3>
                 </div>
             </div>
 
             <!-- Search and Filter Tabs -->
-            <div class="bg-white p-3 rounded-2xl border border-slate-100 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div class="relative w-full sm:w-80">
                     <MagnifyingGlassIcon class="w-4 h-4 text-slate-400 absolute start-3 top-1/2 -translate-y-1/2" />
                     <input 
@@ -408,18 +430,18 @@ const typeBadgeColors = {
             </div>
 
             <!-- Accounts Tree Table -->
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-2xs overflow-hidden">
+            <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-start text-xs">
                         <thead>
-                            <tr class="bg-slate-50/75 border-b border-slate-100 text-slate-500 font-bold">
-                                <th class="py-3.5 px-4 text-start w-32">رمز الحساب</th>
-                                <th class="py-3.5 px-4 text-start">شجرة الحسابات المحاسبية</th>
-                                <th class="py-3.5 px-4 text-start w-28">النوع</th>
-                                <th class="py-3.5 px-4 text-start w-28">طبيعة الحساب</th>
-                                <th class="py-3.5 px-4 text-start w-24">المستوى</th>
-                                <th class="py-3.5 px-4 text-end w-36">الرصيد التراكمي</th>
-                                <th class="py-3.5 px-4 text-center w-56">إجراءات الحساب</th>
+                            <tr class="bg-slate-50/50 border-b border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                <th class="py-4 px-6 text-start w-32">رمز الحساب</th>
+                                <th class="py-4 px-6 text-start">شجرة الحسابات المحاسبية</th>
+                                <th class="py-4 px-6 text-start w-28">النوع</th>
+                                <th class="py-4 px-6 text-start w-28">طبيعة الحساب</th>
+                                <th class="py-4 px-6 text-start w-24">المستوى</th>
+                                <th class="py-4 px-6 text-end w-36">الرصيد التراكمي</th>
+                                <th class="py-4 px-6 text-center w-56">إجراءات الحساب</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -510,8 +532,10 @@ const typeBadgeColors = {
 
                                     <!-- Running Balance -->
                                     <td class="py-3 px-4 font-mono font-black text-end whitespace-nowrap">
-                                        <span :class="acc.balance < 0 ? 'text-rose-600' : 'text-slate-900'">
-                                            {{ formatCurrency(acc.balance) }} <span class="text-3xs font-normal">﷼</span>
+                                        <span :class="[
+                                            getAccountEffectiveBalance(acc) < 0 ? 'text-rose-600' : (acc.is_parent || acc.children_count > 0 ? 'text-indigo-700' : 'text-slate-900')
+                                        ]">
+                                            {{ formatCurrency(getAccountEffectiveBalance(acc)) }} <span class="text-3xs font-normal">﷼</span>
                                         </span>
                                     </td>
 

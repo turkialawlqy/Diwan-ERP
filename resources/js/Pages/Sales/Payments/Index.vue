@@ -52,12 +52,32 @@ const formatCurrency = (val) => {
                 </div>
             </div>
 
+            <!-- KPI Mini Summary Bar -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي سندات القبض</p>
+                    <p class="text-xl sm:text-2xl font-black text-slate-800">{{ stats?.total_count ?? payments.total ?? 0 }}</p>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي المقبوضات</p>
+                    <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ formatCurrency(stats?.total_amount) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">سداد نقدي</p>
+                    <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ formatCurrency(stats?.cash_amount) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                </div>
+                <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
+                    <p class="text-xs text-slate-400 font-medium mb-1">سداد شبكة / بنكي</p>
+                    <p class="text-xl sm:text-2xl font-black text-slate-700">{{ formatCurrency(stats?.bank_amount) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                </div>
+            </div>
+
             <!-- Payments Table -->
             <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-right border-collapse text-xs sm:text-sm">
                         <thead>
-                            <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-600 font-bold">
+                            <tr class="border-b border-slate-200 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
                                 <th class="py-4 px-6">رقم السند</th>
                                 <th class="py-4 px-6">العميل</th>
                                 <th class="py-4 px-6">المبلغ</th>
@@ -66,7 +86,7 @@ const formatCurrency = (val) => {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            <tr v-for="p in payments.data" :key="p.id" class="hover:bg-slate-50/70">
+                            <tr v-for="p in payments.data" :key="p.id" class="hover:bg-slate-50/70 transition-colors">
                                 <td class="py-4 px-6 font-bold text-slate-800 font-mono">{{ p.payment_number }}</td>
                                 <td class="py-4 px-6 font-semibold text-slate-700">{{ p.customer?.name || '-' }}</td>
                                 <td class="py-4 px-6 font-black text-emerald-600 font-mono">{{ formatCurrency(p.amount) }} ﷼</td>
@@ -85,6 +105,26 @@ const formatCurrency = (val) => {
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Pagination Footer -->
+                <div v-if="payments?.links && payments.links.length > 3" class="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+                    <p class="text-xs text-slate-500">
+                        عرض <span class="font-bold text-slate-700">{{ payments.from || 0 }}</span> إلى <span class="font-bold text-slate-700">{{ payments.to || 0 }}</span> من إجمالي <span class="font-bold text-slate-700">{{ payments.total || 0 }}</span> سند
+                    </p>
+                    <div class="flex items-center gap-1">
+                        <Link 
+                            v-for="(link, i) in payments.links" 
+                            :key="i"
+                            :href="link.url || '#'"
+                            v-html="link.label"
+                            :class="[
+                                'px-3 py-1.5 text-xs rounded-lg transition-all',
+                                link.active ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:bg-slate-100',
+                                !link.url ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''
+                            ]"
+                        />
+                    </div>
                 </div>
             </div>
         </div>

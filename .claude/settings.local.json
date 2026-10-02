@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan *)",
+      "Bash(xargs grep *)",
+      "Bash(grep -n \"use App\\\\\\\\\\\\\\\\Traits\\\\\\\\\\\\\\\\BelongsToCompany\\\\|use BelongsToCompany\" app/Models/Customer.php app/Models/Product.php app/Models/Invoice.php)",
+      "Bash(grep -n 'function priority\\\\|defaultPriority\\\\|protected $priority' -A 20 vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php)",
+      "Bash(grep -n 'function getMiddlewarePriority\\\\|defaultMiddlewarePriority\\\\|\\\\$this->priority\\\\b' -A 30 vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php)"
+    ]
+  }
+}

@@ -87,6 +87,9 @@ class DatabaseSeeder extends Seeder
         $superAdmin->assignRole($superAdminRole);
 
         // 4. Create Demo Company (mimicking https://anas.alostaz.io)
+        $existingLogos = glob(storage_path('app/public/logos/*.{png,jpg,jpeg,svg,webp}'), GLOB_BRACE);
+        $demoLogo = !empty($existingLogos) ? '/storage/logos/' . basename($existingLogos[0]) : null;
+
         $company = Company::create([
             'name' => 'مؤسسة أنس التجارية',
             'subdomain' => 'anas',
@@ -94,6 +97,7 @@ class DatabaseSeeder extends Seeder
             'phone' => '0555555555',
             'tax_number' => '300000000000003',
             'commercial_registration' => '1010000000',
+            'logo' => $demoLogo,
             'status' => 'active',
             'subscription_plan_id' => $proPlan->id,
             'currency' => 'SAR',
@@ -158,5 +162,14 @@ class DatabaseSeeder extends Seeder
         $company->setSetting('invoice_prefix', 'INV-', 'sales', 'string');
         $company->setSetting('quotation_prefix', 'QUO-', 'sales', 'string');
         $company->setSetting('pos_allow_credit', '1', 'pos', 'boolean');
+
+        // 9. Call Module Demo Seeders
+        $this->call([
+            AccountingDemoSeeder::class,
+            InventoryDemoSeeder::class,
+            SalesDemoSeeder::class,
+            PurchasesDemoSeeder::class,
+            HRAndSettingsDemoSeeder::class,
+        ]);
     }
 }

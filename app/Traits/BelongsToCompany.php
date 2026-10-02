@@ -22,13 +22,41 @@ trait BelongsToCompany
             }
         });
 
-        // Automatically assign current company ID when creating new model instances
+        // Automatically assign current company ID when creating new model instances.
+        // When a tenant is resolved, it always wins over any value already present on
+        // the model (e.g. mass-assigned from request input) so a request can never
+        // plant a record into another tenant by sneaking a foreign company_id through.
         static::creating(function ($model) {
             $tenantManager = app(TenantManager::class);
+
+            if ($tenantManager->hasTenant()) {
+                $model->company_id = $tenantManager->getTenantId();
+                return;
+            }
+
             if (empty($model->company_id)) {
-                $model->company_id = $tenantManager->getTenantId() 
-                    ?? auth()->user()?->company_id 
-                    ?? \App\Models\Company::first()?->id;
+                $companyId = auth()->user()?->company_id;
+
+                if (!$companyId) {
+                    throw new \RuntimeException(
+                        'Cannot create ' . class_basename($model) . ' without a resolved tenant. '
+                        . 'Ensure the request has a valid company context.'
+                    );
+                }
+
+                $model->company_id = $companyId;
+            }
+        });
+
+        // Prevent an existing record from being silently reassigned to another
+        // tenant (e.g. via a mass update that happens to include company_id).
+        static::updating(function ($model) {
+            $tenantManager = app(TenantManager::class);
+            if ($tenantManager->hasTenant()
+                && $model->isDirty('company_id')
+                && (int) $model->company_id !== (int) $tenantManager->getTenantId()
+            ) {
+                $model->company_id = $tenantManager->getTenantId();
             }
         });
     }

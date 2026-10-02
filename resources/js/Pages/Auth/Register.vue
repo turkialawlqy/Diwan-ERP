@@ -10,12 +10,14 @@ import {
     EnvelopeIcon, 
     PhoneIcon, 
     LockClosedIcon,
-    SparklesIcon
+    SparklesIcon,
+    BanknotesIcon
 } from '@heroicons/vue/24/outline';
 
 const form = useForm({
     company_name: '',
     subdomain: '',
+    currency: 'SAR',
     name: '',
     email: '',
     phone: '',
@@ -103,6 +105,39 @@ const submit = () => {
                     <span>سيكون رابط دخولك: <strong class="text-indigo-600" dir="ltr">{{ fullDomainPreview }}</strong></span>
                 </div>
                 <InputError class="mt-1.5" :message="form.errors.subdomain" />
+            </div>
+
+            <!-- Base Currency Selection -->
+            <div>
+                <label for="currency" class="block text-xs font-bold text-slate-700 mb-1">
+                    العملة الأساسية للنظام والحسابات *
+                </label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-slate-400">
+                        <BanknotesIcon class="w-4 h-4" />
+                    </div>
+                    <select
+                        id="currency"
+                        v-model="form.currency"
+                        required
+                        class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs sm:text-sm rounded-xl ps-9 pe-4 py-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-sans font-bold"
+                    >
+                        <option value="SAR">ريال سعودي (SAR - ر.س)</option>
+                        <option value="AED">درهم إماراتي (AED - د.إ)</option>
+                        <option value="USD">دولار أمريكي (USD - $)</option>
+                        <option value="EUR">يورو (EUR - €)</option>
+                        <option value="EGP">جنيه مصري (EGP - ج.م)</option>
+                        <option value="KWD">دينار كويتي (KWD - د.ك)</option>
+                        <option value="BHD">دينار بحريني (BHD - د.ب)</option>
+                        <option value="OMR">ريال عماني (OMR - ر.ع)</option>
+                        <option value="QAR">ريال قطري (QAR - ر.ق)</option>
+                    </select>
+                </div>
+                <div class="mt-1.5 p-2 bg-amber-50/70 border border-amber-200/60 rounded-lg flex items-start gap-1.5 text-[11px] text-amber-800 font-medium">
+                    <LockClosedIcon class="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <span>تنبيه هام: يتم قفل العملة الأساسية نهائياً بعد إنشاء المنشأة ولا يمكن تغييرها لاحقاً لضمان سلامة القيود المحاسبية والفواتير.</span>
+                </div>
+                <InputError class="mt-1.5" :message="form.errors.currency" />
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

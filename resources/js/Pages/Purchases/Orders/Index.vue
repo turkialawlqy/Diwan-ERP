@@ -8,11 +8,14 @@ import {
     ArrowPathIcon,
     HomeIcon,
     ChevronRightIcon,
+    ChevronLeftIcon,
     DocumentCheckIcon,
     ClockIcon,
     CheckCircleIcon,
     ArrowRightCircleIcon,
     TruckIcon,
+    FunnelIcon,
+    XMarkIcon,
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
@@ -21,6 +24,7 @@ const props = defineProps({
     stats: Object,
 });
 
+const isFilterOpen = ref(false);
 const search = ref(props.filters?.search || '');
 const status = ref(props.filters?.status || '');
 
@@ -58,55 +62,121 @@ const formatCurrency = (val) => {
         <div class="space-y-5">
             <!-- Header Ribbon -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 class="text-xl font-black text-slate-800 flex items-center gap-2">
-                        <DocumentCheckIcon class="w-6 h-6 text-indigo-600" />
-                        <span>أوامر الشراء (Purchase Orders)</span>
-                    </h1>
-                    <p class="text-xs text-slate-500 mt-1">
-                        إصدار ومتابعة طلبات الشراء الصادرة للموردين والتحويل المباشر لفواتير شراء
-                    </p>
-                </div>
-
-                <!-- Breadcrumb & Refresh -->
+                <!-- Breadcrumbs & Refresh -->
                 <div class="flex items-center gap-2">
                     <button 
                         @click="handleSearch"
-                        class="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-2xs"
+                        class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-xs"
                         title="تحديث البيانات"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
                     </button>
 
-                    <div class="inline-flex items-center bg-white border border-slate-200/80 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-600 shadow-2xs">
-                        <Link :href="route('dashboard')" class="text-slate-400 hover:text-indigo-600 transition-colors flex items-center">
-                            <HomeIcon class="w-3.5 h-3.5" />
+                    <nav class="inline-flex items-center bg-white border border-slate-200/80 rounded-xl px-4 py-2 text-xs sm:text-sm font-medium text-slate-600 shadow-xs">
+                        <Link :href="route('dashboard')" class="hover:text-indigo-600 flex items-center transition-colors">
+                            <HomeIcon class="w-4 h-4 ml-1.5 text-slate-400" />
+                            <span>الرئيسية</span>
                         </Link>
-                        <ChevronRightIcon class="w-3.5 h-3.5 text-slate-300 mx-1.5 rtl:rotate-180" />
-                        <span class="text-slate-400">المشتريات</span>
-                        <ChevronRightIcon class="w-3.5 h-3.5 text-slate-300 mx-1.5 rtl:rotate-180" />
+                        <ChevronRightIcon class="w-3.5 h-3.5 mx-2 text-slate-400 rtl:rotate-180" />
+                        <span class="text-slate-500">المشتريات</span>
+                        <ChevronRightIcon class="w-3.5 h-3.5 mx-2 text-slate-400 rtl:rotate-180" />
                         <span class="text-indigo-600 font-bold">أوامر الشراء</span>
-                    </div>
+                    </nav>
+                </div>
+
+                <!-- Action & Filter Buttons -->
+                <div class="flex items-center gap-2">
+                    <button 
+                        @click="isFilterOpen = !isFilterOpen"
+                        :class="[
+                            isFilterOpen ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white border-slate-200/80 text-slate-600 hover:bg-slate-50',
+                            'px-3.5 py-2.5 rounded-xl border text-xs font-bold transition flex items-center gap-2 shadow-xs'
+                        ]"
+                    >
+                        <FunnelIcon class="w-4 h-4" />
+                        <span>تصفية</span>
+                    </button>
                 </div>
             </div>
+
+            <!-- Collapsible Filter Panel -->
+            <transition
+                enter-active-class="transition duration-200 ease-out"
+                enter-from-class="transform -translate-y-2 opacity-0"
+                enter-to-class="transform translate-y-0 opacity-100"
+                leave-active-class="transition duration-150 ease-in"
+                leave-from-class="transform translate-y-0 opacity-100"
+                leave-to-class="transform -translate-y-2 opacity-0"
+            >
+                <div v-show="isFilterOpen" class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        <!-- Search Query -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">بحث بأمر الشراء أو المورد</label>
+                            <div class="relative">
+                                <MagnifyingGlassIcon class="w-4 h-4 text-slate-400 absolute start-3 top-1/2 -translate-y-1/2" />
+                                <input 
+                                    v-model="search"
+                                    @keyup.enter="handleSearch"
+                                    type="text" 
+                                    placeholder="رقم الأمر، اسم المورد..." 
+                                    class="w-full ps-9 pe-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Status Filter -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">حالة الأمر</label>
+                            <select 
+                                v-model="status" 
+                                @change="handleSearch"
+                                class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
+                            >
+                                <option value="">كل الحالات</option>
+                                <option value="pending">قيد الانتظار</option>
+                                <option value="approved">معتمد</option>
+                                <option value="converted_to_invoice">تم التحويل لفاتورة</option>
+                            </select>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex items-end gap-2">
+                            <button 
+                                @click="handleSearch"
+                                class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs"
+                            >
+                                تطبيق
+                            </button>
+                            <button 
+                                @click="resetFilter"
+                                class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition"
+                                title="إعادة تعيين"
+                            >
+                                <ArrowPathIcon class="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </transition>
 
             <!-- KPI Cards -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <p class="text-2xs font-bold text-slate-400">إجمالي أوامر الشراء</p>
-                    <h3 class="text-lg font-black text-slate-900 mt-0.5">{{ stats?.total_orders || 0 }}</h3>
+                    <span class="text-xs font-bold text-slate-500">إجمالي أوامر الشراء</span>
+                    <h3 class="text-xl font-black text-slate-900 mt-1">{{ stats?.total_orders || 0 }}</h3>
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <p class="text-2xs font-bold text-slate-400">الأوامر المعلقة</p>
-                    <h3 class="text-lg font-black text-amber-600 mt-0.5">{{ stats?.pending_orders || 0 }}</h3>
+                    <span class="text-xs font-bold text-slate-500">الأوامر المعلقة</span>
+                    <h3 class="text-xl font-black text-amber-600 mt-1">{{ stats?.pending_orders || 0 }}</h3>
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <p class="text-2xs font-bold text-slate-400">الأوامر المعتمدة</p>
-                    <h3 class="text-lg font-black text-indigo-600 mt-0.5">{{ stats?.approved_orders || 0 }}</h3>
+                    <span class="text-xs font-bold text-slate-500">الأوامر المعتمدة</span>
+                    <h3 class="text-xl font-black text-indigo-600 mt-1">{{ stats?.approved_orders || 0 }}</h3>
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <p class="text-2xs font-bold text-slate-400">إجمالي قيمة الأوامر</p>
-                    <h3 class="text-lg font-black text-emerald-600 font-mono mt-0.5">{{ formatCurrency(stats?.total_orders_value) }} ﷼</h3>
+                    <span class="text-xs font-bold text-slate-500">إجمالي قيمة الأوامر</span>
+                    <h3 class="text-xl font-black text-emerald-600 font-mono mt-1">{{ formatCurrency(stats?.total_orders_value) }} <span class="text-xs font-normal text-slate-400">﷼</span></h3>
                 </div>
             </div>
 
@@ -115,14 +185,14 @@ const formatCurrency = (val) => {
                 <div class="overflow-x-auto">
                     <table class="w-full text-right text-xs">
                         <thead>
-                            <tr class="bg-slate-50/75 border-b border-slate-200/80 text-slate-500 font-bold">
-                                <th class="py-3 px-4">رقم الأمر</th>
-                                <th class="py-3 px-4">المورد</th>
-                                <th class="py-3 px-4">تاريخ الطلب</th>
-                                <th class="py-3 px-4">التسليم المتوقع</th>
-                                <th class="py-3 px-4">القيمة الإجمالية</th>
-                                <th class="py-3 px-4 text-center">الحالة</th>
-                                <th class="py-3 px-4 text-center">الإجراءات</th>
+                            <tr class="bg-slate-50/50 border-b border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                <th class="py-4 px-6">رقم الأمر</th>
+                                <th class="py-4 px-6">المورد</th>
+                                <th class="py-4 px-6">تاريخ الطلب</th>
+                                <th class="py-4 px-6">التسليم المتوقع</th>
+                                <th class="py-4 px-6">القيمة الإجمالية</th>
+                                <th class="py-4 px-6 text-center">الحالة</th>
+                                <th class="py-4 px-6 text-center">الإجراءات</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 text-slate-700">
@@ -131,54 +201,54 @@ const formatCurrency = (val) => {
                                 :key="order.id"
                                 class="hover:bg-slate-50/50 transition-colors"
                             >
-                                <td class="py-3.5 px-4 font-mono font-bold text-indigo-600">
+                                <td class="py-4 px-6 font-mono font-bold text-indigo-600">
                                     {{ order.order_number }}
                                 </td>
-                                <td class="py-3.5 px-4 font-bold text-slate-900">
+                                <td class="py-4 px-6 font-bold text-slate-900">
                                     {{ order.supplier?.name || '-' }}
                                 </td>
-                                <td class="py-3.5 px-4 font-mono text-3xs text-slate-600">
+                                <td class="py-4 px-6 font-mono text-xs text-slate-600">
                                     {{ String(order.order_date).substring(0, 10) }}
                                 </td>
-                                <td class="py-3.5 px-4 font-mono text-3xs text-slate-600">
+                                <td class="py-4 px-6 font-mono text-xs text-slate-600">
                                     {{ order.expected_delivery_date ? String(order.expected_delivery_date).substring(0, 10) : '-' }}
                                 </td>
-                                <td class="py-3.5 px-4 font-mono font-bold text-slate-900">
-                                    {{ formatCurrency(order.total) }} <span class="text-3xs font-normal">﷼</span>
+                                <td class="py-4 px-6 font-mono font-bold text-slate-900">
+                                    {{ formatCurrency(order.total) }} <span class="text-xs font-normal">﷼</span>
                                 </td>
-                                <td class="py-3.5 px-4 text-center">
+                                <td class="py-4 px-6 text-center">
                                     <span 
                                         v-if="order.status === 'converted_to_invoice'"
-                                        class="px-2.5 py-0.5 rounded-full text-3xs font-bold inline-flex items-center gap-1 bg-purple-50 text-purple-700 border border-purple-200/60"
+                                        class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 bg-purple-50 text-purple-700 border border-purple-200/60"
                                     >
                                         <CheckCircleIcon class="w-3.5 h-3.5" />
                                         <span>تم التحويل لفاتورة</span>
                                     </span>
                                     <span 
                                         v-else-if="order.status === 'approved'"
-                                        class="px-2.5 py-0.5 rounded-full text-3xs font-bold inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                                        class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200/60"
                                     >
                                         <CheckCircleIcon class="w-3.5 h-3.5" />
                                         <span>معتمد</span>
                                     </span>
                                     <span 
                                         v-else
-                                        class="px-2.5 py-0.5 rounded-full text-3xs font-bold inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200/60"
+                                        class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200/60"
                                     >
                                         <ClockIcon class="w-3.5 h-3.5" />
                                         <span>قيد الانتظار</span>
                                     </span>
                                 </td>
-                                <td class="py-3.5 px-4 text-center">
+                                <td class="py-4 px-6 text-center">
                                     <button 
                                         v-if="order.status !== 'converted_to_invoice'"
                                         @click="convertToInvoice(order)"
-                                        class="px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-3xs transition-colors inline-flex items-center gap-1"
+                                        class="px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition-colors inline-flex items-center gap-1"
                                     >
                                         <ArrowRightCircleIcon class="w-3.5 h-3.5 rtl:rotate-180" />
                                         <span>تحويل لفاتورة شراء</span>
                                     </button>
-                                    <span v-else class="text-3xs text-slate-400">
+                                    <span v-else class="text-xs text-slate-400">
                                         مكتمل
                                     </span>
                                 </td>
@@ -190,6 +260,31 @@ const formatCurrency = (val) => {
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Pagination -->
+                <div v-if="orders?.links && orders.links.length > 3" class="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="text-xs text-slate-500 font-medium">
+                        عرض <span class="font-bold text-slate-700">{{ orders.from || 0 }}</span> إلى <span class="font-bold text-slate-700">{{ orders.to || 0 }}</span> من إجمالي <span class="font-bold text-slate-700">{{ orders.total }}</span> أمر
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <template v-for="(link, i) in orders.links" :key="i">
+                            <Link 
+                                v-if="link.url"
+                                :href="link.url"
+                                :class="[
+                                    link.active ? 'bg-indigo-600 text-white font-bold' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50',
+                                    'min-w-8 h-8 px-2 flex items-center justify-center rounded-lg text-xs transition-colors'
+                                ]"
+                                v-html="link.label"
+                            />
+                            <span 
+                                v-else
+                                class="min-w-8 h-8 px-2 flex items-center justify-center rounded-lg text-xs text-slate-400"
+                                v-html="link.label"
+                            />
+                        </template>
+                    </div>
                 </div>
             </div>
         </div>

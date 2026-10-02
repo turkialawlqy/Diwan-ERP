@@ -60,14 +60,6 @@ const resetFilters = () => {
     router.get(route('sales.invoices.index'), {}, { preserveState: true, replace: true });
 };
 
-const deleteInvoice = (id, invoiceNumber) => {
-    if (confirm(`هل أنت متأكد من حذف الفاتورة ${invoiceNumber}؟`)) {
-        router.delete(route('sales.invoices.destroy', id), {
-            onSuccess: () => closeMenu(),
-        });
-    }
-};
-
 const formatCurrency = (val) => {
     return Number(val || 0).toLocaleString('en-US', {
         minimumFractionDigits: 2,
@@ -352,14 +344,6 @@ const formatDateArabic = (dateStr) => {
                                             <PrinterIcon class="w-4 h-4 text-slate-400" />
                                             <span>طباعة الفاتورة</span>
                                         </Link>
-                                        <div class="h-px bg-slate-100 my-1"></div>
-                                        <button 
-                                            @click="deleteInvoice(inv.id, inv.invoice_number)"
-                                            class="w-full flex items-center gap-2 px-4 py-2 text-rose-600 hover:bg-rose-50 transition-colors text-start"
-                                        >
-                                            <TrashIcon class="w-4 h-4 text-rose-500" />
-                                            <span>حذف الفاتورة</span>
-                                        </button>
                                     </div>
                                 </td>
                             </tr>

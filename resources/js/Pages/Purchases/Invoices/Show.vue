@@ -25,12 +25,6 @@ const printInvoice = () => {
     window.print();
 };
 
-const deleteInvoice = () => {
-    if (confirm(`هل أنت متأكد من حذف فاتورة الشراء رقم "${props.invoice.invoice_number}" وتراجع كميات المخزون؟`)) {
-        router.delete(route('purchases.invoices.destroy', props.invoice.id));
-    }
-};
-
 const formatCurrency = (val) => {
     return Number(val || 0).toLocaleString('en-US', {
         minimumFractionDigits: 2,
@@ -63,13 +57,6 @@ const formatCurrency = (val) => {
                     >
                         <PrinterIcon class="w-4 h-4" />
                         <span>طباعة الفاتورة</span>
-                    </button>
-                    <button 
-                        @click="deleteInvoice"
-                        class="px-3 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold transition-colors"
-                        title="حذف الفاتورة"
-                    >
-                        <TrashIcon class="w-4 h-4" />
                     </button>
                     <Link 
                         :href="route('purchases.invoices.index')"

@@ -1,10 +1,11 @@
 <script setup>
 import { ref } from 'vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import {
     HomeIcon,
     ChevronRightIcon,
+    ArrowPathIcon,
     PlusIcon,
     TagIcon,
     TrashIcon,
@@ -38,17 +39,28 @@ const deleteCategory = (id) => {
     <AppLayout>
         <Head title="تصنيفات المنتجات" />
 
-        <div class="space-y-6 max-w-6xl mx-auto">
-            <!-- Breadcrumbs -->
-            <div class="flex items-center gap-2">
-                <div class="inline-flex items-center bg-white border border-slate-200/80 rounded-xl px-4 py-2 text-xs sm:text-sm font-medium text-slate-600 shadow-xs">
-                    <Link :href="route('dashboard')" class="text-slate-400 hover:text-indigo-600 transition-colors flex items-center">
-                        <HomeIcon class="w-4 h-4" />
-                    </Link>
-                    <ChevronRightIcon class="w-3.5 h-3.5 text-slate-300 mx-2 rtl:rotate-180" />
-                    <Link :href="route('inventory.products.index')" class="text-slate-500 hover:text-indigo-600 transition-colors">المخزون</Link>
-                    <ChevronRightIcon class="w-3.5 h-3.5 text-slate-300 mx-2 rtl:rotate-180" />
-                    <span class="text-indigo-600 font-bold">التصنيفات</span>
+        <div class="space-y-5 max-w-6xl mx-auto">
+            <!-- Header Ribbon -->
+            <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-2">
+                    <button 
+                        @click="router.reload()"
+                        class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-xs"
+                        title="تحديث البيانات"
+                    >
+                        <ArrowPathIcon class="w-4 h-4" />
+                    </button>
+
+                    <nav class="inline-flex items-center bg-white border border-slate-200/80 rounded-xl px-4 py-2 text-xs sm:text-sm font-medium text-slate-600 shadow-xs">
+                        <Link :href="route('dashboard')" class="hover:text-indigo-600 flex items-center transition-colors">
+                            <HomeIcon class="w-4 h-4 ml-1.5 text-slate-400" />
+                            <span>الرئيسية</span>
+                        </Link>
+                        <ChevronRightIcon class="w-3.5 h-3.5 mx-2 text-slate-400 rtl:rotate-180" />
+                        <Link :href="route('inventory.products.index')" class="text-slate-500 hover:text-indigo-600 transition-colors">المخزون</Link>
+                        <ChevronRightIcon class="w-3.5 h-3.5 mx-2 text-slate-400 rtl:rotate-180" />
+                        <span class="text-indigo-600 font-bold">التصنيفات</span>
+                    </nav>
                 </div>
             </div>
 

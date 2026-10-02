@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import AlOstazLogo from './AlOstazLogo.vue';
 import {
@@ -31,6 +31,9 @@ defineProps({
 defineEmits(['closeSidebar']);
 
 const page = usePage();
+const isRtl = computed(() => {
+    return (page.props.locale || document.documentElement.lang || 'ar') === 'ar';
+});
 const currentUrl = ref(window.location.pathname);
 
 // Collapsible menus state
@@ -63,11 +66,13 @@ const isCurrent = (path) => {
         class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden transition-opacity"
     ></div>
 
-    <!-- Sidebar Container (Right side in RTL) -->
+    <!-- Sidebar Container (Right side in RTL, Left side in LTR) -->
     <aside 
         :class="[
-            isOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0',
-            'fixed top-0 bottom-0 end-0 w-64 bg-white border-s border-slate-200 z-50 flex flex-col transition-transform duration-300 ease-in-out shadow-lg lg:shadow-none'
+            isOpen 
+                ? 'translate-x-0' 
+                : (isRtl ? 'translate-x-full lg:translate-x-0' : '-translate-x-full lg:translate-x-0'),
+            'fixed top-0 bottom-0 start-0 w-64 bg-white border-e border-slate-200 z-50 flex flex-col transition-transform duration-300 ease-in-out shadow-lg lg:shadow-none'
         ]"
     >
         <!-- Sidebar Brand Header -->
@@ -306,6 +311,12 @@ const isCurrent = (path) => {
                     >
                         {{ $t('nav.treasury_banks') }}
                     </Link>
+                    <Link 
+                        :href="route('finance.transfers.index')"
+                        :class="[isCurrent('/finance/transfers') ? 'text-indigo-600 font-bold bg-indigo-50/50' : 'text-slate-500 hover:text-slate-900', 'block px-2.5 py-1.5 rounded-lg transition']"
+                    >
+                        التحويلات المالية
+                    </Link>
                 </div>
             </div>
 
@@ -489,6 +500,18 @@ const isCurrent = (path) => {
                         :class="[isCurrent('/settings') ? 'text-indigo-600 font-bold bg-indigo-50/50' : 'text-slate-500 hover:text-slate-900', 'block px-2.5 py-1.5 rounded-lg transition']"
                     >
                         {{ $t('nav.general_settings') }}
+                    </Link>
+                    <Link 
+                        :href="route('users.index')"
+                        :class="[isCurrent('/users') ? 'text-indigo-600 font-bold bg-indigo-50/50' : 'text-slate-500 hover:text-slate-900', 'block px-2.5 py-1.5 rounded-lg transition']"
+                    >
+                        إدارة المستخدمين
+                    </Link>
+                    <Link 
+                        :href="route('roles.index')"
+                        :class="[isCurrent('/roles') ? 'text-indigo-600 font-bold bg-indigo-50/50' : 'text-slate-500 hover:text-slate-900', 'block px-2.5 py-1.5 rounded-lg transition']"
+                    >
+                        الأدوار والصلاحيات
                     </Link>
                 </div>
             </div>

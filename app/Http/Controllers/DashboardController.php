@@ -2,98 +2,118 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Customer;
+use App\Models\Invoice;
+use App\Models\Product;
+use App\Models\CustomerPayment;
 use App\Services\TenantManager;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
     /**
-     * Display tenant ERP dashboard.
+     * Display tenant ERP dashboard with real data from the database.
      */
     public function index(Request $request, TenantManager $tenantManager): Response
     {
         $company = $tenantManager->getTenant() ?? $request->user()?->company;
 
-        // KPI metrics
+        $today = Carbon::today();
+        $startOfMonth = Carbon::now()->startOfMonth();
+        $lastMonthStart = Carbon::now()->subMonth()->startOfMonth();
+        $lastMonthEnd = Carbon::now()->subMonth()->endOfMonth();
+
+        // === KPI Metrics (Real Data) ===
+        $todaySales = (float) Invoice::whereDate('invoice_date', $today)->sum('total');
+        $monthSales = (float) Invoice::whereDate('invoice_date', '>=', $startOfMonth)->sum('total');
+        $lastMonthSales = (float) Invoice::whereBetween('invoice_date', [$lastMonthStart, $lastMonthEnd])->sum('total');
+        $monthSalesTrend = $lastMonthSales > 0
+            ? round((($monthSales - $lastMonthSales) / $lastMonthSales) * 100, 1)
+            : 0;
+
+        $invoicesCount = Invoice::whereDate('invoice_date', '>=', $startOfMonth)->count();
+        $lastMonthInvoicesCount = Invoice::whereBetween('invoice_date', [$lastMonthStart, $lastMonthEnd])->count();
+        $invoicesCountTrend = $lastMonthInvoicesCount > 0
+            ? round((($invoicesCount - $lastMonthInvoicesCount) / $lastMonthInvoicesCount) * 100, 1)
+            : 0;
+
+        $receivables = (float) Customer::where('status', 'active')->sum('current_balance');
+
         $kpis = [
-            'today_sales' => '1,450.00',
-            'month_sales' => '48,920.00',
-            'month_sales_trend' => 14.2,
-            'invoices_count' => 128,
-            'invoices_count_trend' => 8.5,
-            'receivables' => '12,350.00',
-            'receivables_trend' => -3.4,
-            'inventory_value' => '184,200.00',
-            'low_stock_count' => 4,
+            'today_sales' => number_format($todaySales, 2),
+            'month_sales' => number_format($monthSales, 2),
+            'month_sales_trend' => $monthSalesTrend,
+            'invoices_count' => $invoicesCount,
+            'invoices_count_trend' => $invoicesCountTrend,
+            'receivables' => number_format($receivables, 2),
+            'receivables_trend' => 0,
+            'inventory_value' => number_format(
+                (float) Product::where('is_active', true)->sum(DB::raw('selling_price')),
+                2
+            ),
+            'low_stock_count' => 0, // Will be computed when stock tracking is fully built
         ];
 
-        // Recent sales invoices matching the original system
-        $recentInvoices = [
-            [
-                'id' => 1042,
-                'number' => 'INV-001042',
-                'customer_name' => 'شركة الوفاق للتجارة والمقاولات',
-                'date' => '2026-09-20',
-                'total' => '2,300.00',
-                'status' => 'paid',
-            ],
-            [
-                'id' => 1041,
-                'number' => 'INV-001041',
-                'customer_name' => 'مؤسسة البشائر الحديثة',
-                'date' => '2026-09-20',
-                'total' => '850.00',
-                'status' => 'paid',
-            ],
-            [
-                'id' => 1040,
-                'number' => 'INV-001040',
-                'customer_name' => 'عبدالله بن خالد الشهري',
-                'date' => '2026-09-19',
-                'total' => '4,120.00',
-                'status' => 'partially_paid',
-            ],
-            [
-                'id' => 1039,
-                'number' => 'INV-001039',
-                'customer_name' => 'شركة الرؤية للحلول الرقمية',
-                'date' => '2026-09-19',
-                'total' => '6,700.00',
-                'status' => 'unpaid',
-            ],
-            [
-                'id' => 1038,
-                'number' => 'INV-001038',
-                'customer_name' => 'مكتب المستشار الهندسي',
-                'date' => '2026-09-18',
-                'total' => '1,150.00',
-                'status' => 'paid',
-            ],
-        ];
+        // === Recent Sales Invoices (Real Data) ===
+        $recentInvoices = Invoice::with('customer')
+            ->orderBy('invoice_date', 'desc')
+            ->orderBy('id', 'desc')
+            ->take(5)
+            ->get()
+            ->map(fn ($inv) => [
+                'id' => $inv->id,
+                'number' => $inv->invoice_number,
+                'customer_name' => $inv->customer?->name ?? $inv->customer?->company_name ?? '—',
+                'date' => $inv->invoice_date?->format('Y-m-d'),
+                'total' => number_format((float) $inv->total, 2),
+                'status' => $inv->payment_status,
+            ]);
 
-        // Top selling products
-        $topProducts = [
-            ['name' => 'لابتوب ديل انسبيرون 15', 'category' => 'أجهزة إلكترونية', 'sold_units' => 48, 'revenue' => '124,800.00'],
-            ['name' => 'شاشة سامسونج 27 بوصة منحنية', 'category' => 'شاشات وملحقات', 'sold_units' => 35, 'revenue' => '31,500.00'],
-            ['name' => 'طابعة إبسون L3250 واي فاي', 'category' => 'طابعات وماسحات', 'sold_units' => 29, 'revenue' => '20,300.00'],
-            ['name' => 'لوحة مفاتيح وماوس لاسلكي لوجيتك', 'category' => 'ملحقات كمبيوتر', 'sold_units' => 74, 'revenue' => '11,100.00'],
-        ];
+        // === Top Selling Products (Real Data — by POS + Invoice items) ===
+        $topProducts = DB::table('invoice_items')
+            ->join('invoices', 'invoice_items.invoice_id', '=', 'invoices.id')
+            ->select(
+                'invoice_items.item_name as name',
+                DB::raw('SUM(invoice_items.quantity) as sold_units'),
+                DB::raw('SUM(invoice_items.total) as revenue')
+            )
+            ->when($tenantManager->hasTenant(), function ($q) use ($tenantManager) {
+                $q->where('invoices.company_id', $tenantManager->getTenantId());
+            })
+            ->groupBy('invoice_items.item_name')
+            ->orderByDesc('revenue')
+            ->limit(4)
+            ->get()
+            ->map(fn ($p) => [
+                'name' => $p->name,
+                'category' => '—',
+                'sold_units' => (int) $p->sold_units,
+                'revenue' => number_format((float) $p->revenue, 2),
+            ]);
 
-        // Monthly sales chart series
+        // === Monthly Sales Chart (Real Data — last 6 months) ===
+        $months = [];
+        $salesData = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $date = Carbon::now()->subMonths($i);
+            $months[] = $date->translatedFormat('F');
+            $salesData[] = (float) Invoice::whereYear('invoice_date', $date->year)
+                ->whereMonth('invoice_date', $date->month)
+                ->sum('total');
+        }
+
         $salesChart = [
-            'months' => ['أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر'],
+            'months' => $months,
             'series' => [
                 [
                     'name' => 'المبيعات (ر.س)',
-                    'data' => [32000, 41000, 38500, 52000, 47000, 48920],
+                    'data' => $salesData,
                 ],
-                [
-                    'name' => 'المشتريات (ر.س)',
-                    'data' => [24000, 28000, 31000, 36000, 33000, 29500],
-                ]
-            ]
+            ],
         ];
 
         return Inertia::render('Dashboard', [

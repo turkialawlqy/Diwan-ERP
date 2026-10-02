@@ -34,6 +34,32 @@ class Company extends Model
         'is_verified' => 'boolean',
     ];
 
+    protected $appends = [
+        'logo_url',
+    ];
+
+    /**
+     * Get the full URL for company logo.
+     */
+    public function getLogoUrlAttribute(): ?string
+    {
+        if (empty($this->logo)) {
+            return null;
+        }
+
+        if (str_starts_with($this->logo, 'http://') || str_starts_with($this->logo, 'https://')) {
+            return $this->logo;
+        }
+
+        $cleanPath = ltrim(str_replace('/storage/', '', $this->logo), '/');
+
+        if (file_exists(public_path('storage/' . $cleanPath))) {
+            return asset('storage/' . $cleanPath);
+        }
+
+        return $this->logo;
+    }
+
     public function users(): HasMany
     {
         return $this->hasMany(User::class);

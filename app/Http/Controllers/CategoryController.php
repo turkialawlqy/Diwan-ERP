@@ -34,10 +34,25 @@ class CategoryController extends Controller
             'color' => 'nullable|string|max:20',
         ]);
 
-        Category::create(array_merge($validated, [
-            'company_id' => app(\App\Services\TenantManager::class)->getTenantId() ?? auth()->user()?->company_id ?? \App\Models\Company::first()?->id ?? 1,
+        $companyId = app(\App\Services\TenantManager::class)->getTenantId()
+            ?? auth()->user()?->company_id;
+
+        if (!$companyId) {
+            abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
+        }
+
+        $category = Category::create(array_merge($validated, [
+            'company_id' => $companyId,
             'is_active' => true,
         ]));
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'category' => $category,
+                'message' => 'تمت إضافة التصنيف بنجاح',
+            ], 201);
+        }
 
         return back()->with('success', 'تمت إضافة التصنيف بنجاح');
     }
