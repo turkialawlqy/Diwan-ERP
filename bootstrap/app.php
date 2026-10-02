@@ -11,7 +11,18 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->web(append: [
+        // Trust proxy headers (X-Forwarded-Proto/For) only when explicitly configured,
+        // so ForceHttps below can correctly detect HTTPS terminated at a reverse proxy
+        // / load balancer instead of redirect-looping on every request.
+        if ($trustedProxies = env('TRUSTED_PROXIES')) {
+            $middleware->trustProxies(
+                at: $trustedProxies === '*' ? '*' : explode(',', $trustedProxies),
+            );
+        }
+
+        $middleware->web(prepend: [
+            \App\Http\Middleware\ForceHttps::class,
+        ], append: [
             \App\Http\Middleware\SetLocale::class,
             \App\Http\Middleware\ResolveTenant::class,
             \App\Http\Middleware\HandleInertiaRequests::class,

@@ -74,7 +74,16 @@ class CustomerPaymentController extends Controller
 
             // If attached to invoice, update invoice paid amount
             if (!empty($validated['invoice_id'])) {
-                $invoice = Invoice::find($validated['invoice_id']);
+                // Locked to prevent two concurrent payments from both reading the
+                // same stale remaining_amount and jointly overpaying the invoice.
+                $invoice = Invoice::where('id', $validated['invoice_id'])->lockForUpdate()->first();
+
+                if ($validated['amount'] > $invoice->remaining_amount + 0.01) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'amount' => "مبلغ الدفعة ({$validated['amount']}) أكبر من المبلغ المتبقي على الفاتورة ({$invoice->remaining_amount}).",
+                    ]);
+                }
+
                 $newPaid = $invoice->paid_amount + $validated['amount'];
                 $newRemaining = max(0, $invoice->total - $newPaid);
                 $status = $newRemaining <= 0 ? 'paid' : 'partially_paid';

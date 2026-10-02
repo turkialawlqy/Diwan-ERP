@@ -28,6 +28,10 @@ class AppServiceProvider extends ServiceProvider
         Vite::prefetch(concurrency: 3);
 
         $this->configureRateLimiting();
+
+        if ($this->app->environment('production')) {
+            \Illuminate\Support\Facades\URL::forceScheme('https');
+        }
     }
 
     /**
@@ -43,6 +47,17 @@ class AppServiceProvider extends ServiceProvider
         // Registration: max 3 per minute per IP
         RateLimiter::for('register', function (Request $request) {
             return Limit::perMinute(3)->by($request->ip());
+        });
+
+        // Forgot-password requests: max 3 per minute per IP+email, to slow down
+        // both mass email-enumeration and mail-bombing a single address.
+        RateLimiter::for('password-email', function (Request $request) {
+            return Limit::perMinute(3)->by($request->ip() . '|' . strtolower((string) $request->input('email')));
+        });
+
+        // Password reset submission: max 5 per minute per IP
+        RateLimiter::for('password-reset', function (Request $request) {
+            return Limit::perMinute(5)->by($request->ip());
         });
 
         // POS order processing: max 30 per minute per authenticated user

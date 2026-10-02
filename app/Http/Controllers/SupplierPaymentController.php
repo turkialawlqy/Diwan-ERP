@@ -109,8 +109,16 @@ class SupplierPaymentController extends Controller
 
             // Update linked purchase invoice if applicable
             if (!empty($validated['purchase_invoice_id'])) {
-                $invoice = PurchaseInvoice::find($validated['purchase_invoice_id']);
+                // Locked to prevent two concurrent payments from both reading the
+                // same stale remaining_amount and jointly overpaying the invoice.
+                $invoice = PurchaseInvoice::where('id', $validated['purchase_invoice_id'])->lockForUpdate()->first();
                 if ($invoice) {
+                    if ($validated['amount'] > $invoice->remaining_amount + 0.01) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'amount' => "مبلغ الدفعة ({$validated['amount']}) أكبر من المبلغ المتبقي على فاتورة الشراء ({$invoice->remaining_amount}).",
+                        ]);
+                    }
+
                     $newPaid = $invoice->paid_amount + $validated['amount'];
                     $newRemaining = max(0, $invoice->total - $newPaid);
                     $newStatus = $newRemaining <= 0 ? 'paid' : 'partially_paid';
