@@ -13,6 +13,7 @@ class CustomerPayment extends Model
     use Auditable, BelongsToCompany, HasFactory;
 
     protected $fillable = [
+        'bank_account_id',
         'company_id',
         'customer_id',
         'invoice_id',

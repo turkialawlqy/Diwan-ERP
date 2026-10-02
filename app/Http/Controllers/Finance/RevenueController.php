@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\BankAccount;
 use App\Models\Revenue;
+use App\Services\Accounting\DocumentPoster;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -57,6 +59,7 @@ class RevenueController extends Controller
             'title' => 'required|string|max:255',
             'account_id' => 'nullable|tenant_exists:accounts,id',
             'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'cost_center_id' => 'nullable|tenant_exists:cost_centers,id',
             'category' => 'required|string|max:100',
             'amount' => 'required|numeric|min:0.01',
             'tax_amount' => 'nullable|numeric|min:0',
@@ -70,32 +73,40 @@ class RevenueController extends Controller
         $tax = $validated['tax_amount'] ?? round($validated['amount'] * 0.15, 2);
         $total = $validated['amount'] + $tax;
 
-        $revenueNumber = $this->nextNumber('revenue', $validated['revenue_date'] ?? null);
+        $revenue = DB::transaction(function () use ($validated, $tax, $total) {
+            $revenueNumber = $this->nextNumber('revenue', $validated['revenue_date'] ?? null);
 
-        $revenue = Revenue::create([
-            'revenue_number' => $revenueNumber,
-            'account_id' => $validated['account_id'] ?? null,
-            'bank_account_id' => $validated['bank_account_id'] ?? null,
-            'title' => $validated['title'],
-            'category' => $validated['category'],
-            'amount' => $validated['amount'],
-            'tax_amount' => $tax,
-            'total_amount' => $total,
-            'revenue_date' => $validated['revenue_date'],
-            'payment_method' => $validated['payment_method'],
-            'reference_number' => $validated['reference_number'] ?? null,
-            'customer_name' => $validated['customer_name'] ?? null,
-            'notes' => $validated['notes'] ?? null,
-            'created_by' => auth()->id(),
-        ]);
+            $revenue = Revenue::create([
+                'revenue_number' => $revenueNumber,
+                'account_id' => $validated['account_id'] ?? null,
+                'bank_account_id' => $validated['bank_account_id'] ?? null,
+                'cost_center_id' => $validated['cost_center_id'] ?? null,
+                'title' => $validated['title'],
+                'category' => $validated['category'],
+                'amount' => $validated['amount'],
+                'tax_amount' => $tax,
+                'total_amount' => $total,
+                'revenue_date' => $validated['revenue_date'],
+                'payment_method' => $validated['payment_method'],
+                'reference_number' => $validated['reference_number'] ?? null,
+                'customer_name' => $validated['customer_name'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+                'created_by' => auth()->id(),
+            ]);
 
-        // Add to bank account balance if specified
-        if (! empty($validated['bank_account_id'])) {
-            $bank = BankAccount::find($validated['bank_account_id']);
-            if ($bank) {
-                $bank->increment('current_balance', $total);
+            // Add to bank account balance if specified
+            if (! empty($validated['bank_account_id'])) {
+                $bank = BankAccount::find($validated['bank_account_id']);
+                if ($bank) {
+                    $bank->increment('current_balance', $total);
+                }
             }
-        }
+
+            app(DocumentPoster::class)->revenue($revenue);
+
+            return $revenue;
+        });
+        $revenueNumber = $revenue->revenue_number;
 
         return redirect()->route('finance.revenues.index')
             ->with('success', "تم تسجيل سند الإيراد بنجاح برقم {$revenueNumber}");
@@ -103,14 +114,19 @@ class RevenueController extends Controller
 
     public function destroy(Revenue $revenue)
     {
-        if ($revenue->bank_account_id) {
-            $bank = BankAccount::find($revenue->bank_account_id);
-            if ($bank) {
-                $bank->decrement('current_balance', $revenue->total_amount);
-            }
-        }
+        // Cancelling a voucher reverses its journal entry; the audit log keeps the record.
+        DB::transaction(function () use ($revenue) {
+            app(DocumentPoster::class)->reverse($revenue, 'إلغاء سند رقم '.$revenue->revenue_number);
 
-        $revenue->delete();
+            if ($revenue->bank_account_id) {
+                $bank = BankAccount::find($revenue->bank_account_id);
+                if ($bank) {
+                    $bank->decrement('current_balance', $revenue->total_amount);
+                }
+            }
+
+            $revenue->delete();
+        });
 
         return redirect()->route('finance.revenues.index')
             ->with('success', 'تم حذف سند الإيراد بنجاح');

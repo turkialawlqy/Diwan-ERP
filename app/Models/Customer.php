@@ -62,6 +62,17 @@ class Customer extends Model
         });
     }
 
+    /**
+     * The company's walk-in (cash) customer used for anonymous POS sales.
+     */
+    public static function walkIn(): self
+    {
+        return static::firstOrCreate(
+            ['code' => 'WALK-IN'],
+            ['name' => 'عميل نقدي', 'customer_type' => 'individual', 'status' => 'active'],
+        );
+    }
+
     public function getFormattedCodeAttribute(): string
     {
         return $this->code ?: ('1-'.str_pad($this->id, 6, '0', STR_PAD_LEFT));

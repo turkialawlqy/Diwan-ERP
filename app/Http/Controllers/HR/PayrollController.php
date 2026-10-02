@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\Payroll;
 use App\Models\PayrollItem;
+use App\Services\Accounting\DocumentPoster;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -40,6 +42,10 @@ class PayrollController extends Controller
             'notes' => 'nullable|string',
         ]);
 
+        if (Payroll::where('month', $validated['month'])->where('year', $validated['year'])->exists()) {
+            return back()->withErrors(['month' => 'تم إصدار مسير رواتب لهذا الشهر مسبقاً.']);
+        }
+
         $activeEmployees = Employee::where('status', 'active')->get();
 
         if ($activeEmployees->isEmpty()) {
@@ -62,7 +68,7 @@ class PayrollController extends Controller
                 'total_deductions' => 0.00,
                 'net_total' => $netTotal,
                 'status' => 'approved',
-                'payment_date' => now(),
+                'payment_date' => Carbon::create($validated['year'], $validated['month'], 1)->endOfMonth()->toDateString(),
                 'notes' => $validated['notes'] ?? "مسير رواتب شهر {$validated['month']}-{$validated['year']}",
                 'created_by' => auth()->id(),
             ]);
@@ -78,6 +84,9 @@ class PayrollController extends Controller
                     'notes' => 'راتب كامل مسير معتمد',
                 ]);
             }
+
+            // Accrue the payroll in the ledger (salary expense / salaries payable).
+            app(DocumentPoster::class)->payroll($payroll);
 
             return redirect()->route('hr.payroll.index')
                 ->with('success', "تم توليد واعتماد مسير الرواتب بنجاح برقم {$payrollNumber}");

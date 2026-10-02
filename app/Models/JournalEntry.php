@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class JournalEntry extends Model
 {
@@ -23,6 +24,14 @@ class JournalEntry extends Model
         'total_debit',
         'total_credit',
         'status',
+        'entry_type',
+        'source_type',
+        'source_id',
+        'fiscal_period_id',
+        'reversal_of_id',
+        'reversed_by_id',
+        'posted_at',
+        'posted_by',
         'created_by',
     ];
 
@@ -30,7 +39,39 @@ class JournalEntry extends Model
         'date' => 'date',
         'total_debit' => 'decimal:2',
         'total_credit' => 'decimal:2',
+        'posted_at' => 'datetime',
     ];
+
+    public const STATUS_DRAFT = 'draft';
+
+    public const STATUS_POSTED = 'posted';
+
+    public const STATUS_REVERSED = 'reversed';
+
+    public function source(): MorphTo
+    {
+        return $this->morphTo();
+    }
+
+    public function reversalOf(): BelongsTo
+    {
+        return $this->belongsTo(JournalEntry::class, 'reversal_of_id');
+    }
+
+    public function reversedBy(): BelongsTo
+    {
+        return $this->belongsTo(JournalEntry::class, 'reversed_by_id');
+    }
+
+    public function period(): BelongsTo
+    {
+        return $this->belongsTo(FiscalPeriod::class, 'fiscal_period_id');
+    }
+
+    public function isPosted(): bool
+    {
+        return $this->status === self::STATUS_POSTED;
+    }
 
     public function lines(): HasMany
     {

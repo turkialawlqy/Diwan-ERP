@@ -13,6 +13,7 @@ class Revenue extends Model
     use Auditable, BelongsToCompany, HasFactory;
 
     protected $fillable = [
+        'cost_center_id',
         'company_id',
         'account_id',
         'bank_account_id',

@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\Quotation;
+use App\Services\Accounting\DocumentPoster;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
 use Carbon\Carbon;
@@ -273,6 +274,8 @@ class QuotationController extends Controller
 
             // Update quotation status
             $quotation->update(['status' => 'converted']);
+
+            app(DocumentPoster::class)->salesInvoice($invoice);
 
             return $invoice;
         });

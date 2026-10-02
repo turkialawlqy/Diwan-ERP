@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\BankAccount;
 use App\Models\Expense;
+use App\Services\Accounting\DocumentPoster;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -57,6 +59,7 @@ class ExpenseController extends Controller
             'title' => 'required|string|max:255',
             'account_id' => 'nullable|tenant_exists:accounts,id',
             'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'cost_center_id' => 'nullable|tenant_exists:cost_centers,id',
             'category' => 'required|string|max:100',
             'amount' => 'required|numeric|min:0.01',
             'tax_amount' => 'nullable|numeric|min:0',
@@ -70,32 +73,40 @@ class ExpenseController extends Controller
         $tax = $validated['tax_amount'] ?? round($validated['amount'] * 0.15, 2);
         $total = $validated['amount'] + $tax;
 
-        $expenseNumber = $this->nextNumber('expense', $validated['expense_date'] ?? null);
+        $expense = DB::transaction(function () use ($validated, $tax, $total) {
+            $expenseNumber = $this->nextNumber('expense', $validated['expense_date'] ?? null);
 
-        $expense = Expense::create([
-            'expense_number' => $expenseNumber,
-            'account_id' => $validated['account_id'] ?? null,
-            'bank_account_id' => $validated['bank_account_id'] ?? null,
-            'title' => $validated['title'],
-            'category' => $validated['category'],
-            'amount' => $validated['amount'],
-            'tax_amount' => $tax,
-            'total_amount' => $total,
-            'expense_date' => $validated['expense_date'],
-            'payment_method' => $validated['payment_method'],
-            'reference_number' => $validated['reference_number'] ?? null,
-            'vendor_name' => $validated['vendor_name'] ?? null,
-            'notes' => $validated['notes'] ?? null,
-            'created_by' => auth()->id(),
-        ]);
+            $expense = Expense::create([
+                'expense_number' => $expenseNumber,
+                'account_id' => $validated['account_id'] ?? null,
+                'bank_account_id' => $validated['bank_account_id'] ?? null,
+                'cost_center_id' => $validated['cost_center_id'] ?? null,
+                'title' => $validated['title'],
+                'category' => $validated['category'],
+                'amount' => $validated['amount'],
+                'tax_amount' => $tax,
+                'total_amount' => $total,
+                'expense_date' => $validated['expense_date'],
+                'payment_method' => $validated['payment_method'],
+                'reference_number' => $validated['reference_number'] ?? null,
+                'vendor_name' => $validated['vendor_name'] ?? null,
+                'notes' => $validated['notes'] ?? null,
+                'created_by' => auth()->id(),
+            ]);
 
-        // Deduct from bank account balance if specified
-        if (! empty($validated['bank_account_id'])) {
-            $bank = BankAccount::find($validated['bank_account_id']);
-            if ($bank) {
-                $bank->decrement('current_balance', $total);
+            // Deduct from bank account balance if specified
+            if (! empty($validated['bank_account_id'])) {
+                $bank = BankAccount::find($validated['bank_account_id']);
+                if ($bank) {
+                    $bank->decrement('current_balance', $total);
+                }
             }
-        }
+
+            app(DocumentPoster::class)->expense($expense);
+
+            return $expense;
+        });
+        $expenseNumber = $expense->expense_number;
 
         return redirect()->route('finance.expenses.index')
             ->with('success', "تم تسجيل سند المصروف بنجاح برقم {$expenseNumber}");
@@ -103,15 +114,20 @@ class ExpenseController extends Controller
 
     public function destroy(Expense $expense)
     {
-        // Refund bank account balance if specified
-        if ($expense->bank_account_id) {
-            $bank = BankAccount::find($expense->bank_account_id);
-            if ($bank) {
-                $bank->increment('current_balance', $expense->total_amount);
-            }
-        }
+        // Cancelling a voucher reverses its journal entry; the audit log keeps the record.
+        DB::transaction(function () use ($expense) {
+            app(DocumentPoster::class)->reverse($expense, 'إلغاء سند رقم '.$expense->expense_number);
 
-        $expense->delete();
+            // Refund bank account balance if specified
+            if ($expense->bank_account_id) {
+                $bank = BankAccount::find($expense->bank_account_id);
+                if ($bank) {
+                    $bank->increment('current_balance', $expense->total_amount);
+                }
+            }
+
+            $expense->delete();
+        });
 
         return redirect()->route('finance.expenses.index')
             ->with('success', 'تم حذف سند المصروف بنجاح');

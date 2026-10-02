@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import AppSidebar from '../Components/AppSidebar.vue';
 import AppTopBar from '../Components/AppTopBar.vue';
@@ -16,6 +16,15 @@ const showFlash = ref(true);
 const dismissFlash = () => {
     showFlash.value = false;
 };
+
+// Business-rule errors (e.g. accounting: closed period, unbalanced entry)
+// are shown here even on pages whose forms do not render that field.
+const generalError = computed(() => page.props.errors?.accounting || null);
+
+// A new flash message after a dismissed one must be visible again.
+watch(() => [flash.value?.success, flash.value?.error, generalError.value], () => {
+    showFlash.value = true;
+});
 </script>
 
 <template>
@@ -37,7 +46,7 @@ const dismissFlash = () => {
                 <AppTopBar class="print:hidden" @toggle-sidebar="isSidebarOpen = !isSidebarOpen" />
 
                 <!-- Flash Notification Banner -->
-                <div v-if="showFlash && (flash?.success || flash?.error)" class="px-4 sm:px-8 pt-4 print:hidden">
+                <div v-if="showFlash && (flash?.success || flash?.error || generalError)" class="px-4 sm:px-8 pt-4 print:hidden space-y-2">
                     <div 
                         v-if="flash.success" 
                         class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center justify-between text-xs sm:text-sm font-semibold shadow-xs"
@@ -47,6 +56,19 @@ const dismissFlash = () => {
                             <span>{{ flash.success }}</span>
                         </div>
                         <button @click="dismissFlash" class="text-emerald-600 hover:text-emerald-900">
+                            <XMarkIcon class="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    <div
+                        v-if="generalError"
+                        class="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 flex items-center justify-between text-xs sm:text-sm font-semibold shadow-xs"
+                    >
+                        <div class="flex items-center gap-2">
+                            <ExclamationCircleIcon class="w-5 h-5 text-red-600 flex-shrink-0" />
+                            <span>{{ generalError }}</span>
+                        </div>
+                        <button @click="dismissFlash" class="text-red-600 hover:text-red-900">
                             <XMarkIcon class="w-4 h-4" />
                         </button>
                     </div>

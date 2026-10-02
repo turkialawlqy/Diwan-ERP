@@ -24,6 +24,7 @@ class Product extends Model
         'barcode',
         'description',
         'purchase_price',
+        'average_cost',
         'selling_price',
         'tax_rate',
         'min_stock_alert',

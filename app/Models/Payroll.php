@@ -14,6 +14,7 @@ class Payroll extends Model
     use Auditable, BelongsToCompany, HasFactory;
 
     protected $fillable = [
+        'bank_account_id',
         'company_id',
         'payroll_number',
         'month',

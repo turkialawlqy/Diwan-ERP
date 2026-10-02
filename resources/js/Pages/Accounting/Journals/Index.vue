@@ -21,8 +21,16 @@ const props = defineProps({
     entries: Object,
     stats: Object,
     accounts: Array,
+    costCenters: Array,
     filters: Object,
 });
+
+const statusBadge = {
+    draft: ['مسودة', 'bg-amber-50 text-amber-700 border-amber-200'],
+    posted: ['مرحّل', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
+    reversed: ['معكوس', 'bg-rose-50 text-rose-700 border-rose-200'],
+};
+const typeLabels = { manual: 'يدوي', system: 'آلي', opening: 'افتتاحي', closing: 'إقفال', adjustment: 'تسوية', recurring: 'متكرر', reversal: 'عكسي' };
 
 const isFilterOpen = ref(false);
 const isAddModalOpen = ref(false);
@@ -32,15 +40,18 @@ const form = useForm({
     date: new Date().toISOString().split('T')[0],
     reference: '',
     description: '',
+    entry_type: 'manual',
+    save_as: 'posted',
     lines: [
-        { account_id: props.accounts?.[0]?.id || '', description: '', debit: 0, credit: 0 },
-        { account_id: props.accounts?.[1]?.id || '', description: '', debit: 0, credit: 0 },
+        { account_id: props.accounts?.[0]?.id || '', cost_center_id: '', description: '', debit: 0, credit: 0 },
+        { account_id: props.accounts?.[1]?.id || '', cost_center_id: '', description: '', debit: 0, credit: 0 },
     ],
 });
 
 const addLine = () => {
     form.lines.push({
         account_id: props.accounts?.[0]?.id || '',
+        cost_center_id: '',
         description: '',
         debit: 0,
         credit: 0,
@@ -69,14 +80,15 @@ const openAddModal = () => {
     form.reset();
     form.date = new Date().toISOString().split('T')[0];
     form.lines = [
-        { account_id: props.accounts?.[0]?.id || '', description: '', debit: 0, credit: 0 },
-        { account_id: props.accounts?.[1]?.id || '', description: '', debit: 0, credit: 0 },
+        { account_id: props.accounts?.[0]?.id || '', cost_center_id: '', description: '', debit: 0, credit: 0 },
+        { account_id: props.accounts?.[1]?.id || '', cost_center_id: '', description: '', debit: 0, credit: 0 },
     ];
     isAddModalOpen.value = true;
 };
 
-const submitEntry = () => {
+const submitEntry = (saveAs = 'posted') => {
     if (!isBalanced.value) return;
+    form.save_as = saveAs;
 
     form.post(route('accounting.journals.store'), {
         onSuccess: () => {
@@ -246,9 +258,10 @@ const formatCurrency = (val) => {
                                     {{ formatCurrency(entry.total_credit) }} ﷼
                                 </td>
                                 <td class="py-4 px-6 text-center">
-                                    <span class="px-2.5 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                        مرحل
+                                    <span :class="[statusBadge[entry.status]?.[1], 'px-2.5 py-0.5 rounded-full text-2xs font-bold border']">
+                                        {{ statusBadge[entry.status]?.[0] || entry.status }}
                                     </span>
+                                    <span class="block text-[10px] text-slate-400 mt-0.5">{{ typeLabels[entry.entry_type] || '' }}</span>
                                 </td>
                                 <td class="py-4 px-6 text-center">
                                     <Link 
@@ -339,7 +352,7 @@ const formatCurrency = (val) => {
                         </button>
                     </div>
 
-                    <form @submit.prevent="submitEntry" class="space-y-4 text-xs flex-1 overflow-y-auto pe-1">
+                    <form @submit.prevent="submitEntry('posted')" class="space-y-4 text-xs flex-1 overflow-y-auto pe-1">
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block font-medium text-slate-700 mb-1">تاريخ القيد <span class="text-rose-500">*</span></label>
@@ -362,6 +375,15 @@ const formatCurrency = (val) => {
                         </div>
 
                         <div>
+                            <label class="block font-medium text-slate-700 mb-1">نوع القيد</label>
+                            <select v-model="form.entry_type" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+                                <option value="manual">قيد يومية عادي</option>
+                                <option value="opening">قيد أرصدة افتتاحية</option>
+                                <option value="adjustment">قيد تسوية</option>
+                            </select>
+                        </div>
+
+                        <div>
                             <label class="block font-medium text-slate-700 mb-1">بيان القيد العام <span class="text-rose-500">*</span></label>
                             <input 
                                 v-model="form.description" 
@@ -378,6 +400,7 @@ const formatCurrency = (val) => {
                                 <thead>
                                     <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-bold">
                                         <th class="py-2.5 px-3 text-start">الحساب المحاسبي</th>
+                                        <th class="py-2.5 px-3 text-start">مركز التكلفة</th>
                                         <th class="py-2.5 px-3 text-start">شرح البند</th>
                                         <th class="py-2.5 px-3 text-end w-28">مدين (Debit)</th>
                                         <th class="py-2.5 px-3 text-end w-28">دائن (Credit)</th>
@@ -395,6 +418,12 @@ const formatCurrency = (val) => {
                                                 <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
                                                     {{ acc.code }} - {{ acc.name_ar }}
                                                 </option>
+                                            </select>
+                                        </td>
+                                        <td class="p-2">
+                                            <select v-model="line.cost_center_id" class="w-full py-1 px-2 bg-slate-50 border border-slate-200 rounded-lg text-3xs">
+                                                <option value="">—</option>
+                                                <option v-for="cc in costCenters" :key="cc.id" :value="cc.id">{{ cc.code }} - {{ cc.name_ar }}</option>
                                             </select>
                                         </td>
                                         <td class="p-2">
@@ -439,7 +468,7 @@ const formatCurrency = (val) => {
                                 </tbody>
                                 <tfoot>
                                     <tr class="bg-slate-50 font-bold border-t border-slate-200">
-                                        <td colspan="2" class="p-2 text-start">
+                                        <td colspan="3" class="p-2 text-start">
                                             <button 
                                                 type="button" 
                                                 @click="addLine" 
@@ -459,6 +488,10 @@ const formatCurrency = (val) => {
                                     </tr>
                                 </tfoot>
                             </table>
+                        </div>
+
+                        <div v-if="Object.keys(form.errors).length" class="p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs space-y-1">
+                            <p v-for="(msg, key) in form.errors" :key="key">{{ msg }}</p>
                         </div>
 
                         <!-- Balance Verification Status -->
@@ -484,7 +517,16 @@ const formatCurrency = (val) => {
                             >
                                 إلغاء
                             </button>
+                            <button
+                                type="button"
+                                @click="submitEntry('draft')"
+                                :disabled="!isBalanced || form.processing"
+                                class="px-4 py-2 border border-amber-300 text-amber-700 rounded-xl font-bold disabled:opacity-50"
+                            >
+                                حفظ كمسودة
+                            </button>
                             <button 
+                                v-if="$can('accounting.journals.post')"
                                 type="submit" 
                                 :disabled="!isBalanced || form.processing"
                                 class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-xs hover:shadow-indigo-500/20 disabled:opacity-50"

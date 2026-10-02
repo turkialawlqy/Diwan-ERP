@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import {
     PrinterIcon,
@@ -21,6 +21,20 @@ const formatCurrency = (val) => {
 const printVoucher = () => {
     window.print();
 };
+
+const statusLabels = { draft: 'مسودة (غير مرحّل)', posted: 'مرحّل ومعتمد', reversed: 'معكوس' };
+const statusClass = { draft: 'text-amber-600', posted: 'text-emerald-600', reversed: 'text-rose-600' };
+const manualTypes = ['manual', 'opening', 'adjustment', 'recurring'];
+
+const postEntry = () => router.post(route('accounting.journals.post', props.entry.id), {}, { preserveScroll: true });
+const reverseEntry = () => {
+    const reason = prompt('سبب عكس القيد (اختياري):');
+    if (reason === null) return;
+    router.post(route('accounting.journals.reverse', props.entry.id), { reason });
+};
+const deleteDraft = () => {
+    if (confirm('حذف مسودة القيد؟')) router.delete(route('accounting.journals.destroy', props.entry.id));
+};
 </script>
 
 <template>
@@ -38,6 +52,10 @@ const printVoucher = () => {
                     <span>العودة للقيود اليومية</span>
                 </Link>
 
+                <div class="flex items-center gap-2">
+                <button v-if="entry.status === 'draft' && $can('accounting.journals.post')" @click="postEntry" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold">ترحيل القيد</button>
+                <button v-if="entry.status === 'draft' && $can('accounting.journals.delete')" @click="deleteDraft" class="px-4 py-2 bg-white border border-rose-200 text-rose-600 rounded-xl text-xs font-bold">حذف المسودة</button>
+                <button v-if="entry.status === 'posted' && manualTypes.includes(entry.entry_type) && $can('accounting.journals.cancel')" @click="reverseEntry" class="px-4 py-2 bg-white border border-amber-300 text-amber-700 rounded-xl text-xs font-bold">عكس القيد</button>
                 <button 
                     @click="printVoucher"
                     class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-indigo-500/20 transition flex items-center gap-1.5"
@@ -45,6 +63,7 @@ const printVoucher = () => {
                     <PrinterIcon class="w-4 h-4 stroke-2" />
                     <span>طباعة سند القيد</span>
                 </button>
+                </div>
             </div>
 
             <!-- Official Journal Voucher Sheet (Print Optimized) -->
@@ -77,7 +96,9 @@ const printVoucher = () => {
                     </div>
                     <div>
                         <span class="text-3xs text-slate-400 block mb-0.5">الحالة:</span>
-                        <span class="font-bold text-emerald-600">مرحل ومعتمد</span>
+                        <span :class="[statusClass[entry.status], 'font-bold']">{{ statusLabels[entry.status] || entry.status }}</span>
+                        <span v-if="entry.reversed_by" class="block text-[10px] text-slate-500">بالقيد <Link :href="route('accounting.journals.show', entry.reversed_by.id)" class="text-indigo-600">{{ entry.reversed_by.entry_number }}</Link></span>
+                        <span v-if="entry.reversal_of" class="block text-[10px] text-slate-500">عكس القيد <Link :href="route('accounting.journals.show', entry.reversal_of.id)" class="text-indigo-600">{{ entry.reversal_of.entry_number }}</Link></span>
                     </div>
                     <div>
                         <span class="text-3xs text-slate-400 block mb-0.5">المسؤول:</span>
@@ -99,6 +120,7 @@ const printVoucher = () => {
                                 <th class="py-3 px-4 text-start">كود الحساب</th>
                                 <th class="py-3 px-4 text-start">اسم الحساب في الدليل</th>
                                 <th class="py-3 px-4 text-start">البيان التفصيلي</th>
+                                <th class="py-3 px-4 text-start">مركز التكلفة</th>
                                 <th class="py-3 px-4 text-end">مدين (Debit)</th>
                                 <th class="py-3 px-4 text-end">دائن (Credit)</th>
                             </tr>
@@ -114,6 +136,7 @@ const printVoucher = () => {
                                 <td class="py-3 px-4 text-slate-600 text-3xs">
                                     {{ line.description }}
                                 </td>
+                                <td class="py-3 px-4 text-slate-500 text-3xs">{{ line.cost_center?.name_ar || '—' }}</td>
                                 <td class="py-3 px-4 font-mono font-bold text-end">
                                     {{ line.debit > 0 ? formatCurrency(line.debit) + ' ﷼' : '-' }}
                                 </td>
@@ -124,7 +147,7 @@ const printVoucher = () => {
                         </tbody>
                         <tfoot>
                             <tr class="bg-slate-100/80 font-black border-t border-slate-200 text-slate-900">
-                                <td colspan="3" class="py-3 px-4 text-start">المجموع الإجمالي للقيد:</td>
+                                <td colspan="4" class="py-3 px-4 text-start">المجموع الإجمالي للقيد:</td>
                                 <td class="py-3 px-4 font-mono text-end text-sm text-indigo-600">
                                     {{ formatCurrency(entry.total_debit) }} ﷼
                                 </td>

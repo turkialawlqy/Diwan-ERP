@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
 use App\Models\JournalEntry;
-use App\Models\JournalEntryLine;
+use App\Services\Accounting\DocumentPoster;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,15 +25,15 @@ class TransferController extends Controller
             ->get();
 
         $transfers = JournalEntry::with('lines.account')
-            ->where('company_id', $companyId)
-            ->where('reference', 'like', 'TRF-%')
+            ->where('source_type', 'transfer')
+            ->whereNull('reversal_of_id')
             ->latest('date')
             ->latest('id')
             ->paginate(15);
 
         $stats = [
-            'total_transfers_count' => JournalEntry::where('company_id', $companyId)->where('reference', 'like', 'TRF-%')->count(),
-            'total_transfers_amount' => JournalEntry::where('company_id', $companyId)->where('reference', 'like', 'TRF-%')->sum('total_debit'),
+            'total_transfers_count' => JournalEntry::where('source_type', 'transfer')->whereNull('reversal_of_id')->count(),
+            'total_transfers_amount' => JournalEntry::where('source_type', 'transfer')->whereNull('reversal_of_id')->sum('total_debit'),
         ];
 
         return Inertia::render('Finance/Transfers/Index', [
@@ -82,44 +82,10 @@ class TransferController extends Controller
             $from->decrement('current_balance', $amount);
             $to->increment('current_balance', $amount);
 
-            $entryNumber = $this->nextNumber('journal_entry', $validated['transfer_date']);
             $transferRef = $validated['reference'] ?? $this->nextNumber('transfer', $validated['transfer_date']);
-
             $desc = "تحويل مالي من [{$from->name}] إلى [{$to->name}]".($validated['notes'] ? ' - '.$validated['notes'] : '');
 
-            // Only post a GL journal entry when BOTH sides have a mapped chart-of-accounts
-            // account. Creating it with just one leg would leave an unbalanced entry
-            // (debit without a matching credit, or vice versa) in the ledger. The bank
-            // account balances above are updated unconditionally either way.
-            if ($to->account_id && $from->account_id) {
-                $journal = JournalEntry::create([
-                    'company_id' => $companyId,
-                    'entry_number' => $entryNumber,
-                    'date' => $validated['transfer_date'],
-                    'reference' => $transferRef,
-                    'description' => $desc,
-                    'total_debit' => $amount,
-                    'total_credit' => $amount,
-                    'status' => 'posted',
-                    'created_by' => auth()->id(),
-                ]);
-
-                JournalEntryLine::create([
-                    'journal_entry_id' => $journal->id,
-                    'account_id' => $to->account_id,
-                    'description' => "استلام تحويل إلى {$to->name}",
-                    'debit' => $amount,
-                    'credit' => 0,
-                ]);
-
-                JournalEntryLine::create([
-                    'journal_entry_id' => $journal->id,
-                    'account_id' => $from->account_id,
-                    'description' => "تحويل صادر من {$from->name}",
-                    'debit' => 0,
-                    'credit' => $amount,
-                ]);
-            }
+            app(DocumentPoster::class)->transfer($from, $to, $amount, $validated['transfer_date'], $transferRef, $desc);
         });
 
         return redirect()->route('finance.transfers.index')

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Services\Accounting\DocumentPoster;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class CustomerController extends Controller
@@ -145,7 +147,20 @@ class CustomerController extends Controller
             $validated['address'] = implode(' - ', $parts);
         }
 
-        $customer = Customer::create($validated);
+        $customer = DB::transaction(function () use ($validated) {
+            $customer = Customer::create($validated);
+
+            // Opening receivable (positive) or advance (negative) in the ledger.
+            app(DocumentPoster::class)->openingBalance(
+                $customer,
+                ['role' => 'receivables', 'side' => 'debit', 'party_type' => 'customer', 'party_id' => $customer->id],
+                (float) $validated['opening_balance'],
+                now(),
+                'رصيد افتتاحي للعميل '.$customer->name,
+            );
+
+            return $customer;
+        });
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([

@@ -7,6 +7,7 @@ use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\Warehouse;
+use App\Services\Accounting\DocumentPoster;
 use App\Services\TenantManager;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -140,6 +141,8 @@ class PurchaseOrderController extends Controller
 
             // Update order status
             $order->update(['status' => 'converted_to_invoice']);
+
+            app(DocumentPoster::class)->purchaseInvoice($purchaseInvoice);
 
             return $purchaseInvoice;
         });

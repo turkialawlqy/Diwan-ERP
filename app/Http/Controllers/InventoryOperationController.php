@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\Warehouse;
+use App\Services\Accounting\DocumentPoster;
+use App\Services\Inventory\CostingService;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -120,6 +122,7 @@ class InventoryOperationController extends Controller
             $stock = InventoryStock::where('id', $stock->id)->lockForUpdate()->first();
 
             $qty = (float) $validated['quantity'];
+            $before = (float) $stock->quantity;
 
             if ($validated['type'] === 'add') {
                 $stock->increment('quantity', $qty);
@@ -133,6 +136,16 @@ class InventoryOperationController extends Controller
             } else {
                 $stock->update(['quantity' => $qty]);
             }
+
+            // Value the quantity change at cost and post it (inventory vs adjustments).
+            $delta = (float) $stock->fresh()->quantity - $before;
+            $value = $delta * app(CostingService::class)->unitCost((int) $validated['product_id'], (int) $validated['warehouse_id']);
+            app(DocumentPoster::class)->stockAdjustment(
+                'stock_adjustment',
+                $value,
+                now(),
+                'تسوية مخزون: '.($validated['reason'] ?? 'تعديل يدوي'),
+            );
         });
 
         return redirect()->route('inventory.operations.index')

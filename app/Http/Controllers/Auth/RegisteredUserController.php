@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\Currency;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Services\Accounting\AccountingSetupService;
 use App\Services\Permissions\PermissionRegistry;
 use App\Services\TenantManager;
 use Illuminate\Auth\Events\Registered;
@@ -140,6 +141,9 @@ class RegisteredUserController extends Controller
                 'status' => 'active',
             ]);
             $user->save();
+
+            // Chart of accounts, account mappings and fiscal year.
+            app(AccountingSetupService::class)->provision($company);
 
             // Per-company roles (owner + defaults) and owner assignment.
             $registry = app(PermissionRegistry::class);

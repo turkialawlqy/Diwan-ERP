@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
+use App\Services\Accounting\DocumentPoster;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -72,6 +73,7 @@ class SupplierPaymentController extends Controller
             'payment_method' => 'required|string|in:cash,card,bank_transfer,cheque',
             'reference_number' => 'nullable|string|max:50',
             'notes' => 'nullable|string',
+            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
         ]);
 
         $companyId = app(TenantManager::class)->getTenantId()
@@ -94,6 +96,7 @@ class SupplierPaymentController extends Controller
                 'payment_method' => $validated['payment_method'],
                 'reference_number' => $validated['reference_number'] ?? null,
                 'notes' => $validated['notes'] ?? null,
+                'bank_account_id' => $validated['bank_account_id'] ?? null,
             ]);
 
             // Deduct supplier balance
@@ -107,6 +110,9 @@ class SupplierPaymentController extends Controller
                 // Locked to prevent two concurrent payments from both reading the
                 // same stale remaining_amount and jointly overpaying the invoice.
                 $invoice = PurchaseInvoice::where('id', $validated['purchase_invoice_id'])->lockForUpdate()->first();
+                if ($invoice && (int) $invoice->supplier_id !== (int) $validated['supplier_id']) {
+                    throw ValidationException::withMessages(['purchase_invoice_id' => 'الفاتورة المحددة لا تخص هذا المورد.']);
+                }
                 if ($invoice) {
                     if ($validated['amount'] > $invoice->remaining_amount + 0.01) {
                         throw ValidationException::withMessages([
@@ -125,6 +131,8 @@ class SupplierPaymentController extends Controller
                     ]);
                 }
             }
+
+            app(DocumentPoster::class)->supplierPayment($payment);
         });
 
         return back()->with('success', 'تم تسجيل سند الصرف وتحديث رصيد المورد بنجاح');

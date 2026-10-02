@@ -58,7 +58,8 @@ class AccountController extends Controller
             'type' => 'required|in:asset,liability,equity,revenue,expense',
             'nature' => 'required|in:debit,credit',
             'is_parent' => 'boolean',
-            'balance' => 'nullable|numeric',
+            'cash_flow_category' => 'nullable|in:operating,investing,financing',
+            'requires_cost_center' => 'boolean',
         ]);
 
         if (! empty($validated['parent_id'])) {
@@ -76,8 +77,11 @@ class AccountController extends Controller
             'type' => $validated['type'],
             'nature' => $validated['nature'],
             'is_parent' => $validated['is_parent'] ?? false,
-            'balance' => $validated['balance'] ?? 0.00,
+            // Opening balances are entered as opening journal entries, never typed in.
+            'balance' => 0.00,
             'is_active' => true,
+            'cash_flow_category' => $validated['cash_flow_category'] ?? null,
+            'requires_cost_center' => $validated['requires_cost_center'] ?? false,
         ]);
 
         return redirect()->route('accounting.accounts.index')
@@ -95,7 +99,14 @@ class AccountController extends Controller
             'nature' => 'required|in:debit,credit',
             'is_parent' => 'boolean',
             'is_active' => 'boolean',
+            'cash_flow_category' => 'nullable|in:operating,investing,financing',
+            'requires_cost_center' => 'boolean',
         ]);
+
+        // An account that already has postings cannot become a group account.
+        if (! empty($validated['is_parent']) && ! $account->is_parent && $account->journalLines()->exists()) {
+            return back()->with('error', 'لا يمكن تحويل حساب عليه حركات إلى حساب رئيسي.');
+        }
 
         // The balance is derived from posted journal lines and is never edited directly.
 

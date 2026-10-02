@@ -2,25 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Account;
 use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Invoice;
-use App\Models\JournalEntry;
-use App\Models\JournalEntryLine;
 use App\Models\PrintTemplate;
 use App\Models\Product;
 use App\Models\Unit;
 use App\Models\Warehouse;
-use App\Services\AccountingMappingService;
+use App\Services\Accounting\DocumentPoster;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -320,11 +316,11 @@ class InvoiceController extends Controller
                 Customer::where('id', $validated['customer_id'])->increment('current_balance', $remainingAmount);
             }
 
+            // Journal entry in the same transaction: no invoice without its ledger entry.
+            app(DocumentPoster::class)->salesInvoice($invoice);
+
             return $invoice;
         });
-
-        // مزامنة القيد المحاسبي والأرصدة لشجرة الحسابات تلقائياً
-        $this->createInvoiceJournalEntry($invoice);
 
         return redirect()->route('sales.invoices.show', $invoice->id)->with('success', 'تم إنشاء الفاتورة الضريبية بنجاح وفق متطلبات هيئة الزكاة');
     }
@@ -412,158 +408,5 @@ class InvoiceController extends Controller
     {
         return redirect()->route('sales.invoices.index')
             ->with('error', 'وفقاً لمتطلبات هيئة الزكاة والضريبة والجمارك (ZATCA) والمعايير المحاسبية، يُمنع حذف الفواتير الصادرة نهائياً لضمان سلامة التسلسل الرقمي والدفاتر المالية. يمكنك إصدار إشعار دائن (مرتجع) بدلاً من الحذف.');
-    }
-
-    /**
-     * Create journal entry and sync account balances for a newly issued invoice.
-     */
-    protected function createInvoiceJournalEntry(Invoice $invoice): void
-    {
-        try {
-            $companyId = $invoice->company_id;
-            $accSales = AccountingMappingService::getAccount($companyId, 'sales_revenue');
-            $accTax = AccountingMappingService::getAccount($companyId, 'vat_output');
-            $accCash = AccountingMappingService::getAccount($companyId, 'default_cash');
-            $accBank = AccountingMappingService::getAccount($companyId, 'default_bank');
-            $accReceivable = AccountingMappingService::getAccount($companyId, 'receivables');
-
-            if (! $accSales) {
-                return;
-            }
-
-            $isCash = ($invoice->payment_method === 'cash');
-            $status = $invoice->payment_status; // paid, partially_paid, unpaid
-
-            $paidAmount = (float) $invoice->paid_amount;
-            $remainingAmount = (float) $invoice->remaining_amount;
-            $totalAmount = (float) $invoice->total;
-
-            if ($status === 'paid') {
-                $paidAmount = $totalAmount;
-                $remainingAmount = 0.00;
-            } elseif ($status === 'unpaid') {
-                $paidAmount = 0.00;
-                $remainingAmount = $totalAmount;
-            }
-
-            // Determine specific BankAccount / Treasury selected by user
-            $selectedBankAccount = null;
-            $paidAccount = null;
-
-            if ($invoice->bank_account_id) {
-                $selectedBankAccount = BankAccount::with('account')->find($invoice->bank_account_id);
-                if ($selectedBankAccount && $selectedBankAccount->account) {
-                    $paidAccount = $selectedBankAccount->account;
-                } elseif ($selectedBankAccount && $selectedBankAccount->account_id) {
-                    $paidAccount = Account::find($selectedBankAccount->account_id);
-                }
-            }
-
-            // Fallback if no specific bank/cash was picked but payment was made
-            if (! $paidAccount && $paidAmount > 0) {
-                $paidAccount = $isCash ? $accCash : ($accBank ?? $accCash);
-            }
-
-            $entryNumber = $this->nextNumber('journal_entry', $invoice->invoice_date);
-
-            $customerName = $invoice->customer ? ($invoice->customer->name ?? $invoice->customer->company_name) : 'عميل عام';
-
-            // Wrapped in its own transaction and balance-checked before commit so a
-            // missing account mapping (e.g. no receivables account configured) can
-            // never leave a half-posted, unbalanced journal entry in the ledger.
-            DB::transaction(function () use (
-                $companyId, $invoice, $entryNumber, $customerName, $totalAmount,
-                $paidAmount, $remainingAmount, $paidAccount, $accReceivable,
-                $accSales, $accTax, $accCash, $accBank, $isCash, $selectedBankAccount
-            ) {
-                $entry = JournalEntry::create([
-                    'company_id' => $companyId,
-                    'branch_id' => $invoice->branch_id,
-                    'entry_number' => $entryNumber,
-                    'date' => $invoice->invoice_date ?? now(),
-                    'reference' => $invoice->invoice_number,
-                    'description' => "فاتورة مبيعات رقم {$invoice->invoice_number} - {$customerName}",
-                    'total_debit' => $totalAmount,
-                    'total_credit' => $totalAmount,
-                    'status' => 'posted',
-                    'created_by' => $invoice->user_id ?? auth()->id(),
-                ]);
-
-                $debitSum = 0.0;
-                $creditSum = 0.0;
-
-                // 1. Debit Paid Portion (Cash / Bank)
-                if ($paidAmount > 0 && $paidAccount) {
-                    $accountNameDesc = $selectedBankAccount ? $selectedBankAccount->name : ($isCash ? 'الصندوق الرئيسي' : 'الحساب البنكي');
-                    JournalEntryLine::create([
-                        'journal_entry_id' => $entry->id,
-                        'account_id' => $paidAccount->id,
-                        'description' => "تحصيل مبيعات ({$accountNameDesc}) - فاتورة {$invoice->invoice_number}",
-                        'debit' => $paidAmount,
-                        'credit' => 0.00,
-                    ]);
-                    $debitSum += $paidAmount;
-
-                    // Update Chart of Account Balance
-                    $paidAccount->increment('balance', $paidAmount);
-
-                    // Update BankAccount / Cash Register Balance
-                    if ($selectedBankAccount) {
-                        $selectedBankAccount->increment('current_balance', $paidAmount);
-                    } elseif ($isCash && $accCash) {
-                        BankAccount::where('company_id', $companyId)->where('account_id', $accCash->id)->increment('current_balance', $paidAmount);
-                    } elseif ($accBank) {
-                        BankAccount::where('company_id', $companyId)->where('account_id', $accBank->id)->increment('current_balance', $paidAmount);
-                    }
-                }
-
-                // 2. Debit Remaining Portion (Accounts Receivable / ذمم العملاء)
-                if ($remainingAmount > 0 && $accReceivable) {
-                    JournalEntryLine::create([
-                        'journal_entry_id' => $entry->id,
-                        'account_id' => $accReceivable->id,
-                        'description' => "مبيعات آجلة (ذمم مدينة) - فاتورة {$invoice->invoice_number}",
-                        'debit' => $remainingAmount,
-                        'credit' => 0.00,
-                    ]);
-                    $debitSum += $remainingAmount;
-                    $accReceivable->increment('balance', $remainingAmount);
-                }
-
-                // 3. Credit Sales Revenue (Subtotal before VAT)
-                JournalEntryLine::create([
-                    'journal_entry_id' => $entry->id,
-                    'account_id' => $accSales->id,
-                    'description' => "إيراد مبيعات فاتورة {$invoice->invoice_number}",
-                    'debit' => 0.00,
-                    'credit' => (float) $invoice->subtotal,
-                ]);
-                $creditSum += (float) $invoice->subtotal;
-                $accSales->increment('balance', (float) $invoice->subtotal);
-
-                // 4. Credit VAT Output Tax (Tax Amount)
-                if ($invoice->tax_amount > 0 && $accTax) {
-                    JournalEntryLine::create([
-                        'journal_entry_id' => $entry->id,
-                        'account_id' => $accTax->id,
-                        'description' => "ضريبة القيمة المضافة 15% - فاتورة {$invoice->invoice_number}",
-                        'debit' => 0.00,
-                        'credit' => (float) $invoice->tax_amount,
-                    ]);
-                    $creditSum += (float) $invoice->tax_amount;
-                    $accTax->increment('balance', (float) $invoice->tax_amount);
-                }
-
-                if (abs($debitSum - $creditSum) > 0.01) {
-                    throw new \RuntimeException(
-                        "Unbalanced journal entry for invoice {$invoice->invoice_number}: debit={$debitSum}, credit={$creditSum}. Check accounting account mappings (receivables/cash/bank)."
-                    );
-                }
-
-                $entry->update(['total_debit' => $debitSum, 'total_credit' => $creditSum]);
-            });
-        } catch (\Throwable $e) {
-            Log::error('Failed to create invoice journal entry: '.$e->getMessage());
-        }
     }
 }

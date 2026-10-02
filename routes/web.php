@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Accounting\AccountController;
+use App\Http\Controllers\Accounting as A;
 use App\Http\Controllers\Accounting\GeneralLedgerController;
 use App\Http\Controllers\Accounting\JournalEntryController;
 use App\Http\Controllers\Accounting\TrialBalanceController;
@@ -233,6 +234,64 @@ Route::middleware(['auth', 'tenant', 'erp.authorize', 'throttle:tenant-web'])->g
         Route::get('/journals', [JournalEntryController::class, 'index'])->name('journals.index');
         Route::post('/journals', [JournalEntryController::class, 'store'])->name('journals.store');
         Route::get('/journals/{entry}', [JournalEntryController::class, 'show'])->name('journals.show');
+        Route::post('/journals/{entry}/post', [JournalEntryController::class, 'post'])->name('journals.post');
+        Route::post('/journals/{entry}/reverse', [JournalEntryController::class, 'reverse'])->name('journals.reverse');
+        Route::delete('/journals/{entry}', [JournalEntryController::class, 'destroy'])->name('journals.destroy');
+
+        // Recurring journals
+        Route::get('/recurring', [A\RecurringJournalController::class, 'index'])->name('recurring.index');
+        Route::post('/recurring', [A\RecurringJournalController::class, 'store'])->name('recurring.store');
+        Route::put('/recurring/{recurring}', [A\RecurringJournalController::class, 'update'])->name('recurring.update');
+        Route::delete('/recurring/{recurring}', [A\RecurringJournalController::class, 'destroy'])->name('recurring.destroy');
+
+        // Cost centers
+        Route::get('/cost-centers', [A\CostCenterController::class, 'index'])->name('cost-centers.index');
+        Route::post('/cost-centers', [A\CostCenterController::class, 'store'])->name('cost-centers.store');
+        Route::put('/cost-centers/{costCenter}', [A\CostCenterController::class, 'update'])->name('cost-centers.update');
+        Route::delete('/cost-centers/{costCenter}', [A\CostCenterController::class, 'destroy'])->name('cost-centers.destroy');
+
+        // Fiscal years & periods
+        Route::get('/fiscal-years', [A\FiscalYearController::class, 'index'])->name('fiscal-years.index');
+        Route::post('/fiscal-years', [A\FiscalYearController::class, 'store'])->name('fiscal-years.store');
+        Route::put('/fiscal-periods/{period}', [A\FiscalYearController::class, 'updatePeriod'])->name('fiscal-periods.update');
+        Route::post('/fiscal-years/{year}/close', [A\FiscalYearController::class, 'close'])->name('fiscal-years.close');
+        Route::post('/fiscal-years/{year}/reopen', [A\FiscalYearController::class, 'reopen'])->name('fiscal-years.reopen');
+
+        // Account mapping
+        Route::get('/mappings', [A\AccountMappingController::class, 'index'])->name('mappings.index');
+        Route::put('/mappings', [A\AccountMappingController::class, 'update'])->name('mappings.update');
+
+        // Fixed assets
+        Route::get('/fixed-assets', [A\FixedAssetController::class, 'index'])->name('fixed-assets.index');
+        Route::post('/fixed-assets', [A\FixedAssetController::class, 'store'])->name('fixed-assets.store');
+        Route::post('/fixed-assets/categories', [A\FixedAssetController::class, 'storeCategory'])->name('fixed-assets.categories.store');
+        Route::post('/fixed-assets/depreciate', [A\FixedAssetController::class, 'depreciate'])->name('fixed-assets.depreciate');
+        Route::get('/fixed-assets/{asset}', [A\FixedAssetController::class, 'show'])->name('fixed-assets.show');
+        Route::post('/fixed-assets/{asset}/dispose', [A\FixedAssetController::class, 'dispose'])->name('fixed-assets.dispose');
+
+        // Cheques
+        Route::get('/cheques', [A\ChequeController::class, 'index'])->name('cheques.index');
+        Route::post('/cheques', [A\ChequeController::class, 'store'])->name('cheques.store');
+        Route::post('/cheques/{cheque}/transition', [A\ChequeController::class, 'transition'])->name('cheques.transition');
+
+        // Bank reconciliation
+        Route::get('/reconciliations', [A\BankReconciliationController::class, 'index'])->name('reconciliations.index');
+        Route::post('/reconciliations', [A\BankReconciliationController::class, 'store'])->name('reconciliations.store');
+        Route::get('/reconciliations/{reconciliation}', [A\BankReconciliationController::class, 'show'])->name('reconciliations.show');
+        Route::put('/reconciliations/{reconciliation}', [A\BankReconciliationController::class, 'update'])->name('reconciliations.update');
+
+        // Budgets
+        Route::get('/budgets', [A\BudgetController::class, 'index'])->name('budgets.index');
+        Route::post('/budgets', [A\BudgetController::class, 'store'])->name('budgets.store');
+        Route::get('/budgets/{budget}', [A\BudgetController::class, 'show'])->name('budgets.show');
+        Route::put('/budgets/{budget}', [A\BudgetController::class, 'updateLines'])->name('budgets.update');
+
+        // Financial statements & statutory reports
+        Route::get('/reports/income-statement', [A\FinancialReportController::class, 'incomeStatement'])->name('reports.income-statement');
+        Route::get('/reports/balance-sheet', [A\FinancialReportController::class, 'balanceSheet'])->name('reports.balance-sheet');
+        Route::get('/reports/cash-flow', [A\FinancialReportController::class, 'cashFlow'])->name('reports.cash-flow');
+        Route::get('/reports/aging', [A\FinancialReportController::class, 'aging'])->name('reports.aging');
+        Route::get('/reports/vat-return', [A\FinancialReportController::class, 'vatReturn'])->name('reports.vat-return');
 
         // General Ledger
         Route::get('/ledger', [GeneralLedgerController::class, 'index'])->name('ledger.index');

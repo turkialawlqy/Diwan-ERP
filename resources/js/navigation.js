@@ -12,6 +12,7 @@ import {
     PrinterIcon,
     Cog6ToothIcon,
     UsersIcon,
+    DocumentChartBarIcon,
 } from '@heroicons/vue/24/outline';
 
 /**
@@ -72,6 +73,24 @@ export default [
             { label: 'nav.journal_entries', route: 'accounting.journals.index', path: '/accounting/journals' },
             { label: 'nav.general_ledger', route: 'accounting.ledger.index', path: '/accounting/ledger' },
             { label: 'nav.trial_balance', route: 'accounting.trial-balance.index', path: '/accounting/trial-balance' },
+            { label: 'nav.recurring_journals', route: 'accounting.recurring.index', path: '/accounting/recurring' },
+            { label: 'nav.cost_centers', route: 'accounting.cost-centers.index', path: '/accounting/cost-centers' },
+            { label: 'nav.fixed_assets', route: 'accounting.fixed-assets.index', path: '/accounting/fixed-assets' },
+            { label: 'nav.cheques', route: 'accounting.cheques.index', path: '/accounting/cheques' },
+            { label: 'nav.reconciliations', route: 'accounting.reconciliations.index', path: '/accounting/reconciliations' },
+            { label: 'nav.budgets', route: 'accounting.budgets.index', path: '/accounting/budgets' },
+            { label: 'nav.fiscal_years', route: 'accounting.fiscal-years.index', path: '/accounting/fiscal-years' },
+            { label: 'nav.account_mappings', route: 'accounting.mappings.index', path: '/accounting/mappings' },
+        ],
+    },
+    {
+        key: 'statements', label: 'nav.financial_statements', icon: DocumentChartBarIcon, color: 'indigo',
+        children: [
+            { label: 'nav.income_statement', route: 'accounting.reports.income-statement', path: '/accounting/reports/income-statement' },
+            { label: 'nav.balance_sheet', route: 'accounting.reports.balance-sheet', path: '/accounting/reports/balance-sheet' },
+            { label: 'nav.cash_flow', route: 'accounting.reports.cash-flow', path: '/accounting/reports/cash-flow' },
+            { label: 'nav.aging', route: 'accounting.reports.aging', path: '/accounting/reports/aging' },
+            { label: 'nav.vat_return', route: 'accounting.reports.vat-return', path: '/accounting/reports/vat-return' },
         ],
     },
     {

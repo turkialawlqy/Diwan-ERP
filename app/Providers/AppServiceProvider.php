@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\AuditLog;
+use App\Services\Accounting\AccountMap;
 use App\Services\TenantManager;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
@@ -25,6 +26,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Per-request caches of account mappings.
+        $this->app->scoped(AccountMap::class);
+
         $this->app->singleton(TenantManager::class, function () {
             return new TenantManager;
         });

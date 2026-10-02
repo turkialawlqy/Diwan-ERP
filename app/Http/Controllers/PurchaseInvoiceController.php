@@ -11,6 +11,7 @@ use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Models\Unit;
 use App\Models\Warehouse;
+use App\Services\Accounting\DocumentPoster;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -151,6 +152,7 @@ class PurchaseInvoiceController extends Controller
             'payment_method' => 'required|string|in:cash,card,bank_transfer,credit',
             'payment_status' => 'required|string|in:paid,partially_paid,unpaid',
             'paid_amount' => 'nullable|numeric|min:0',
+            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'nullable|tenant_exists:products,id',
@@ -242,6 +244,7 @@ class PurchaseInvoiceController extends Controller
                 'total' => $total,
                 'paid_amount' => $paidAmount,
                 'remaining_amount' => $remainingAmount,
+                'bank_account_id' => $validated['bank_account_id'] ?? null,
                 'notes' => $validated['notes'] ?? null,
             ]);
 
@@ -267,9 +270,14 @@ class PurchaseInvoiceController extends Controller
                     'payment_date' => $validated['invoice_date'],
                     'payment_method' => $validated['payment_method'],
                     'reference_number' => $validated['supplier_invoice_number'] ?? null,
+                    'bank_account_id' => $validated['bank_account_id'] ?? null,
                     'notes' => 'سداد مرتبط بفاتورة الشراء '.$validated['invoice_number'],
                 ]);
             }
+
+            // One entry covers the bill and its immediate payment (the payment
+            // record above is informational and is not posted separately).
+            app(DocumentPoster::class)->purchaseInvoice($purchaseInvoice);
 
             return $purchaseInvoice;
         });

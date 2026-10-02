@@ -13,6 +13,7 @@ class CreditNote extends Model
     use Auditable, BelongsToCompany, HasFactory;
 
     protected $fillable = [
+        'bank_account_id', 'refund_method',
         'company_id',
         'invoice_id',
         'customer_id',

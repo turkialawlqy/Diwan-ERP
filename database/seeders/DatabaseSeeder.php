@@ -7,6 +7,9 @@ use App\Models\Company;
 use App\Models\Currency;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Services\Accounting\AccountingSetupService;
+use App\Services\Accounting\DocumentBackfill;
+use App\Services\Accounting\PostingService;
 use App\Services\Permissions\PermissionRegistry;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -161,6 +164,9 @@ class DatabaseSeeder extends Seeder
         $company->setSetting('quotation_prefix', 'QUO-', 'sales', 'string');
         $company->setSetting('pos_allow_credit', '1', 'pos', 'boolean');
 
+        // Chart of accounts, account mappings and fiscal year.
+        app(AccountingSetupService::class)->provision($company);
+
         // 9. Call Module Demo Seeders
         $this->call([
             AccountingDemoSeeder::class,
@@ -169,5 +175,10 @@ class DatabaseSeeder extends Seeder
             PurchasesDemoSeeder::class,
             HRAndSettingsDemoSeeder::class,
         ]);
+
+        // Demo documents were inserted directly: post their journal entries and
+        // rebuild the aggregated balances.
+        app(DocumentBackfill::class)->run($company);
+        app(PostingService::class)->rebuildBalances($company->id);
     }
 }

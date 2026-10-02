@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\InventoryStock;
 use App\Models\Warehouse;
+use App\Services\Accounting\DocumentPoster;
+use App\Services\Inventory\CostingService;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -56,6 +58,9 @@ class StockCountController extends Controller
         $companyId = app(TenantManager::class)->getTenantId() ?? auth()->user()?->company_id;
 
         DB::transaction(function () use ($validated, $companyId) {
+            $costing = app(CostingService::class);
+            $value = 0.0;
+
             foreach ($validated['counts'] as $countItem) {
                 $stock = InventoryStock::firstOrCreate(
                     [
@@ -66,8 +71,15 @@ class StockCountController extends Controller
                     ['quantity' => 0]
                 );
 
+                $stock = InventoryStock::whereKey($stock->id)->lockForUpdate()->first();
+                $difference = (float) $countItem['physical_qty'] - (float) $stock->quantity;
+                $value += $difference * $costing->unitCost((int) $countItem['product_id'], (int) $validated['warehouse_id']);
+
                 $stock->update(['quantity' => (float) $countItem['physical_qty']]);
             }
+
+            // Post the net surplus / shortage of the count at cost.
+            app(DocumentPoster::class)->stockAdjustment('stock_count', $value, now(), 'فروقات جرد المخزون');
         });
 
         return redirect()->route('inventory.counts.index', ['warehouse_id' => $validated['warehouse_id']])

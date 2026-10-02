@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\CreditNote;
 use App\Models\Customer;
 use App\Models\Invoice;
+use App\Services\Accounting\DocumentPoster;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class CreditNoteController extends Controller
@@ -102,7 +104,25 @@ class CreditNoteController extends Controller
             'total' => 'required|numeric|min:0.01',
             'reason' => 'required|string|max:500',
             'status' => 'required|in:draft,approved,refunded',
+            'refund_method' => 'nullable|required_if:status,refunded|in:credit,cash,bank_transfer',
+            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
         ]);
+
+        // A return can never exceed what is left of the original invoice.
+        if (! empty($validated['invoice_id'])) {
+            $invoice = Invoice::findOrFail($validated['invoice_id']);
+            if ((int) $invoice->customer_id !== (int) $validated['customer_id']) {
+                throw ValidationException::withMessages(['invoice_id' => 'الفاتورة المحددة لا تخص هذا العميل.']);
+            }
+            $alreadyReturned = (float) CreditNote::where('invoice_id', $invoice->id)->whereIn('status', ['approved', 'refunded'])->sum('total');
+            if ((float) $validated['total'] > round((float) $invoice->total - $alreadyReturned, 2)) {
+                throw ValidationException::withMessages(['total' => 'قيمة المرتجع تتجاوز المتبقي من قيمة الفاتورة الأصلية.']);
+            }
+        }
+
+        if (abs(((float) $validated['subtotal'] + (float) $validated['tax_amount']) - (float) $validated['total']) > 0.01) {
+            throw ValidationException::withMessages(['total' => 'الإجمالي يجب أن يساوي المبلغ قبل الضريبة + الضريبة.']);
+        }
 
         $tenantManager = app(TenantManager::class);
         $company = $tenantManager->getCompany();
@@ -128,14 +148,20 @@ class CreditNoteController extends Controller
                 'total' => $validated['total'],
                 'reason' => $validated['reason'],
                 'status' => $validated['status'],
+                'refund_method' => $validated['status'] === 'refunded' ? ($validated['refund_method'] ?? 'cash') : 'credit',
+                'bank_account_id' => $validated['bank_account_id'] ?? null,
                 'zatca_qr' => $zatcaQr,
             ]);
 
-            // If approved or refunded, deduct from customer current_balance
-            if (in_array($validated['status'], ['approved', 'refunded'])) {
-                Customer::where('id', $validated['customer_id'])
-                    ->decrement('current_balance', $validated['total']);
+            // A credit to the customer's account lowers their balance; a cash/bank
+            // refund settles it immediately.
+            $creditsAccount = $creditNote->status === 'approved'
+                || ($creditNote->status === 'refunded' && $creditNote->refund_method === 'credit');
+            if ($creditsAccount) {
+                Customer::where('id', $validated['customer_id'])->decrement('current_balance', $validated['total']);
             }
+
+            app(DocumentPoster::class)->creditNote($creditNote);
 
             return $creditNote;
         });

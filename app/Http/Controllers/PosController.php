@@ -11,6 +11,7 @@ use App\Models\PosOrder;
 use App\Models\PosRegister;
 use App\Models\PosSession;
 use App\Models\Product;
+use App\Services\Accounting\DocumentPoster;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
 use Carbon\Carbon;
@@ -170,6 +171,11 @@ class PosController extends Controller
         if (! $company) {
             return back()->with('error', 'لم يتم تحديد المنشأة.');
         }
+
+        // Only the cashier who opened the session may sell on it, and only while it is open.
+        if ((int) $session->user_id !== (int) auth()->id() || $session->status !== 'opened') {
+            throw ValidationException::withMessages(['session_id' => 'جلسة نقطة البيع غير صالحة أو مغلقة.']);
+        }
         $warehouseId = $session->register?->warehouse_id;
 
         $order = DB::transaction(function () use ($validated, $session, $company, $warehouseId) {
@@ -219,9 +225,27 @@ class PosController extends Controller
                 }
             }
 
-            $total = $subtotal + $taxAmount - $totalDiscount;
+            // The order discount reduces the taxable amount (VAT is charged after discount).
+            if ($totalDiscount > $subtotal) {
+                throw ValidationException::withMessages(['discount' => 'الخصم لا يمكن أن يتجاوز قيمة الطلب.']);
+            }
+            if ($subtotal > 0 && $totalDiscount > 0) {
+                $taxAmount = round($taxAmount * (($subtotal - $totalDiscount) / $subtotal), 2);
+            }
+            $subtotal = round($subtotal - $totalDiscount, 2);
+            $taxAmount = round($taxAmount, 2);
+            $total = round($subtotal + $taxAmount, 2);
+
             $paidAmount = (float) $validated['paid_amount'];
-            $changeAmount = max(0, $paidAmount - $total);
+            $changeAmount = max(0, round($paidAmount - $total, 2));
+            $collected = min($paidAmount, $total);
+            $remaining = round($total - $collected, 2);
+
+            // A short payment is a credit sale: only allowed for a named customer
+            // when the company permits POS credit.
+            if ($remaining > 0 && (empty($validated['customer_id']) || ! $company->setting('pos_allow_credit', false))) {
+                throw ValidationException::withMessages(['paid_amount' => 'المبلغ المدفوع أقل من إجمالي الفاتورة.']);
+            }
 
             // Generate ZATCA QR Code
             $timestamp = Carbon::now()->format('Y-m-d\TH:i:s\Z');
@@ -241,7 +265,7 @@ class PosController extends Controller
             $invoice = Invoice::create([
                 'company_id' => $company->id,
                 'branch_id' => $session->register?->branch_id ?? Branch::first()?->id,
-                'customer_id' => $validated['customer_id'] ?? Customer::first()?->id,
+                'customer_id' => $validated['customer_id'] ?? Customer::walkIn()->id,
                 'user_id' => auth()->id(),
                 'invoice_number' => $this->nextNumber('pos_invoice'),
                 'invoice_date' => Carbon::now()->toDateString(),
@@ -253,10 +277,11 @@ class PosController extends Controller
                 'tax_rate' => 15.00,
                 'tax_amount' => $taxAmount,
                 'total' => $total,
-                'paid_amount' => $total,
-                'remaining_amount' => 0,
-                'payment_status' => 'paid',
-                'payment_method' => $validated['payment_method'],
+                'paid_amount' => $collected,
+                'remaining_amount' => $remaining,
+                'payment_status' => $remaining > 0 ? ($collected > 0 ? 'partially_paid' : 'unpaid') : 'paid',
+                'payment_method' => $validated['payment_method'] === 'cash' ? 'cash' : 'card',
+                'bank_account_id' => $validated['payment_method'] === 'cash' ? $session->register?->bank_account_id : null,
                 'notes' => 'فاتورة ضريبية مبسطة - نقطة بيع',
                 'zatca_uuid' => (string) Str::uuid(),
                 'zatca_qr' => $zatcaQr,
@@ -287,6 +312,12 @@ class PosController extends Controller
                 $invoice->items()->create($oItem);
             }
 
+            if ($remaining > 0) {
+                Customer::whereKey($validated['customer_id'])->increment('current_balance', $remaining);
+            }
+
+            app(DocumentPoster::class)->salesInvoice($invoice, $warehouseId);
+
             return $posOrder;
         });
 
@@ -308,10 +339,17 @@ class PosController extends Controller
             'notes' => 'nullable|string',
         ]);
 
+        // Only the session owner (or a POS manager) can close an open session.
+        if ($session->status !== 'opened'
+            || ((int) $session->user_id !== (int) auth()->id() && ! $request->user()->can('pos.sessions.manage'))) {
+            abort(403, 'لا يمكنك إغلاق هذه الجلسة.');
+        }
+
+        // Cash actually kept in the drawer: cash received minus change given.
         $cashOrdersTotal = (float) $session->orders()
             ->where('payment_method', 'cash')
             ->where('status', 'completed')
-            ->sum('total');
+            ->sum(DB::raw('paid_amount - change_amount'));
 
         $expectedCash = $session->opening_cash + $cashOrdersTotal;
         $closingCash = (float) $validated['closing_cash'];

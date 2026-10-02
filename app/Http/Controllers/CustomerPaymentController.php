@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\Invoice;
+use App\Services\Accounting\DocumentPoster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -62,13 +63,13 @@ class CustomerPaymentController extends Controller
             'payment_method' => 'required|string|in:cash,card,bank_transfer,cheque',
             'reference_number' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
+            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
         ]);
 
         DB::transaction(function () use ($validated) {
             $paymentNumber = $this->nextNumber('customer_payment', $validated['payment_date']);
 
             $payment = CustomerPayment::create(array_merge($validated, [
-                'company_id' => auth()->user()->company_id,
                 'payment_number' => $paymentNumber,
             ]));
 
@@ -77,6 +78,10 @@ class CustomerPaymentController extends Controller
                 // Locked to prevent two concurrent payments from both reading the
                 // same stale remaining_amount and jointly overpaying the invoice.
                 $invoice = Invoice::where('id', $validated['invoice_id'])->lockForUpdate()->first();
+
+                if ((int) $invoice->customer_id !== (int) $validated['customer_id']) {
+                    throw ValidationException::withMessages(['invoice_id' => 'الفاتورة المحددة لا تخص هذا العميل.']);
+                }
 
                 if ($validated['amount'] > $invoice->remaining_amount + 0.01) {
                     throw ValidationException::withMessages([
@@ -97,6 +102,8 @@ class CustomerPaymentController extends Controller
 
             // Deduct customer current balance
             Customer::where('id', $validated['customer_id'])->decrement('current_balance', $validated['amount']);
+
+            app(DocumentPoster::class)->customerPayment($payment);
         });
 
         return back()->with('success', 'تم تسجيل سند القبض وتحديث الرصيد بنجاح');

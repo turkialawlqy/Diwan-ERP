@@ -8,6 +8,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetLocale;
+use App\Services\Accounting\AccountingException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -65,5 +66,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Accounting rule violations (unbalanced entry, closed period, missing
+        // account mapping) are shown to the user like validation errors.
+        $exceptions->map(
+            AccountingException::class,
+            fn (AccountingException $e) => $e->toValidation(),
+        );
     })->create();
