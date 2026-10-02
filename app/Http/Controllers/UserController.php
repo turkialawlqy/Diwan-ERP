@@ -56,18 +56,17 @@ class UserController extends Controller
                 'string',
                 'email',
                 'max:255',
-                Rule::unique('users')->where(function ($query) use ($companyId) {
-                    return $query->where('company_id', $companyId);
-                }),
+                // Emails are globally unique: login is by email and must map to one company.
+                Rule::unique('users', 'email'),
             ],
             'password' => 'required|string|min:8',
             'phone' => 'nullable|string|max:20',
-            'branch_id' => 'nullable|exists:branches,id',
-            'role' => 'required|string|exists:roles,name',
+            'branch_id' => 'nullable|tenant_exists:branches,id',
+            'role' => ['required', 'string', Rule::exists('roles', 'name')->whereNot('name', 'super_admin')],
             'status' => 'required|string|in:active,inactive',
         ]);
 
-        $user = User::create([
+        $user = (new User)->forceFill([
             'company_id' => $companyId,
             'name' => $validated['name'],
             'email' => $validated['email'],
@@ -77,6 +76,7 @@ class UserController extends Controller
             'status' => $validated['status'],
             'is_super_admin' => false,
         ]);
+        $user->save();
 
         $user->assignRole($validated['role']);
 
@@ -100,14 +100,12 @@ class UserController extends Controller
                 'string',
                 'email',
                 'max:255',
-                Rule::unique('users')->where(function ($query) use ($companyId) {
-                    return $query->where('company_id', $companyId);
-                })->ignore($user->id),
+                Rule::unique('users', 'email')->ignore($user->id),
             ],
             'password' => 'nullable|string|min:8',
             'phone' => 'nullable|string|max:20',
-            'branch_id' => 'nullable|exists:branches,id',
-            'role' => 'required|string|exists:roles,name',
+            'branch_id' => 'nullable|tenant_exists:branches,id',
+            'role' => ['required', 'string', Rule::exists('roles', 'name')->whereNot('name', 'super_admin')],
             'status' => 'required|string|in:active,inactive',
         ]);
 
@@ -119,7 +117,7 @@ class UserController extends Controller
             'status' => $validated['status'],
         ]);
 
-        if (!empty($validated['password'])) {
+        if (! empty($validated['password'])) {
             $user->update(['password' => Hash::make($validated['password'])]);
         }
 

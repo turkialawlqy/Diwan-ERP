@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventoryStock;
-use App\Models\Product;
 use App\Models\Warehouse;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
@@ -18,8 +17,8 @@ class StockCountController extends Controller
         $warehouseId = $request->query('warehouse_id');
         $warehouses = Warehouse::where('is_active', true)->get(['id', 'name_ar', 'name_en', 'code']);
 
-        $selectedWarehouse = $warehouseId 
-            ? $warehouses->firstWhere('id', $warehouseId) 
+        $selectedWarehouse = $warehouseId
+            ? $warehouses->firstWhere('id', $warehouseId)
             : $warehouses->first();
 
         $stocks = [];
@@ -48,9 +47,9 @@ class StockCountController extends Controller
     public function reconcile(Request $request)
     {
         $validated = $request->validate([
-            'warehouse_id' => 'required|exists:warehouses,id',
+            'warehouse_id' => 'required|tenant_exists:warehouses,id',
             'counts' => 'required|array|min:1',
-            'counts.*.product_id' => 'required|exists:products,id',
+            'counts.*.product_id' => 'required|tenant_exists:products,id',
             'counts.*.physical_qty' => 'required|numeric|min:0',
         ]);
 

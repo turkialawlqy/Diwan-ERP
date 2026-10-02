@@ -19,7 +19,7 @@ class CompanySettingController extends Controller
     {
         $company = $tenantManager->getCompany() ?? $request->user()?->company;
 
-        if (!$company) {
+        if (! $company) {
             abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
         }
 
@@ -43,7 +43,7 @@ class CompanySettingController extends Controller
     {
         $company = $tenantManager->getCompany() ?? $request->user()?->company;
 
-        if (!$company) {
+        if (! $company) {
             abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
         }
 
@@ -56,8 +56,8 @@ class CompanySettingController extends Controller
             'currency' => 'nullable|string|max:10',
             'timezone' => 'nullable|string|max:50',
             'language' => 'nullable|string|in:ar,en',
-            'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:3072',
-            
+            'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:3072',
+
             // Custom settings
             'vat_rate' => 'nullable|numeric|min:0|max:100',
             'invoice_prefix' => 'nullable|string|max:10',
@@ -70,18 +70,18 @@ class CompanySettingController extends Controller
             'zatca_otp' => 'nullable|string|max:20',
 
             // Accounting Settings (توجيه الحسابات المحاسبية)
-            'acc_sales_revenue_id' => 'nullable|exists:accounts,id',
-            'acc_purchases_cogs_id' => 'nullable|exists:accounts,id',
-            'acc_vat_output_id' => 'nullable|exists:accounts,id',
-            'acc_vat_input_id' => 'nullable|exists:accounts,id',
-            'acc_receivables_id' => 'nullable|exists:accounts,id',
-            'acc_payables_id' => 'nullable|exists:accounts,id',
-            'acc_default_cash_id' => 'nullable|exists:accounts,id',
-            'acc_default_bank_id' => 'nullable|exists:accounts,id',
+            'acc_sales_revenue_id' => 'nullable|tenant_exists:accounts,id',
+            'acc_purchases_cogs_id' => 'nullable|tenant_exists:accounts,id',
+            'acc_vat_output_id' => 'nullable|tenant_exists:accounts,id',
+            'acc_vat_input_id' => 'nullable|tenant_exists:accounts,id',
+            'acc_receivables_id' => 'nullable|tenant_exists:accounts,id',
+            'acc_payables_id' => 'nullable|tenant_exists:accounts,id',
+            'acc_default_cash_id' => 'nullable|tenant_exists:accounts,id',
+            'acc_default_bank_id' => 'nullable|tenant_exists:accounts,id',
         ]);
 
         // Enforce that base currency cannot be modified once set for the company
-        if (!empty($company->currency)) {
+        if (! empty($company->currency)) {
             $currency = $company->currency;
             if ($request->filled('currency') && $request->input('currency') !== $company->currency) {
                 throw ValidationException::withMessages([
@@ -108,8 +108,8 @@ class CompanySettingController extends Controller
                 $oldPath = str_replace('/storage/', '', $company->logo);
                 Storage::disk('public')->delete($oldPath);
             }
-            $path = $request->file('logo')->store('logos', 'public');
-            $companyData['logo'] = '/storage/' . $path;
+            $path = $request->file('logo')->store('logos/'.$company->id, 'public');
+            $companyData['logo'] = '/storage/'.$path;
         }
 
         // Update company profile
@@ -120,11 +120,11 @@ class CompanySettingController extends Controller
             'vat_rate' => $validated['vat_rate'] ?? 15,
             'invoice_prefix' => $validated['invoice_prefix'] ?? 'INV',
             'invoice_terms' => $validated['invoice_terms'] ?? '',
-            'pos_auto_print' => !empty($validated['pos_auto_print']) ? '1' : '0',
+            'pos_auto_print' => ! empty($validated['pos_auto_print']) ? '1' : '0',
             'zatca_phase' => $validated['zatca_phase'] ?? 'phase1',
             'zatca_environment' => $validated['zatca_environment'] ?? 'sandbox',
             'zatca_otp' => $validated['zatca_otp'] ?? '',
-            
+
             // Accounting Mappings
             'acc_sales_revenue_id' => $validated['acc_sales_revenue_id'] ?? null,
             'acc_purchases_cogs_id' => $validated['acc_purchases_cogs_id'] ?? null,
@@ -168,7 +168,7 @@ class CompanySettingController extends Controller
     {
         $company = $tenantManager->getCompany() ?? $request->user()?->company;
 
-        if (!$company) {
+        if (! $company) {
             abort(403, 'لا يمكن تحديد سياق المنشأة.');
         }
 
@@ -183,7 +183,7 @@ class CompanySettingController extends Controller
             $request->input('environment', 'sandbox')
         );
 
-        if (!$result['success']) {
+        if (! $result['success']) {
             return redirect()->route('settings.index')
                 ->with('error', $result['message']);
         }
@@ -199,12 +199,12 @@ class CompanySettingController extends Controller
     {
         $company = $tenantManager->getCompany() ?? $request->user()?->company;
 
-        if (!$company) {
+        if (! $company) {
             abort(403, 'لا يمكن تحديد سياق المنشأة.');
         }
 
         $request->validate([
-            'logo' => 'required|image|mimes:jpeg,png,jpg,gif,svg,webp|max:3072',
+            'logo' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:3072',
         ], [
             'logo.required' => 'يرجى اختيار ملف الشعار.',
             'logo.image' => 'يجب أن يكون الملف صورة صالحة.',
@@ -218,8 +218,8 @@ class CompanySettingController extends Controller
                 Storage::disk('public')->delete($oldPath);
             }
 
-            $path = $request->file('logo')->store('logos', 'public');
-            $logoUrl = '/storage/' . $path;
+            $path = $request->file('logo')->store('logos/'.$company->id, 'public');
+            $logoUrl = '/storage/'.$path;
 
             $company->update([
                 'logo' => $logoUrl,
@@ -245,7 +245,7 @@ class CompanySettingController extends Controller
     {
         $company = $tenantManager->getCompany() ?? $request->user()?->company;
 
-        if (!$company) {
+        if (! $company) {
             abort(403, 'لا يمكن تحديد سياق المنشأة.');
         }
 

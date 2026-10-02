@@ -19,10 +19,10 @@ class EmployeeController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('job_title', 'like', "%{$search}%")
-                  ->orWhere('department', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('national_id', 'like', "%{$search}%");
+                    ->orWhere('job_title', 'like', "%{$search}%")
+                    ->orWhere('department', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('national_id', 'like', "%{$search}%");
             });
         }
 
@@ -58,7 +58,7 @@ class EmployeeController extends Controller
             'email' => 'nullable|email|max:255',
             'job_title' => 'required|string|max:255',
             'department' => 'required|string|max:100',
-            'branch_id' => 'nullable|exists:branches,id',
+            'branch_id' => 'nullable|tenant_exists:branches,id',
             'hire_date' => 'nullable|date',
             'basic_salary' => 'required|numeric|min:0',
             'housing_allowance' => 'nullable|numeric|min:0',

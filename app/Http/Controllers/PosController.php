@@ -8,7 +8,6 @@ use App\Models\Customer;
 use App\Models\InventoryStock;
 use App\Models\Invoice;
 use App\Models\PosOrder;
-use App\Models\PosOrderItem;
 use App\Models\PosRegister;
 use App\Models\PosSession;
 use App\Models\Product;
@@ -37,8 +36,9 @@ class PosController extends Controller
             ->latest()
             ->first();
 
-        if (!$session) {
+        if (! $session) {
             $registers = PosRegister::where('is_active', true)->get();
+
             return Inertia::render('POS/OpenSession', [
                 'registers' => $registers,
             ]);
@@ -71,13 +71,13 @@ class PosController extends Controller
     public function openSession(Request $request)
     {
         $validated = $request->validate([
-            'pos_register_id' => 'required|exists:pos_registers,id',
+            'pos_register_id' => 'required|tenant_exists:pos_registers,id',
             'opening_cash' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
         ]);
 
         $company = app(TenantManager::class)->getCompany();
-        if (!$company) {
+        if (! $company) {
             return redirect()->route('dashboard')->with('error', 'لم يتم تحديد المنشأة. يرجى تسجيل الدخول مرة أخرى.');
         }
         $companyId = $company->id;
@@ -101,13 +101,13 @@ class PosController extends Controller
     public function processOrder(Request $request)
     {
         $validated = $request->validate([
-            'session_id' => 'required|exists:pos_sessions,id',
-            'customer_id' => 'nullable|exists:customers,id',
+            'session_id' => 'required|tenant_exists:pos_sessions,id',
+            'customer_id' => 'nullable|tenant_exists:customers,id',
             'payment_method' => 'required|string|in:cash,card,multiple',
             'paid_amount' => 'required|numeric|min:0',
             'discount' => 'nullable|numeric|min:0',
             'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.product_id' => 'required|tenant_exists:products,id',
             'items.*.item_name' => 'required|string',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.unit_price' => 'required|numeric|min:0',
@@ -117,7 +117,7 @@ class PosController extends Controller
 
         $session = PosSession::with('register')->findOrFail($validated['session_id']);
         $company = app(TenantManager::class)->getCompany();
-        if (!$company) {
+        if (! $company) {
             return back()->with('error', 'لم يتم تحديد المنشأة.');
         }
         $warehouseId = $session->register?->warehouse_id;
@@ -186,13 +186,13 @@ class PosController extends Controller
             );
 
             // Auto-generate order number using MAX to avoid race conditions
-            $lastOrder = PosOrder::where('order_number', 'like', 'POS-' . date('y') . '-%')
+            $lastOrder = PosOrder::where('order_number', 'like', 'POS-'.date('y').'-%')
                 ->orderByRaw('CAST(SUBSTRING_INDEX(order_number, "-", -1) AS UNSIGNED) DESC')
                 ->value('order_number');
-            $nextSeq = $lastOrder 
-                ? ((int) substr($lastOrder, strrpos($lastOrder, '-') + 1)) + 1 
+            $nextSeq = $lastOrder
+                ? ((int) substr($lastOrder, strrpos($lastOrder, '-') + 1)) + 1
                 : 1;
-            $orderNumber = sprintf("POS-%s-%06d", date('y'), $nextSeq);
+            $orderNumber = sprintf('POS-%s-%06d', date('y'), $nextSeq);
 
             // 1. Create linked Simplified Tax Invoice
             $invoice = Invoice::create([
@@ -200,7 +200,7 @@ class PosController extends Controller
                 'branch_id' => $session->register?->branch_id ?? Branch::first()?->id,
                 'customer_id' => $validated['customer_id'] ?? Customer::first()?->id,
                 'user_id' => auth()->id(),
-                'invoice_number' => sprintf("INV-POS-%s-%06d", date('y'), $nextSeq),
+                'invoice_number' => sprintf('INV-POS-%s-%06d', date('y'), $nextSeq),
                 'invoice_date' => Carbon::now()->toDateString(),
                 'supply_date' => Carbon::now()->toDateString(),
                 'subtotal' => $subtotal,

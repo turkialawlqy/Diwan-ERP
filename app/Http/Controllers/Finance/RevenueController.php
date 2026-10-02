@@ -20,9 +20,9 @@ class RevenueController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('revenue_number', 'like', "%{$search}%")
-                  ->orWhere('title', 'like', "%{$search}%")
-                  ->orWhere('customer_name', 'like', "%{$search}%")
-                  ->orWhere('category', 'like', "%{$search}%");
+                    ->orWhere('title', 'like', "%{$search}%")
+                    ->orWhere('customer_name', 'like', "%{$search}%")
+                    ->orWhere('category', 'like', "%{$search}%");
             });
         }
 
@@ -55,8 +55,8 @@ class RevenueController extends Controller
     {
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'account_id' => 'nullable|exists:accounts,id',
-            'bank_account_id' => 'nullable|exists:bank_accounts,id',
+            'account_id' => 'nullable|tenant_exists:accounts,id',
+            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
             'category' => 'required|string|max:100',
             'amount' => 'required|numeric|min:0.01',
             'tax_amount' => 'nullable|numeric|min:0',
@@ -71,7 +71,7 @@ class RevenueController extends Controller
         $total = $validated['amount'] + $tax;
 
         $count = Revenue::count() + 1;
-        $revenueNumber = 'REV-' . date('y') . '-' . str_pad($count, 6, '0', STR_PAD_LEFT);
+        $revenueNumber = 'REV-'.date('y').'-'.str_pad($count, 6, '0', STR_PAD_LEFT);
 
         $revenue = Revenue::create([
             'revenue_number' => $revenueNumber,
@@ -91,7 +91,7 @@ class RevenueController extends Controller
         ]);
 
         // Add to bank account balance if specified
-        if (!empty($validated['bank_account_id'])) {
+        if (! empty($validated['bank_account_id'])) {
             $bank = BankAccount::find($validated['bank_account_id']);
             if ($bank) {
                 $bank->increment('current_balance', $total);

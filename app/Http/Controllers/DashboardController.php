@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Product;
-use App\Models\CustomerPayment;
 use App\Services\TenantManager;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -81,9 +80,7 @@ class DashboardController extends Controller
                 DB::raw('SUM(invoice_items.quantity) as sold_units'),
                 DB::raw('SUM(invoice_items.total) as revenue')
             )
-            ->when($tenantManager->hasTenant(), function ($q) use ($tenantManager) {
-                $q->where('invoices.company_id', $tenantManager->getTenantId());
-            })
+            ->where('invoices.company_id', $tenantManager->getTenantId())
             ->groupBy('invoice_items.item_name')
             ->orderByDesc('revenue')
             ->limit(4)

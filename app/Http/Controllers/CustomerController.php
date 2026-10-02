@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class CustomerController extends Controller
@@ -15,7 +14,8 @@ class CustomerController extends Controller
     protected function getNextCustomerCode(): string
     {
         $count = Customer::count() + 1;
-        return '1-' . str_pad($count, 6, '0', STR_PAD_LEFT);
+
+        return '1-'.str_pad($count, 6, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -32,14 +32,14 @@ class CustomerController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('code', 'like', "%{$search}%")
-                  ->orWhere('company_name', 'like', "%{$search}%")
-                  ->orWhere('contact_name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('mobile', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('tax_number', 'like', "%{$search}%")
-                  ->orWhere('commercial_registration', 'like', "%{$search}%");
+                    ->orWhere('code', 'like', "%{$search}%")
+                    ->orWhere('company_name', 'like', "%{$search}%")
+                    ->orWhere('contact_name', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('mobile', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('tax_number', 'like', "%{$search}%")
+                    ->orWhere('commercial_registration', 'like', "%{$search}%");
             });
         }
 
@@ -52,7 +52,7 @@ class CustomerController extends Controller
         }
 
         $customers = $query->orderBy('created_at', 'desc')
-            ->paginate($request->input('per_page', 20))
+            ->paginate($this->perPage($request))
             ->withQueryString();
 
         $stats = [
@@ -117,7 +117,12 @@ class CustomerController extends Controller
             'additional_contacts.*.phone' => 'nullable|string|max:50',
             'additional_contacts.*.email' => 'nullable|email|max:255',
             'additional_contacts.*.role' => 'nullable|string|max:100',
-            'attachments' => 'nullable|array',
+            'attachments' => 'nullable|array|max:50',
+            'attachments.*.name' => 'nullable|string|max:255',
+            // Only links to files we serve ourselves (private /files/ or legacy uploads).
+            'attachments.*.url' => ['required', 'string', 'max:2048', 'regex:#^/(files/|storage/customers/attachments/)#'],
+            'attachments.*.size' => 'nullable|integer',
+            'attachments.*.type' => 'nullable|string|max:150',
         ]);
 
         $validated['customer_type'] = $validated['customer_type'] ?? 'commercial';
@@ -132,9 +137,9 @@ class CustomerController extends Controller
         $validated['country'] = $validated['country'] ?? 'المملكة العربية السعودية';
 
         // Set address summary if individual parts are present
-        if (empty($validated['address']) && (!empty($validated['building_number']) || !empty($validated['street_name']))) {
+        if (empty($validated['address']) && (! empty($validated['building_number']) || ! empty($validated['street_name']))) {
             $parts = array_filter([
-                $validated['building_number'] ? ('مبنى ' . $validated['building_number']) : null,
+                $validated['building_number'] ? ('مبنى '.$validated['building_number']) : null,
                 $validated['street_name'],
                 $validated['district'],
                 $validated['city'],
@@ -161,13 +166,12 @@ class CustomerController extends Controller
     public function uploadAttachment(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|max:10240', // 10MB max
+            'file' => 'required|file|max:10240|mimes:'.FileController::DOCUMENT_MIMES,
         ]);
 
         $file = $request->file('file');
         $originalName = $file->getClientOriginalName();
-        $path = $file->store('customers/attachments', 'public');
-        $url = Storage::url($path);
+        $url = FileController::storeForTenant($file, 'customers/attachments')['url'];
 
         return response()->json([
             'success' => true,
@@ -230,7 +234,7 @@ class CustomerController extends Controller
                 'reference' => $inv->invoice_number,
                 'debit' => $invTotal,
                 'credit' => 0.00,
-                'notes' => $inv->notes ?: ('فاتورة مبيعات ' . $inv->invoice_number),
+                'notes' => $inv->notes ?: ('فاتورة مبيعات '.$inv->invoice_number),
             ]);
 
             // Account for any immediate payments at checkout not recorded in customer payments table
@@ -244,10 +248,10 @@ class CustomerController extends Controller
                     'order_key' => 2,
                     'type' => 'payment',
                     'type_ar' => 'سداد فوري للفاتورة',
-                    'reference' => 'سداد ' . $inv->invoice_number,
+                    'reference' => 'سداد '.$inv->invoice_number,
                     'debit' => 0.00,
                     'credit' => $immediatePaid,
-                    'notes' => 'سداد فوري عند إصدار الفاتورة (' . ($inv->payment_method === 'cash' ? 'نقداً' : ($inv->payment_method === 'card' ? 'بطاقة/مدى' : 'تحويل')) . ')',
+                    'notes' => 'سداد فوري عند إصدار الفاتورة ('.($inv->payment_method === 'cash' ? 'نقداً' : ($inv->payment_method === 'card' ? 'بطاقة/مدى' : 'تحويل')).')',
                 ]);
             }
         }
@@ -261,16 +265,16 @@ class CustomerController extends Controller
                 'order_key' => 2,
                 'type' => 'payment',
                 'type_ar' => 'سند قبض',
-                'reference' => $pmt->payment_number ?: ('PAY-' . $pmt->id),
+                'reference' => $pmt->payment_number ?: ('PAY-'.$pmt->id),
                 'debit' => 0.00,
                 'credit' => (float) $pmt->amount,
-                'notes' => $pmt->notes ?: ('سند قبض عبر ' . ($pmt->payment_method === 'cash' ? 'نقداً' : ($pmt->payment_method === 'card' ? 'بطاقة/مدى' : 'تحويل'))),
+                'notes' => $pmt->notes ?: ('سند قبض عبر '.($pmt->payment_method === 'cash' ? 'نقداً' : ($pmt->payment_method === 'card' ? 'بطاقة/مدى' : 'تحويل'))),
             ]);
         }
 
         // 3. Sort transactions chronologically
         $sorted = $rawTransactions->sortBy(function ($item) {
-            return $item['date'] . '_' . $item['order_key'] . '_' . ($item['created_at'] ?? '');
+            return $item['date'].'_'.$item['order_key'].'_'.($item['created_at'] ?? '');
         })->values();
 
         // 4. Calculate Progressive Running Balance
@@ -352,12 +356,17 @@ class CustomerController extends Controller
             'additional_contacts.*.phone' => 'nullable|string|max:50',
             'additional_contacts.*.email' => 'nullable|email|max:255',
             'additional_contacts.*.role' => 'nullable|string|max:100',
-            'attachments' => 'nullable|array',
+            'attachments' => 'nullable|array|max:50',
+            'attachments.*.name' => 'nullable|string|max:255',
+            // Only links to files we serve ourselves (private /files/ or legacy uploads).
+            'attachments.*.url' => ['required', 'string', 'max:2048', 'regex:#^/(files/|storage/customers/attachments/)#'],
+            'attachments.*.size' => 'nullable|integer',
+            'attachments.*.type' => 'nullable|string|max:150',
         ]);
 
-        if (empty($validated['address']) && (!empty($validated['building_number']) || !empty($validated['street_name']))) {
+        if (empty($validated['address']) && (! empty($validated['building_number']) || ! empty($validated['street_name']))) {
             $parts = array_filter([
-                $validated['building_number'] ? ('مبنى ' . $validated['building_number']) : null,
+                $validated['building_number'] ? ('مبنى '.$validated['building_number']) : null,
                 $validated['street_name'],
                 $validated['district'],
                 $validated['city'],

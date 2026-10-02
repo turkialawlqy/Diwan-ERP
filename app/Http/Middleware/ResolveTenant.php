@@ -6,71 +6,93 @@ use App\Models\Company;
 use App\Services\TenantManager;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Resolves the active tenant (company) for the request and guarantees that an
+ * authenticated user can only ever operate inside their own company.
+ *
+ * Resolution order:
+ *  1. Super admin impersonation (only honoured for real super admins).
+ *  2. The request host: "{subdomain}.{central_domain}" or a mapped custom domain.
+ *  3. Local/testing only: "X-Tenant" header or "?tenant=" query parameter.
+ *  4. The authenticated user's own company (central domain deployments).
+ *
+ * Whatever the source, a logged-in user whose company differs from the
+ * resolved one is logged out and rejected, so a session can never be replayed
+ * against another company's subdomain.
+ */
 class ResolveTenant
 {
-    protected TenantManager $tenantManager;
+    public function __construct(protected TenantManager $tenantManager) {}
 
-    public function __construct(TenantManager $tenantManager)
-    {
-        $this->tenantManager = $tenantManager;
-    }
-
-    /**
-     * Handle an incoming request and resolve the current tenant.
-     */
     public function handle(Request $request, Closure $next): Response
     {
-        $host = $request->getHost();
+        // Every web request runs with fail-closed tenant scoping.
+        $this->tenantManager->forget();
+        $this->tenantManager->enforce();
+
+        $user = $request->user();
         $company = null;
+        $fromHost = false;
 
-        // 1. Check if Super Admin is actively impersonating a company
-        if ($this->tenantManager->isImpersonating()) {
-            $companyId = session('impersonate_company_id');
-            $company = Company::find($companyId);
+        // 1. Super admin impersonation.
+        if ($user && $user->isSuperAdmin() && $this->tenantManager->isImpersonating()) {
+            $company = Company::find(session('impersonate_company_id'));
+        } elseif ($this->tenantManager->isImpersonating() && (! $user || ! $user->isSuperAdmin())) {
+            // Stale or forged impersonation state on a non super admin session.
+            session()->forget(['impersonate_company_id', 'impersonate_original_admin_id']);
         }
 
-        // 2. Resolve via Subdomain from host (e.g. 'anas' from 'anas.alostaz.io' or 'anas.localhost')
-        if (!$company) {
-            $subdomain = $this->extractSubdomain($host);
-            if ($subdomain && !in_array($subdomain, ['admin', 'api', 'www', 'mail', 'app', 'dashboard', 'localhost', '127'])) {
-                $company = Company::where('subdomain', $subdomain)->first();
+        // 2. Host based resolution.
+        if (! $company) {
+            $company = $this->resolveFromHost($request->getHost());
+            $fromHost = $company !== null;
+
+            if (! $company && $this->isTenantHost($request->getHost())) {
+                abort(404, 'هذه المنشأة غير موجودة.');
             }
         }
 
-        // 3. Resolve via Custom Domain (if mapped)
-        if (!$company && !in_array($host, ['localhost', '127.0.0.1', 'alostaz.io'])) {
-            $company = Company::where('custom_domain', $host)->first();
+        // 3. Developer override (local / testing only).
+        if (! $company && $this->devOverrideAllowed()) {
+            if ($devSubdomain = $request->header('X-Tenant') ?? $request->query('tenant')) {
+                $company = Company::where('subdomain', strtolower((string) $devSubdomain))->first();
+                $fromHost = $company !== null;
+            }
         }
 
-        // 4. Fallback for Local Dev / Testing ONLY (Header, Query Param, Authenticated User's Company, or first Company)
-        if (!$company) {
-            if (app()->environment('local', 'testing')) {
-                if ($devSubdomain = $request->query('tenant') ?? $request->header('X-Tenant')) {
-                    $company = Company::where('subdomain', $devSubdomain)->first();
-                } elseif ($request->user() && $request->user()->company_id) {
-                    $company = $request->user()->company;
-                } else {
-                    $company = Company::first();
+        // 4. Authenticated user's own company.
+        if (! $company && $user && $user->company_id) {
+            if (config('tenancy.enforce_subdomain') && ! $request->expectsJson()) {
+                $own = $user->company;
+                if ($own && $own->subdomain) {
+                    return redirect()->away($this->tenantUrl($request, $own->subdomain));
                 }
-            } elseif ($request->user() && $request->user()->company_id) {
-                // In production, only resolve from authenticated user's company
-                $company = $request->user()->company;
             }
+
+            $company = $user->company;
         }
 
-        // Set tenant in manager if found
         if ($company) {
-            // Check company status
-            if ($company->status === 'suspended') {
+            // A user may only act inside their own company. Super admins may act
+            // inside a company only while impersonating it.
+            if ($user && ! $this->userMayAccess($user, $company)) {
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                abort(403, 'لا تملك صلاحية الوصول إلى هذه المنشأة.');
+            }
+
+            if ($company->status === 'suspended' && ! ($user && $user->isSuperAdmin())) {
                 abort(403, 'تم تعليق حساب هذه المؤسسة. يرجى مراجعة الدعم الفني.');
             }
 
             $this->tenantManager->setTenant($company);
 
-            // Set app locale according to company's language preference if not overridden by session
-            if (!session()->has('locale')) {
+            if (! session()->has('locale')) {
                 app()->setLocale($company->language ?? 'ar');
             }
         }
@@ -78,19 +100,101 @@ class ResolveTenant
         return $next($request);
     }
 
-    /**
-     * Extract subdomain from host.
-     */
-    protected function extractSubdomain(string $host): ?string
+    protected function userMayAccess($user, Company $company): bool
     {
-        $parts = explode('.', $host);
-        
-        // If e.g. anas.alostaz.io -> count is 3 -> 'anas'
-        // If anas.localhost -> count is 2 -> 'anas'
-        if (count($parts) >= 2) {
-            return strtolower($parts[0]);
+        if ($user->isSuperAdmin()) {
+            return $this->tenantManager->isImpersonating()
+                && (int) session('impersonate_company_id') === (int) $company->id;
+        }
+
+        return (int) $user->company_id === (int) $company->id;
+    }
+
+    /**
+     * Resolve a company from "{subdomain}.{central}" or a custom domain.
+     */
+    protected function resolveFromHost(string $host): ?Company
+    {
+        $host = strtolower($host);
+
+        if ($subdomain = $this->extractSubdomain($host)) {
+            return Company::where('subdomain', $subdomain)->first();
+        }
+
+        if (! $this->isCentralHost($host) && ! $this->isIpAddress($host)) {
+            return Company::where('custom_domain', $host)->first();
         }
 
         return null;
+    }
+
+    /**
+     * Whether the host is shaped like a tenant subdomain (so an unknown one is a 404).
+     */
+    protected function isTenantHost(string $host): bool
+    {
+        return $this->extractSubdomain(strtolower($host)) !== null;
+    }
+
+    /**
+     * Extract the tenant label from "{label}.{central_domain}". Returns null for
+     * the central domain itself, reserved labels and nested subdomains.
+     */
+    protected function extractSubdomain(string $host): ?string
+    {
+        $central = strtolower((string) config('tenancy.central_domain'));
+        $suffix = '.'.$central;
+
+        if ($central === '' || ! str_ends_with($host, $suffix)) {
+            return null;
+        }
+
+        $label = substr($host, 0, -strlen($suffix));
+
+        if ($label === '' || str_contains($label, '.')) {
+            return null;
+        }
+
+        if (in_array($label, config('tenancy.reserved_subdomains', []), true)) {
+            return null;
+        }
+
+        return $label;
+    }
+
+    protected function isCentralHost(string $host): bool
+    {
+        $central = strtolower((string) config('tenancy.central_domain'));
+
+        if ($host === $central || in_array($host, ['localhost', '127.0.0.1'], true)) {
+            return true;
+        }
+
+        // Reserved subdomains of the central domain (www., admin., ...).
+        foreach (config('tenancy.reserved_subdomains', []) as $reserved) {
+            if ($host === $reserved.'.'.$central) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function isIpAddress(string $host): bool
+    {
+        return filter_var(trim($host, '[]'), FILTER_VALIDATE_IP) !== false;
+    }
+
+    protected function devOverrideAllowed(): bool
+    {
+        return config('tenancy.allow_dev_override') && app()->environment('local', 'testing');
+    }
+
+    protected function tenantUrl(Request $request, string $subdomain): string
+    {
+        $port = in_array($request->getPort(), [80, 443], true) ? '' : ':'.$request->getPort();
+
+        return $request->getScheme().'://'.$subdomain.'.'.config('tenancy.central_domain')
+            .$port.$request->getRequestUri();
     }
 }

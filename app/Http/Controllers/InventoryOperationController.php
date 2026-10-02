@@ -8,6 +8,7 @@ use App\Models\Warehouse;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -44,9 +45,9 @@ class InventoryOperationController extends Controller
     public function transfer(Request $request)
     {
         $validated = $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'from_warehouse_id' => 'required|exists:warehouses,id|different:to_warehouse_id',
-            'to_warehouse_id' => 'required|exists:warehouses,id',
+            'product_id' => 'required|tenant_exists:products,id',
+            'from_warehouse_id' => 'required|tenant_exists:warehouses,id|different:to_warehouse_id',
+            'to_warehouse_id' => 'required|tenant_exists:warehouses,id',
             'quantity' => 'required|numeric|min:0.01',
             'notes' => 'nullable|string|max:255',
         ]);
@@ -63,8 +64,8 @@ class InventoryOperationController extends Controller
                 ->lockForUpdate()
                 ->first();
 
-            if (!$sourceStock || $sourceStock->quantity < $qty) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+            if (! $sourceStock || $sourceStock->quantity < $qty) {
+                throw ValidationException::withMessages([
                     'quantity' => 'الكمية المتوفرة في المستودع المصدر غير كافية لإتمام التحويل.',
                 ]);
             }
@@ -95,8 +96,8 @@ class InventoryOperationController extends Controller
     public function adjust(Request $request)
     {
         $validated = $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'warehouse_id' => 'required|exists:warehouses,id',
+            'product_id' => 'required|tenant_exists:products,id',
+            'warehouse_id' => 'required|tenant_exists:warehouses,id',
             'type' => 'required|in:add,subtract,set',
             'quantity' => 'required|numeric|min:0',
             'reason' => 'nullable|string|max:255',
@@ -124,7 +125,7 @@ class InventoryOperationController extends Controller
                 $stock->increment('quantity', $qty);
             } elseif ($validated['type'] === 'subtract') {
                 if ($stock->quantity < $qty) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
+                    throw ValidationException::withMessages([
                         'quantity' => 'الكمية المطلوب خصمها أكبر من الكمية المتوفرة في المخزون.',
                     ]);
                 }

@@ -18,8 +18,8 @@ class AccountController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
-                  ->orWhere('name_ar', 'like', "%{$search}%")
-                  ->orWhere('name_en', 'like', "%{$search}%");
+                    ->orWhere('name_ar', 'like', "%{$search}%")
+                    ->orWhere('name_en', 'like', "%{$search}%");
             });
         }
 
@@ -54,16 +54,16 @@ class AccountController extends Controller
             'code' => 'required|string|max:50',
             'name_ar' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
-            'parent_id' => 'nullable|exists:accounts,id',
+            'parent_id' => 'nullable|tenant_exists:accounts,id',
             'type' => 'required|in:asset,liability,equity,revenue,expense',
             'nature' => 'required|in:debit,credit',
             'is_parent' => 'boolean',
             'balance' => 'nullable|numeric',
         ]);
 
-        if (!empty($validated['parent_id'])) {
+        if (! empty($validated['parent_id'])) {
             $parent = Account::find($validated['parent_id']);
-            if ($parent && !$parent->is_parent) {
+            if ($parent && ! $parent->is_parent) {
                 $parent->update(['is_parent' => true]);
             }
         }
@@ -90,16 +90,17 @@ class AccountController extends Controller
             'code' => 'required|string|max:50',
             'name_ar' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
-            'parent_id' => 'nullable|exists:accounts,id',
+            'parent_id' => 'nullable|tenant_exists:accounts,id',
             'type' => 'required|in:asset,liability,equity,revenue,expense',
             'nature' => 'required|in:debit,credit',
             'is_parent' => 'boolean',
-            'balance' => 'nullable|numeric',
             'is_active' => 'boolean',
         ]);
 
+        // The balance is derived from posted journal lines and is never edited directly.
+
         // Prevent making account its own parent
-        if (!empty($validated['parent_id']) && (int)$validated['parent_id'] === (int)$account->id) {
+        if (! empty($validated['parent_id']) && (int) $validated['parent_id'] === (int) $account->id) {
             return back()->with('error', 'لا يمكن جعل الحساب تابعاً لنفسه');
         }
 

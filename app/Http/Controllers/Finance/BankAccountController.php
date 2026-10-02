@@ -42,7 +42,7 @@ class BankAccountController extends Controller
             'iban' => 'nullable|string|max:50',
             'currency' => 'required|string|max:10',
             'opening_balance' => 'required|numeric|min:0',
-            'account_id' => 'nullable|exists:accounts,id',
+            'account_id' => 'nullable|tenant_exists:accounts,id',
         ]);
 
         BankAccount::create([

@@ -13,10 +13,12 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasRoles;
+    use HasFactory, HasRoles, Notifiable;
 
     /**
-     * The attributes that are mass assignable.
+     * The attributes that are mass assignable. company_id and is_super_admin are
+     * deliberately excluded so no request can move a user between tenants or
+     * escalate to platform admin; set them explicitly with forceFill().
      *
      * @var list<string>
      */
@@ -24,7 +26,6 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'company_id',
         'phone',
         'avatar',
         'branch_id',

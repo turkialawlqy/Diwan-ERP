@@ -20,8 +20,8 @@ class TemplateController extends Controller
         $companyId = $tenantManager->getTenantId();
 
         $templates = PrintTemplate::when($companyId, function ($query) use ($companyId) {
-                return $query->where('company_id', $companyId);
-            })
+            return $query->where('company_id', $companyId);
+        })
             ->latest()
             ->get();
 
@@ -53,15 +53,15 @@ class TemplateController extends Controller
         }
 
         $allTemplates = PrintTemplate::when($companyId, function ($query) use ($companyId) {
-                return $query->where('company_id', $companyId);
-            })
+            return $query->where('company_id', $companyId);
+        })
             ->select('id', 'name', 'template_type', 'is_default')
             ->get();
 
         // Sample real invoices for preview selector
         $sampleInvoices = Invoice::when($companyId, function ($query) use ($companyId) {
-                return $query->where('company_id', $companyId);
-            })
+            return $query->where('company_id', $companyId);
+        })
             ->select('id', 'invoice_number', 'invoice_date', 'total')
             ->latest()
             ->take(10)
@@ -73,7 +73,7 @@ class TemplateController extends Controller
             $activeInvoice = Invoice::with(['customer', 'branch', 'items'])->find($sampleInvoices->first()->id);
         }
 
-        if (!$activeInvoice) {
+        if (! $activeInvoice) {
             $activeInvoice = [
                 'invoice_number' => 'INV-26-1-000004',
                 'reference_number' => 'REF-98421',
@@ -104,7 +104,7 @@ class TemplateController extends Controller
                         'tax_amount' => 1789.16,
                         'subtotal' => 11927.70,
                         'total' => 13716.86,
-                    ]
+                    ],
                 ],
             ];
         }
@@ -124,7 +124,7 @@ class TemplateController extends Controller
     public function store(Request $request)
     {
         $tenantManager = app(TenantManager::class);
-        $companyId = $tenantManager->getTenantId() ?? 1;
+        $companyId = $tenantManager->getTenantId();
 
         $validated = $request->validate([
             'name' => 'required|string|max:100',
@@ -133,7 +133,7 @@ class TemplateController extends Controller
         ]);
 
         $defaultLayout = PrintTemplate::getDefaultLayoutData();
-        if (!empty($validated['primary_color'])) {
+        if (! empty($validated['primary_color'])) {
             $defaultLayout['design']['primary_color'] = $validated['primary_color'];
         }
 
@@ -193,7 +193,7 @@ class TemplateController extends Controller
         $companyId = $tenantManager->getTenantId() ?? $template->company_id;
 
         $newTemplate = $template->replicate();
-        $newTemplate->name = 'نسخة من ' . $template->name;
+        $newTemplate->name = 'نسخة من '.$template->name;
         $newTemplate->is_default = false;
         $newTemplate->company_id = $companyId;
         $newTemplate->save();
@@ -240,6 +240,7 @@ class TemplateController extends Controller
     public function getInvoicePreview(Invoice $invoice)
     {
         $invoice->load(['customer', 'branch', 'items']);
+
         return response()->json($invoice);
     }
 }

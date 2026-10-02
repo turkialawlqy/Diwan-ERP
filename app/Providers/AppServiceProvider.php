@@ -2,9 +2,17 @@
 
 namespace App\Providers;
 
+use App\Models\AuditLog;
+use App\Services\TenantManager;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
@@ -15,8 +23,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(\App\Services\TenantManager::class, function () {
-            return new \App\Services\TenantManager();
+        $this->app->singleton(TenantManager::class, function () {
+            return new TenantManager;
         });
     }
 
@@ -28,10 +36,54 @@ class AppServiceProvider extends ServiceProvider
         Vite::prefetch(concurrency: 3);
 
         $this->configureRateLimiting();
+        $this->registerTenantValidationRules();
+        $this->registerSecurityEventLogging();
 
         if ($this->app->environment('production')) {
-            \Illuminate\Support\Facades\URL::forceScheme('https');
+            URL::forceScheme('https');
         }
+    }
+
+    /**
+     * Log sign-ins (successful and failed) to the audit trail.
+     */
+    protected function registerSecurityEventLogging(): void
+    {
+        Event::listen(Login::class, function ($event) {
+            $user = $event->user;
+            $user->forceFill(['last_login_at' => now()])->saveQuietly();
+            AuditLog::record('login', null, [], [], $user->company_id, $user->id);
+        });
+
+        Event::listen(Failed::class, function ($event) {
+            AuditLog::record('login_failed', null, [], [
+                'email' => $event->credentials['email'] ?? null,
+            ], $event->user?->company_id, $event->user?->id);
+        });
+    }
+
+    /**
+     * "tenant_exists:table[,column]" behaves like "exists" but only matches rows
+     * owned by the current tenant, so a request can never reference (and attach
+     * itself to) another company's customer, account, product, warehouse, etc.
+     * It fails closed when no tenant is resolved.
+     */
+    protected function registerTenantValidationRules(): void
+    {
+        Validator::extend('tenant_exists', function ($attribute, $value, $parameters) {
+            $tenantId = app(TenantManager::class)->getTenantId();
+            $table = $parameters[0] ?? null;
+            $column = $parameters[1] ?? 'id';
+
+            if (! $tenantId || ! $table || $value === null || $value === '' || is_array($value)) {
+                return false;
+            }
+
+            return DB::table($table)
+                ->where($column, $value)
+                ->where('company_id', $tenantId)
+                ->exists();
+        }, 'القيمة المحددة غير صالحة.');
     }
 
     /**
@@ -52,7 +104,7 @@ class AppServiceProvider extends ServiceProvider
         // Forgot-password requests: max 3 per minute per IP+email, to slow down
         // both mass email-enumeration and mail-bombing a single address.
         RateLimiter::for('password-email', function (Request $request) {
-            return Limit::perMinute(3)->by($request->ip() . '|' . strtolower((string) $request->input('email')));
+            return Limit::perMinute(3)->by($request->ip().'|'.strtolower((string) $request->input('email')));
         });
 
         // Password reset submission: max 5 per minute per IP

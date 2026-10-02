@@ -21,8 +21,8 @@ class JournalEntryController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('entry_number', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhere('reference', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('reference', 'like', "%{$search}%");
             });
         }
 
@@ -51,7 +51,7 @@ class JournalEntryController extends Controller
             'reference' => 'nullable|string|max:100',
             'description' => 'required|string',
             'lines' => 'required|array|min:2',
-            'lines.*.account_id' => 'required|exists:accounts,id',
+            'lines.*.account_id' => 'required|tenant_exists:accounts,id',
             'lines.*.description' => 'nullable|string',
             'lines.*.debit' => 'required|numeric|min:0',
             'lines.*.credit' => 'required|numeric|min:0',
@@ -66,7 +66,7 @@ class JournalEntryController extends Controller
 
         return DB::transaction(function () use ($validated, $totalDebit, $totalCredit) {
             $count = JournalEntry::count() + 1;
-            $entryNumber = 'JV-' . date('y') . '-' . str_pad($count, 6, '0', STR_PAD_LEFT);
+            $entryNumber = 'JV-'.date('y').'-'.str_pad($count, 6, '0', STR_PAD_LEFT);
 
             $entry = JournalEntry::create([
                 'entry_number' => $entryNumber,

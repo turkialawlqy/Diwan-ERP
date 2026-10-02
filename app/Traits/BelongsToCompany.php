@@ -17,8 +17,14 @@ trait BelongsToCompany
         // Global scope to isolate tenant data automatically
         static::addGlobalScope('company', function (Builder $builder) {
             $tenantManager = app(TenantManager::class);
+            $column = $builder->getModel()->getTable().'.company_id';
+
             if ($tenantManager->hasTenant()) {
-                $builder->where($builder->getModel()->getTable() . '.company_id', $tenantManager->getTenantId());
+                $builder->where($column, $tenantManager->getTenantId());
+            } elseif ($tenantManager->isEnforced()) {
+                // Fail closed: a web request without a resolved tenant must never
+                // see any company's rows.
+                $builder->whereRaw('1 = 0');
             }
         });
 
@@ -31,16 +37,27 @@ trait BelongsToCompany
 
             if ($tenantManager->hasTenant()) {
                 $model->company_id = $tenantManager->getTenantId();
+
                 return;
+            }
+
+            if ($tenantManager->isEnforced()) {
+                throw new \RuntimeException(
+                    'Cannot create '.class_basename($model).' without a resolved tenant.'
+                );
+            }
+
+            if (empty($model->company_id) && method_exists($model, 'tenantParent')) {
+                $model->company_id = $model->tenantParent()?->company_id;
             }
 
             if (empty($model->company_id)) {
                 $companyId = auth()->user()?->company_id;
 
-                if (!$companyId) {
+                if (! $companyId) {
                     throw new \RuntimeException(
-                        'Cannot create ' . class_basename($model) . ' without a resolved tenant. '
-                        . 'Ensure the request has a valid company context.'
+                        'Cannot create '.class_basename($model).' without a resolved tenant. '
+                        .'Ensure the request has a valid company context.'
                     );
                 }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Services\TenantManager;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -42,7 +43,7 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        if (! Auth::attempt($this->credentials(), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -51,6 +52,26 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+    }
+
+    /**
+     * Credentials for the attempt. On a company's subdomain only that company's
+     * users can sign in; inactive users can never sign in.
+     */
+    protected function credentials(): array
+    {
+        $credentials = $this->only('email', 'password');
+        $tenantId = app(TenantManager::class)->getTenantId();
+
+        $credentials[] = function ($query) use ($tenantId) {
+            $query->where(fn ($q) => $q->whereNull('status')->orWhere('status', 'active'));
+
+            if ($tenantId) {
+                $query->where('company_id', $tenantId);
+            }
+        };
+
+        return $credentials;
     }
 
     /**

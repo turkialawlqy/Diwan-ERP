@@ -1,0 +1,40 @@
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Central Domain
+    |--------------------------------------------------------------------------
+    |
+    | The root domain the platform runs on. Every company is served from
+    | "{subdomain}.{central_domain}". Requests to the bare central domain (or
+    | one of the reserved subdomains below) carry no tenant.
+    |
+    */
+
+    'central_domain' => env('APP_DOMAIN', 'localhost'),
+
+    /*
+    | Subdomains that can never be claimed by a company and never resolve to one.
+    */
+    'reserved_subdomains' => [
+        'admin', 'api', 'www', 'mail', 'app', 'dashboard', 'localhost', '127',
+        'static', 'assets', 'cdn', 'help', 'support', 'status', 'billing', 'docs',
+        'ftp', 'smtp', 'imap', 'pop', 'ns1', 'ns2', 'test', 'dev', 'staging',
+    ],
+
+    /*
+    | When true, an authenticated tenant user hitting the central domain is
+    | redirected to their company's own subdomain instead of being served there.
+    | Enable in production once wildcard DNS / SSL is configured.
+    */
+    'enforce_subdomain' => (bool) env('TENANCY_ENFORCE_SUBDOMAIN', false),
+
+    /*
+    | Allow the "X-Tenant" header / "?tenant=" query parameter to select a
+    | tenant. Only ever honoured in the local and testing environments.
+    */
+    'allow_dev_override' => (bool) env('TENANCY_ALLOW_DEV_OVERRIDE', true),
+
+];

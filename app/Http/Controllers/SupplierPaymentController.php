@@ -8,6 +8,7 @@ use App\Models\SupplierPayment;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class SupplierPaymentController extends Controller
@@ -24,17 +25,17 @@ class SupplierPaymentController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('payment_number', 'like', "%{$search}%")
-                  ->orWhere('reference_number', 'like', "%{$search}%")
-                  ->orWhereHas('supplier', function ($sq) use ($search) {
-                      $sq->where('name', 'like', "%{$search}%")
-                         ->orWhere('company_name', 'like', "%{$search}%");
-                  });
+                    ->orWhere('reference_number', 'like', "%{$search}%")
+                    ->orWhereHas('supplier', function ($sq) use ($search) {
+                        $sq->where('name', 'like', "%{$search}%")
+                            ->orWhere('company_name', 'like', "%{$search}%");
+                    });
             });
         }
 
         $payments = $query->orderBy('payment_date', 'desc')
             ->orderBy('id', 'desc')
-            ->paginate($request->input('per_page', 20))
+            ->paginate($this->perPage($request))
             ->withQueryString();
 
         $suppliers = Supplier::where('status', 'active')->get(['id', 'name', 'current_balance']);
@@ -64,8 +65,8 @@ class SupplierPaymentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'supplier_id' => 'required|exists:suppliers,id',
-            'purchase_invoice_id' => 'nullable|exists:purchase_invoices,id',
+            'supplier_id' => 'required|tenant_exists:suppliers,id',
+            'purchase_invoice_id' => 'nullable|tenant_exists:purchase_invoices,id',
             'amount' => 'required|numeric|min:0.01',
             'payment_date' => 'required|date',
             'payment_method' => 'required|string|in:cash,card,bank_transfer,cheque',
@@ -76,18 +77,18 @@ class SupplierPaymentController extends Controller
         $companyId = app(TenantManager::class)->getTenantId()
             ?? auth()->user()?->company_id;
 
-        if (!$companyId) {
+        if (! $companyId) {
             abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
         }
 
         DB::transaction(function () use ($validated, $companyId) {
-            $lastPayment = SupplierPayment::where('payment_number', 'like', 'SPAY-' . date('y') . '-%')
+            $lastPayment = SupplierPayment::where('payment_number', 'like', 'SPAY-'.date('y').'-%')
                 ->orderByRaw('CAST(SUBSTRING_INDEX(payment_number, "-", -1) AS UNSIGNED) DESC')
                 ->value('payment_number');
             $nextSeq = $lastPayment
                 ? ((int) substr($lastPayment, strrpos($lastPayment, '-') + 1)) + 1
                 : 1;
-            $paymentNumber = sprintf("SPAY-%s-%06d", date('y'), $nextSeq);
+            $paymentNumber = sprintf('SPAY-%s-%06d', date('y'), $nextSeq);
 
             $payment = SupplierPayment::create([
                 'company_id' => $companyId,
@@ -108,13 +109,13 @@ class SupplierPaymentController extends Controller
             }
 
             // Update linked purchase invoice if applicable
-            if (!empty($validated['purchase_invoice_id'])) {
+            if (! empty($validated['purchase_invoice_id'])) {
                 // Locked to prevent two concurrent payments from both reading the
                 // same stale remaining_amount and jointly overpaying the invoice.
                 $invoice = PurchaseInvoice::where('id', $validated['purchase_invoice_id'])->lockForUpdate()->first();
                 if ($invoice) {
                     if ($validated['amount'] > $invoice->remaining_amount + 0.01) {
-                        throw \Illuminate\Validation\ValidationException::withMessages([
+                        throw ValidationException::withMessages([
                             'amount' => "مبلغ الدفعة ({$validated['amount']}) أكبر من المبلغ المتبقي على فاتورة الشراء ({$invoice->remaining_amount}).",
                         ]);
                     }

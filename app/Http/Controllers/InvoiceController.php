@@ -8,7 +8,6 @@ use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Invoice;
-use App\Models\InvoiceItem;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use App\Models\PrintTemplate;
@@ -21,6 +20,7 @@ use App\Services\ZatcaService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -41,11 +41,11 @@ class InvoiceController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('invoice_number', 'like', "%{$search}%")
-                  ->orWhere('reference_number', 'like', "%{$search}%")
-                  ->orWhereHas('customer', function ($cq) use ($search) {
-                      $cq->where('name', 'like', "%{$search}%")
-                         ->orWhere('company_name', 'like', "%{$search}%");
-                  });
+                    ->orWhere('reference_number', 'like', "%{$search}%")
+                    ->orWhereHas('customer', function ($cq) use ($search) {
+                        $cq->where('name', 'like', "%{$search}%")
+                            ->orWhere('company_name', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -63,7 +63,7 @@ class InvoiceController extends Controller
 
         $invoices = $query->orderBy('invoice_date', 'desc')
             ->orderBy('id', 'desc')
-            ->paginate($request->input('per_page', 20))
+            ->paginate($this->perPage($request))
             ->withQueryString();
 
         // Calculate summary KPI stats using aggregate queries (no full load)
@@ -148,16 +148,16 @@ class InvoiceController extends Controller
 
         // Auto-generate invoice number using MAX to avoid race conditions
         $year = date('y');
-        $branchId = $branches->first()?->id ?? 1;
+        $branchId = $branches->first()?->id;
         $lastNumber = Invoice::where('invoice_number', 'like', "INV-{$year}-{$branchId}-%")
             ->orderByRaw('CAST(SUBSTRING_INDEX(invoice_number, "-", -1) AS UNSIGNED) DESC')
             ->value('invoice_number');
-        $nextSeq = $lastNumber 
-            ? ((int) substr($lastNumber, strrpos($lastNumber, '-') + 1)) + 1 
+        $nextSeq = $lastNumber
+            ? ((int) substr($lastNumber, strrpos($lastNumber, '-') + 1)) + 1
             : 1;
-        $suggestedNumber = sprintf("INV-%s-%s-%06d", $year, $branchId, $nextSeq);
+        $suggestedNumber = sprintf('INV-%s-%s-%06d', $year, $branchId, $nextSeq);
 
-        $bankAccounts = BankAccount::where('company_id', $company?->id ?? 1)
+        $bankAccounts = BankAccount::where('company_id', $company?->id)
             ->where('is_active', true)
             ->with('account')
             ->orderBy('type')
@@ -184,8 +184,8 @@ class InvoiceController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'branch_id' => 'nullable|exists:branches,id',
+            'customer_id' => 'required|tenant_exists:customers,id',
+            'branch_id' => 'nullable|tenant_exists:branches,id',
             'invoice_number' => 'required|string|max:50',
             'reference_number' => 'nullable|string|max:50',
             'invoice_date' => 'required|date',
@@ -193,11 +193,12 @@ class InvoiceController extends Controller
             'supply_date' => 'nullable|date',
             'payment_method' => 'required|string|in:cash,card,bank_transfer,credit',
             'payment_status' => 'required|string|in:paid,partially_paid,unpaid',
-            'bank_account_id' => 'nullable|exists:bank_accounts,id',
+            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
             'paid_amount' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'terms' => 'nullable|string',
             'items' => 'required|array|min:1',
+            'items.*.product_id' => 'nullable|integer|tenant_exists:products,id',
             'items.*.item_name' => 'required|string|max:255',
             'items.*.description' => 'nullable|string',
             'items.*.quantity' => 'required|numeric|min:0.01',
@@ -209,7 +210,7 @@ class InvoiceController extends Controller
         $tenantManager = app(TenantManager::class);
         $company = $tenantManager->getCompany();
 
-        $invoice = DB::transaction(function () use ($validated, $company, $request) {
+        $invoice = DB::transaction(function () use ($validated, $company) {
             $subtotal = 0;
             $taxAmount = 0;
             $itemsToCreate = [];
@@ -342,7 +343,7 @@ class InvoiceController extends Controller
         }
 
         $invoice->load(['customer', 'branch', 'items', 'user', 'company']);
-        $company = $invoice->company ?? $tenantManager->getCompany() ?? Company::find($invoice->company_id) ?? Company::first();
+        $company = $tenantManager->getCompany();
         $zatcaPhase = ZatcaService::getActivePhase($invoice->company_id);
 
         $templates = PrintTemplate::where('company_id', $invoice->company_id)
@@ -354,7 +355,7 @@ class InvoiceController extends Controller
         if ($selectedTemplateId) {
             $template = $templates->firstWhere('id', (int) $selectedTemplateId);
         }
-        if (!$template) {
+        if (! $template) {
             $template = $templates->where('template_type', 'invoice_a4')->where('is_default', true)->first()
                 ?? $templates->firstWhere('template_type', 'invoice_a4')
                 ?? $templates->first();
@@ -381,7 +382,7 @@ class InvoiceController extends Controller
         }
 
         $invoice->load(['customer', 'branch', 'items', 'user', 'company']);
-        $company = $invoice->company ?? $tenantManager->getCompany() ?? Company::find($invoice->company_id) ?? Company::first();
+        $company = $tenantManager->getCompany();
 
         $templates = PrintTemplate::where('company_id', $invoice->company_id)
             ->orWhereNull('company_id')
@@ -392,7 +393,7 @@ class InvoiceController extends Controller
         if ($selectedTemplateId) {
             $template = $templates->firstWhere('id', (int) $selectedTemplateId);
         }
-        if (!$template) {
+        if (! $template) {
             $template = $templates->where('template_type', 'invoice_a4')->where('is_default', true)->first()
                 ?? $templates->firstWhere('template_type', 'invoice_a4')
                 ?? $templates->first();
@@ -428,7 +429,7 @@ class InvoiceController extends Controller
             $accBank = AccountingMappingService::getAccount($companyId, 'default_bank');
             $accReceivable = AccountingMappingService::getAccount($companyId, 'receivables');
 
-            if (!$accSales) {
+            if (! $accSales) {
                 return;
             }
 
@@ -461,20 +462,20 @@ class InvoiceController extends Controller
             }
 
             // Fallback if no specific bank/cash was picked but payment was made
-            if (!$paidAccount && $paidAmount > 0) {
+            if (! $paidAccount && $paidAmount > 0) {
                 $paidAccount = $isCash ? $accCash : ($accBank ?? $accCash);
             }
 
             // Generate entry number
             $lastEntry = JournalEntry::where('company_id', $companyId)
-                ->where('entry_number', 'like', 'JV-' . date('y') . '-%')
+                ->where('entry_number', 'like', 'JV-'.date('y').'-%')
                 ->orderByDesc('id')
                 ->first();
             $nextSeq = 1;
             if ($lastEntry && preg_match('/JV-\d+-(\d+)/', $lastEntry->entry_number, $matches)) {
                 $nextSeq = (int) $matches[1] + 1;
             }
-            $entryNumber = 'JV-' . date('y') . '-' . str_pad($nextSeq, 6, '0', STR_PAD_LEFT);
+            $entryNumber = 'JV-'.date('y').'-'.str_pad($nextSeq, 6, '0', STR_PAD_LEFT);
 
             $customerName = $invoice->customer ? ($invoice->customer->name ?? $invoice->customer->company_name) : 'عميل عام';
 
@@ -573,7 +574,7 @@ class InvoiceController extends Controller
                 $entry->update(['total_debit' => $debitSum, 'total_credit' => $creditSum]);
             });
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Failed to create invoice journal entry: ' . $e->getMessage());
+            Log::error('Failed to create invoice journal entry: '.$e->getMessage());
         }
     }
 }

@@ -7,6 +7,7 @@ use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\Unit;
 use App\Models\Warehouse;
+use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -26,9 +27,9 @@ class ProductController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name_ar', 'like', "%{$search}%")
-                  ->orWhere('name_en', 'like', "%{$search}%")
-                  ->orWhere('sku', 'like', "%{$search}%")
-                  ->orWhere('barcode', 'like', "%{$search}%");
+                    ->orWhere('name_en', 'like', "%{$search}%")
+                    ->orWhere('sku', 'like', "%{$search}%")
+                    ->orWhere('barcode', 'like', "%{$search}%");
             });
         }
 
@@ -37,7 +38,7 @@ class ProductController extends Controller
         }
 
         $products = $query->orderBy('created_at', 'desc')
-            ->paginate($request->input('per_page', 20))
+            ->paginate($this->perPage($request))
             ->withQueryString();
 
         $categories = Category::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
@@ -75,7 +76,7 @@ class ProductController extends Controller
             'categories' => $categories,
             'units' => $units,
             'warehouses' => $warehouses,
-            'suggestedSku' => 'PRD-' . date('y') . '-' . sprintf('%05d', Product::count() + 1),
+            'suggestedSku' => 'PRD-'.date('y').'-'.sprintf('%05d', Product::count() + 1),
         ]);
     }
 
@@ -87,8 +88,8 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name_ar' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
-            'category_id' => 'nullable|exists:categories,id',
-            'unit_id' => 'nullable|exists:units,id',
+            'category_id' => 'nullable|tenant_exists:categories,id',
+            'unit_id' => 'nullable|tenant_exists:units,id',
             'sku' => 'nullable|string|max:100',
             'barcode' => 'nullable|string|max:100',
             'description' => 'nullable|string',
@@ -99,13 +100,13 @@ class ProductController extends Controller
             'track_inventory' => 'nullable|boolean',
             'type' => 'nullable|in:product,service',
             'initial_stock' => 'nullable|numeric|min:0',
-            'warehouse_id' => 'nullable|exists:warehouses,id',
+            'warehouse_id' => 'nullable|tenant_exists:warehouses,id',
         ]);
 
-        $companyId = app(\App\Services\TenantManager::class)->getTenantId()
+        $companyId = app(TenantManager::class)->getTenantId()
             ?? auth()->user()?->company_id;
 
-        if (!$companyId) {
+        if (! $companyId) {
             abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
         }
 
@@ -120,7 +121,7 @@ class ProductController extends Controller
                 'unit_id' => $validated['unit_id'] ?? null,
                 'name_ar' => $validated['name_ar'],
                 'name_en' => $validated['name_en'] ?? null,
-                'sku' => $validated['sku'] ?? ('PRD-' . date('y') . '-' . sprintf('%05d', Product::count() + 1)),
+                'sku' => $validated['sku'] ?? ('PRD-'.date('y').'-'.sprintf('%05d', Product::count() + 1)),
                 'barcode' => $validated['barcode'] ?? null,
                 'description' => $validated['description'] ?? null,
                 'purchase_price' => $purchasePrice,
@@ -150,6 +151,7 @@ class ProductController extends Controller
 
         if ($request->wantsJson() || $request->ajax()) {
             $product->load(['category', 'unit']);
+
             return response()->json([
                 'success' => true,
                 'product' => $product,
@@ -183,8 +185,8 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name_ar' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
-            'category_id' => 'nullable|exists:categories,id',
-            'unit_id' => 'nullable|exists:units,id',
+            'category_id' => 'nullable|tenant_exists:categories,id',
+            'unit_id' => 'nullable|tenant_exists:units,id',
             'sku' => 'nullable|string|max:100',
             'barcode' => 'nullable|string|max:100',
             'description' => 'nullable|string',
@@ -207,6 +209,7 @@ class ProductController extends Controller
     public function destroy(Product $product)
     {
         $product->delete();
+
         return redirect()->route('inventory.products.index')->with('success', 'تم حذف المنتج بنجاح');
     }
 }

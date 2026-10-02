@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Customer extends Model
 {
-    use HasFactory, BelongsToCompany;
+    use Auditable, BelongsToCompany, HasFactory;
 
     protected $fillable = [
         'company_id',
@@ -52,16 +53,16 @@ class Customer extends Model
     protected static function booted()
     {
         static::creating(function ($customer) {
-            if (empty($customer->code) && !empty($customer->company_id)) {
+            if (empty($customer->code) && ! empty($customer->company_id)) {
                 $count = static::where('company_id', $customer->company_id)->count() + 1;
-                $customer->code = '1-' . str_pad($count, 6, '0', STR_PAD_LEFT);
+                $customer->code = '1-'.str_pad($count, 6, '0', STR_PAD_LEFT);
             }
         });
     }
 
     public function getFormattedCodeAttribute(): string
     {
-        return $this->code ?: ('1-' . str_pad($this->id, 6, '0', STR_PAD_LEFT));
+        return $this->code ?: ('1-'.str_pad($this->id, 6, '0', STR_PAD_LEFT));
     }
 
     public function invoices(): HasMany

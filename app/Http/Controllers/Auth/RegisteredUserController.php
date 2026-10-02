@@ -39,7 +39,7 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $reservedSubdomains = ['admin', 'api', 'www', 'mail', 'app', 'dashboard', 'localhost', '127'];
+        $reservedSubdomains = config('tenancy.reserved_subdomains', []);
 
         $request->validate([
             'company_name' => 'required|string|max:255',
@@ -130,7 +130,7 @@ class RegisteredUserController extends Controller
             $company->setSetting('invoice_prefix', 'INV-', 'sales', 'string');
 
             // 5. Create Administrator User
-            $user = User::create([
+            $user = (new User)->forceFill([
                 'company_id' => $company->id,
                 'name' => $request->name,
                 'email' => $request->email,
@@ -139,6 +139,7 @@ class RegisteredUserController extends Controller
                 'password' => Hash::make($request->password),
                 'status' => 'active',
             ]);
+            $user->save();
 
             $adminRole = Role::firstOrCreate(['name' => 'admin']);
             $user->assignRole($adminRole);

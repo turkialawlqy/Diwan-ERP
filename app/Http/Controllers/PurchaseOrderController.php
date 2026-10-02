@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Product;
+use App\Models\InventoryStock;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
-use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Services\TenantManager;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class PurchaseOrderController extends Controller
@@ -29,10 +29,10 @@ class PurchaseOrderController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('order_number', 'like', "%{$search}%")
-                  ->orWhereHas('supplier', function ($sq) use ($search) {
-                      $sq->where('name', 'like', "%{$search}%")
-                         ->orWhere('company_name', 'like', "%{$search}%");
-                  });
+                    ->orWhereHas('supplier', function ($sq) use ($search) {
+                        $sq->where('name', 'like', "%{$search}%")
+                            ->orWhere('company_name', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -42,7 +42,7 @@ class PurchaseOrderController extends Controller
 
         $orders = $query->orderBy('order_date', 'desc')
             ->orderBy('id', 'desc')
-            ->paginate($request->input('per_page', 20))
+            ->paginate($this->perPage($request))
             ->withQueryString();
 
         $stats = [
@@ -74,11 +74,19 @@ class PurchaseOrderController extends Controller
         $companyId = app(TenantManager::class)->getTenantId()
             ?? auth()->user()?->company_id;
 
-        if (!$companyId) {
+        if (! $companyId) {
             abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
         }
 
         $invoice = DB::transaction(function () use ($order, $companyId) {
+            // Re-read under a row lock so concurrent conversions cannot double stock.
+            $order = PurchaseOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            if ($order->status === 'converted_to_invoice') {
+                throw ValidationException::withMessages([
+                    'order' => 'تم تحويل أمر الشراء هذا إلى فاتورة شراء مسبقاً',
+                ]);
+            }
+
             $year = date('y');
             $lastInvoice = PurchaseInvoice::where('invoice_number', 'like', "BILL-{$year}-%")
                 ->orderByRaw('CAST(SUBSTRING_INDEX(invoice_number, "-", -1) AS UNSIGNED) DESC')
@@ -86,7 +94,7 @@ class PurchaseOrderController extends Controller
             $nextSeq = $lastInvoice
                 ? ((int) substr($lastInvoice, strrpos($lastInvoice, '-') + 1)) + 1
                 : 1;
-            $invoiceNumber = sprintf("BILL-%s-%06d", $year, $nextSeq);
+            $invoiceNumber = sprintf('BILL-%s-%06d', $year, $nextSeq);
 
             $purchaseInvoice = PurchaseInvoice::create([
                 'company_id' => $companyId,
@@ -94,7 +102,7 @@ class PurchaseOrderController extends Controller
                 'purchase_order_id' => $order->id,
                 'warehouse_id' => $order->warehouse_id ?? Warehouse::first()?->id,
                 'invoice_number' => $invoiceNumber,
-                'supplier_invoice_number' => 'PO-REF-' . $order->order_number,
+                'supplier_invoice_number' => 'PO-REF-'.$order->order_number,
                 'invoice_date' => Carbon::now()->toDateString(),
                 'due_date' => Carbon::now()->addDays(30)->toDateString(),
                 'payment_method' => 'credit',
@@ -106,7 +114,7 @@ class PurchaseOrderController extends Controller
                 'total' => $order->total,
                 'paid_amount' => 0,
                 'remaining_amount' => $order->total,
-                'notes' => 'محولة تلقائياً من أمر الشراء رقم: ' . $order->order_number,
+                'notes' => 'محولة تلقائياً من أمر الشراء رقم: '.$order->order_number,
             ]);
 
             foreach ($order->items as $item) {
@@ -123,7 +131,7 @@ class PurchaseOrderController extends Controller
 
                 // Increment stock
                 if ($item->product_id && $order->warehouse_id) {
-                    $stock = \App\Models\InventoryStock::firstOrCreate([
+                    $stock = InventoryStock::firstOrCreate([
                         'company_id' => $companyId,
                         'product_id' => $item->product_id,
                         'warehouse_id' => $order->warehouse_id,

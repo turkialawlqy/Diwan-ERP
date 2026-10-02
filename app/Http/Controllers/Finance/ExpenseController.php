@@ -20,9 +20,9 @@ class ExpenseController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('expense_number', 'like', "%{$search}%")
-                  ->orWhere('title', 'like', "%{$search}%")
-                  ->orWhere('vendor_name', 'like', "%{$search}%")
-                  ->orWhere('category', 'like', "%{$search}%");
+                    ->orWhere('title', 'like', "%{$search}%")
+                    ->orWhere('vendor_name', 'like', "%{$search}%")
+                    ->orWhere('category', 'like', "%{$search}%");
             });
         }
 
@@ -55,8 +55,8 @@ class ExpenseController extends Controller
     {
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'account_id' => 'nullable|exists:accounts,id',
-            'bank_account_id' => 'nullable|exists:bank_accounts,id',
+            'account_id' => 'nullable|tenant_exists:accounts,id',
+            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
             'category' => 'required|string|max:100',
             'amount' => 'required|numeric|min:0.01',
             'tax_amount' => 'nullable|numeric|min:0',
@@ -71,7 +71,7 @@ class ExpenseController extends Controller
         $total = $validated['amount'] + $tax;
 
         $count = Expense::count() + 1;
-        $expenseNumber = 'EXP-' . date('y') . '-' . str_pad($count, 6, '0', STR_PAD_LEFT);
+        $expenseNumber = 'EXP-'.date('y').'-'.str_pad($count, 6, '0', STR_PAD_LEFT);
 
         $expense = Expense::create([
             'expense_number' => $expenseNumber,
@@ -91,7 +91,7 @@ class ExpenseController extends Controller
         ]);
 
         // Deduct from bank account balance if specified
-        if (!empty($validated['bank_account_id'])) {
+        if (! empty($validated['bank_account_id'])) {
             $bank = BankAccount::find($validated['bank_account_id']);
             if ($bank) {
                 $bank->decrement('current_balance', $total);

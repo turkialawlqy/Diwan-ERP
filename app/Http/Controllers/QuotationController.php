@@ -4,16 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\Quotation;
-use App\Models\QuotationItem;
-use App\Models\Invoice;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class QuotationController extends Controller
@@ -31,9 +31,9 @@ class QuotationController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('quotation_number', 'like', "%{$search}%")
-                  ->orWhereHas('customer', function ($cq) use ($search) {
-                      $cq->where('name', 'like', "%{$search}%");
-                  });
+                    ->orWhereHas('customer', function ($cq) use ($search) {
+                        $cq->where('name', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -42,7 +42,7 @@ class QuotationController extends Controller
         }
 
         $quotations = $query->orderBy('quotation_date', 'desc')
-            ->paginate($request->input('per_page', 20))
+            ->paginate($this->perPage($request))
             ->withQueryString();
 
         $stats = [
@@ -80,15 +80,15 @@ class QuotationController extends Controller
             ->get(['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'tax_rate']);
 
         $year = date('y');
-        $branchId = $branches->first()?->id ?? 1;
+        $branchId = $branches->first()?->id;
         $lastNumber = Quotation::where('quotation_number', 'like', "QUO-{$year}-{$branchId}-%")
             ->orderByRaw('CAST(SUBSTRING_INDEX(quotation_number, "-", -1) AS UNSIGNED) DESC')
             ->value('quotation_number');
 
-        $nextSeq = $lastNumber 
-            ? ((int) substr($lastNumber, strrpos($lastNumber, '-') + 1)) + 1 
+        $nextSeq = $lastNumber
+            ? ((int) substr($lastNumber, strrpos($lastNumber, '-') + 1)) + 1
             : 1;
-        $suggestedNumber = sprintf("QUO-%s-%s-%06d", $year, $branchId, $nextSeq);
+        $suggestedNumber = sprintf('QUO-%s-%s-%06d', $year, $branchId, $nextSeq);
 
         return Inertia::render('Sales/Quotations/Create', [
             'customers' => $customers,
@@ -106,15 +106,15 @@ class QuotationController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'branch_id' => 'nullable|exists:branches,id',
+            'customer_id' => 'required|tenant_exists:customers,id',
+            'branch_id' => 'nullable|tenant_exists:branches,id',
             'quotation_number' => 'required|string|max:50',
             'quotation_date' => 'required|date',
             'valid_until' => 'nullable|date',
             'notes' => 'nullable|string',
             'terms' => 'nullable|string',
             'items' => 'required|array|min:1',
-            'items.*.product_id' => 'nullable|integer',
+            'items.*.product_id' => 'nullable|integer|tenant_exists:products,id',
             'items.*.item_name' => 'required|string|max:255',
             'items.*.description' => 'nullable|string',
             'items.*.quantity' => 'required|numeric|min:0.01',
@@ -213,10 +213,22 @@ class QuotationController extends Controller
         $tenantManager = app(TenantManager::class);
         $company = $tenantManager->getCompany();
 
+        if ($quotation->status === 'converted') {
+            return back()->with('error', 'تم تحويل عرض السعر هذا إلى فاتورة مسبقاً');
+        }
+
         $invoice = DB::transaction(function () use ($quotation, $company) {
+            // Lock the quotation so two concurrent requests cannot both convert it.
+            $quotation = Quotation::whereKey($quotation->id)->lockForUpdate()->firstOrFail();
+            if ($quotation->status === 'converted') {
+                throw ValidationException::withMessages([
+                    'quotation' => 'تم تحويل عرض السعر هذا إلى فاتورة مسبقاً',
+                ]);
+            }
+
             $year = date('y');
             $count = Invoice::count() + 1;
-            $invoiceNumber = sprintf("INV-%s-1-%06d", $year, $count);
+            $invoiceNumber = sprintf('INV-%s-1-%06d', $year, $count);
 
             $timestamp = Carbon::now()->format('Y-m-d\TH:i:s\Z');
             $zatcaQr = ZatcaService::generateQrCode(

@@ -22,9 +22,9 @@ class SupplierController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('company_name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('tax_number', 'like', "%{$search}%");
+                    ->orWhere('company_name', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('tax_number', 'like', "%{$search}%");
             });
         }
 
@@ -33,7 +33,7 @@ class SupplierController extends Controller
         }
 
         $suppliers = $query->orderBy('name')
-            ->paginate($request->input('per_page', 20))
+            ->paginate($this->perPage($request))
             ->withQueryString();
 
         $stats = [
@@ -73,7 +73,7 @@ class SupplierController extends Controller
         $companyId = app(TenantManager::class)->getTenantId()
             ?? auth()->user()?->company_id;
 
-        if (!$companyId) {
+        if (! $companyId) {
             abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
         }
 
@@ -139,6 +139,7 @@ class SupplierController extends Controller
         }
 
         $supplier->delete();
+
         return back()->with('success', 'تم حذف المورد بنجاح');
     }
 }

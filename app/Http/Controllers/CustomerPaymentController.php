@@ -7,6 +7,7 @@ use App\Models\CustomerPayment;
 use App\Models\Invoice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class CustomerPaymentController extends Controller
@@ -23,15 +24,15 @@ class CustomerPaymentController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('payment_number', 'like', "%{$search}%")
-                  ->orWhere('reference_number', 'like', "%{$search}%")
-                  ->orWhereHas('customer', function ($cq) use ($search) {
-                      $cq->where('name', 'like', "%{$search}%");
-                  });
+                    ->orWhere('reference_number', 'like', "%{$search}%")
+                    ->orWhereHas('customer', function ($cq) use ($search) {
+                        $cq->where('name', 'like', "%{$search}%");
+                    });
             });
         }
 
         $payments = $query->orderBy('payment_date', 'desc')
-            ->paginate($request->input('per_page', 20))
+            ->paginate($this->perPage($request))
             ->withQueryString();
 
         $stats = [
@@ -54,8 +55,8 @@ class CustomerPaymentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'invoice_id' => 'nullable|exists:invoices,id',
+            'customer_id' => 'required|tenant_exists:customers,id',
+            'invoice_id' => 'nullable|tenant_exists:invoices,id',
             'payment_date' => 'required|date',
             'amount' => 'required|numeric|min:0.01',
             'payment_method' => 'required|string|in:cash,card,bank_transfer,cheque',
@@ -65,7 +66,7 @@ class CustomerPaymentController extends Controller
 
         DB::transaction(function () use ($validated) {
             $paymentCount = CustomerPayment::count() + 1;
-            $paymentNumber = sprintf("REC-%s-%05d", date('y'), $paymentCount);
+            $paymentNumber = sprintf('REC-%s-%05d', date('y'), $paymentCount);
 
             $payment = CustomerPayment::create(array_merge($validated, [
                 'company_id' => auth()->user()->company_id,
@@ -73,13 +74,13 @@ class CustomerPaymentController extends Controller
             ]));
 
             // If attached to invoice, update invoice paid amount
-            if (!empty($validated['invoice_id'])) {
+            if (! empty($validated['invoice_id'])) {
                 // Locked to prevent two concurrent payments from both reading the
                 // same stale remaining_amount and jointly overpaying the invoice.
                 $invoice = Invoice::where('id', $validated['invoice_id'])->lockForUpdate()->first();
 
                 if ($validated['amount'] > $invoice->remaining_amount + 0.01) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
+                    throw ValidationException::withMessages([
                         'amount' => "مبلغ الدفعة ({$validated['amount']}) أكبر من المبلغ المتبقي على الفاتورة ({$invoice->remaining_amount}).",
                     ]);
                 }

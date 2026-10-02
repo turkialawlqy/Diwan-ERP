@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PosOrderItem extends Model
 {
-    use HasFactory;
+    use BelongsToCompany, HasFactory;
 
     protected $fillable = [
         'pos_order_id',
@@ -39,5 +40,13 @@ class PosOrderItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * Parent document the line inherits its company from outside a tenant context.
+     */
+    public function tenantParent(): ?Model
+    {
+        return $this->order;
     }
 }

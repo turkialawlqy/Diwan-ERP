@@ -1,8 +1,20 @@
 <?php
 
+use App\Http\Middleware\EnsureSuperAdmin;
+use App\Http\Middleware\EnsureTenant;
+use App\Http\Middleware\ForceHttps;
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ResolveTenant;
+use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+use Spatie\Permission\Middleware\RoleMiddleware;
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -21,12 +33,13 @@ return Application::configure(basePath: dirname(__DIR__))
         }
 
         $middleware->web(prepend: [
-            \App\Http\Middleware\ForceHttps::class,
+            ForceHttps::class,
+            SecurityHeaders::class,
         ], append: [
-            \App\Http\Middleware\SetLocale::class,
-            \App\Http\Middleware\ResolveTenant::class,
-            \App\Http\Middleware\HandleInertiaRequests::class,
-            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            SetLocale::class,
+            ResolveTenant::class,
+            HandleInertiaRequests::class,
+            AddLinkHeadersForPreloadedAssets::class,
         ]);
 
         // ResolveTenant is appended to the `web` group above, but Laravel's default
@@ -37,15 +50,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // destroy route. Force ResolveTenant to run first so the scope is active
         // by the time models are bound from route parameters.
         $middleware->prependToPriorityList(
-            before: \Illuminate\Routing\Middleware\SubstituteBindings::class,
-            prepend: \App\Http\Middleware\ResolveTenant::class,
+            before: SubstituteBindings::class,
+            prepend: ResolveTenant::class,
         );
 
         $middleware->alias([
-            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
-            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
-            'super_admin' => \App\Http\Middleware\EnsureSuperAdmin::class,
+            'role' => RoleMiddleware::class,
+            'permission' => PermissionMiddleware::class,
+            'role_or_permission' => RoleOrPermissionMiddleware::class,
+            'super_admin' => EnsureSuperAdmin::class,
+            'tenant' => EnsureTenant::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

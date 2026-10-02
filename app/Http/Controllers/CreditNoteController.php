@@ -26,14 +26,14 @@ class CreditNoteController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('credit_note_number', 'like', "%{$search}%")
-                  ->orWhereHas('customer', function ($cq) use ($search) {
-                      $cq->where('name', 'like', "%{$search}%");
-                  });
+                    ->orWhereHas('customer', function ($cq) use ($search) {
+                        $cq->where('name', 'like', "%{$search}%");
+                    });
             });
         }
 
         $returns = $query->orderBy('credit_note_date', 'desc')
-            ->paginate($request->input('per_page', 20))
+            ->paginate($this->perPage($request))
             ->withQueryString();
 
         $stats = [
@@ -79,10 +79,10 @@ class CreditNoteController extends Controller
             ->orderByRaw('CAST(SUBSTRING_INDEX(credit_note_number, "-", -1) AS UNSIGNED) DESC')
             ->value('credit_note_number');
 
-        $nextSeq = $lastNumber 
-            ? ((int) substr($lastNumber, strrpos($lastNumber, '-') + 1)) + 1 
+        $nextSeq = $lastNumber
+            ? ((int) substr($lastNumber, strrpos($lastNumber, '-') + 1)) + 1
             : 1;
-        $suggestedNumber = sprintf("CN-%s-%06d", $year, $nextSeq);
+        $suggestedNumber = sprintf('CN-%s-%06d', $year, $nextSeq);
 
         return Inertia::render('Sales/Returns/Create', [
             'customers' => $customers,
@@ -100,8 +100,8 @@ class CreditNoteController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'invoice_id' => 'nullable|exists:invoices,id',
+            'customer_id' => 'required|tenant_exists:customers,id',
+            'invoice_id' => 'nullable|tenant_exists:invoices,id',
             'credit_note_number' => 'required|string|max:50',
             'credit_note_date' => 'required|date',
             'subtotal' => 'required|numeric|min:0.01',
