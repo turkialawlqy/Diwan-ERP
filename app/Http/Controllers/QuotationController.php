@@ -7,13 +7,10 @@ use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\Quotation;
-use App\Services\Accounting\DocumentPoster;
+use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
-use App\Services\ZatcaService;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -212,70 +209,35 @@ class QuotationController extends Controller
             return back()->with('error', 'تم تحويل عرض السعر هذا إلى فاتورة مسبقاً');
         }
 
-        $invoice = DB::transaction(function () use ($quotation, $company) {
+        $invoice = DB::transaction(function () use ($quotation) {
             // Lock the quotation so two concurrent requests cannot both convert it.
-            $quotation = Quotation::whereKey($quotation->id)->lockForUpdate()->firstOrFail();
+            $quotation = Quotation::with('items')->whereKey($quotation->id)->lockForUpdate()->firstOrFail();
             if ($quotation->status === 'converted') {
                 throw ValidationException::withMessages([
                     'quotation' => 'تم تحويل عرض السعر هذا إلى فاتورة مسبقاً',
                 ]);
             }
 
-            $invoiceNumber = $this->nextNumber('sales_invoice');
-
-            $timestamp = Carbon::now()->format('Y-m-d\TH:i:s\Z');
-            $zatcaQr = ZatcaService::generateQrCode(
-                $company?->name ?? 'الأستاذ',
-                $company?->tax_number ?? '300000000000003',
-                $timestamp,
-                $quotation->total,
-                $quotation->tax_amount
-            );
-
-            $invoice = Invoice::create([
-                'company_id' => $company->id,
+            $invoice = app(InvoiceService::class)->create([
                 'customer_id' => $quotation->customer_id,
-                'user_id' => auth()->id(),
-                'invoice_number' => $invoiceNumber,
-                'reference_number' => $quotation->quotation_number,
-                'invoice_date' => Carbon::now()->toDateString(),
-                'due_date' => Carbon::now()->addDays(30)->toDateString(),
-                'subtotal' => $quotation->subtotal,
-                'tax_rate' => 15.00,
-                'tax_amount' => $quotation->tax_amount,
-                'total' => $quotation->total,
-                'paid_amount' => 0,
-                'remaining_amount' => $quotation->total,
-                'payment_status' => 'unpaid',
+                'branch_id' => $quotation->branch_id,
+                'invoice_date' => now()->toDateString(),
+                'due_date' => now()->addDays(30)->toDateString(),
                 'payment_method' => 'credit',
+                'payment_status' => 'unpaid',
+                'reference_number' => $quotation->quotation_number,
                 'notes' => "تم التحويل من عرض سعر رقم {$quotation->quotation_number}",
-                'zatca_uuid' => (string) Str::uuid(),
-                'zatca_qr' => $zatcaQr,
-                'zatca_status' => 'submitted',
-            ]);
+            ], $quotation->items->map(fn ($q) => [
+                'product_id' => $q->product_id,
+                'item_name' => $q->item_name,
+                'description' => $q->description,
+                'quantity' => (float) $q->quantity,
+                'unit_price' => (float) $q->unit_price,
+                'discount' => (float) $q->discount,
+                'tax_rate' => (float) $q->tax_rate,
+            ])->all());
 
-            foreach ($quotation->items as $qItem) {
-                $invoice->items()->create([
-                    'product_id' => $qItem->product_id,
-                    'item_name' => $qItem->item_name,
-                    'description' => $qItem->description,
-                    'quantity' => $qItem->quantity,
-                    'unit_price' => $qItem->unit_price,
-                    'discount' => $qItem->discount,
-                    'tax_rate' => $qItem->tax_rate,
-                    'tax_amount' => $qItem->tax_amount,
-                    'subtotal' => $qItem->subtotal,
-                    'total' => $qItem->total,
-                ]);
-            }
-
-            // Update customer balance
-            Customer::where('id', $quotation->customer_id)->increment('current_balance', $quotation->total);
-
-            // Update quotation status
-            $quotation->update(['status' => 'converted']);
-
-            app(DocumentPoster::class)->salesInvoice($invoice);
+            $quotation->update(['status' => 'converted', 'converted_invoice_id' => $invoice->id]);
 
             return $invoice;
         });

@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GoodsReceipt;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Inventory\DocumentStock;
+use App\Services\Purchases\PurchaseCycleService;
 use App\Services\TenantManager;
+use App\Services\Workflow\ApprovalService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +74,9 @@ class PurchaseOrderController extends Controller
         if ($order->status === 'converted_to_invoice') {
             return back()->with('error', 'تم تحويل أمر الشراء هذا إلى فاتورة شراء مسبقاً');
         }
+        if (! in_array($order->status, ['pending', 'approved'], true)) {
+            return back()->with('error', 'أمر الشراء غير معتمد، أو تم الاستلام عليه (استخدم فاتورة من الاستلامات).');
+        }
 
         $companyId = app(TenantManager::class)->getTenantId()
             ?? auth()->user()?->company_id;
@@ -82,7 +88,7 @@ class PurchaseOrderController extends Controller
         $invoice = DB::transaction(function () use ($order, $companyId) {
             // Re-read under a row lock so concurrent conversions cannot double stock.
             $order = PurchaseOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
-            if ($order->status === 'converted_to_invoice') {
+            if (! in_array($order->status, ['pending', 'approved'], true)) {
                 throw ValidationException::withMessages([
                     'order' => 'تم تحويل أمر الشراء هذا إلى فاتورة شراء مسبقاً',
                 ]);
@@ -142,7 +148,8 @@ class PurchaseOrderController extends Controller
                 $order->supplier->increment('current_balance', $order->total);
             }
 
-            // Update order status
+            // Update order status (everything received and invoiced at once)
+            $order->items()->update(['received_quantity' => DB::raw('quantity'), 'invoiced_quantity' => DB::raw('quantity')]);
             $order->update(['status' => 'converted_to_invoice']);
 
             app(DocumentPoster::class)->purchaseInvoice($purchaseInvoice);
@@ -152,5 +159,107 @@ class PurchaseOrderController extends Controller
 
         return redirect()->route('purchases.invoices.show', $invoice->id)
             ->with('success', 'تم تحويل أمر الشراء إلى فاتورة شراء بنجاح وتحديث أرصدة المخزون والمورد');
+    }
+
+    public function create()
+    {
+        return Inertia::render('Purchases/Orders/Form', [
+            'order' => null,
+            'warehouses' => Warehouse::where('is_active', true)->get(['id', 'name_ar']),
+            'suggestedNumber' => $this->peekNumber('purchase_order'),
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $this->validateOrder($request);
+        $order = app(PurchaseCycleService::class)->createOrder($validated, $validated['items']);
+
+        return redirect()->route('purchases.orders.show', $order->id)->with('success', "تم حفظ أمر الشراء {$order->order_number}");
+    }
+
+    public function show(PurchaseOrder $order)
+    {
+        $order->load(['supplier', 'warehouse:id,name_ar', 'items', 'creator:id,name', 'approver:id,name']);
+
+        return Inertia::render('Purchases/Orders/Show', [
+            'order' => $order,
+            'receipts' => GoodsReceipt::where('purchase_order_id', $order->id)->get(['id', 'receipt_number', 'receipt_date', 'status', 'total_value']),
+            'invoices' => PurchaseInvoice::where('purchase_order_id', $order->id)->get(['id', 'invoice_number', 'invoice_date', 'total']),
+            'approvals' => app(ApprovalService::class)->history($order),
+            'warehouses' => Warehouse::where('is_active', true)->get(['id', 'name_ar']),
+        ]);
+    }
+
+    public function edit(PurchaseOrder $order)
+    {
+        if (! in_array($order->status, ['draft', 'rejected'], true)) {
+            return redirect()->route('purchases.orders.show', $order->id)->with('error', 'لا يمكن تعديل أمر شراء بعد إرساله للاعتماد.');
+        }
+
+        return Inertia::render('Purchases/Orders/Form', [
+            'order' => $order->load(['items', 'supplier:id,name']),
+            'warehouses' => Warehouse::where('is_active', true)->get(['id', 'name_ar']),
+            'suggestedNumber' => $order->order_number,
+        ]);
+    }
+
+    public function update(Request $request, PurchaseOrder $order)
+    {
+        $validated = $this->validateOrder($request);
+        app(PurchaseCycleService::class)->createOrder($validated, $validated['items'], $order);
+
+        return redirect()->route('purchases.orders.show', $order->id)->with('success', 'تم تحديث أمر الشراء');
+    }
+
+    public function submit(PurchaseOrder $order)
+    {
+        $status = app(PurchaseCycleService::class)->submitOrder($order);
+
+        return back()->with('success', $status === 'pending_approval' ? 'تم إرسال أمر الشراء للاعتماد' : 'تم اعتماد أمر الشراء');
+    }
+
+    public function approve(Request $request, PurchaseOrder $order)
+    {
+        app(ApprovalService::class)->approve($order, 'approved', $request->input('comment'));
+
+        return back()->with('success', 'تم اعتماد أمر الشراء');
+    }
+
+    public function reject(Request $request, PurchaseOrder $order)
+    {
+        app(ApprovalService::class)->reject($order, $request->input('comment'));
+
+        return back()->with('success', 'تم رفض أمر الشراء');
+    }
+
+    public function cancel(PurchaseOrder $order)
+    {
+        app(PurchaseCycleService::class)->cancelOrder($order);
+
+        return back()->with('success', 'تم إلغاء أمر الشراء');
+    }
+
+    protected function validateOrder(Request $request): array
+    {
+        $validated = $request->validate([
+            'supplier_id' => 'required|tenant_exists:suppliers,id',
+            'warehouse_id' => 'nullable|tenant_exists:warehouses,id',
+            'order_date' => 'required|date',
+            'expected_delivery_date' => 'nullable|date',
+            'notes' => 'nullable|string|max:2000',
+            'terms' => 'nullable|string|max:5000',
+            'submit' => 'nullable|boolean',
+            'items' => 'required|array|min:1|max:500',
+            'items.*.product_id' => 'nullable|tenant_exists:products,id',
+            'items.*.item_name' => 'required|string|max:255',
+            'items.*.quantity' => 'required|numeric|gt:0',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.tax_rate' => 'nullable|numeric|min:0|max:100',
+        ]);
+        $validated['submit'] = (bool) ($validated['submit'] ?? false);
+
+        return $validated;
     }
 }

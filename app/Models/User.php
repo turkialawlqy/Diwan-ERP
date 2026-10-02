@@ -32,6 +32,7 @@ class User extends Authenticatable
         'status',
         'google_id',
         'last_login_at',
+        'commission_rate',
     ];
 
     /**

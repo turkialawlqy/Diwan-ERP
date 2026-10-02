@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import {
     HomeIcon,
@@ -33,11 +33,24 @@ const form = useForm({
     total: props.selectedInvoice ? Number(props.selectedInvoice.total) : 0,
     reason: '',
     status: 'approved',
+    refund_method: 'credit',
+    // Item level return (goods back to stock) when the invoice is known.
+    items: (props.selectedInvoice?.items || []).map((i) => ({
+        invoice_item_id: i.id, name: i.item_name, returnable: Number(i.returnable_quantity ?? i.quantity),
+        unit_net: Number(i.quantity) ? Number(i.subtotal ?? (i.quantity * i.unit_price - (i.discount || 0))) / Number(i.quantity) : 0,
+        tax_rate: Number(i.tax_rate), quantity: 0, return_to_stock: true,
+    })),
 });
+const itemMode = ref(form.items.length > 0);
+const itemsTotal = computed(() => form.items.reduce((s, i) => s + Number(i.quantity || 0) * i.unit_net * (1 + i.tax_rate / 100), 0));
 
 // Watch invoice selection changes
 watch(() => form.invoice_id, (newInvoiceId) => {
     if (!newInvoiceId) return;
+    if (newInvoiceId != props.selectedInvoice?.id) {
+        router.get(route('sales.returns.create'), { invoice_id: newInvoiceId });
+        return;
+    }
     const inv = props.recentInvoices?.find(i => i.id == newInvoiceId);
     if (inv) {
         form.customer_id = inv.customer_id;
@@ -79,7 +92,9 @@ const selectedCustomer = computed(() => {
 });
 
 const submit = () => {
-    form.post(route('sales.returns.store'));
+    form.transform((d) => (itemMode.value
+        ? { ...d, items: d.items.filter((i) => Number(i.quantity) > 0).map(({ invoice_item_id, quantity, return_to_stock }) => ({ invoice_item_id, quantity, return_to_stock })) }
+        : { ...d, items: [] })).post(route('sales.returns.store'));
 };
 </script>
 
@@ -124,6 +139,24 @@ const submit = () => {
 
             <!-- Form Body -->
             <form @submit.prevent="submit" class="space-y-6">
+                <div v-if="selectedInvoice" class="bg-white border border-slate-200 rounded-2xl p-4">
+                    <label class="flex items-center gap-2 text-xs font-bold mb-3"><input v-model="itemMode" type="checkbox" class="rounded" /> إرجاع أصناف (تعود للمخزون وتُعكس تكلفتها)</label>
+                    <table v-if="itemMode" class="w-full text-xs">
+                        <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الصنف</th><th class="px-3 py-2">القابل للإرجاع</th><th class="px-3 py-2">صافي سعر الوحدة</th><th class="px-3 py-2 w-32">الكمية المرتجعة</th><th class="px-3 py-2">يعود للمخزون</th></tr></thead>
+                        <tbody>
+                            <tr v-for="i in form.items" :key="i.invoice_item_id" class="border-t border-slate-100">
+                                <td class="px-3 py-2">{{ i.name }}</td>
+                                <td class="px-3 py-2 text-center font-mono">{{ i.returnable }}</td>
+                                <td class="px-3 py-2 text-center font-mono">{{ formatCurrency(i.unit_net) }}</td>
+                                <td class="px-3 py-2"><input v-model="i.quantity" type="number" min="0" :max="i.returnable" step="0.0001" class="w-full rounded-lg border-slate-200 text-xs font-mono" /></td>
+                                <td class="px-3 py-2 text-center"><input v-model="i.return_to_stock" type="checkbox" class="rounded" /></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p v-if="itemMode" class="text-xs mt-2">إجمالي المرتجع شامل الضريبة: <b class="font-mono">{{ formatCurrency(itemsTotal) }}</b></p>
+                    <p v-if="form.errors.items" class="text-xs text-rose-600 mt-1">{{ form.errors.items }}</p>
+                    <p v-if="form.errors.lines" class="text-xs text-rose-600 mt-1">{{ form.errors.lines }}</p>
+                </div>
                 <!-- Selected Invoice Info (if available) -->
                 <div v-if="selectedInvoice" class="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-5 text-xs text-indigo-900 space-y-3">
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-indigo-200/60 pb-3">

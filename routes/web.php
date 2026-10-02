@@ -5,6 +5,7 @@ use App\Http\Controllers\Accounting as A;
 use App\Http\Controllers\Accounting\GeneralLedgerController;
 use App\Http\Controllers\Accounting\JournalEntryController;
 use App\Http\Controllers\Accounting\TrialBalanceController;
+use App\Http\Controllers\ApprovalRuleController;
 use App\Http\Controllers\AssemblyController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\GoogleAuthController;
@@ -32,9 +33,11 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseInvoiceController;
 use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\Purchases as P;
 use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\Reports\ReportController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\Sales as S;
 use App\Http\Controllers\StockCountController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SuperAdmin\ImpersonationController;
@@ -99,6 +102,7 @@ Route::middleware(['auth', 'tenant', 'erp.authorize', 'throttle:tenant-web'])->g
         Route::get('/customers', [LookupController::class, 'customers'])->name('customers');
         Route::get('/products', [LookupController::class, 'products'])->name('products');
         Route::get('/suppliers', [LookupController::class, 'suppliers'])->name('suppliers');
+        Route::get('/price', [LookupController::class, 'price'])->name('price');
     });
 
     // Private tenant files (attachments) — streamed only to the owning company.
@@ -143,6 +147,27 @@ Route::middleware(['auth', 'tenant', 'erp.authorize', 'throttle:tenant-web'])->g
         Route::get('/returns/{creditNote}', [CreditNoteController::class, 'show'])->name('returns.show');
         Route::get('/payments', [CustomerPaymentController::class, 'index'])->name('payments.index');
         Route::post('/payments', [CustomerPaymentController::class, 'store'])->name('payments.store');
+        Route::post('/payments/{payment}/allocate', [CustomerPaymentController::class, 'allocate'])->name('payments.allocate');
+
+        // Sales orders → delivery notes → invoices
+        Route::get('/orders', [S\SalesOrderController::class, 'index'])->name('orders.index');
+        Route::get('/orders/create', [S\SalesOrderController::class, 'create'])->name('orders.create');
+        Route::post('/orders', [S\SalesOrderController::class, 'store'])->name('orders.store');
+        Route::get('/orders/{order}', [S\SalesOrderController::class, 'show'])->name('orders.show');
+        Route::post('/orders/{order}/approve', [S\SalesOrderController::class, 'approve'])->name('orders.approve');
+        Route::post('/orders/{order}/reject', [S\SalesOrderController::class, 'reject'])->name('orders.reject');
+        Route::post('/orders/{order}/cancel', [S\SalesOrderController::class, 'cancel'])->name('orders.cancel');
+        Route::post('/orders/{order}/deliver', [S\SalesOrderController::class, 'deliver'])->name('orders.deliver');
+        Route::post('/orders/{order}/invoice', [S\SalesOrderController::class, 'invoice'])->name('orders.invoice');
+        Route::get('/deliveries', [S\DeliveryNoteController::class, 'index'])->name('deliveries.index');
+        Route::get('/deliveries/{delivery}', [S\DeliveryNoteController::class, 'show'])->name('deliveries.show');
+        Route::post('/deliveries/{delivery}/invoice', [S\DeliveryNoteController::class, 'invoice'])->name('deliveries.invoice');
+        Route::get('/debit-notes', [S\DebitNoteController::class, 'index'])->name('debit-notes.index');
+        Route::post('/debit-notes', [S\DebitNoteController::class, 'store'])->name('debit-notes.store');
+        Route::get('/price-lists', [S\PriceListController::class, 'index'])->name('price-lists.index');
+        Route::post('/price-lists', [S\PriceListController::class, 'store'])->name('price-lists.store');
+        Route::put('/price-lists/{priceList}', [S\PriceListController::class, 'update'])->name('price-lists.update');
+        Route::delete('/price-lists/{priceList}', [S\PriceListController::class, 'destroy'])->name('price-lists.destroy');
     });
 
     // 5. POS Module
@@ -219,13 +244,43 @@ Route::middleware(['auth', 'tenant', 'erp.authorize', 'throttle:tenant-web'])->g
         // Purchase Invoices
         Route::get('/invoices', [PurchaseInvoiceController::class, 'index'])->name('invoices.index');
         Route::get('/invoices/create', [PurchaseInvoiceController::class, 'create'])->name('invoices.create');
+        Route::get('/invoices/from-receipts', [PurchaseInvoiceController::class, 'fromReceipts'])->name('invoices.from-receipts');
+        Route::post('/invoices/from-receipts', [PurchaseInvoiceController::class, 'storeFromReceipts'])->name('invoices.store-from-receipts');
         Route::post('/invoices', [PurchaseInvoiceController::class, 'store'])->name('invoices.store');
         Route::get('/invoices/{invoice}', [PurchaseInvoiceController::class, 'show'])->name('invoices.show');
         Route::delete('/invoices/{invoice}', [PurchaseInvoiceController::class, 'destroy'])->name('invoices.destroy');
 
         // Purchase Orders
         Route::get('/orders', [PurchaseOrderController::class, 'index'])->name('orders.index');
+        Route::get('/orders/create', [PurchaseOrderController::class, 'create'])->name('orders.create');
+        Route::post('/orders', [PurchaseOrderController::class, 'store'])->name('orders.store');
+        Route::get('/orders/{order}', [PurchaseOrderController::class, 'show'])->name('orders.show');
+        Route::get('/orders/{order}/edit', [PurchaseOrderController::class, 'edit'])->name('orders.edit');
+        Route::put('/orders/{order}', [PurchaseOrderController::class, 'update'])->name('orders.update');
+        Route::post('/orders/{order}/submit', [PurchaseOrderController::class, 'submit'])->name('orders.submit');
+        Route::post('/orders/{order}/approve', [PurchaseOrderController::class, 'approve'])->name('orders.approve');
+        Route::post('/orders/{order}/reject', [PurchaseOrderController::class, 'reject'])->name('orders.reject');
+        Route::post('/orders/{order}/cancel', [PurchaseOrderController::class, 'cancel'])->name('orders.cancel');
         Route::post('/orders/{order}/convert', [PurchaseOrderController::class, 'convertToInvoice'])->name('orders.convert');
+        Route::post('/orders/{order}/receive', [P\GoodsReceiptController::class, 'store'])->name('orders.receive');
+
+        // Purchase requests
+        Route::get('/requests', [P\PurchaseRequestController::class, 'index'])->name('requests.index');
+        Route::post('/requests', [P\PurchaseRequestController::class, 'store'])->name('requests.store');
+        Route::get('/requests/{purchaseRequest}', [P\PurchaseRequestController::class, 'show'])->name('requests.show');
+        Route::post('/requests/{purchaseRequest}/approve', [P\PurchaseRequestController::class, 'approve'])->name('requests.approve');
+        Route::post('/requests/{purchaseRequest}/reject', [P\PurchaseRequestController::class, 'reject'])->name('requests.reject');
+        Route::post('/requests/{purchaseRequest}/convert', [P\PurchaseRequestController::class, 'convert'])->name('requests.convert');
+
+        // Goods receipts, returns, landed costs
+        Route::get('/receipts', [P\GoodsReceiptController::class, 'index'])->name('receipts.index');
+        Route::get('/receipts/{receipt}', [P\GoodsReceiptController::class, 'show'])->name('receipts.show');
+        Route::get('/returns', [P\PurchaseReturnController::class, 'index'])->name('returns.index');
+        Route::get('/returns/create', [P\PurchaseReturnController::class, 'create'])->name('returns.create');
+        Route::post('/returns', [P\PurchaseReturnController::class, 'store'])->name('returns.store');
+        Route::get('/returns/{return}', [P\PurchaseReturnController::class, 'show'])->name('returns.show');
+        Route::get('/landed-costs', [P\LandedCostController::class, 'index'])->name('landed-costs.index');
+        Route::post('/landed-costs', [P\LandedCostController::class, 'store'])->name('landed-costs.store');
 
         // Supplier Payments
         Route::get('/payments', [SupplierPaymentController::class, 'index'])->name('payments.index');
@@ -354,6 +409,11 @@ Route::middleware(['auth', 'tenant', 'erp.authorize', 'throttle:tenant-web'])->g
     Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
 
     Route::get('/audit-log', [AuditLogController::class, 'index'])->name('audit.index');
+
+    // Approval workflow rules
+    Route::get('/approval-rules', [ApprovalRuleController::class, 'index'])->name('approval-rules.index');
+    Route::post('/approval-rules', [ApprovalRuleController::class, 'store'])->name('approval-rules.store');
+    Route::delete('/approval-rules/{rule}', [ApprovalRuleController::class, 'destroy'])->name('approval-rules.destroy');
 
     // 12. HR Module
     Route::prefix('hr')->name('hr.')->group(function () {

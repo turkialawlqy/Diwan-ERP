@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\CreditNote;
+use App\Models\CreditNoteItem;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Sales\InvoiceService;
+use App\Services\Sales\SalesCycleService;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
 use Carbon\Carbon;
@@ -64,6 +67,10 @@ class CreditNoteController extends Controller
         if ($request->has('invoice_id')) {
             $selectedInvoice = Invoice::with(['customer', 'items'])
                 ->find($request->input('invoice_id'));
+            $selectedInvoice?->items->each(function ($item) {
+                $item->returnable_quantity = max(0, (float) $item->quantity - (float) CreditNoteItem::where('invoice_item_id', $item->id)
+                    ->whereHas('creditNote', fn ($q) => $q->whereIn('status', ['approved', 'refunded']))->sum('quantity'));
+            });
         }
 
         $customers = Customer::where('status', 'active')
@@ -94,6 +101,37 @@ class CreditNoteController extends Controller
      */
     public function store(Request $request)
     {
+        // Item level return: goods come back to stock, quantities are checked
+        // against what is still returnable on the original invoice.
+        if ($request->filled('items') && $request->filled('invoice_id')) {
+            $validated = $request->validate([
+                'customer_id' => 'required|tenant_exists:customers,id',
+                'invoice_id' => 'required|tenant_exists:invoices,id',
+                'credit_note_date' => 'required|date',
+                'reason' => 'required|string|max:500',
+                'refund_method' => 'nullable|in:credit,cash,bank_transfer',
+                'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+                'warehouse_id' => 'nullable|tenant_exists:warehouses,id',
+                'items' => 'required|array|min:1',
+                'items.*.invoice_item_id' => 'required|integer',
+                'items.*.quantity' => 'required|numeric|min:0',
+                'items.*.return_to_stock' => 'nullable|boolean',
+                'items.*.serials' => 'nullable|array',
+                'items.*.serials.*' => 'string|max:150',
+            ]);
+
+            $invoice = Invoice::findOrFail($validated['invoice_id']);
+            if ((int) $invoice->customer_id !== (int) $validated['customer_id']) {
+                throw ValidationException::withMessages(['invoice_id' => 'الفاتورة المحددة لا تخص هذا العميل.']);
+            }
+
+            $creditNote = app(SalesCycleService::class)->returnInvoice($invoice, $validated, $validated['items']);
+            app(InvoiceService::class)->stampCreditNote($creditNote);
+
+            return redirect()->route('sales.returns.show', $creditNote->id)
+                ->with('success', 'تم إصدار مرتجع المبيعات وإعادة الأصناف للمخزون');
+        }
+
         $validated = $request->validate([
             'customer_id' => 'required|tenant_exists:customers,id',
             'invoice_id' => 'nullable|tenant_exists:invoices,id',
@@ -175,7 +213,7 @@ class CreditNoteController extends Controller
      */
     public function show(CreditNote $creditNote)
     {
-        $creditNote->load(['customer', 'invoice.items']);
+        $creditNote->load(['customer', 'invoice.items', 'items', 'warehouse:id,name_ar']);
         $company = app(TenantManager::class)->getCompany();
 
         return Inertia::render('Sales/Returns/Show', [

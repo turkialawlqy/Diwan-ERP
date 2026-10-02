@@ -12,6 +12,9 @@ class PurchaseInvoiceItem extends Model
     use BelongsToCompany, HasFactory;
 
     protected $fillable = [
+        'goods_receipt_item_id',
+        'purchase_order_item_id',
+        'returned_quantity',
         'purchase_invoice_id',
         'product_id',
         'item_name',

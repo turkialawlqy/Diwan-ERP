@@ -26,9 +26,13 @@ export default [
         children: [
             { label: 'nav.invoices', route: 'sales.invoices.index', path: '/sales/invoices' },
             { label: 'nav.quotations', route: 'sales.quotations.index', path: '/sales/quotations' },
+            { label: 'nav.sales_orders', route: 'sales.orders.index', path: '/sales/orders' },
+            { label: 'nav.delivery_notes', route: 'sales.deliveries.index', path: '/sales/deliveries' },
             { label: 'nav.credit_notes', route: 'sales.returns.index', path: '/sales/returns' },
             { label: 'nav.clients', route: 'sales.clients.index', path: '/sales/clients' },
             { label: 'nav.payments_received', route: 'sales.payments.index', path: '/sales/payments' },
+            { label: 'nav.debit_notes', route: 'sales.debit-notes.index', path: '/sales/debit-notes' },
+            { label: 'nav.price_lists', route: 'sales.price-lists.index', path: '/sales/price-lists' },
         ],
     },
     {
@@ -58,10 +62,14 @@ export default [
     {
         key: 'purchases', label: 'nav.purchases', icon: TruckIcon, color: 'indigo',
         children: [
+            { label: 'nav.purchase_requests', route: 'purchases.requests.index', path: '/purchases/requests' },
             { label: 'nav.purchase_orders', route: 'purchases.orders.index', path: '/purchases/orders' },
+            { label: 'nav.goods_receipts', route: 'purchases.receipts.index', path: '/purchases/receipts' },
             { label: 'nav.purchase_invoices', route: 'purchases.invoices.index', path: '/purchases/invoices' },
             { label: 'nav.suppliers', route: 'purchases.suppliers.index', path: '/purchases/suppliers' },
             { label: 'nav.supplier_payments', route: 'purchases.payments.index', path: '/purchases/payments' },
+            { label: 'nav.purchase_returns', route: 'purchases.returns.index', path: '/purchases/returns' },
+            { label: 'nav.landed_costs', route: 'purchases.landed-costs.index', path: '/purchases/landed-costs' },
         ],
     },
     {
@@ -125,6 +133,7 @@ export default [
             { label: 'nav.users', route: 'users.index', path: '/users' },
             { label: 'nav.roles', route: 'roles.index', path: '/roles' },
             { label: 'nav.audit_log', route: 'audit.index', path: '/audit-log' },
+            { label: 'nav.approval_rules', route: 'approval-rules.index', path: '/approval-rules' },
         ],
     },
 ];

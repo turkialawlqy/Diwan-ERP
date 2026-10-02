@@ -7,12 +7,16 @@ use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CreditNote extends Model
 {
     use Auditable, BelongsToCompany, HasFactory;
 
     protected $fillable = [
+        'warehouse_id',
+        'kind',
+        'zatca_uuid',
         'bank_account_id', 'refund_method',
         'company_id',
         'invoice_id',
@@ -42,5 +46,10 @@ class CreditNote extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(CreditNoteItem::class);
     }
 }

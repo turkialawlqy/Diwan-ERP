@@ -46,6 +46,7 @@ class ChartOfAccountsTemplate
             ['2', null, 'الخصوم', 'Liabilities', 'liability', 'credit', true, null, null],
             ['21', '2', 'الخصوم المتداولة', 'Current Liabilities', 'liability', 'credit', true, null, null],
             ['211', '21', 'الموردون', 'Accounts Payable', 'liability', 'credit', false, 'payables', 'operating'],
+            ['2110', '21', 'بضاعة مستلمة لم تصل فواتيرها', 'Goods Received Not Invoiced', 'liability', 'credit', false, 'grni', 'operating'],
             ['212', '21', 'ضريبة القيمة المضافة المخرجة', 'VAT Output', 'liability', 'credit', false, 'vat_output', 'operating'],
             ['213', '21', 'رواتب مستحقة', 'Salaries Payable', 'liability', 'credit', false, 'salaries_payable', 'operating'],
             ['214', '21', 'التأمينات الاجتماعية المستحقة', 'GOSI Payable', 'liability', 'credit', false, 'gosi_payable', 'operating'],

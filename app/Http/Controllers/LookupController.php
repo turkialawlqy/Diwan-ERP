@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Supplier;
+use App\Services\Sales\PriceResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -68,6 +69,24 @@ class LookupController extends Controller
             ->get();
 
         return response()->json(['data' => $results]);
+    }
+
+    /**
+     * Customer specific selling price (price lists / quantity breaks).
+     */
+    public function price(Request $request, PriceResolver $resolver): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_id' => 'required|tenant_exists:products,id',
+            'customer_id' => 'nullable|tenant_exists:customers,id',
+            'quantity' => 'nullable|numeric|min:0',
+        ]);
+
+        return response()->json($resolver->price(
+            Product::findOrFail($validated['product_id']),
+            isset($validated['customer_id']) ? Customer::find($validated['customer_id']) : null,
+            (float) ($validated['quantity'] ?? 1),
+        ));
     }
 
     protected function term(Request $request): string

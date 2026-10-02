@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\Invoice;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Sales\SalesCycleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -64,48 +65,64 @@ class CustomerPaymentController extends Controller
             'reference_number' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
             'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'auto_allocate' => 'nullable|boolean',
+            'allocations' => 'nullable|array|max:200',
+            'allocations.*.invoice_id' => 'required|tenant_exists:invoices,id',
+            'allocations.*.amount' => 'required|numeric|min:0',
         ]);
 
         DB::transaction(function () use ($validated) {
-            $paymentNumber = $this->nextNumber('customer_payment', $validated['payment_date']);
+            $payment = CustomerPayment::create(array_merge(
+                collect($validated)->except(['allocations', 'auto_allocate'])->all(),
+                ['payment_number' => $this->nextNumber('customer_payment', $validated['payment_date'])],
+            ));
 
-            $payment = CustomerPayment::create(array_merge($validated, [
-                'payment_number' => $paymentNumber,
-            ]));
-
-            // If attached to invoice, update invoice paid amount
+            // Settle invoices: the chosen invoice, explicit allocations, or
+            // automatically the oldest open invoices first.
+            $allocations = $validated['allocations'] ?? null;
             if (! empty($validated['invoice_id'])) {
-                // Locked to prevent two concurrent payments from both reading the
-                // same stale remaining_amount and jointly overpaying the invoice.
-                $invoice = Invoice::where('id', $validated['invoice_id'])->lockForUpdate()->first();
-
+                $invoice = Invoice::whereKey($validated['invoice_id'])->lockForUpdate()->first();
                 if ((int) $invoice->customer_id !== (int) $validated['customer_id']) {
                     throw ValidationException::withMessages(['invoice_id' => 'الفاتورة المحددة لا تخص هذا العميل.']);
                 }
-
-                if ($validated['amount'] > $invoice->remaining_amount + 0.01) {
+                if ((float) $validated['amount'] > (float) $invoice->remaining_amount + 0.01) {
                     throw ValidationException::withMessages([
                         'amount' => "مبلغ الدفعة ({$validated['amount']}) أكبر من المبلغ المتبقي على الفاتورة ({$invoice->remaining_amount}).",
                     ]);
                 }
-
-                $newPaid = $invoice->paid_amount + $validated['amount'];
-                $newRemaining = max(0, $invoice->total - $newPaid);
-                $status = $newRemaining <= 0 ? 'paid' : 'partially_paid';
-
-                $invoice->update([
-                    'paid_amount' => $newPaid,
-                    'remaining_amount' => $newRemaining,
-                    'payment_status' => $status,
-                ]);
+                $allocations = [['invoice_id' => $invoice->id, 'amount' => (float) $validated['amount']]];
+            } elseif ($allocations !== null && array_sum(array_column($allocations, 'amount')) > (float) $validated['amount'] + 0.005) {
+                throw ValidationException::withMessages(['allocations' => 'مجموع المبالغ الموزعة أكبر من مبلغ السند.']);
             }
 
-            // Deduct customer current balance
+            if ($allocations !== null || ($validated['auto_allocate'] ?? true)) {
+                app(SalesCycleService::class)->allocatePayment($payment, $allocations);
+            }
+
             Customer::where('id', $validated['customer_id'])->decrement('current_balance', $validated['amount']);
 
             app(DocumentPoster::class)->customerPayment($payment);
         });
 
         return back()->with('success', 'تم تسجيل سند القبض وتحديث الرصيد بنجاح');
+    }
+
+    /**
+     * Allocate the unallocated part of a receipt to open invoices.
+     */
+    public function allocate(Request $request, CustomerPayment $payment)
+    {
+        $validated = $request->validate([
+            'allocations' => 'nullable|array|max:200',
+            'allocations.*.invoice_id' => 'required|tenant_exists:invoices,id',
+            'allocations.*.amount' => 'required|numeric|min:0',
+        ]);
+
+        DB::transaction(fn () => app(SalesCycleService::class)->allocatePayment(
+            CustomerPayment::whereKey($payment->id)->lockForUpdate()->firstOrFail(),
+            $validated['allocations'] ?? null,
+        ));
+
+        return back()->with('success', 'تم توزيع السند على الفواتير');
     }
 }

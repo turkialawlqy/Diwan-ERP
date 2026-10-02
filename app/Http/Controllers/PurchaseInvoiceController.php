@@ -2,16 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Category;
+use App\Models\GoodsReceiptItem;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
+use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Inventory\DocumentStock;
+use App\Services\Purchases\PurchaseCycleService;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -175,6 +179,8 @@ class PurchaseInvoiceController extends Controller
             abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
         }
 
+        app(PurchaseCycleService::class)->assertUniqueSupplierInvoice((int) $validated['supplier_id'], $validated['supplier_invoice_number'] ?? null);
+
         $invoice = DB::transaction(function () use ($validated, $companyId) {
             $validated['invoice_number'] = $this->nextNumber('purchase_invoice', $validated['invoice_date']);
 
@@ -292,11 +298,65 @@ class PurchaseInvoiceController extends Controller
     }
 
     /**
+     * Supplier bill for goods already received (three-way match against PO and GRN).
+     */
+    public function fromReceipts(Request $request)
+    {
+        $supplierId = $request->integer('supplier_id') ?: null;
+
+        return Inertia::render('Purchases/Invoices/FromReceipts', [
+            'supplier' => $supplierId ? Supplier::find($supplierId, ['id', 'name', 'tax_number']) : null,
+            'openItems' => $supplierId ? GoodsReceiptItem::with('receipt:id,receipt_number,receipt_date,purchase_order_id')
+                ->whereHas('receipt', fn ($q) => $q->where('supplier_id', $supplierId)->where('status', 'received'))
+                ->whereColumn('invoiced_quantity', '<', 'quantity')
+                ->limit(500)->get()
+                ->map(function ($item) {
+                    $poItem = $item->purchase_order_item_id ? PurchaseOrderItem::find($item->purchase_order_item_id) : null;
+
+                    return $item->toArray() + [
+                        'open_quantity' => (float) $item->quantity - (float) $item->invoiced_quantity,
+                        'po_unit_price' => $poItem ? (float) $poItem->unit_price : null,
+                        'po_discount_per_unit' => $poItem && (float) $poItem->quantity > 0 ? (float) $poItem->discount / (float) $poItem->quantity : 0,
+                        'tax_rate' => $poItem ? (float) $poItem->tax_rate : 15,
+                    ];
+                }) : [],
+            'bankAccounts' => BankAccount::where('is_active', true)->get(['id', 'name', 'type']),
+            'suggestedNumber' => $this->peekNumber('purchase_invoice'),
+        ]);
+    }
+
+    public function storeFromReceipts(Request $request)
+    {
+        $validated = $request->validate([
+            'supplier_id' => 'required|tenant_exists:suppliers,id',
+            'supplier_invoice_number' => 'required|string|max:50',
+            'invoice_date' => 'required|date',
+            'due_date' => 'nullable|date',
+            'payment_method' => 'required|in:cash,card,bank_transfer,credit',
+            'payment_status' => 'required|in:paid,partially_paid,unpaid',
+            'paid_amount' => 'nullable|numeric|min:0',
+            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'accept_price_variance' => 'nullable|boolean',
+            'notes' => 'nullable|string|max:2000',
+            'lines' => 'required|array|min:1|max:500',
+            'lines.*.goods_receipt_item_id' => 'required|tenant_exists:goods_receipt_items,id',
+            'lines.*.quantity' => 'required|numeric|min:0',
+            'lines.*.unit_price' => 'required|numeric|min:0',
+            'lines.*.discount' => 'nullable|numeric|min:0',
+            'lines.*.tax_rate' => 'nullable|numeric|min:0|max:100',
+        ]);
+
+        $invoice = app(PurchaseCycleService::class)->invoiceReceipts($validated, $validated['lines']);
+
+        return redirect()->route('purchases.invoices.show', $invoice->id)->with('success', "تم تسجيل فاتورة المورد {$invoice->invoice_number} مقابل الاستلامات");
+    }
+
+    /**
      * Display the specified purchase invoice.
      */
     public function show(PurchaseInvoice $invoice)
     {
-        $invoice->load(['supplier', 'warehouse', 'branch', 'items.product', 'payments']);
+        $invoice->load(['supplier', 'warehouse', 'branch', 'items.product', 'payments', 'returns:id,purchase_invoice_id,return_number,return_date,total', 'landedCosts:id,purchase_invoice_id,landed_number,date,description,amount']);
         $company = app(TenantManager::class)->getCompany();
 
         return Inertia::render('Purchases/Invoices/Show', [

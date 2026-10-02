@@ -11,14 +11,10 @@ use App\Models\PrintTemplate;
 use App\Models\Product;
 use App\Models\Unit;
 use App\Models\Warehouse;
-use App\Services\Accounting\DocumentPoster;
-use App\Services\Inventory\DocumentStock;
+use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class InvoiceController extends Controller
@@ -190,6 +186,8 @@ class InvoiceController extends Controller
             'paid_amount' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'terms' => 'nullable|string',
+            'salesperson_id' => 'nullable|tenant_exists:users,id',
+            'invoice_type' => 'nullable|in:standard,simplified',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'nullable|integer|tenant_exists:products,id',
             'items.*.unit_id' => 'nullable|integer',
@@ -204,145 +202,10 @@ class InvoiceController extends Controller
             'items.*.tax_rate' => 'nullable|numeric|min:0',
         ]);
 
-        $tenantManager = app(TenantManager::class);
-        $company = $tenantManager->getCompany();
-
-        $invoice = DB::transaction(function () use ($validated, $company) {
-            // Sequential, race-safe number reserved inside the transaction.
-            $validated['invoice_number'] = $this->nextNumber('sales_invoice', $validated['invoice_date']);
-
-            $subtotal = 0;
-            $taxAmount = 0;
-            $itemsToCreate = [];
-            $stockLines = [];
-
-            foreach ($validated['items'] as $itemData) {
-                $qty = (float) $itemData['quantity'];
-                $price = (float) $itemData['unit_price'];
-                $discount = (float) ($itemData['discount'] ?? 0);
-                $taxRate = (float) ($itemData['tax_rate'] ?? 15.00);
-
-                $itemSubtotal = ($qty * $price) - $discount;
-                $itemTax = $itemSubtotal * ($taxRate / 100);
-                $itemTotal = $itemSubtotal + $itemTax;
-
-                $subtotal += $itemSubtotal;
-                $taxAmount += $itemTax;
-
-                $stockLines[] = [
-                    'product_id' => $itemData['product_id'] ?? null,
-                    'quantity' => $qty,
-                    'unit_id' => $itemData['unit_id'] ?? null,
-                    'batch_id' => $itemData['batch_id'] ?? null,
-                    'serials' => $itemData['serials'] ?? [],
-                ];
-
-                $itemsToCreate[] = [
-                    'product_id' => $itemData['product_id'] ?? null,
-                    'item_name' => $itemData['item_name'],
-                    'description' => $itemData['description'] ?? null,
-                    'quantity' => $qty,
-                    'unit_price' => $price,
-                    'discount' => $discount,
-                    'tax_rate' => $taxRate,
-                    'tax_amount' => $itemTax,
-                    'subtotal' => $itemSubtotal,
-                    'total' => $itemTotal,
-                ];
-            }
-
-            $total = $subtotal + $taxAmount;
-            $paymentStatus = $validated['payment_status'];
-            $paidAmount = $paymentStatus === 'paid' ? $total : (float) ($validated['paid_amount'] ?? 0);
-            $remainingAmount = max(0, $total - $paidAmount);
-
-            if ($paidAmount >= $total) {
-                $paymentStatus = 'paid';
-                $remainingAmount = 0;
-            } elseif ($paidAmount > 0) {
-                $paymentStatus = 'partially_paid';
-            } else {
-                $paymentStatus = 'unpaid';
-            }
-
-            // Generate Saudi ZATCA QR Code (Phase 1 or Phase 2 depending on company settings)
-            $zatcaPhase = ZatcaService::getActivePhase($company?->id);
-            $sellerName = $company?->name ?? 'شركة الأستاذ';
-            $vatNumber = $company?->tax_number ?? '300000000000003';
-            $timestamp = Carbon::parse($validated['invoice_date'])->format('Y-m-d\TH:i:s\Z');
-
-            $invoiceHash = null;
-            $digitalSig = null;
-            $pubKey = null;
-
-            if ($zatcaPhase === 'phase2') {
-                $invoiceHash = base64_encode(hash('sha256', "INV-{$validated['invoice_number']}-{$total}-{$timestamp}", true));
-                $digitalSig = base64_encode(hash('sha256', "SIG-{$invoiceHash}", true));
-                $pubKey = base64_encode("ECDSA-PUBKEY-{$company?->id}");
-            }
-
-            $zatcaQr = ZatcaService::generateQrCode(
-                $sellerName,
-                $vatNumber,
-                $timestamp,
-                $total,
-                $taxAmount,
-                $invoiceHash,
-                $digitalSig,
-                $pubKey
-            );
-
-            $invoice = Invoice::create([
-                'company_id' => $company->id,
-                'branch_id' => $validated['branch_id'] ?? Branch::first()?->id,
-                'customer_id' => $validated['customer_id'],
-                'user_id' => auth()->id(),
-                'invoice_number' => $validated['invoice_number'],
-                'reference_number' => $validated['reference_number'] ?? null,
-                'invoice_date' => $validated['invoice_date'],
-                'due_date' => $validated['due_date'] ?? null,
-                'supply_date' => $validated['supply_date'] ?? $validated['invoice_date'],
-                'subtotal' => $subtotal,
-                'discount_type' => 'fixed',
-                'discount_value' => 0,
-                'discount_amount' => 0,
-                'tax_rate' => 15.00,
-                'tax_amount' => $taxAmount,
-                'total' => $total,
-                'paid_amount' => $paidAmount,
-                'remaining_amount' => $remainingAmount,
-                'payment_status' => $paymentStatus,
-                'payment_method' => $validated['payment_method'],
-                'bank_account_id' => $validated['bank_account_id'] ?? null,
-                'warehouse_id' => $validated['warehouse_id'] ?? null,
-                'notes' => $validated['notes'] ?? null,
-                'terms' => $validated['terms'] ?? null,
-                'zatca_uuid' => (string) Str::uuid(),
-                'zatca_hash' => $invoiceHash,
-                'zatca_qr' => $zatcaQr,
-                'zatca_status' => $zatcaPhase === 'phase2' ? 'reported' : 'submitted',
-            ]);
-
-            foreach ($itemsToCreate as $item) {
-                $invoice->items()->create($item);
-            }
-
-            // Update customer balance if remaining amount > 0
-            if ($remainingAmount > 0) {
-                Customer::where('id', $validated['customer_id'])->increment('current_balance', $remainingAmount);
-            }
-
-            // Stock leaves the warehouse at its actual cost (average / FIFO).
-            $documentStock = app(DocumentStock::class);
-            $warehouseId = $documentStock->warehouse($validated['warehouse_id'] ?? null);
-            $invoice->forceFill(['warehouse_id' => $warehouseId])->saveQuietly();
-            $cost = $documentStock->issue($stockLines, $warehouseId, 'sale', $invoice, $invoice->invoice_date, $invoice->invoice_number);
-
-            // Journal entry in the same transaction: no invoice without its ledger entry.
-            app(DocumentPoster::class)->salesInvoice($invoice, $warehouseId, $cost);
-
-            return $invoice;
-        });
+        $invoice = app(InvoiceService::class)->create(
+            collect($validated)->except('items')->all(),
+            $validated['items'],
+        );
 
         return redirect()->route('sales.invoices.show', $invoice->id)->with('success', 'تم إنشاء الفاتورة الضريبية بنجاح وفق متطلبات هيئة الزكاة');
     }

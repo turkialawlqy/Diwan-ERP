@@ -30,6 +30,7 @@ class AccountMap
         'fixed_assets' => ['الأصول الثابتة (افتراضي)', 'asset'],
         'accumulated_depreciation' => ['مجمع الإهلاك', 'asset'],
         'payables' => ['الموردون (الذمم الدائنة)', 'liability'],
+        'grni' => ['بضاعة مستلمة لم تفوتر', 'liability'],
         'vat_output' => ['ضريبة المخرجات', 'liability'],
         'salaries_payable' => ['رواتب مستحقة', 'liability'],
         'gosi_payable' => ['التأمينات المستحقة', 'liability'],

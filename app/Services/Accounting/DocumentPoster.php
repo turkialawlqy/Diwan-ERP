@@ -5,11 +5,16 @@ namespace App\Services\Accounting;
 use App\Models\BankAccount;
 use App\Models\CreditNote;
 use App\Models\CustomerPayment;
+use App\Models\DebitNote;
+use App\Models\DeliveryNote;
 use App\Models\Expense;
+use App\Models\GoodsReceipt;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
+use App\Models\LandedCost;
 use App\Models\Payroll;
 use App\Models\PurchaseInvoice;
+use App\Models\PurchaseReturn;
 use App\Models\Revenue;
 use App\Models\SupplierPayment;
 use App\Services\Inventory\CostingService;
@@ -378,6 +383,166 @@ class DocumentPoster
     public function boxAccount(BankAccount $box): int
     {
         return $box->account_id ?: $this->accounts->id($box->type === 'cash' ? 'default_cash' : 'default_bank');
+    }
+
+    /**
+     * Goods delivered before invoicing: cost of sales recognised on delivery.
+     */
+    public function deliveryCost(DeliveryNote $note, float $cost): ?JournalEntry
+    {
+        $cost = round($cost, 2);
+        if ($cost <= 0) {
+            return null;
+        }
+
+        return $this->posting->post([
+            'date' => $note->delivery_date,
+            'reference' => $note->delivery_number,
+            'description' => "تكلفة بضاعة مسلّمة - إذن تسليم {$note->delivery_number}",
+            'source' => $note,
+            'lines' => $this->costLines($cost, "تكلفة إذن تسليم {$note->delivery_number}"),
+        ]);
+    }
+
+    /**
+     * Sales debit note (additional charge).   Dr Receivables   Cr Sales   Cr VAT output
+     */
+    public function debitNote(DebitNote $note): JournalEntry
+    {
+        return $this->posting->post([
+            'date' => $note->debit_note_date,
+            'reference' => $note->debit_note_number,
+            'description' => "إشعار مدين {$note->debit_note_number} - {$note->reason}",
+            'source' => $note,
+            'lines' => array_filter([
+                ['role' => 'receivables', 'debit' => (float) $note->total, 'party_type' => 'customer', 'party_id' => $note->customer_id],
+                ['role' => 'sales_revenue', 'credit' => (float) $note->subtotal],
+                (float) $note->tax_amount > 0 ? ['role' => 'vat_output', 'credit' => (float) $note->tax_amount] : null,
+            ]),
+        ]);
+    }
+
+    /**
+     * Goods receipt (GRN).   Dr Inventory   Cr Goods received not invoiced
+     */
+    public function goodsReceipt(GoodsReceipt $receipt): ?JournalEntry
+    {
+        $value = round((float) $receipt->total_value, 2);
+        if ($value <= 0) {
+            return null;
+        }
+
+        return $this->posting->post([
+            'date' => $receipt->receipt_date,
+            'reference' => $receipt->receipt_number,
+            'description' => "استلام بضاعة {$receipt->receipt_number}",
+            'source' => $receipt,
+            'lines' => [
+                ['role' => 'inventory', 'debit' => $value],
+                ['role' => 'grni', 'credit' => $value, 'party_type' => 'supplier', 'party_id' => $receipt->supplier_id],
+            ],
+        ]);
+    }
+
+    /**
+     * Supplier bill for goods already received on GRNs.
+     *   Dr GRNI (received value)  Dr/Cr price variance  Dr VAT input   Cr Payables / Cash
+     */
+    public function purchaseInvoiceFromReceipts(PurchaseInvoice $invoice, float $receivedValue): JournalEntry
+    {
+        $invoice->loadMissing('supplier');
+        $tax = (float) $invoice->tax_amount;
+        $total = (float) $invoice->total;
+        $net = $total - $tax;
+        $paid = min((float) $invoice->paid_amount, $total);
+        $variance = round($net - $receivedValue, 2);
+
+        $lines = [['role' => 'grni', 'debit' => round($receivedValue, 2), 'party_type' => 'supplier', 'party_id' => $invoice->supplier_id]];
+        if ($variance != 0.0) {
+            $lines[] = ['role' => 'purchases_cogs', 'debit' => $variance, 'description' => 'فرق سعر فاتورة عن الاستلام'];
+        }
+        if ($tax > 0) {
+            $lines[] = ['role' => 'vat_input', 'debit' => $tax];
+        }
+        if ($total - $paid > 0) {
+            $lines[] = ['role' => 'payables', 'credit' => $total - $paid, 'party_type' => 'supplier', 'party_id' => $invoice->supplier_id];
+        }
+        if ($paid > 0) {
+            $lines[] = ['account_id' => $this->cashAccount($invoice->bank_account_id, $invoice->payment_method), 'credit' => $paid];
+        }
+
+        return $this->posting->post([
+            'date' => $invoice->invoice_date,
+            'branch_id' => $invoice->branch_id,
+            'reference' => $invoice->supplier_invoice_number ?: $invoice->invoice_number,
+            'description' => "فاتورة مشتريات رقم {$invoice->invoice_number} (مقابل استلامات) - ".($invoice->supplier?->name ?? ''),
+            'source' => $invoice,
+            'lines' => $lines,
+        ]);
+    }
+
+    /**
+     * Purchase return / debit note to supplier.
+     *   Dr Payables (or Cash)   Cr Inventory (cost)   Cr VAT input   +/- price difference
+     */
+    public function purchaseReturn(PurchaseReturn $return): JournalEntry
+    {
+        $total = (float) $return->total;
+        $tax = (float) $return->tax_amount;
+        $net = $total - $tax;
+        $cost = round((float) $return->cost_value, 2);
+        $difference = round($net - $cost, 2);
+
+        $lines = [
+            $return->settlement === 'credit'
+                ? ['role' => 'payables', 'debit' => $total, 'party_type' => 'supplier', 'party_id' => $return->supplier_id]
+                : ['account_id' => $this->cashAccount($return->bank_account_id, $return->settlement), 'debit' => $total],
+        ];
+        if ($cost > 0) {
+            $lines[] = ['role' => 'inventory', 'credit' => $cost];
+        }
+        if ($difference != 0.0) {
+            $lines[] = ['role' => 'purchases_cogs', 'credit' => $difference, 'description' => 'فرق تكلفة المرتجع'];
+        }
+        if ($tax > 0) {
+            $lines[] = ['role' => 'vat_input', 'credit' => $tax];
+        }
+
+        return $this->posting->post([
+            'date' => $return->return_date,
+            'reference' => $return->return_number,
+            'description' => "مرتجع مشتريات {$return->return_number}",
+            'source' => $return,
+            'lines' => $lines,
+        ]);
+    }
+
+    /**
+     * Landed cost (freight, customs, ...) capitalised into inventory; the part
+     * related to goods already sold goes to cost of sales.
+     */
+    public function landedCost(LandedCost $landed, float $toInventory, float $toCogs): JournalEntry
+    {
+        $tax = (float) $landed->tax_amount;
+        $total = (float) $landed->amount + $tax;
+
+        $credit = match ($landed->paid_from) {
+            'payables' => ['role' => 'payables', 'party_type' => 'supplier', 'party_id' => $landed->supplier_id],
+            default => ['account_id' => $this->cashAccount($landed->bank_account_id, $landed->paid_from)],
+        };
+
+        return $this->posting->post([
+            'date' => $landed->date,
+            'reference' => $landed->landed_number,
+            'description' => "تكاليف إضافية على المشتريات {$landed->landed_number} - {$landed->description}",
+            'source' => $landed,
+            'lines' => array_filter([
+                $toInventory > 0 ? ['role' => 'inventory', 'debit' => round($toInventory, 2)] : null,
+                $toCogs > 0 ? ['role' => 'cogs', 'debit' => round($toCogs, 2)] : null,
+                $tax > 0 ? ['role' => 'vat_input', 'debit' => $tax] : null,
+                array_merge($credit, ['credit' => $total]),
+            ]),
+        ]);
     }
 
     /**
