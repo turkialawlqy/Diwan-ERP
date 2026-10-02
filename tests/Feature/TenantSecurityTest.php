@@ -32,7 +32,7 @@ class TenantSecurityTest extends TestCase
         $this->companyA = Company::factory()->create(['subdomain' => 'alpha']);
         $this->companyB = Company::factory()->create(['subdomain' => 'beta']);
 
-        $this->userA = User::factory()->create(['company_id' => $this->companyA->id, 'status' => 'active']);
+        $this->userA = $this->userWithRole($this->companyA);
     }
 
     protected function tearDown(): void

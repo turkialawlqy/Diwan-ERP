@@ -180,6 +180,7 @@ const submit = () => {
                                 <span>بيانات العميل</span>
                             </h3>
                             <Link 
+                                v-if="$canRoute('sales.clients.create')"
                                 :href="route('sales.clients.create')" 
                                 target="_blank"
                                 class="text-2xs text-indigo-600 hover:text-indigo-700 font-bold"

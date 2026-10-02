@@ -130,6 +130,7 @@ const formatDateArabic = (dateStr) => {
 
                     <!-- Add Invoice Button -->
                     <Link 
+                        v-if="$canRoute('sales.invoices.create')"
                         :href="route('sales.invoices.create')"
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >
@@ -355,6 +356,7 @@ const formatDateArabic = (dateStr) => {
                                         <DocumentTextIcon class="w-10 h-10 text-slate-300 stroke-1" />
                                         <p class="font-semibold text-slate-500">لا توجد فواتير مطابقة للبحث</p>
                                         <Link 
+                                            v-if="$canRoute('sales.invoices.create')"
                                             :href="route('sales.invoices.create')"
                                             class="mt-2 text-xs font-bold text-indigo-600 hover:text-indigo-800"
                                         >

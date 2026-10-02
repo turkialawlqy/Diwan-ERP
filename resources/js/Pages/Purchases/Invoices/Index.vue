@@ -108,6 +108,7 @@ const formatCurrency = (val) => {
 
                     <!-- Add Invoice Button -->
                     <Link 
+                        v-if="$canRoute('purchases.invoices.create')"
                         :href="route('purchases.invoices.create')"
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >

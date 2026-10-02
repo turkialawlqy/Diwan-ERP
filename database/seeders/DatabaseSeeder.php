@@ -7,9 +7,10 @@ use App\Models\Company;
 use App\Models\Currency;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Services\Permissions\PermissionRegistry;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class DatabaseSeeder extends Seeder
 {
@@ -18,13 +19,9 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Create Roles
-        $superAdminRole = Role::firstOrCreate(['name' => 'super_admin']);
-        $adminRole = Role::firstOrCreate(['name' => 'admin']);
-        $accountantRole = Role::firstOrCreate(['name' => 'accountant']);
-        $salesRole = Role::firstOrCreate(['name' => 'sales']);
-        $cashierRole = Role::firstOrCreate(['name' => 'cashier']);
-        $employeeRole = Role::firstOrCreate(['name' => 'employee']);
+        // 1. Permissions (roles are created per company below)
+        $registry = app(PermissionRegistry::class);
+        $registry->syncPermissions();
 
         // 2. Create Default Subscription Plans
         $basicPlan = SubscriptionPlan::create([
@@ -84,11 +81,10 @@ class DatabaseSeeder extends Seeder
             'status' => 'active',
             'email_verified_at' => now(),
         ]);
-        $superAdmin->assignRole($superAdminRole);
 
         // 4. Create Demo Company (mimicking https://anas.alostaz.io)
         $existingLogos = glob(storage_path('app/public/logos/*.{png,jpg,jpeg,svg,webp}'), GLOB_BRACE);
-        $demoLogo = !empty($existingLogos) ? '/storage/logos/' . basename($existingLogos[0]) : null;
+        $demoLogo = ! empty($existingLogos) ? '/storage/logos/'.basename($existingLogos[0]) : null;
 
         $company = Company::create([
             'name' => 'مؤسسة أنس التجارية',
@@ -153,7 +149,9 @@ class DatabaseSeeder extends Seeder
             'status' => 'active',
             'email_verified_at' => now(),
         ]);
-        $companyAdmin->assignRole($adminRole);
+        $registry->seedCompanyRoles($company);
+        app(PermissionRegistrar::class)->setPermissionsTeamId($company->id);
+        $companyAdmin->assignRole($registry->ownerRole());
 
         // 8. Create Company Settings
         $company->setSetting('tax_rate', '15', 'finance', 'integer');

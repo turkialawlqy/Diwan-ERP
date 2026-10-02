@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Support\Facades\Session;
+use Spatie\Permission\PermissionRegistrar;
 
 class TenantManager
 {
@@ -27,6 +28,16 @@ class TenantManager
     public function setTenant(?Company $company): void
     {
         $this->currentCompany = $company;
+        $this->syncPermissionTeam();
+    }
+
+    /**
+     * Roles and permissions are per company (Spatie "teams" with team_id = company_id).
+     */
+    protected function syncPermissionTeam(): void
+    {
+        $registrar = app(PermissionRegistrar::class);
+        $registrar->setPermissionsTeamId($this->currentCompany?->id);
     }
 
     /**
@@ -85,12 +96,14 @@ class TenantManager
 
         $this->currentCompany = $company;
         $this->enforced = true;
+        $this->syncPermissionTeam();
 
         try {
             return $callback($company);
         } finally {
             $this->currentCompany = $previous;
             $this->enforced = $previousEnforced;
+            $this->syncPermissionTeam();
         }
     }
 
@@ -101,6 +114,7 @@ class TenantManager
     {
         $this->currentCompany = null;
         $this->enforced = false;
+        $this->syncPermissionTeam();
     }
 
     /**

@@ -76,6 +76,15 @@ class User extends Authenticatable
 
     public function isCompanyAdmin(): bool
     {
-        return $this->hasRole('admin') || $this->isSuperAdmin();
+        return $this->isCompanyOwner() || $this->isSuperAdmin();
+    }
+
+    /**
+     * Holds the company's owner role (full, non-revocable access).
+     */
+    public function isCompanyOwner(): bool
+    {
+        return $this->company_id !== null
+            && $this->hasRole(config('erp_permissions.owner_role', 'admin'));
     }
 }

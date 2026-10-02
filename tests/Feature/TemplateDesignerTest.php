@@ -3,15 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\Company;
-use App\Models\Invoice;
 use App\Models\PrintTemplate;
-use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class TemplateDesignerTest extends TestCase
 {
     protected $user;
+
     protected $company;
 
     protected function setUp(): void
@@ -19,7 +17,7 @@ class TemplateDesignerTest extends TestCase
         parent::setUp();
 
         $this->company = Company::first() ?? Company::factory()->create();
-        $this->user = User::first() ?? User::factory()->create(['company_id' => $this->company->id]);
+        $this->user = $this->userWithRole($this->company);
     }
 
     public function test_can_view_templates_hub()
@@ -32,7 +30,7 @@ class TemplateDesignerTest extends TestCase
     public function test_can_open_template_designer()
     {
         $template = PrintTemplate::first();
-        if (!$template) {
+        if (! $template) {
             $template = PrintTemplate::create([
                 'company_id' => $this->company->id,
                 'name' => 'فاتورة تجريبية',
@@ -63,7 +61,7 @@ class TemplateDesignerTest extends TestCase
         // Test duplicate
         $dupResponse = $this->actingAs($this->user)->post(route('templates.duplicate', $created->id));
         $this->assertDatabaseHas('print_templates', [
-            'name' => 'نسخة من ' . $created->name,
+            'name' => 'نسخة من '.$created->name,
         ]);
 
         // Cleanup

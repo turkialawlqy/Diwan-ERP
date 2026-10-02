@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\Currency;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Services\Permissions\PermissionRegistry;
 use App\Services\TenantManager;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +21,6 @@ use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use Spatie\Permission\Models\Role;
 
 class RegisteredUserController extends Controller
 {
@@ -141,8 +141,10 @@ class RegisteredUserController extends Controller
             ]);
             $user->save();
 
-            $adminRole = Role::firstOrCreate(['name' => 'admin']);
-            $user->assignRole($adminRole);
+            // Per-company roles (owner + defaults) and owner assignment.
+            $registry = app(PermissionRegistry::class);
+            $registry->seedCompanyRoles($company);
+            $user->assignRole($registry->ownerRole());
 
             return $user;
         });

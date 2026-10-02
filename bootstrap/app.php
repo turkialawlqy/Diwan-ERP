@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AuthorizeRoutePermission;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\EnsureTenant;
 use App\Http\Middleware\ForceHttps;
@@ -60,6 +61,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'super_admin' => EnsureSuperAdmin::class,
             'tenant' => EnsureTenant::class,
+            'erp.authorize' => AuthorizeRoutePermission::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

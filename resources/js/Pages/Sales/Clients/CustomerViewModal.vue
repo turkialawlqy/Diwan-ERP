@@ -468,6 +468,7 @@ const getStatusBadge = (status) => {
                     <div class="flex items-center justify-between">
                         <h3 class="text-sm font-bold text-slate-800">فواتير العميل</h3>
                         <Link
+                            v-if="$canRoute('sales.invoices.create')"
                             :href="route('sales.invoices.create')"
                             class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors"
                         >

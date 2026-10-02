@@ -10,6 +10,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
@@ -38,10 +39,36 @@ class AppServiceProvider extends ServiceProvider
         $this->configureRateLimiting();
         $this->registerTenantValidationRules();
         $this->registerSecurityEventLogging();
+        $this->registerAuthorization();
 
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }
+    }
+
+    /**
+     * The company owner role and an impersonating platform super admin bypass
+     * permission checks; everyone else goes through their role permissions.
+     */
+    protected function registerAuthorization(): void
+    {
+        Gate::before(function ($user, $ability) {
+            $tenantManager = app(TenantManager::class);
+
+            if (! $tenantManager->hasTenant()) {
+                return null;
+            }
+
+            if ($user->isSuperAdmin() && $tenantManager->isImpersonating()) {
+                return true;
+            }
+
+            if ((int) $user->company_id === (int) $tenantManager->getTenantId() && $user->isCompanyOwner()) {
+                return true;
+            }
+
+            return null;
+        });
     }
 
     /**

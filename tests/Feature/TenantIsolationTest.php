@@ -14,9 +14,13 @@ class TenantIsolationTest extends TestCase
     use RefreshDatabase;
 
     protected Company $companyA;
+
     protected Company $companyB;
+
     protected User $userA;
+
     protected Customer $customerA;
+
     protected Customer $customerB;
 
     protected function setUp(): void
@@ -26,7 +30,7 @@ class TenantIsolationTest extends TestCase
         $this->companyA = Company::factory()->create();
         $this->companyB = Company::factory()->create();
 
-        $this->userA = User::factory()->create(['company_id' => $this->companyA->id]);
+        $this->userA = $this->userWithRole($this->companyA);
 
         $this->customerA = Customer::create([
             'company_id' => $this->companyA->id,

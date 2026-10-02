@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import PermissionMatrix from '@/Components/PermissionMatrix.vue';
 import {
     PlusIcon,
     ArrowPathIcon,
@@ -23,7 +24,23 @@ const props = defineProps({
     branches: Array,
     roles: Array,
     stats: Object,
+    matrix: Object,
 });
+
+// Extra (direct) permissions for a single user, on top of their role.
+const permissionsUser = ref(null);
+const permissionsForm = useForm({ permissions: [] });
+const openPermissions = (u) => {
+    permissionsUser.value = u;
+    permissionsForm.permissions = [...(u.direct_permissions ?? [])];
+    permissionsForm.clearErrors();
+};
+const savePermissions = () => {
+    permissionsForm.put(route('users.permissions', permissionsUser.value.id), {
+        preserveScroll: true,
+        onSuccess: () => { permissionsUser.value = null; },
+    });
+};
 
 const isModalOpen = ref(false);
 const editingUser = ref(null);
@@ -84,6 +101,10 @@ const deleteUser = (id, name) => {
 };
 
 const getRoleBadge = (roleName) => {
+    const role = props.roles?.find((r) => r.name === roleName);
+    if (role?.is_owner) {
+        return { label: role.label, class: 'bg-rose-50 text-rose-700 border-rose-200' };
+    }
     const rolesMap = {
         admin: { label: 'مدير نظام', class: 'bg-rose-50 text-rose-700 border-rose-200' },
         accountant: { label: 'محاسب', class: 'bg-blue-50 text-blue-700 border-blue-200' },
@@ -91,7 +112,8 @@ const getRoleBadge = (roleName) => {
         cashier: { label: 'كاشير POS', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
         employee: { label: 'موظف', class: 'bg-slate-100 text-slate-700 border-slate-200' },
     };
-    return rolesMap[roleName] || { label: roleName, class: 'bg-slate-100 text-slate-700 border-slate-200' };
+    const style = rolesMap[roleName]?.class || 'bg-slate-100 text-slate-700 border-slate-200';
+    return { label: role?.label || rolesMap[roleName]?.label || roleName, class: style };
 };
 </script>
 
@@ -210,7 +232,16 @@ const getRoleBadge = (roleName) => {
                                 </td>
                                 <td class="py-4 px-6 text-center">
                                     <div class="flex items-center justify-center gap-1">
+                                        <button
+                                            v-if="$can('admin.users.edit')"
+                                            @click="openPermissions(u)"
+                                            class="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                            :title="$t('permissions.extra_permissions')"
+                                        >
+                                            <KeyIcon class="w-4 h-4" />
+                                        </button>
                                         <button 
+                                            v-if="$can('admin.users.edit')"
                                             @click="openEditModal(u)"
                                             class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                                             title="تعديل"
@@ -218,6 +249,7 @@ const getRoleBadge = (roleName) => {
                                             <PencilSquareIcon class="w-4 h-4" />
                                         </button>
                                         <button 
+                                            v-if="$can('admin.users.delete')"
                                             @click="deleteUser(u.id, u.name)"
                                             class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                             title="حذف"
@@ -365,7 +397,7 @@ const getRoleBadge = (roleName) => {
                                 required
                                 class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 font-bold"
                             >
-                                <option v-for="r in roles" :key="r.id" :value="r.name">{{ getRoleBadge(r.name).label }}</option>
+                                <option v-for="r in roles" :key="r.id" :value="r.name">{{ r.label }}</option>
                             </select>
                         </div>
 
@@ -409,6 +441,28 @@ const getRoleBadge = (roleName) => {
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+        <!-- Extra permissions modal -->
+        <div v-if="permissionsUser" class="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+            <div class="bg-white rounded-2xl shadow-xl w-full max-w-5xl my-8">
+                <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                    <div>
+                        <h3 class="font-bold text-slate-800">{{ $t('permissions.extra_permissions') }} — {{ permissionsUser.name }}</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">{{ $t('permissions.extra_hint') }}</p>
+                    </div>
+                    <button @click="permissionsUser = null" class="text-slate-400 hover:text-slate-700"><XMarkIcon class="w-5 h-5" /></button>
+                </div>
+                <div class="p-5 max-h-[65vh] overflow-y-auto">
+                    <div v-if="permissionsForm.errors.permissions" class="mb-3 text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-xl p-3">
+                        {{ permissionsForm.errors.permissions }}
+                    </div>
+                    <PermissionMatrix v-model="permissionsForm.permissions" :matrix="matrix" />
+                </div>
+                <div class="flex justify-end gap-2 px-5 py-4 border-t border-slate-100">
+                    <button @click="permissionsUser = null" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">{{ $t('common.cancel') }}</button>
+                    <button @click="savePermissions" :disabled="permissionsForm.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-50">{{ $t('common.save') }}</button>
+                </div>
             </div>
         </div>
     </AppLayout>

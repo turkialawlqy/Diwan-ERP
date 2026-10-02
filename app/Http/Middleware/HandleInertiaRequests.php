@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -29,7 +30,7 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        $tenantManager = app(\App\Services\TenantManager::class);
+        $tenantManager = app(TenantManager::class);
         $currentTenant = $tenantManager->getTenant();
         $user = $request->user();
 
@@ -43,8 +44,11 @@ class HandleInertiaRequests extends Middleware
                     'phone' => $user->phone,
                     'avatar' => $user->avatar,
                     'is_super_admin' => (bool) $user->is_super_admin,
-                    'roles' => $user->roles ? $user->roles->pluck('name') : [],
-                    'permissions' => $user->permissions ? $user->permissions->pluck('name') : [],
+                    'roles' => $currentTenant ? $user->getRoleNames() : [],
+                    // Owners (and impersonating super admins) can do everything; the
+                    // frontend checks is_owner before the permission list.
+                    'is_owner' => $currentTenant && ($user->isCompanyOwner() || ($user->isSuperAdmin() && $tenantManager->isImpersonating())),
+                    'permissions' => $currentTenant ? $user->getAllPermissions()->pluck('name')->values() : [],
                     'company_id' => $user->company_id,
                     'branch_id' => $user->branch_id,
                 ] : null,
@@ -61,6 +65,9 @@ class HandleInertiaRequests extends Middleware
                 'trial_ends_at' => $currentTenant->trial_ends_at?->format('Y-m-d'),
             ] : null,
             'impersonation' => $tenantManager->getImpersonationData(),
+            // Route name => permission map (same one the server enforces) so the UI
+            // can hide links the user cannot open.
+            'routePermissions' => fn () => $user && $currentTenant ? config('erp_permissions.routes') : [],
             'locale' => app()->getLocale(),
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

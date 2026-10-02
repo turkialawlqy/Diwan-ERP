@@ -7,6 +7,7 @@ import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 import i18n from './i18n';
 import VueApexCharts from 'vue3-apexcharts';
+import { PermissionsPlugin } from './permissions';
 
 const appName = import.meta.env.VITE_APP_NAME || 'الأستاذ';
 
@@ -30,6 +31,7 @@ createInertiaApp({
             .use(ZiggyVue)
             .use(i18n)
             .use(VueApexCharts)
+            .use(PermissionsPlugin)
             .mount(el);
     },
     progress: {

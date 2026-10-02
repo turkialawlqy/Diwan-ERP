@@ -112,6 +112,7 @@ const chartOptions = computed(() => ({
             <!-- Header Action Buttons -->
             <div class="flex items-center gap-2.5">
                 <Link
+                    v-if="$canRoute('sales.invoices.create')"
                     :href="route('sales.invoices.create')"
                     class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm hover:shadow transition active:scale-95"
                 >
@@ -131,6 +132,7 @@ const chartOptions = computed(() => ({
         <!-- 1. Quick Actions Row -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
             <QuickActionButton 
+                v-if="$canRoute('sales.invoices.create')"
                 :href="route('sales.invoices.create')"
                 title="فاتورة مبيعات جديدة"
                 subtitle="إصدار فاتورة إلكترونية معتمدة"
@@ -142,6 +144,7 @@ const chartOptions = computed(() => ({
             </QuickActionButton>
 
             <QuickActionButton 
+                v-if="$canRoute('sales.clients.create')"
                 :href="route('sales.clients.create')"
                 title="إضافة عميل جديد"
                 subtitle="تسجيل بيانات عميل جديد"
@@ -153,6 +156,7 @@ const chartOptions = computed(() => ({
             </QuickActionButton>
 
             <QuickActionButton 
+                v-if="$canRoute('inventory.products.create')"
                 :href="route('inventory.products.create')"
                 title="إضافة منتج جديد"
                 subtitle="إدراج صنف وتكلفة ومخزون"

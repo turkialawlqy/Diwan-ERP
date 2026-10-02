@@ -105,6 +105,7 @@ const formatDateArabic = (dateStr) => {
                     </button>
 
                     <Link 
+                        v-if="$canRoute('sales.quotations.create')"
                         :href="route('sales.quotations.create')"
                         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >

@@ -55,7 +55,8 @@
     "invoice_settings": "Invoice Settings",
     "pos_settings": "POS Settings",
     "subscription": "Subscription & Plans",
-    "super_admin": "Super Admin Panel"
+    "super_admin": "Super Admin Panel",
+    "audit_log": "Audit Log"
   },
   "common": {
     "search": "Search...",
@@ -120,5 +121,24 @@
   "impersonation": {
     "banner_title": "You are currently viewing this company as Super Admin with full modification and training privileges",
     "return_btn": "Return to Super Admin Panel"
+  },
+  "permissions": {
+    "search": "Search screens or modules...",
+    "selected_count": "{count} of {total} permissions enabled",
+    "screen": "Screen",
+    "new_role": "New Role",
+    "owner_hint": "All permissions (locked)",
+    "count": "{count} permissions",
+    "owner_locked": "The owner always has every permission and cannot be restricted.",
+    "matrix_hint": "Select the permissions for this role, then save.",
+    "duplicate": "Duplicate role",
+    "save": "Save permissions",
+    "rename_role": "Rename role",
+    "role_name": "Role name",
+    "copy_from": "Copy permissions from",
+    "empty_role": "No permissions (empty role)",
+    "extra_permissions": "Extra user permissions",
+    "extra_hint": "Granted to this user on top of their role.",
+    "role": "Role"
   }
 }
