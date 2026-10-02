@@ -46,6 +46,13 @@ export default [
             { label: 'nav.inventory_operations', route: 'inventory.operations.index', path: '/inventory/operations' },
             { label: 'nav.warehouses', route: 'inventory.warehouses.index', path: '/inventory/warehouses' },
             { label: 'nav.inventory_count', route: 'inventory.counts.index', path: '/inventory/counts' },
+            { label: 'nav.stock_transfers', route: 'inventory.stock-transfers.index', path: '/inventory/stock-transfers' },
+            { label: 'nav.assembly', route: 'inventory.assembly.index', path: '/inventory/assembly' },
+            { label: 'nav.item_card', route: 'inventory.reports.item-card', path: '/inventory/reports/item-card' },
+            { label: 'nav.stock_valuation', route: 'inventory.reports.valuation', path: '/inventory/reports/valuation' },
+            { label: 'nav.reorder', route: 'inventory.reports.reorder', path: '/inventory/reports/reorder' },
+            { label: 'nav.slow_moving', route: 'inventory.reports.slow-moving', path: '/inventory/reports/slow-moving' },
+            { label: 'nav.expiry', route: 'inventory.reports.expiry', path: '/inventory/reports/expiry' },
         ],
     },
     {

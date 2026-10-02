@@ -37,7 +37,7 @@ class DocumentPoster
      *   Cr Sales (net of discount)  Cr VAT output
      *   Dr COGS  Cr Inventory (stock items)
      */
-    public function salesInvoice(Invoice $invoice, ?int $warehouseId = null): JournalEntry
+    public function salesInvoice(Invoice $invoice, ?int $warehouseId = null, ?float $cost = null): JournalEntry
     {
         $invoice->loadMissing('items', 'customer');
 
@@ -62,7 +62,10 @@ class DocumentPoster
             $lines[] = ['role' => 'vat_output', 'credit' => $tax, 'description' => "ضريبة مخرجات فاتورة {$invoice->invoice_number}"];
         }
 
-        array_push($lines, ...$this->costOfSalesLines($invoice->items, $warehouseId, "تكلفة فاتورة {$invoice->invoice_number}"));
+        // Actual issue cost from the stock ledger when known, otherwise estimated.
+        array_push($lines, ...($cost !== null
+            ? $this->costLines($cost, "تكلفة فاتورة {$invoice->invoice_number}")
+            : $this->costOfSalesLines($invoice->items, $warehouseId, "تكلفة فاتورة {$invoice->invoice_number}")));
 
         return $this->posting->post([
             'date' => $invoice->invoice_date,
@@ -78,7 +81,7 @@ class DocumentPoster
      * Sales return / credit note (amount based).
      *   Dr Sales returns  Dr VAT output   Cr Receivables (or Cash when refunded)
      */
-    public function creditNote(CreditNote $note, array $returnedItems = [], ?int $warehouseId = null): ?JournalEntry
+    public function creditNote(CreditNote $note, array $returnedItems = [], ?int $warehouseId = null, ?float $returnedCost = null): ?JournalEntry
     {
         if (! in_array($note->status, ['approved', 'refunded'], true)) {
             return null;
@@ -101,12 +104,14 @@ class DocumentPoster
             : ['role' => 'receivables', 'credit' => $total, 'description' => "تخفيض ذمة العميل - {$note->credit_note_number}", 'party_type' => 'customer', 'party_id' => $note->customer_id];
 
         // Returned stock goes back to inventory at cost.
-        foreach ($returnedItems as $item) {
-            $cost = round($this->costing->unitCost($item['product_id'] ?? null, $warehouseId) * (float) $item['quantity'], 2);
-            if ($cost > 0) {
-                $lines[] = ['role' => 'inventory', 'debit' => $cost, 'description' => 'إرجاع بضاعة للمخزون'];
-                $lines[] = ['role' => 'cogs', 'credit' => $cost, 'description' => 'عكس تكلفة مبيعات مرتجعة'];
-            }
+        $cost = $returnedCost ?? array_sum(array_map(
+            fn ($item) => $this->costing->unitCost($item['product_id'] ?? null, $warehouseId) * (float) $item['quantity'],
+            $returnedItems,
+        ));
+        $cost = round($cost, 2);
+        if ($cost > 0) {
+            $lines[] = ['role' => 'inventory', 'debit' => $cost, 'description' => 'إرجاع بضاعة للمخزون'];
+            $lines[] = ['role' => 'cogs', 'credit' => $cost, 'description' => 'عكس تكلفة مبيعات مرتجعة'];
         }
 
         return $this->posting->post([
@@ -373,6 +378,35 @@ class DocumentPoster
     public function boxAccount(BankAccount $box): int
     {
         return $box->account_id ?: $this->accounts->id($box->type === 'cash' ? 'default_cash' : 'default_bank');
+    }
+
+    /**
+     * Goods sent between warehouses: parked in "goods in transit" until received.
+     */
+    public function stockInTransit($source, float $value, $date, string $description, bool $received = false): ?JournalEntry
+    {
+        $value = round($value, 2);
+        if ($value <= 0) {
+            return null;
+        }
+
+        return $this->posting->post([
+            'date' => $date,
+            'description' => $description,
+            'source' => $source,
+            'lines' => $received
+                ? [['role' => 'inventory', 'debit' => $value], ['role' => 'goods_in_transit', 'credit' => $value]]
+                : [['role' => 'goods_in_transit', 'debit' => $value], ['role' => 'inventory', 'credit' => $value]],
+        ]);
+    }
+
+    protected function costLines(float $cost, string $description): array
+    {
+        $cost = round($cost, 2);
+
+        return $cost > 0
+            ? [['role' => 'cogs', 'debit' => $cost, 'description' => $description], ['role' => 'inventory', 'credit' => $cost, 'description' => $description]]
+            : [];
     }
 
     protected function costOfSalesLines(iterable $items, ?int $warehouseId, string $description): array

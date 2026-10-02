@@ -25,6 +25,10 @@ class Product extends Model
         'description',
         'purchase_price',
         'average_cost',
+        'tracking',
+        'reorder_level',
+        'reorder_quantity',
+        'is_kit',
         'selling_price',
         'tax_rate',
         'min_stock_alert',
@@ -94,5 +98,33 @@ class Product extends Model
     public function orderItems(): HasMany
     {
         return $this->hasMany(PosOrderItem::class);
+    }
+
+    public function units(): HasMany
+    {
+        return $this->hasMany(ProductUnit::class);
+    }
+
+    public function batches(): HasMany
+    {
+        return $this->hasMany(ProductBatch::class);
+    }
+
+    public function kitItems(): HasMany
+    {
+        return $this->hasMany(ProductKitItem::class, 'kit_id');
+    }
+
+    public function movements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class);
+    }
+
+    /**
+     * A stock item (as opposed to a service / non-tracked item).
+     */
+    public function isStockItem(): bool
+    {
+        return (bool) $this->track_inventory && ($this->type ?? 'product') !== 'service';
     }
 }

@@ -35,6 +35,7 @@ class Invoice extends Model
         'payment_status',
         'payment_method',
         'bank_account_id',
+        'warehouse_id',
         'notes',
         'terms',
         'zatca_uuid',

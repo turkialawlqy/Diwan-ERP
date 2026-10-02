@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Inventory\DocumentStock;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
 use Carbon\Carbon;
@@ -185,11 +186,16 @@ class InvoiceController extends Controller
             'payment_method' => 'required|string|in:cash,card,bank_transfer,credit',
             'payment_status' => 'required|string|in:paid,partially_paid,unpaid',
             'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'warehouse_id' => 'nullable|tenant_exists:warehouses,id',
             'paid_amount' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
             'terms' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'nullable|integer|tenant_exists:products,id',
+            'items.*.unit_id' => 'nullable|integer',
+            'items.*.batch_id' => 'nullable|integer',
+            'items.*.serials' => 'nullable|array',
+            'items.*.serials.*' => 'string|max:150',
             'items.*.item_name' => 'required|string|max:255',
             'items.*.description' => 'nullable|string',
             'items.*.quantity' => 'required|numeric|min:0.01',
@@ -208,6 +214,7 @@ class InvoiceController extends Controller
             $subtotal = 0;
             $taxAmount = 0;
             $itemsToCreate = [];
+            $stockLines = [];
 
             foreach ($validated['items'] as $itemData) {
                 $qty = (float) $itemData['quantity'];
@@ -221,6 +228,14 @@ class InvoiceController extends Controller
 
                 $subtotal += $itemSubtotal;
                 $taxAmount += $itemTax;
+
+                $stockLines[] = [
+                    'product_id' => $itemData['product_id'] ?? null,
+                    'quantity' => $qty,
+                    'unit_id' => $itemData['unit_id'] ?? null,
+                    'batch_id' => $itemData['batch_id'] ?? null,
+                    'serials' => $itemData['serials'] ?? [],
+                ];
 
                 $itemsToCreate[] = [
                     'product_id' => $itemData['product_id'] ?? null,
@@ -299,6 +314,7 @@ class InvoiceController extends Controller
                 'payment_status' => $paymentStatus,
                 'payment_method' => $validated['payment_method'],
                 'bank_account_id' => $validated['bank_account_id'] ?? null,
+                'warehouse_id' => $validated['warehouse_id'] ?? null,
                 'notes' => $validated['notes'] ?? null,
                 'terms' => $validated['terms'] ?? null,
                 'zatca_uuid' => (string) Str::uuid(),
@@ -316,8 +332,14 @@ class InvoiceController extends Controller
                 Customer::where('id', $validated['customer_id'])->increment('current_balance', $remainingAmount);
             }
 
+            // Stock leaves the warehouse at its actual cost (average / FIFO).
+            $documentStock = app(DocumentStock::class);
+            $warehouseId = $documentStock->warehouse($validated['warehouse_id'] ?? null);
+            $invoice->forceFill(['warehouse_id' => $warehouseId])->saveQuietly();
+            $cost = $documentStock->issue($stockLines, $warehouseId, 'sale', $invoice, $invoice->invoice_date, $invoice->invoice_number);
+
             // Journal entry in the same transaction: no invoice without its ledger entry.
-            app(DocumentPoster::class)->salesInvoice($invoice);
+            app(DocumentPoster::class)->salesInvoice($invoice, $warehouseId, $cost);
 
             return $invoice;
         });

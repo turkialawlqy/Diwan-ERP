@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\InventoryStock;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Inventory\DocumentStock;
 use App\Services\TenantManager;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -122,17 +122,20 @@ class PurchaseOrderController extends Controller
                     'tax_amount' => $item->tax_amount,
                     'total' => $item->total,
                 ]);
-
-                // Increment stock
-                if ($item->product_id && $order->warehouse_id) {
-                    $stock = InventoryStock::firstOrCreate([
-                        'company_id' => $companyId,
-                        'product_id' => $item->product_id,
-                        'warehouse_id' => $order->warehouse_id,
-                    ], ['quantity' => 0]);
-                    $stock->increment('quantity', $item->quantity);
-                }
             }
+
+            app(DocumentStock::class)->receive(
+                $order->items->filter(fn ($i) => $i->product_id)->map(fn ($i) => [
+                    'product_id' => $i->product_id,
+                    'quantity' => (float) $i->quantity,
+                    'unit_cost' => ((float) $i->quantity * (float) $i->unit_price - (float) ($i->discount ?? 0)) / max((float) $i->quantity, 0.0001),
+                ]),
+                $purchaseInvoice->warehouse_id,
+                'purchase',
+                $purchaseInvoice,
+                $purchaseInvoice->invoice_date,
+                $purchaseInvoice->invoice_number,
+            );
 
             // Update supplier balance
             if ($order->supplier) {

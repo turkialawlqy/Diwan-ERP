@@ -70,7 +70,14 @@
     "balance_sheet": "Balance Sheet",
     "cash_flow": "Cash Flow",
     "aging": "Aging",
-    "vat_return": "VAT Return"
+    "vat_return": "VAT Return",
+    "stock_transfers": "Stock Transfers",
+    "assembly": "Assembly & BOM",
+    "item_card": "Item Card",
+    "stock_valuation": "Stock Valuation",
+    "reorder": "Reorder Report",
+    "slow_moving": "Slow Moving",
+    "expiry": "Expiry Report"
   },
   "common": {
     "search": "Search...",

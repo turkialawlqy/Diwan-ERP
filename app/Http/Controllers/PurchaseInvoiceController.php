@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\Category;
-use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
@@ -12,6 +11,7 @@ use App\Models\SupplierPayment;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Inventory\DocumentStock;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -156,6 +156,11 @@ class PurchaseInvoiceController extends Controller
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'nullable|tenant_exists:products,id',
+            'items.*.unit_id' => 'nullable|integer',
+            'items.*.batch_number' => 'nullable|string|max:100',
+            'items.*.expiry_date' => 'nullable|date',
+            'items.*.serials' => 'nullable|array',
+            'items.*.serials.*' => 'string|max:150',
             'items.*.item_name' => 'required|string|max:255',
             'items.*.quantity' => 'required|numeric|min:0.01',
             'items.*.unit_price' => 'required|numeric|min:0',
@@ -200,19 +205,6 @@ class PurchaseInvoiceController extends Controller
                     'tax_amount' => $lineTax,
                     'total' => $lineTotal,
                 ];
-
-                // ⭐ Increment Warehouse Inventory Stock
-                if (! empty($item['product_id']) && ! empty($validated['warehouse_id'])) {
-                    $stock = InventoryStock::firstOrCreate(
-                        [
-                            'company_id' => $companyId,
-                            'product_id' => $item['product_id'],
-                            'warehouse_id' => $validated['warehouse_id'],
-                        ],
-                        ['quantity' => 0]
-                    );
-                    $stock->increment('quantity', $qty);
-                }
             }
 
             $total = $subtotal + $taxAmount;
@@ -251,6 +243,19 @@ class PurchaseInvoiceController extends Controller
             foreach ($itemsData as $iData) {
                 $purchaseInvoice->items()->create($iData);
             }
+
+            // Goods received into the warehouse at net unit cost (excluding VAT,
+            // after line discount); updates moving average / FIFO layers.
+            $receiptLines = collect($validated['items'])->filter(fn ($i) => ! empty($i['product_id']))->map(fn ($i) => [
+                'product_id' => $i['product_id'],
+                'quantity' => (float) $i['quantity'],
+                'unit_id' => $i['unit_id'] ?? null,
+                'unit_cost' => ((float) $i['quantity'] * (float) $i['unit_price'] - (float) ($i['discount'] ?? 0)) / max((float) $i['quantity'], 0.0001),
+                'batch_number' => $i['batch_number'] ?? null,
+                'expiry_date' => $i['expiry_date'] ?? null,
+                'serials' => $i['serials'] ?? [],
+            ]);
+            app(DocumentStock::class)->receive($receiptLines, (int) $validated['warehouse_id'], 'purchase', $purchaseInvoice, $validated['invoice_date'], $validated['invoice_number']);
 
             // ⭐ Update Supplier Balance
             $supplier = Supplier::find($validated['supplier_id']);

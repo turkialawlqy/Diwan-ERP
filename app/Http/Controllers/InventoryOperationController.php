@@ -6,11 +6,9 @@ use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\Warehouse;
 use App\Services\Accounting\DocumentPoster;
-use App\Services\Inventory\CostingService;
-use App\Services\TenantManager;
+use App\Services\Inventory\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -42,7 +40,8 @@ class InventoryOperationController extends Controller
     }
 
     /**
-     * Transfer stock between warehouses.
+     * Immediate transfer between warehouses (same site). For transfers that
+     * travel, use stock transfer documents (send / receive).
      */
     public function transfer(Request $request)
     {
@@ -50,42 +49,26 @@ class InventoryOperationController extends Controller
             'product_id' => 'required|tenant_exists:products,id',
             'from_warehouse_id' => 'required|tenant_exists:warehouses,id|different:to_warehouse_id',
             'to_warehouse_id' => 'required|tenant_exists:warehouses,id',
-            'quantity' => 'required|numeric|min:0.01',
+            'quantity' => 'required|numeric|min:0.0001',
+            'batch_id' => 'nullable|integer',
+            'serials' => 'nullable|array',
             'notes' => 'nullable|string|max:255',
         ]);
 
-        $companyId = app(TenantManager::class)->getTenantId() ?? auth()->user()?->company_id;
-
-        DB::transaction(function () use ($validated, $companyId) {
-            $qty = (float) $validated['quantity'];
-
-            // 1. Check source stock (locked to prevent a concurrent transfer/sale
-            // from reading the same stale quantity and overselling it).
-            $sourceStock = InventoryStock::where('product_id', $validated['product_id'])
-                ->where('warehouse_id', $validated['from_warehouse_id'])
-                ->lockForUpdate()
-                ->first();
-
-            if (! $sourceStock || $sourceStock->quantity < $qty) {
-                throw ValidationException::withMessages([
-                    'quantity' => 'الكمية المتوفرة في المستودع المصدر غير كافية لإتمام التحويل.',
-                ]);
-            }
-
-            // Deduct from source
-            $sourceStock->decrement('quantity', $qty);
-
-            // 2. Add to destination stock
-            $targetStock = InventoryStock::firstOrCreate(
+        DB::transaction(function () use ($validated) {
+            app(StockService::class)->transfer(
+                (int) $validated['product_id'],
+                (int) $validated['from_warehouse_id'],
+                (int) $validated['to_warehouse_id'],
+                (float) $validated['quantity'],
                 [
-                    'company_id' => $companyId,
-                    'product_id' => $validated['product_id'],
-                    'warehouse_id' => $validated['to_warehouse_id'],
+                    'date' => now(),
+                    'notes' => $validated['notes'] ?? null,
+                    'batch_id' => $validated['batch_id'] ?? null,
+                    'serials' => $validated['serials'] ?? [],
+                    'source_type' => 'manual_transfer',
                 ],
-                ['quantity' => 0]
             );
-
-            $targetStock->increment('quantity', $qty);
         });
 
         return redirect()->route('inventory.operations.index')
@@ -93,62 +76,59 @@ class InventoryOperationController extends Controller
     }
 
     /**
-     * Adjust stock directly (inventory manual adjustment).
+     * Manual adjustment (add / subtract / set / damage), valued at cost and posted.
      */
     public function adjust(Request $request)
     {
         $validated = $request->validate([
             'product_id' => 'required|tenant_exists:products,id',
             'warehouse_id' => 'required|tenant_exists:warehouses,id',
-            'type' => 'required|in:add,subtract,set',
+            'type' => 'required|in:add,subtract,set,damage',
             'quantity' => 'required|numeric|min:0',
+            'unit_cost' => 'nullable|numeric|min:0',
+            'batch_number' => 'nullable|string|max:100',
+            'expiry_date' => 'nullable|date',
+            'serials' => 'nullable|array',
             'reason' => 'nullable|string|max:255',
         ]);
 
-        $companyId = app(TenantManager::class)->getTenantId() ?? auth()->user()?->company_id;
-
-        DB::transaction(function () use ($validated, $companyId) {
-            $stock = InventoryStock::firstOrCreate(
-                [
-                    'company_id' => $companyId,
-                    'product_id' => $validated['product_id'],
-                    'warehouse_id' => $validated['warehouse_id'],
-                ],
-                ['quantity' => 0]
-            );
-
-            // Lock the row before re-reading quantity so a concurrent adjustment,
-            // transfer, or sale can't decrement the same stale value.
-            $stock = InventoryStock::where('id', $stock->id)->lockForUpdate()->first();
-
+        DB::transaction(function () use ($validated) {
+            $stock = app(StockService::class);
+            $product = Product::findOrFail($validated['product_id']);
             $qty = (float) $validated['quantity'];
-            $before = (float) $stock->quantity;
+            $context = [
+                'product_id' => $product->id,
+                'warehouse_id' => (int) $validated['warehouse_id'],
+                'date' => now(),
+                'notes' => $validated['reason'] ?? null,
+                'source_type' => 'stock_adjustment',
+                'serials' => $validated['serials'] ?? [],
+            ];
 
-            if ($validated['type'] === 'add') {
-                $stock->increment('quantity', $qty);
-            } elseif ($validated['type'] === 'subtract') {
-                if ($stock->quantity < $qty) {
-                    throw ValidationException::withMessages([
-                        'quantity' => 'الكمية المطلوب خصمها أكبر من الكمية المتوفرة في المخزون.',
-                    ]);
-                }
-                $stock->decrement('quantity', $qty);
-            } else {
-                $stock->update(['quantity' => $qty]);
-            }
+            $value = match ($validated['type']) {
+                'add' => $qty > 0 ? $stock->receive(array_merge($context, [
+                    'quantity' => $qty,
+                    'type' => 'adjustment',
+                    'unit_cost' => $validated['unit_cost'] ?? (float) $product->average_cost,
+                    'batch_number' => $validated['batch_number'] ?? null,
+                    'expiry_date' => $validated['expiry_date'] ?? null,
+                ]))->total_cost : 0,
+                'subtract', 'damage' => $qty > 0 ? -$stock->issue(array_merge($context, [
+                    'quantity' => $qty,
+                    'type' => $validated['type'] === 'damage' ? 'damage' : 'adjustment',
+                ])) : 0,
+                'set' => $stock->adjustTo($product->id, (int) $validated['warehouse_id'], $qty, array_merge($context, ['type' => 'adjustment'])),
+            };
 
-            // Value the quantity change at cost and post it (inventory vs adjustments).
-            $delta = (float) $stock->fresh()->quantity - $before;
-            $value = $delta * app(CostingService::class)->unitCost((int) $validated['product_id'], (int) $validated['warehouse_id']);
             app(DocumentPoster::class)->stockAdjustment(
                 'stock_adjustment',
-                $value,
+                (float) $value,
                 now(),
-                'تسوية مخزون: '.($validated['reason'] ?? 'تعديل يدوي'),
+                ($validated['type'] === 'damage' ? 'إتلاف مخزون: ' : 'تسوية مخزون: ').$product->name_ar.' - '.($validated['reason'] ?? 'تعديل يدوي'),
             );
         });
 
         return redirect()->route('inventory.operations.index')
-            ->with('success', 'تم تعديل كمية المخزون بنجاح');
+            ->with('success', 'تم تعديل كمية المخزون وترحيل قيد التسوية بنجاح');
     }
 }

@@ -389,6 +389,7 @@ const submitAdjust = () => {
                                 <option value="add">إضافة كمية (+)</option>
                                 <option value="subtract">خصم كمية (-)</option>
                                 <option value="set">تعيين الرصيد الفعلي (=)</option>
+                                <option value="damage">إتلاف / تالف (-)</option>
                             </select>
                         </div>
 

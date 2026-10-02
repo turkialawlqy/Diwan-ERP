@@ -5,13 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Customer;
-use App\Models\InventoryStock;
 use App\Models\Invoice;
 use App\Models\PosOrder;
 use App\Models\PosRegister;
 use App\Models\PosSession;
 use App\Models\Product;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Inventory\DocumentStock;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
 use Carbon\Carbon;
@@ -207,22 +207,6 @@ class PosController extends Controller
                     'tax_amount' => $lineTax,
                     'total' => $lineTotal,
                 ];
-
-                // Deduct stock if warehouse set
-                if ($warehouseId) {
-                    $stock = InventoryStock::where('product_id', $item['product_id'])
-                        ->where('warehouse_id', $warehouseId)
-                        ->lockForUpdate()
-                        ->first();
-                    if ($stock) {
-                        if ($stock->quantity < $qty) {
-                            throw ValidationException::withMessages([
-                                'items' => "الكمية المتوفرة من \"{$item['item_name']}\" غير كافية (المتوفر: {$stock->quantity})",
-                            ]);
-                        }
-                        $stock->decrement('quantity', $qty);
-                    }
-                }
             }
 
             // The order discount reduces the taxable amount (VAT is charged after discount).
@@ -316,7 +300,13 @@ class PosController extends Controller
                 Customer::whereKey($validated['customer_id'])->increment('current_balance', $remaining);
             }
 
-            app(DocumentPoster::class)->salesInvoice($invoice, $warehouseId);
+            // Stock leaves the register's warehouse at actual cost.
+            $documentStock = app(DocumentStock::class);
+            $warehouseId = $documentStock->warehouse($warehouseId);
+            $invoice->forceFill(['warehouse_id' => $warehouseId])->saveQuietly();
+            $cost = $documentStock->issue($orderItems, $warehouseId, 'sale', $invoice, $invoice->invoice_date, $orderNumber);
+
+            app(DocumentPoster::class)->salesInvoice($invoice, $warehouseId, $cost);
 
             return $posOrder;
         });

@@ -223,7 +223,7 @@ const formatCurrency = (val) => {
                                 <td class="py-4 px-6">
                                     <div class="flex items-center gap-2">
                                         <Link 
-                                            :href="route('inventory.products.edit', p.id)"
+                                            :href="route('inventory.products.show', p.id)"
                                             class="font-bold text-slate-800 hover:text-indigo-600 transition-colors"
                                         >
                                             {{ p.name_ar }}

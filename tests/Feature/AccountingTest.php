@@ -28,6 +28,7 @@ use App\Services\Accounting\DepreciationService;
 use App\Services\Accounting\FiscalCalendar;
 use App\Services\Accounting\PostingService;
 use App\Services\Accounting\YearEndClosing;
+use App\Services\Inventory\StockService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -145,6 +146,8 @@ class AccountingTest extends TestCase
     {
         $customer = $this->customer();
         $product = Product::create(['name_ar' => 'منتج', 'sku' => 'P1', 'selling_price' => 100, 'purchase_price' => 60, 'track_inventory' => true, 'is_active' => true]);
+        $warehouse = Warehouse::create(['name_ar' => 'رئيسي', 'code' => 'W1', 'is_main' => true, 'is_active' => true]);
+        app(StockService::class)->receive(['product_id' => $product->id, 'warehouse_id' => $warehouse->id, 'quantity' => 10, 'unit_cost' => 60, 'type' => 'opening']);
 
         $this->post(route('sales.invoices.store'), [
             'customer_id' => $customer->id,

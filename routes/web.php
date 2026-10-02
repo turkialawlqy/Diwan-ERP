@@ -5,6 +5,7 @@ use App\Http\Controllers\Accounting as A;
 use App\Http\Controllers\Accounting\GeneralLedgerController;
 use App\Http\Controllers\Accounting\JournalEntryController;
 use App\Http\Controllers\Accounting\TrialBalanceController;
+use App\Http\Controllers\AssemblyController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\BranchController;
@@ -22,6 +23,7 @@ use App\Http\Controllers\Finance\TransferController;
 use App\Http\Controllers\HR\EmployeeController;
 use App\Http\Controllers\HR\PayrollController;
 use App\Http\Controllers\InventoryOperationController;
+use App\Http\Controllers\InventoryReportController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\LookupController;
@@ -34,6 +36,7 @@ use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\Reports\ReportController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\StockCountController;
+use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SuperAdmin\ImpersonationController;
 use App\Http\Controllers\SuperAdmin\SuperAdminDashboardController;
 use App\Http\Controllers\SupplierController;
@@ -162,6 +165,30 @@ Route::middleware(['auth', 'tenant', 'erp.authorize', 'throttle:tenant-web'])->g
         Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->name('products.edit');
         Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
         Route::delete('/products/{product}', [ProductController::class, 'destroy'])->name('products.destroy');
+        Route::get('/products/{product}', [ProductController::class, 'show'])->name('products.show');
+        Route::post('/products/{product}/units', [ProductController::class, 'storeUnit'])->name('products.units.store');
+        Route::delete('/products/{product}/units/{unit}', [ProductController::class, 'destroyUnit'])->name('products.units.destroy');
+        Route::put('/products/{product}/kit', [ProductController::class, 'syncKit'])->name('products.kit');
+
+        // Stock transfers (two-step)
+        Route::get('/stock-transfers', [StockTransferController::class, 'index'])->name('stock-transfers.index');
+        Route::post('/stock-transfers', [StockTransferController::class, 'store'])->name('stock-transfers.store');
+        Route::get('/stock-transfers/{transfer}', [StockTransferController::class, 'show'])->name('stock-transfers.show');
+        Route::post('/stock-transfers/{transfer}/send', [StockTransferController::class, 'send'])->name('stock-transfers.send');
+        Route::post('/stock-transfers/{transfer}/receive', [StockTransferController::class, 'receive'])->name('stock-transfers.receive');
+        Route::post('/stock-transfers/{transfer}/cancel', [StockTransferController::class, 'cancel'])->name('stock-transfers.cancel');
+
+        // Assembly / BOM
+        Route::get('/assembly', [AssemblyController::class, 'index'])->name('assembly.index');
+        Route::post('/assembly/boms', [AssemblyController::class, 'storeBom'])->name('assembly.boms.store');
+        Route::post('/assembly/orders', [AssemblyController::class, 'storeOrder'])->name('assembly.orders.store');
+
+        // Inventory reports
+        Route::get('/reports/item-card', [InventoryReportController::class, 'itemCard'])->name('reports.item-card');
+        Route::get('/reports/valuation', [InventoryReportController::class, 'valuation'])->name('reports.valuation');
+        Route::get('/reports/reorder', [InventoryReportController::class, 'reorder'])->name('reports.reorder');
+        Route::get('/reports/slow-moving', [InventoryReportController::class, 'slowMoving'])->name('reports.slow-moving');
+        Route::get('/reports/expiry', [InventoryReportController::class, 'expiry'])->name('reports.expiry');
 
         Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');
         Route::post('/categories', [CategoryController::class, 'store'])->name('categories.store');
@@ -174,7 +201,11 @@ Route::middleware(['auth', 'tenant', 'erp.authorize', 'throttle:tenant-web'])->g
         Route::put('/warehouses/{warehouse}', [WarehouseController::class, 'update'])->name('warehouses.update');
         Route::delete('/warehouses/{warehouse}', [WarehouseController::class, 'destroy'])->name('warehouses.destroy');
         Route::get('/counts', [StockCountController::class, 'index'])->name('counts.index');
-        Route::post('/counts/reconcile', [StockCountController::class, 'reconcile'])->name('counts.reconcile');
+        Route::post('/counts', [StockCountController::class, 'store'])->name('counts.store');
+        Route::get('/counts/{count}', [StockCountController::class, 'show'])->name('counts.show');
+        Route::put('/counts/{count}', [StockCountController::class, 'update'])->name('counts.update');
+        Route::post('/counts/{count}/approve', [StockCountController::class, 'approve'])->name('counts.approve');
+        Route::post('/counts/{count}/cancel', [StockCountController::class, 'cancel'])->name('counts.cancel');
     });
 
     // 7. Purchases Module

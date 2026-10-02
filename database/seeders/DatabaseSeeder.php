@@ -12,6 +12,7 @@ use App\Services\Accounting\DocumentBackfill;
 use App\Services\Accounting\PostingService;
 use App\Services\Permissions\PermissionRegistry;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -178,6 +179,7 @@ class DatabaseSeeder extends Seeder
 
         // Demo documents were inserted directly: post their journal entries and
         // rebuild the aggregated balances.
+        Artisan::call('erp:inventory-sync', ['--company' => $company->id]);
         app(DocumentBackfill::class)->run($company);
         app(PostingService::class)->rebuildBalances($company->id);
     }
