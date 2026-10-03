@@ -5,10 +5,7 @@ namespace Database\Seeders;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Invoice;
-use App\Models\InvoiceItem;
 use App\Models\Quotation;
-use App\Models\QuotationItem;
-use App\Models\CustomerPayment;
 use App\Services\ZatcaService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
@@ -21,7 +18,9 @@ class SalesDemoSeeder extends Seeder
     public function run(): void
     {
         $company = Company::where('subdomain', 'anas')->first();
-        if (!$company) return;
+        if (! $company) {
+            return;
+        }
 
         $user = $company->users()->first();
         $branch = $company->branches()->first();
@@ -87,7 +86,7 @@ class SalesDemoSeeder extends Seeder
                 'city' => 'الرياض',
                 'credit_limit' => 30000.00,
                 'current_balance' => 0.00,
-            ]
+            ],
         ];
 
         $createdCustomers = [];
@@ -184,7 +183,7 @@ class SalesDemoSeeder extends Seeder
             $remaining = $total - $paid;
 
             // Generate ZATCA compliant QR
-            $isoDate = $inv['date'] . 'T12:00:00Z';
+            $isoDate = $inv['date'].'T12:00:00Z';
             $qrBase64 = ZatcaService::generateQrCode(
                 $company->name,
                 $company->tax_number ?? '300000000000003',
@@ -200,7 +199,7 @@ class SalesDemoSeeder extends Seeder
                 'user_id' => $user?->id,
                 'invoice_number' => $inv['invoice_number'],
                 'invoice_date' => $inv['date'],
-                'due_date' => date('Y-m-d', strtotime($inv['date'] . ' +30 days')),
+                'due_date' => date('Y-m-d', strtotime($inv['date'].' +30 days')),
                 'supply_date' => $inv['date'],
                 'subtotal' => $subtotal,
                 'discount_type' => 'fixed',

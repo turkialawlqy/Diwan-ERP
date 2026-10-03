@@ -19,7 +19,9 @@ class InventoryDemoSeeder extends Seeder
     public function run(): void
     {
         $company = Company::where('subdomain', 'anas')->first();
-        if (!$company) return;
+        if (! $company) {
+            return;
+        }
 
         $branch = $company->branches()->first();
 

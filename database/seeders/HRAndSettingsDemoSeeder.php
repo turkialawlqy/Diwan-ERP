@@ -17,7 +17,7 @@ class HRAndSettingsDemoSeeder extends Seeder
     public function run(): void
     {
         $company = Company::first();
-        if (!$company) {
+        if (! $company) {
             return;
         }
 
@@ -168,7 +168,7 @@ class HRAndSettingsDemoSeeder extends Seeder
 
         // 3. مسير رواتب سبتمبر 2026 (Payroll)
         $totalBasic = collect($employeeModels)->sum('basic_salary');
-        $totalAllowances = collect($employeeModels)->sum(fn($e) => $e->housing_allowance + $e->transport_allowance + $e->other_allowances);
+        $totalAllowances = collect($employeeModels)->sum(fn ($e) => $e->housing_allowance + $e->transport_allowance + $e->other_allowances);
         $netTotal = $totalBasic + $totalAllowances;
 
         $payroll = Payroll::firstOrCreate(

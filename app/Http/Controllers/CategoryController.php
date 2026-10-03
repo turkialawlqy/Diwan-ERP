@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -34,10 +35,10 @@ class CategoryController extends Controller
             'color' => 'nullable|string|max:20',
         ]);
 
-        $companyId = app(\App\Services\TenantManager::class)->getTenantId()
+        $companyId = app(TenantManager::class)->getTenantId()
             ?? auth()->user()?->company_id;
 
-        if (!$companyId) {
+        if (! $companyId) {
             abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
         }
 
@@ -67,6 +68,7 @@ class CategoryController extends Controller
         }
 
         $category->delete();
+
         return back()->with('success', 'تم حذف التصنيف بنجاح');
     }
 }

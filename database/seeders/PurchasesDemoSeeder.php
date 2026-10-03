@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\Branch;
 use App\Models\Company;
-use App\Models\InventoryStock;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
@@ -22,7 +21,9 @@ class PurchasesDemoSeeder extends Seeder
     public function run(): void
     {
         $company = Company::where('subdomain', 'anas')->first() ?? Company::first();
-        if (!$company) return;
+        if (! $company) {
+            return;
+        }
 
         $warehouse = Warehouse::where('company_id', $company->id)->first();
         $branch = Branch::where('company_id', $company->id)->first();

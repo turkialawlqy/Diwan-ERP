@@ -5,20 +5,18 @@ namespace Database\Seeders;
 use App\Models\Account;
 use App\Models\BankAccount;
 use App\Models\Company;
-use App\Models\Expense;
+use App\Models\Invoice;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
-use App\Models\Revenue;
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Carbon;
 
 class AccountingDemoSeeder extends Seeder
 {
     public function run(): void
     {
         $company = Company::first();
-        if (!$company) {
+        if (! $company) {
             return;
         }
 
@@ -138,7 +136,7 @@ class AccountingDemoSeeder extends Seeder
         );
 
         // 3. مزامنة القيود والحسابات من الفواتير الفعلية المنشأة في النظام
-        $invoices = \App\Models\Invoice::where('company_id', $company->id)->with('customer')->orderBy('id')->get();
+        $invoices = Invoice::where('company_id', $company->id)->with('customer')->orderBy('id')->get();
 
         $totalCash = 0;
         $totalBank = 0;
@@ -147,7 +145,7 @@ class AccountingDemoSeeder extends Seeder
 
         $entryIndex = 1;
         foreach ($invoices as $inv) {
-            $entryNumber = 'JV-26-' . str_pad($entryIndex, 6, '0', STR_PAD_LEFT);
+            $entryNumber = 'JV-26-'.str_pad($entryIndex, 6, '0', STR_PAD_LEFT);
             $entryIndex++;
 
             $customerName = $inv->customer ? ($inv->customer->name ?? $inv->customer->company_name) : 'عميل عام';
@@ -174,7 +172,7 @@ class AccountingDemoSeeder extends Seeder
                 JournalEntryLine::create([
                     'journal_entry_id' => $entry->id,
                     'account_id' => $debitAccountId,
-                    'description' => ($isCash ? 'تحصيل مبيعات نقداً' : 'تحصيل مبيعات بحوالة بنكية') . " - فاتورة {$inv->invoice_number}",
+                    'description' => ($isCash ? 'تحصيل مبيعات نقداً' : 'تحصيل مبيعات بحوالة بنكية')." - فاتورة {$inv->invoice_number}",
                     'debit' => $inv->total,
                     'credit' => 0.00,
                 ]);
