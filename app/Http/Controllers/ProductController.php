@@ -84,6 +84,8 @@ class ProductController extends Controller
             'units' => $units,
             'warehouses' => $warehouses,
             'suggestedSku' => $this->peekNumber('product'),
+            'vatCategories' => config('zatca.vat_categories'),
+            'exemptionReasons' => config('zatca.exemption_reasons'),
         ]);
     }
 
@@ -114,6 +116,12 @@ class ProductController extends Controller
             'expiry_date' => 'nullable|date',
             'serials' => 'nullable|array',
             'warehouse_id' => 'nullable|tenant_exists:warehouses,id',
+            'vat_category' => 'nullable|in:S,Z,E,O',
+            'vat_exemption_code' => ['nullable', 'string', function ($attribute, $value, $fail) use ($request) {
+                if (! isset(config('zatca.exemption_reasons')[$request->input('vat_category', 'S')][$value])) {
+                    $fail('سبب الإعفاء لا يناسب الفئة الضريبية المختارة.');
+                }
+            }],
         ]);
 
         $companyId = app(TenantManager::class)->getTenantId()
@@ -139,7 +147,7 @@ class ProductController extends Controller
                 'description' => $validated['description'] ?? null,
                 'purchase_price' => $purchasePrice,
                 'selling_price' => $validated['selling_price'],
-                'tax_rate' => $validated['tax_rate'] ?? 15.00,
+                'tax_rate' => ($validated['vat_category'] ?? 'S') === 'S' ? ($validated['tax_rate'] ?? 15.00) : 0,
                 'min_stock_alert' => $validated['min_stock_alert'] ?? 5,
                 'track_inventory' => $trackInventory,
                 'tracking' => $validated['tracking'] ?? 'none',
@@ -148,6 +156,8 @@ class ProductController extends Controller
                 'average_cost' => $purchasePrice,
                 'type' => $productType,
                 'is_active' => true,
+                'vat_category' => $validated['vat_category'] ?? 'S',
+                'vat_exemption_code' => ($validated['vat_category'] ?? 'S') === 'S' ? null : ($validated['vat_exemption_code'] ?? null),
             ]);
 
             // Opening stock goes through the stock ledger and is posted against
@@ -204,6 +214,8 @@ class ProductController extends Controller
             'product' => $product,
             'categories' => $categories,
             'units' => $units,
+            'vatCategories' => config('zatca.vat_categories'),
+            'exemptionReasons' => config('zatca.exemption_reasons'),
         ]);
     }
 
@@ -229,7 +241,14 @@ class ProductController extends Controller
             'tracking' => 'nullable|in:none,batch,serial',
             'reorder_level' => 'nullable|numeric|min:0',
             'reorder_quantity' => 'nullable|numeric|min:0',
+            'vat_category' => 'nullable|in:S,Z,E,O',
+            'vat_exemption_code' => ['nullable', 'string', function ($attribute, $value, $fail) use ($request) {
+                if (! isset(config('zatca.exemption_reasons')[$request->input('vat_category', 'S')][$value])) {
+                    $fail('سبب الإعفاء لا يناسب الفئة الضريبية المختارة.');
+                }
+            }],
         ]);
+        $validated = $this->normaliseVat($validated);
 
         // Tracking mode cannot change while stock exists (batches/serials would be inconsistent).
         if (isset($validated['tracking']) && $validated['tracking'] !== $product->tracking
@@ -329,5 +348,20 @@ class ProductController extends Controller
         });
 
         return back()->with('success', 'تم حفظ مكونات الطقم');
+    }
+
+    /** Non-standard categories carry no VAT; the standard one carries no reason. */
+    protected function normaliseVat(array $validated): array
+    {
+        $category = $validated['vat_category'] ?? 'S';
+        $validated['vat_category'] = $category;
+        if ($category === 'S') {
+            $validated['vat_exemption_code'] = null;
+        } else {
+            $validated['tax_rate'] = 0;
+            $validated['vat_exemption_code'] = ($validated['vat_exemption_code'] ?? null) ?: null;
+        }
+
+        return $validated;
     }
 }

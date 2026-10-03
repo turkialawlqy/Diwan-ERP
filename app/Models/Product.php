@@ -35,7 +35,7 @@ class Product extends Model
         'track_inventory',
         'type',
         'image',
-        'is_active',
+        'is_active', 'vat_category', 'vat_exemption_code',
     ];
 
     protected $casts = [

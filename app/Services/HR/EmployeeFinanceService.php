@@ -9,6 +9,7 @@ use App\Models\EndOfServiceSettlement;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\PostingService;
+use App\Services\Settings\CompanyPolicy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -73,7 +74,7 @@ class EmployeeFinanceService
      */
     public function gratuity(Employee $employee, Carbon $date, string $reason): array
     {
-        $rules = config('hr.end_of_service');
+        $rules = CompanyPolicy::get('hr.end_of_service');
         // Calendar years of service (leap-year safe), fractions pro rata.
         $years = $employee->hire_date ? max(0, (float) $employee->hire_date->diffInYears($date)) : 0;
         $wage = (float) $employee->basic_salary + (float) $employee->housing_allowance + (float) $employee->transport_allowance + (float) $employee->other_allowances;
@@ -92,7 +93,7 @@ class EmployeeFinanceService
 
     protected function resignationShare(float $years): float
     {
-        foreach (config('hr.end_of_service.resignation') as [$below, $share]) {
+        foreach (CompanyPolicy::get('hr.end_of_service.resignation') as [$below, $share]) {
             if ($years < $below) {
                 return $share;
             }
@@ -139,7 +140,7 @@ class EmployeeFinanceService
 
         $date = Carbon::parse($data['termination_date']);
         $gratuity = $this->gratuity($employee, $date, $data['reason']);
-        $daily = $gratuity['wage'] / config('hr.month_days', 30);
+        $daily = $gratuity['wage'] / CompanyPolicy::get('hr.month_days', 30);
         $leaveDays = max(0, $this->leaves->balance($employee, $date)['balance']);
         $loans = (float) EmployeeLoan::where('employee_id', $employee->id)->where('status', 'active')->get()->sum(fn ($l) => (float) $l->amount - (float) $l->repaid);
 

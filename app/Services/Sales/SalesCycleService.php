@@ -65,7 +65,7 @@ class SalesCycleService
             ]);
 
             foreach ($items as $i => $item) {
-                $order->items()->create(array_merge(collect($item)->except('subtotal')->all(), ['unit_id' => $lines[$i]['unit_id'] ?? null]));
+                $order->items()->create(array_merge(collect($item)->except(['subtotal', 'vat_category', 'vat_exemption_code'])->all(), ['unit_id' => $lines[$i]['unit_id'] ?? null]));
             }
 
             $this->approvals->submit($order, 'sales_order', (float) $order->total, 'confirmed');
@@ -361,6 +361,8 @@ class SalesCycleService
                     'tax_amount' => $l['lineTax'],
                     'total' => round($l['lineNet'] + $l['lineTax'], 2),
                     'return_to_stock' => $l['return_to_stock'],
+                    'vat_category' => $l['item']->vat_category,
+                    'vat_exemption_code' => $l['item']->vat_exemption_code,
                 ]);
 
                 if ($l['item']->product_id && $l['return_to_stock']) {

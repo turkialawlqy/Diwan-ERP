@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Services\Settings\CompanyPolicy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -48,7 +49,7 @@ class LeaveService
             return 0.0;
         }
 
-        $rules = config('hr.annual_leave');
+        $rules = CompanyPolicy::get('hr.annual_leave');
         $base = max((int) $employee->annual_leave_days, $rules['days']);
         $seniorFrom = $employee->hire_date->copy()->addYears($rules['senior_after_years']);
         $end = $employee->termination_date && $employee->termination_date->lt($asOf) ? $employee->termination_date : $asOf;

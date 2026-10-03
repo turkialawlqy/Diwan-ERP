@@ -136,6 +136,7 @@ export default [
             { label: 'nav.loans', route: 'hr.loans.index', path: '/hr/loans' },
             { label: 'nav.settlements', route: 'hr.settlements.index', path: '/hr/settlements' },
             { label: 'nav.organization', route: 'hr.organization', path: '/hr/organization' },
+            { label: 'nav.hr_settings', route: 'hr.settings', path: '/hr/settings' },
             { label: 'nav.self_service', route: 'hr.me', path: '/hr/me' },
         ],
     },

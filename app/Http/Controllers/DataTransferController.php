@@ -10,6 +10,7 @@ use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
@@ -42,9 +43,10 @@ class DataTransferController extends Controller
             ],
             'products' => [
                 'label' => 'الأصناف', 'model' => Product::class, 'permission' => ['view' => 'inventory.products.view', 'create' => 'inventory.products.create'],
-                'columns' => ['sku', 'barcode', 'name_ar', 'name_en', 'type', 'selling_price', 'purchase_price', 'tax_rate', 'reorder_level'],
+                'columns' => ['sku', 'barcode', 'name_ar', 'name_en', 'type', 'selling_price', 'purchase_price', 'tax_rate', 'vat_category', 'vat_exemption_code', 'reorder_level'],
                 'rules' => ['name_ar' => 'required|string|max:255', 'type' => 'nullable|in:product,service', 'selling_price' => 'required|numeric|min:0',
-                    'purchase_price' => 'nullable|numeric|min:0', 'tax_rate' => 'nullable|numeric|min:0|max:100', 'reorder_level' => 'nullable|numeric|min:0'],
+                    'purchase_price' => 'nullable|numeric|min:0', 'tax_rate' => 'nullable|numeric|min:0|max:100', 'reorder_level' => 'nullable|numeric|min:0',
+                    'vat_category' => 'nullable|in:S,Z,E,O', 'vat_exemption_code' => ['nullable', Rule::in(collect(config('zatca.exemption_reasons'))->flatMap(fn ($r) => array_keys($r))->all())]],
                 'defaults' => ['type' => 'product', 'track_inventory' => true, 'is_active' => true, 'tax_rate' => 15],
                 'key' => 'sku', 'number' => 'product',
             ],

@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAdjustment;
 use App\Models\EmployeeLoan;
 use App\Models\EmployeePayItem;
+use App\Services\Settings\CompanyPolicy;
 use Illuminate\Support\Carbon;
 
 /**
@@ -26,7 +27,7 @@ class PayrollCalculator
     {
         $from = Carbon::create($year, $month, 1)->startOfDay();
         $to = $from->copy()->endOfMonth()->startOfDay();
-        $monthDays = (int) config('hr.month_days', 30);
+        $monthDays = (int) CompanyPolicy::get('hr.month_days', 30);
         $calendarDays = $from->daysInMonth;
 
         // Days in service this month, scaled to the 30-day salary month.
@@ -60,8 +61,8 @@ class PayrollCalculator
         $adjustments = EmployeeAdjustment::where('employee_id', $employee->id)->where('year', $year)->where('month', $month)->get();
         $overtimeHours = (float) $adjustments->where('type', 'overtime_hours')->sum('amount')
             + AttendanceRecord::where('employee_id', $employee->id)->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->sum('overtime_minutes') / 60;
-        $hoursPerMonth = $monthDays * (int) config('hr.hours_per_day', 8);
-        $overtime = round($overtimeHours * ($monthlyWage / $hoursPerMonth + config('hr.overtime_premium', 0.5) * $basic / $hoursPerMonth), 2);
+        $hoursPerMonth = $monthDays * (int) CompanyPolicy::get('hr.hours_per_day', 8);
+        $overtime = round($overtimeHours * ($monthlyWage / $hoursPerMonth + CompanyPolicy::get('hr.overtime_premium', 0.5) * $basic / $hoursPerMonth), 2);
 
         $bonuses = round((float) $adjustments->whereIn('type', ['bonus', 'commission'])->sum('amount'), 2);
         $penalties = round((float) $adjustments->whereIn('type', ['penalty', 'deduction'])->sum('amount') + $fixedDeductions, 2);
@@ -75,7 +76,7 @@ class PayrollCalculator
         [$gosiEmployee, $gosiEmployer, $gosiBase] = $this->gosi($employee, $basic + $housing + (float) $payItems->where('kind', 'allowance')->where('gosi_applicable', true)->sum('amount'), $ratio, $to);
 
         // Loans and penalties within half the wage (Art. 92).
-        $cap = max(0, round($gross * config('hr.max_deduction_ratio', 0.5), 2));
+        $cap = max(0, round($gross * CompanyPolicy::get('hr.max_deduction_ratio', 0.5), 2));
         $penalties = min($penalties, $cap);
         $loanDue = $this->loanInstallments($employee, $to);
         $loanDeduction = round(min($loanDue, max(0, $cap - $penalties)), 2);
@@ -124,7 +125,7 @@ class PayrollCalculator
             return [0.0, 0.0, 0.0];
         }
 
-        $cfg = config('hr.gosi');
+        $cfg = CompanyPolicy::get('hr.gosi');
         $base = min(max($wage, $employee->isSaudi() ? $cfg['min_wage'] : 0), $cfg['max_wage']) * $ratio;
 
         if (! $employee->isSaudi()) {
@@ -136,14 +137,15 @@ class PayrollCalculator
 
         // New entrants under the 2024 law: higher annuity share, phased in each July.
         if ($employee->gosi_join_date && $employee->gosi_join_date->gte(Carbon::parse($cfg['new_law_start']))) {
-            $annuity = 0.09;
+            $baseAnnuity = (float) ($cfg['base_annuity_rate'] ?? 0.09);
+            $annuity = $baseAnnuity;
             foreach ($cfg['new_entrant_annuity'] as $from => $rate) {
                 if ($periodEnd->gte(Carbon::parse($from))) {
                     $annuity = $rate;
                 }
             }
-            $employeeRate += $annuity - 0.09;
-            $employerRate += $annuity - 0.09;
+            $employeeRate += $annuity - $baseAnnuity;
+            $employerRate += $annuity - $baseAnnuity;
         }
 
         return [round($base * $employeeRate, 2), round($base * $employerRate, 2), round($base, 2)];
@@ -166,7 +168,7 @@ class PayrollCalculator
         $cursor = $before;
         $remaining = $now;
         $tierEnd = 0;
-        foreach (config('hr.sick_tiers') as [$length, $pay]) {
+        foreach (CompanyPolicy::get('hr.sick_tiers') as [$length, $pay]) {
             $tierEnd += $length;
             $inTier = max(0, min($remaining, $tierEnd - $cursor));
             $deduction += $inTier * (1 - $pay);

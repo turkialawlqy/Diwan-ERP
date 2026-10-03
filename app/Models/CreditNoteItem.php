@@ -10,7 +10,7 @@ class CreditNoteItem extends Model
 {
     use BelongsToCompany;
 
-    protected $fillable = ['company_id', 'credit_note_id', 'invoice_item_id', 'product_id', 'item_name', 'quantity', 'unit_price', 'tax_rate', 'tax_amount', 'total', 'return_to_stock'];
+    protected $fillable = ['company_id', 'credit_note_id', 'invoice_item_id', 'product_id', 'item_name', 'quantity', 'unit_price', 'tax_rate', 'tax_amount', 'total', 'return_to_stock', 'vat_category', 'vat_exemption_code'];
 
     protected $casts = ['quantity' => 'decimal:4', 'unit_price' => 'decimal:4', 'tax_amount' => 'decimal:2', 'total' => 'decimal:2', 'return_to_stock' => 'boolean'];
 

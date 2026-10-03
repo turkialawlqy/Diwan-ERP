@@ -9,7 +9,7 @@ import Pagination from '@/Components/UI/Pagination.vue';
 import { date } from '@/utils/format';
 import { PlusIcon, ShieldCheckIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline';
 
-const props = defineProps({ devices: Array, documents: Object, stats: Object, overdue: Number, seller: Object, missing: Array, branches: Array, phase: String, filters: Object });
+const props = defineProps({ taxDefaults: Object, vatCategories: Object, exemptionReasons: Object, devices: Array, documents: Object, stats: Object, overdue: Number, seller: Object, missing: Array, branches: Array, phase: String, filters: Object });
 
 const sellerForm = useForm({
     tax_number: props.seller.tax_number || '', commercial_registration: props.seller.commercial_registration || '',
@@ -18,6 +18,7 @@ const sellerForm = useForm({
     seller_city: props.seller.seller_city || '', seller_postal_code: props.seller.seller_postal_code || '',
 });
 const saveSeller = () => sellerForm.put(route('zatca.seller'), { preserveScroll: true });
+const taxForm = useForm({ zero_category: props.taxDefaults.zero_category || 'Z', Z: props.taxDefaults.Z || '', E: props.taxDefaults.E || '', O: props.taxDefaults.O || '', out_of_scope_reason: props.taxDefaults.out_of_scope_reason || '' });
 
 const deviceOpen = ref(false);
 const deviceForm = useForm({ name: '', branch_id: '', environment: 'sandbox', invoice_types: '1100', business_category: 'Trading' });
@@ -64,6 +65,17 @@ const typeLabel = { '388': 'فاتورة', '381': 'إشعار دائن', '383': 
                     <Field label="الرمز البريدي" :error="sellerForm.errors.seller_postal_code"><input v-model="sellerForm.seller_postal_code" maxlength="5" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
                 </div>
                 <button v-if="$can('admin.zatca.manage')" @click="saveSeller" :disabled="sellerForm.processing" class="mt-3 w-full px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold">حفظ بيانات البائع</button>
+
+                <h3 class="text-xs font-black text-slate-700 mt-5 mb-1">الإعفاء والنسبة الصفرية</h3>
+                <p class="text-[11px] text-slate-500 mb-2">يُستخدم للأسطر بنسبة 0% التي لا يحدد صنفها سبباً خاصاً. الأفضل ضبط الفئة والسبب في بطاقة كل صنف.</p>
+                <div class="space-y-2">
+                    <Field label="فئة الأسطر بنسبة 0% افتراضياً"><select v-model="taxForm.zero_category" class="w-full rounded-xl border-slate-200 text-xs"><option v-for="k in ['Z', 'E', 'O']" :key="k" :value="k">{{ k }} — {{ vatCategories[k] }}</option></select></Field>
+                    <Field v-for="k in ['Z', 'E', 'O']" :key="k" :label="`السبب الافتراضي — ${vatCategories[k]}`" :error="taxForm.errors[k]">
+                        <select v-model="taxForm[k]" class="w-full rounded-xl border-slate-200 text-xs"><option value="">— بدون (يُطلب عند الإصدار) —</option><option v-for="(r, code) in exemptionReasons[k]" :key="code" :value="code">{{ code }} — {{ r.ar }}</option></select>
+                    </Field>
+                    <Field label="نص سبب «خارج النطاق»"><input v-model="taxForm.out_of_scope_reason" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                </div>
+                <button v-if="$can('admin.zatca.manage')" @click="taxForm.put(route('zatca.tax-defaults'), { preserveScroll: true })" class="mt-3 w-full px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold">حفظ إعدادات الإعفاء</button>
             </div>
 
             <div class="lg:col-span-2 space-y-3">

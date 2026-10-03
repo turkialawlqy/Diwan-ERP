@@ -26,6 +26,7 @@ use App\Http\Controllers\Finance\RevenueController;
 use App\Http\Controllers\Finance\TransferController;
 use App\Http\Controllers\HR\EmployeeController;
 use App\Http\Controllers\HR\HrOperationsController;
+use App\Http\Controllers\HR\HrSettingsController;
 use App\Http\Controllers\HR\PayrollController;
 use App\Http\Controllers\HR\SelfServiceController;
 use App\Http\Controllers\IntegrationController;
@@ -477,6 +478,11 @@ Route::middleware(['auth', 'tenant', 'plan', 'erp.authorize', 'throttle:tenant-w
         Route::post('/employees/{employee}/pay-items', [EmployeeController::class, 'storePayItem'])->name('employees.pay-items.store');
         Route::delete('/employees/{employee}/pay-items/{item}', [EmployeeController::class, 'destroyPayItem'])->name('employees.pay-items.destroy');
 
+        Route::get('/settings', [HrSettingsController::class, 'show'])->name('settings');
+        Route::put('/settings/{group}', [HrSettingsController::class, 'update'])->name('settings.update');
+        Route::delete('/settings/{group}', [HrSettingsController::class, 'reset'])->name('settings.reset');
+        Route::put('/leave-types/{leaveType}', [HrSettingsController::class, 'updateLeaveType'])->name('leave-types.update');
+
         Route::get('/organization', [HrOperationsController::class, 'organization'])->name('organization');
         Route::post('/organization/departments', [HrOperationsController::class, 'storeDepartment'])->name('departments.store');
         Route::post('/organization/positions', [HrOperationsController::class, 'storePosition'])->name('positions.store');
@@ -576,6 +582,7 @@ Route::middleware(['auth', 'tenant', 'plan', 'erp.authorize', 'throttle:tenant-w
     Route::prefix('zatca')->name('zatca.')->group(function () {
         Route::get('/', [ZatcaController::class, 'index'])->name('index');
         Route::put('/seller', [ZatcaController::class, 'updateSeller'])->name('seller');
+        Route::put('/tax-defaults', [ZatcaController::class, 'updateTaxDefaults'])->name('tax-defaults');
         Route::post('/devices', [ZatcaController::class, 'storeDevice'])->name('devices.store');
         Route::post('/devices/{device}/onboard', [ZatcaController::class, 'onboard'])->name('devices.onboard');
         Route::post('/devices/{device}/renew', [ZatcaController::class, 'renew'])->name('devices.renew');

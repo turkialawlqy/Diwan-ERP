@@ -21,6 +21,7 @@ return [
         'non_saudi_employer_rate' => 0.02,
         // New Social Insurance Law (from 3 July 2024): annuity rate for new
         // entrants rises by 0.5% each July on both sides until 11%.
+        'base_annuity_rate' => 0.09,  // annuity share included in the Saudi rates above
         'new_law_start' => '2024-07-03',
         'new_entrant_annuity' => [
             '2025-07-01' => 0.095,

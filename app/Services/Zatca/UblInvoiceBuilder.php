@@ -4,6 +4,7 @@ namespace App\Services\Zatca;
 
 use DOMDocument;
 use DOMElement;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Builds the UBL 2.1 XML (KSA profile) of an invoice, credit note or debit
@@ -122,7 +123,7 @@ class UblInvoiceBuilder
             $category = $line['tax_category'] ?? ($rate > 0 ? 'S' : 'Z');
 
             $out['lines'][] = $line + compact('quantity', 'price', 'discount', 'rate', 'net', 'tax', 'category');
-            $key = $category.'|'.number_format($rate, 2);
+            $key = $category.'|'.number_format($rate, 2).'|'.($line['exemption_code'] ?? '');
             $out['categories'][$key] ??= ['id' => $category, 'rate' => $rate, 'taxable' => 0.0, 'tax' => 0.0,
                 'exemption_code' => $line['exemption_code'] ?? null, 'exemption_reason' => $line['exemption_reason'] ?? null];
             $out['categories'][$key]['taxable'] += $net;
@@ -173,8 +174,11 @@ class UblInvoiceBuilder
         $this->cbc($el, 'ID', $category['id']);
         $this->cbc($el, 'Percent', number_format($category['rate'], 2, '.', ''));
         if ($withExemption && $category['id'] !== 'S') {
-            $this->cbc($el, 'TaxExemptionReasonCode', $category['exemption_code'] ?? 'VATEX-SA-35');
-            $this->cbc($el, 'TaxExemptionReason', $category['exemption_reason'] ?? 'Zero rated supply');
+            if (empty($category['exemption_code'])) {
+                throw ValidationException::withMessages(['zatca' => 'يوجد صنف بنسبة صفر أو معفى أو خارج النطاق دون سبب إعفاء. حدده في بطاقة الصنف أو اضبط السبب الافتراضي في إعدادات الفوترة الإلكترونية.']);
+            }
+            $this->cbc($el, 'TaxExemptionReasonCode', $category['exemption_code']);
+            $this->cbc($el, 'TaxExemptionReason', $category['exemption_reason'] ?? $category['exemption_code']);
         }
         $this->cbc($this->cac($el, 'TaxScheme'), 'ID', 'VAT');
     }

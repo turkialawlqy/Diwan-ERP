@@ -80,7 +80,7 @@ class ApiController extends Controller
 
     public function product(Product $product): JsonResponse
     {
-        return response()->json(['data' => $product->only(['id', 'sku', 'barcode', 'name_ar', 'name_en', 'selling_price', 'tax_rate', 'type', 'track_inventory']) + [
+        return response()->json(['data' => $product->only(['id', 'sku', 'barcode', 'name_ar', 'name_en', 'selling_price', 'tax_rate', 'vat_category', 'vat_exemption_code', 'type', 'track_inventory']) + [
             'stock' => InventoryStock::with('warehouse:id,name_ar')->where('product_id', $product->id)->get()
                 ->map(fn ($s) => ['warehouse_id' => $s->warehouse_id, 'warehouse' => $s->warehouse?->name_ar, 'quantity' => (float) $s->quantity]),
         ]]);
@@ -126,6 +126,8 @@ class ApiController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.tax_rate' => 'nullable|numeric|min:0|max:100',
+            'items.*.vat_category' => 'nullable|in:S,Z,E,O',
+            'items.*.vat_exemption_code' => 'nullable|string|max:30',
         ]);
 
         $invoice = $invoices->create($validated, $validated['items']);

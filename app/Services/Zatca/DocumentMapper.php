@@ -7,6 +7,7 @@ use App\Models\CreditNote;
 use App\Models\Customer;
 use App\Models\DebitNote;
 use App\Models\Invoice;
+use App\Models\Product;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -76,13 +77,13 @@ class DocumentMapper
             'supply_date' => $invoice->supply_date ? Carbon::parse($invoice->supply_date)->toDateString() : null,
             'payment_means' => $this->paymentMeans($invoice->payment_method),
             'customer' => $invoice->customer,
-            'lines' => $invoice->items->map(fn ($item) => [
+            'lines' => $invoice->items->map(fn ($item) => $this->vat([
                 'name' => $item->item_name,
                 'quantity' => (float) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
                 'discount' => (float) $item->discount,
                 'tax_rate' => (float) $item->tax_rate,
-            ])->all(),
+            ], $item->vat_category, $item->vat_exemption_code, $item->product_id))->all(),
         ]);
     }
 
@@ -94,13 +95,13 @@ class DocumentMapper
             ? $note->items->map(function ($item) {
                 $net = (float) $item->total - (float) $item->tax_amount;
 
-                return [
+                return $this->vat([
                     'name' => $item->item_name,
                     'quantity' => (float) $item->quantity,
                     'unit_price' => (float) $item->quantity > 0 ? round($net / (float) $item->quantity, 6) : $net,
                     'discount' => 0,
                     'tax_rate' => (float) $item->tax_rate,
-                ];
+                ], $item->vat_category, $item->vat_exemption_code, $item->product_id);
             })->all()
             : [$this->amountLine('تخفيض / تسوية', (float) $note->subtotal, (float) $note->tax_amount)];
 
@@ -132,7 +133,7 @@ class DocumentMapper
             'instruction_note' => $note->reason,
             'payment_means' => '30',
             'customer' => $note->customer,
-            'lines' => [['name' => mb_substr($note->reason, 0, 200), 'quantity' => 1, 'unit_price' => (float) $note->subtotal, 'discount' => 0, 'tax_rate' => (float) $note->tax_rate]],
+            'lines' => [$this->vat(['name' => mb_substr($note->reason, 0, 200), 'quantity' => 1, 'unit_price' => (float) $note->subtotal, 'discount' => 0, 'tax_rate' => (float) $note->tax_rate])],
         ]);
     }
 
@@ -183,7 +184,18 @@ class DocumentMapper
     {
         $rate = $net > 0 ? round($tax / $net * 100) : 15;
 
-        return ['name' => $name, 'quantity' => 1, 'unit_price' => $net, 'discount' => 0, 'tax_rate' => in_array($rate, [0.0, 5.0, 15.0], true) ? $rate : 15];
+        return $this->vat(['name' => $name, 'quantity' => 1, 'unit_price' => $net, 'discount' => 0, 'tax_rate' => in_array($rate, [0.0, 5.0, 15.0], true) ? $rate : 15]);
+    }
+
+    /**
+     * Attach VAT category, exemption code and reason text to a UBL line.
+     */
+    protected function vat(array $line, ?string $category = null, ?string $code = null, ?int $productId = null): array
+    {
+        $classifier = app(VatClassifier::class);
+        [$category, $code] = $classifier->classify($productId ? Product::withTrashed()->find($productId) : null, (float) $line['tax_rate'], $category, $code);
+
+        return $line + ['tax_category' => $category, 'exemption_code' => $code, 'exemption_reason' => $classifier->reasonText($category, $code)];
     }
 
     /** UNTDID 4461 payment means. */

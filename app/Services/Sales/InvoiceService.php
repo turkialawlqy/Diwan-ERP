@@ -6,12 +6,14 @@ use App\Models\Branch;
 use App\Models\CreditNote;
 use App\Models\Customer;
 use App\Models\Invoice;
+use App\Models\Product;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Saas\WebhookDispatcher;
 use App\Services\TenantManager;
 use App\Services\Zatca\EInvoiceManager;
+use App\Services\Zatca\VatClassifier;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -149,6 +151,16 @@ class InvoiceService
                 throw ValidationException::withMessages(['items' => 'خصم السطر لا يمكن أن يتجاوز قيمته.']);
             }
 
+            // VAT category / exemption reason (product, line or company default);
+            // zero-rated, exempt and out-of-scope lines carry no VAT.
+            [$vatCategory, $exemptionCode] = app(VatClassifier::class)->classify(
+                ! empty($line['product_id']) ? Product::find($line['product_id']) : null,
+                $taxRate, $line['vat_category'] ?? null, $line['vat_exemption_code'] ?? null,
+            );
+            if ($vatCategory !== 'S') {
+                $taxRate = 0.0;
+            }
+
             $lineTax = round($lineSubtotal * $taxRate / 100, 2);
 
             $items[] = [
@@ -160,6 +172,8 @@ class InvoiceService
                 'discount' => $discount,
                 'tax_rate' => $taxRate,
                 'tax_amount' => $lineTax,
+                'vat_category' => $vatCategory,
+                'vat_exemption_code' => $exemptionCode,
                 'subtotal' => $lineSubtotal,
                 'total' => round($lineSubtotal + $lineTax, 2),
             ];

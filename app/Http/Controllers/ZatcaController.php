@@ -12,6 +12,7 @@ use App\Services\Zatca\EInvoiceManager;
 use App\Services\Zatca\InvoiceSigner;
 use App\Services\Zatca\OnboardingService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -46,6 +47,15 @@ class ZatcaController extends Controller
             'missing' => $mapper->missingSellerFields($company),
             'branches' => Branch::where('is_active', true)->get(['id', 'name_ar']),
             'phase' => ZatcaDevice::where('status', 'active')->exists() ? 'phase2' : 'phase1',
+            'taxDefaults' => [
+                'zero_category' => $company->setting('zatca_default_zero_category', 'Z'),
+                'Z' => $company->setting('zatca_default_exemption_Z'),
+                'E' => $company->setting('zatca_default_exemption_E'),
+                'O' => $company->setting('zatca_default_exemption_O'),
+                'out_of_scope_reason' => $company->setting('zatca_out_of_scope_reason'),
+            ],
+            'vatCategories' => config('zatca.vat_categories'),
+            'exemptionReasons' => config('zatca.exemption_reasons'),
             'filters' => $filters,
         ]);
     }
@@ -70,6 +80,30 @@ class ZatcaController extends Controller
         }
 
         return back()->with('success', 'تم حفظ بيانات البائع');
+    }
+
+    /**
+     * Company defaults for lines at 0% VAT without a product-level reason.
+     */
+    public function updateTaxDefaults(Request $request)
+    {
+        $reasons = config('zatca.exemption_reasons');
+        $validated = $request->validate([
+            'zero_category' => 'required|in:Z,E,O',
+            'Z' => ['nullable', Rule::in(array_keys($reasons['Z']))],
+            'E' => ['nullable', Rule::in(array_keys($reasons['E']))],
+            'O' => ['nullable', Rule::in(array_keys($reasons['O']))],
+            'out_of_scope_reason' => 'nullable|string|max:250',
+        ]);
+
+        $company = $this->tenantManager->getCompany();
+        $company->setSetting('zatca_default_zero_category', $validated['zero_category'], 'zatca');
+        foreach (['Z', 'E', 'O'] as $category) {
+            $company->setSetting('zatca_default_exemption_'.$category, $validated[$category] ?? '', 'zatca');
+        }
+        $company->setSetting('zatca_out_of_scope_reason', $validated['out_of_scope_reason'] ?? '', 'zatca');
+
+        return back()->with('success', 'تم حفظ إعدادات الإعفاء الضريبي');
     }
 
     public function storeDevice(Request $request, OnboardingService $onboarding)

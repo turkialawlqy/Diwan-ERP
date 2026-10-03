@@ -100,7 +100,8 @@
         "billing": "Subscription",
         "integrations": "API & Webhooks",
         "data_transfer": "Import / Export",
-        "crm_leads": "Leads (CRM)"
+        "crm_leads": "Leads (CRM)",
+        "hr_settings": "Payroll Settings"
     },
     "common": {
         "search": "Search...",
