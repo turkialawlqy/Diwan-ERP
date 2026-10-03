@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue';
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
 import { 
@@ -31,7 +31,9 @@ const handleFilter = () => {
 };
 
 const impersonate = (companyId) => {
-    router.post(route('super-admin.impersonate.enter', companyId));
+    const reason = prompt('سبب الدخول على بيانات المنشأة (يُسجّل في سجل التدقيق):');
+    if (!reason || reason.trim().length < 5) return;
+    router.post(route('super-admin.impersonate.enter', companyId), { reason });
 };
 </script>
 
@@ -149,7 +151,7 @@ const impersonate = (companyId) => {
                                         {{ company.name.charAt(0) }}
                                     </div>
                                     <div>
-                                        <p class="font-bold text-slate-900 text-xs sm:text-sm">{{ company.name }}</p>
+                                        <Link :href="route('super-admin.companies.show', company.id)" class="font-bold text-slate-900 text-xs sm:text-sm hover:text-indigo-600">{{ company.name }}</Link>
                                         <p class="text-[11px] text-slate-400 font-mono" dir="ltr">{{ company.email || company.phone }}</p>
                                     </div>
                                 </div>

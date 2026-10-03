@@ -96,7 +96,11 @@
         "loans": "السلف",
         "settlements": "نهاية الخدمة",
         "organization": "الهيكل التنظيمي",
-        "self_service": "خدماتي"
+        "self_service": "خدماتي",
+        "billing": "الاشتراك والفوترة",
+        "integrations": "الربط البرمجي",
+        "data_transfer": "استيراد وتصدير",
+        "crm_leads": "العملاء المحتملون"
     },
     "common": {
         "search": "بحث...",

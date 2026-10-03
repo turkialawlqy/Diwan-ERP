@@ -6,6 +6,7 @@ use App\Jobs\SubmitZatcaDocument;
 use App\Models\Company;
 use App\Models\ZatcaDevice;
 use App\Models\ZatcaDocument;
+use App\Services\Saas\WebhookDispatcher;
 use App\Services\TenantManager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
@@ -166,6 +167,10 @@ class EInvoiceManager
         if ($record->cleared_xml && preg_match('#<cbc:ID>QR</cbc:ID>\s*<cac:Attachment>\s*<cbc:EmbeddedDocumentBinaryObject[^>]*>([^<]+)<#', $record->cleared_xml, $m)) {
             $qr = $m[1];
         }
+
+        app(WebhookDispatcher::class)->dispatch('zatca.status_changed', [
+            'document' => $record->document_number, 'type_code' => $record->type_code, 'status' => $status, 'uuid' => $record->uuid,
+        ]);
 
         $record->documentable?->forceFill([
             'zatca_status' => in_array($status, ['cleared', 'reported', 'warning'], true) ? ($record->submission === 'clearance' ? 'cleared' : 'reported') : $status,

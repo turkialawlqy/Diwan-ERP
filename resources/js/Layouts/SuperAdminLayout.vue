@@ -38,6 +38,9 @@ const logout = () => {
                         <BuildingOfficeIcon class="w-4 h-4 text-purple-400" />
                         <span>جميع الشركات والمنشآت</span>
                     </Link>
+                    <Link :href="route('super-admin.plans')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">الباقات</Link>
+                    <Link :href="route('super-admin.invoices')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">فواتير الاشتراكات</Link>
+                    <Link :href="route('super-admin.audit')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">سجل تدقيق المنصة</Link>
                 </nav>
             </div>
 

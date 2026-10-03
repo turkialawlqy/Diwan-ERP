@@ -3,7 +3,14 @@
 namespace App\Providers;
 
 use App\Models\AuditLog;
+use App\Models\Branch;
+use App\Models\Company;
+use App\Models\Employee;
+use App\Models\Invoice;
+use App\Models\User;
+use App\Models\Warehouse;
 use App\Services\Accounting\AccountMap;
+use App\Services\Saas\PlanGuard;
 use App\Services\TenantManager;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
@@ -170,6 +177,25 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // General API: max 120 per minute per user/IP
+        // Plan limits are enforced on creation, whatever the entry point.
+        $limit = function (string $resource) {
+            return function ($model) use ($resource) {
+                $companyId = $model->company_id ?? app(TenantManager::class)->getTenantId();
+                if (! $companyId || ($resource === 'users' && $model->is_super_admin)) {
+                    return;
+                }
+                $company = Company::with('plan')->find($companyId);
+                if ($company) {
+                    app(PlanGuard::class)->assertCanAdd($company, $resource);
+                }
+            };
+        };
+        User::creating($limit('users'));
+        Branch::creating($limit('branches'));
+        Warehouse::creating($limit('warehouses'));
+        Employee::creating($limit('employees'));
+        Invoice::creating($limit('invoices'));
+
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(120)->by($request->user()?->id ?? $request->ip());
         });

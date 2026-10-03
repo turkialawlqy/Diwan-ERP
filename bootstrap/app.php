@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AuthorizeRoutePermission;
+use App\Http\Middleware\EnsurePlanAccess;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\EnsureTenant;
 use App\Http\Middleware\ForceHttps;
@@ -21,6 +22,7 @@ use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
@@ -63,6 +65,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'super_admin' => EnsureSuperAdmin::class,
             'tenant' => EnsureTenant::class,
             'erp.authorize' => AuthorizeRoutePermission::class,
+            'plan' => EnsurePlanAccess::class,
+            'tenant.resolve' => ResolveTenant::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

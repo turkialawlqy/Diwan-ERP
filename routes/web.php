@@ -9,13 +9,16 @@ use App\Http\Controllers\ApprovalRuleController;
 use App\Http\Controllers\AssemblyController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\GoogleAuthController;
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CompanySettingController;
 use App\Http\Controllers\CreditNoteController;
+use App\Http\Controllers\Crm;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerPaymentController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DataTransferController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\Finance\BankAccountController;
 use App\Http\Controllers\Finance\ExpenseController;
@@ -25,11 +28,13 @@ use App\Http\Controllers\HR\EmployeeController;
 use App\Http\Controllers\HR\HrOperationsController;
 use App\Http\Controllers\HR\PayrollController;
 use App\Http\Controllers\HR\SelfServiceController;
+use App\Http\Controllers\IntegrationController;
 use App\Http\Controllers\InventoryOperationController;
 use App\Http\Controllers\InventoryReportController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\LookupController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
@@ -44,6 +49,7 @@ use App\Http\Controllers\Sales as S;
 use App\Http\Controllers\StockCountController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SuperAdmin\ImpersonationController;
+use App\Http\Controllers\SuperAdmin\PlatformController;
 use App\Http\Controllers\SuperAdmin\SuperAdminDashboardController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierPaymentController;
@@ -91,13 +97,23 @@ Route::middleware(['auth'])->group(function () {
         Route::middleware(['super_admin'])->group(function () {
             Route::get('/dashboard', [SuperAdminDashboardController::class, 'index'])->name('dashboard');
             Route::post('/impersonate/{company}', [ImpersonationController::class, 'enter'])->name('impersonate.enter');
+            Route::get('/companies/{company}', [PlatformController::class, 'company'])->name('companies.show');
+            Route::put('/companies/{company}', [PlatformController::class, 'updateCompany'])->name('companies.update');
+            Route::post('/companies/{company}/verify-domain', [PlatformController::class, 'verifyDomain'])->name('companies.verify-domain');
+            Route::get('/plans', [PlatformController::class, 'plans'])->name('plans');
+            Route::post('/plans', [PlatformController::class, 'savePlan'])->name('plans.store');
+            Route::put('/plans/{plan}', [PlatformController::class, 'savePlan'])->name('plans.update');
+            Route::get('/invoices', [PlatformController::class, 'invoices'])->name('invoices');
+            Route::post('/invoices/{invoice}/confirm', [PlatformController::class, 'confirmInvoice'])->name('invoices.confirm');
+            Route::post('/invoices/{invoice}/void', [PlatformController::class, 'voidInvoice'])->name('invoices.void');
+            Route::get('/audit', [PlatformController::class, 'audit'])->name('audit');
         });
     });
 
 });
 
 // Company (tenant) ERP routes: authenticated user + resolved tenant required.
-Route::middleware(['auth', 'tenant', 'erp.authorize', 'throttle:tenant-web'])->group(function () {
+Route::middleware(['auth', 'tenant', 'plan', 'erp.authorize', 'throttle:tenant-web'])->group(function () {
     // 1. Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
@@ -520,6 +536,41 @@ Route::middleware(['auth', 'tenant', 'erp.authorize', 'throttle:tenant-web'])->g
     Route::post('/settings/logo', [CompanySettingController::class, 'uploadLogo'])->name('settings.logo.upload');
     Route::delete('/settings/logo', [CompanySettingController::class, 'deleteLogo'])->name('settings.logo.delete');
     Route::post('/settings/zatca/onboard', [CompanySettingController::class, 'onboardZatca'])->name('settings.zatca.onboard');
+
+    // Subscription, integrations, notifications, data transfer
+    Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
+    Route::post('/billing/plan', [BillingController::class, 'requestPlan'])->name('billing.plan');
+    Route::put('/billing/domain', [BillingController::class, 'updateDomain'])->name('billing.domain');
+    Route::post('/billing/domain/verify', [BillingController::class, 'verifyDomain'])->name('billing.domain.verify');
+    Route::post('/billing/export', [BillingController::class, 'exportData'])->name('billing.export');
+    Route::get('/billing/export/{export}', [BillingController::class, 'downloadExport'])->name('billing.export.download');
+
+    Route::get('/integrations', [IntegrationController::class, 'index'])->name('integrations.index');
+    Route::post('/integrations/tokens', [IntegrationController::class, 'storeToken'])->name('integrations.tokens.store');
+    Route::delete('/integrations/tokens/{token}', [IntegrationController::class, 'destroyToken'])->name('integrations.tokens.destroy');
+    Route::post('/integrations/webhooks', [IntegrationController::class, 'storeWebhook'])->name('webhooks.store');
+    Route::delete('/integrations/webhooks/{webhook}', [IntegrationController::class, 'destroyWebhook'])->name('webhooks.destroy');
+    Route::post('/integrations/webhooks/{webhook}/test', [IntegrationController::class, 'testWebhook'])->name('webhooks.test');
+
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::get('/notifications/{id}', [NotificationController::class, 'read'])->name('notifications.read');
+
+    Route::get('/data-transfer', [DataTransferController::class, 'index'])->name('data-transfer.index');
+    Route::get('/data-transfer/{type}/export', [DataTransferController::class, 'export'])->name('data-transfer.export');
+    Route::get('/data-transfer/{type}/template', [DataTransferController::class, 'template'])->name('data-transfer.template');
+    Route::post('/data-transfer/{type}/import', [DataTransferController::class, 'import'])->name('data-transfer.import');
+
+    // CRM
+    Route::prefix('crm')->name('crm.')->group(function () {
+        Route::get('/leads', [Crm\LeadController::class, 'index'])->name('leads.index');
+        Route::post('/leads', [Crm\LeadController::class, 'store'])->name('leads.store');
+        Route::get('/leads/{lead}', [Crm\LeadController::class, 'show'])->name('leads.show');
+        Route::put('/leads/{lead}', [Crm\LeadController::class, 'update'])->name('leads.update');
+        Route::post('/leads/{lead}/move', [Crm\LeadController::class, 'move'])->name('leads.move');
+        Route::post('/leads/{lead}/activities', [Crm\LeadController::class, 'storeActivity'])->name('leads.activities.store');
+        Route::post('/leads/{lead}/convert', [Crm\LeadController::class, 'convert'])->name('leads.convert');
+    });
 
     // E-invoicing (ZATCA phase 2)
     Route::prefix('zatca')->name('zatca.')->group(function () {

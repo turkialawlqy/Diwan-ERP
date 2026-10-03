@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Inventory\DocumentStock;
+use App\Services\Saas\WebhookDispatcher;
 use App\Services\TenantManager;
 use App\Services\Zatca\EInvoiceManager;
 use Illuminate\Support\Carbon;
@@ -113,6 +114,12 @@ class InvoiceService
             }
 
             $this->stamp($invoice, $company);
+
+            app(WebhookDispatcher::class)->dispatch('invoice.created', [
+                'id' => $invoice->id, 'number' => $invoice->invoice_number, 'type' => $invoice->invoice_type, 'customer_id' => $invoice->customer_id,
+                'date' => $invoice->invoice_date, 'subtotal' => (float) $invoice->subtotal, 'vat' => (float) $invoice->tax_amount, 'total' => (float) $invoice->total,
+                'remaining' => (float) $invoice->remaining_amount, 'zatca_uuid' => $invoice->zatca_uuid,
+            ]);
 
             return $invoice;
         });

@@ -19,7 +19,18 @@ const dismissFlash = () => {
 
 // Business-rule errors (e.g. accounting: closed period, unbalanced entry)
 // are shown here even on pages whose forms do not render that field.
-const generalError = computed(() => page.props.errors?.accounting || null);
+const generalError = computed(() => page.props.errors?.accounting || page.props.errors?.plan || null);
+
+// Subscription notice: trial ending soon, grace period, or read-only.
+const subscriptionNotice = computed(() => {
+    const sub = page.props.subscription;
+    if (!sub) return null;
+    const days = sub.ends_at ? Math.ceil((new Date(sub.ends_at) - new Date()) / 86400000) : null;
+    if (sub.state === 'expired') return { tone: 'bg-rose-600', text: 'انتهى الاشتراك: البيانات متاحة للعرض فقط حتى التجديد.' };
+    if (sub.state === 'grace') return { tone: 'bg-amber-500', text: 'انتهى الاشتراك وأنت في فترة السماح. جدّد لتفادي إيقاف الإدخال.' };
+    if (sub.state === 'trial' && days !== null && days <= 7) return { tone: 'bg-sky-600', text: `تنتهي الفترة التجريبية خلال ${Math.max(days, 0)} يوم.` };
+    return null;
+});
 
 // A new flash message after a dismissed one must be visible again.
 watch(() => [flash.value?.success, flash.value?.error, generalError.value], () => {
@@ -31,6 +42,10 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value], () =
     <div class="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white print:bg-white print:min-h-0 print:p-0 print:m-0 print:block">
         <!-- Super Admin Impersonation Notice Banner -->
         <ImpersonationBanner class="print:hidden" :impersonation="impersonation" />
+        <div v-if="subscriptionNotice" :class="subscriptionNotice.tone" class="text-white text-xs font-bold px-4 py-2 text-center print:hidden">
+            {{ subscriptionNotice.text }}
+            <a v-if="$canRoute('billing.index')" :href="route('billing.index')" class="underline ms-2">إدارة الاشتراك</a>
+        </div>
 
         <div class="flex-1 flex print:block">
             <!-- Right Navigation Sidebar (in RTL) -->

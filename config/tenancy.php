@@ -40,6 +40,11 @@ return [
     /*
     | Request rate limits for company routes (requests per minute).
     */
+    /*
+    | Minutes a super admin impersonation session stays valid.
+    */
+    'impersonation_minutes' => (int) env('TENANCY_IMPERSONATION_MINUTES', 60),
+
     'rate_limit_per_user' => (int) env('TENANCY_RATE_LIMIT_USER', 300),
     'rate_limit_per_company' => (int) env('TENANCY_RATE_LIMIT_COMPANY', 3000),
 

@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Laravel\Sanctum\PersonalAccessToken;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -29,8 +30,13 @@ class AuthorizeRoutePermission
             return $next($request);
         }
 
+        // API tokens carry their own abilities: a token may never do more
+        // than the abilities it was issued with, nor more than its user.
+        $token = method_exists($user, 'currentAccessToken') ? $user->currentAccessToken() : null;
+        $tokenBound = $token instanceof PersonalAccessToken;
+
         foreach ((array) $required as $permission) {
-            if ($user->can($permission)) {
+            if ($user->can($permission) && (! $tokenBound || $token->can($permission))) {
                 return $next($request);
             }
         }

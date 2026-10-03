@@ -28,12 +28,19 @@ class Company extends Model
         'timezone',
         'language',
         'is_verified',
+        'subscription_ends_at',
+        'billing_cycle',
+        'suspended_reason',
     ];
 
     protected $casts = [
         'trial_ends_at' => 'datetime',
+        'subscription_ends_at' => 'datetime',
+        'custom_domain_verified_at' => 'datetime',
         'is_verified' => 'boolean',
     ];
+
+    protected $hidden = ['custom_domain_token'];
 
     protected $appends = [
         'logo_url',

@@ -31,6 +31,7 @@ export default [
             { label: 'nav.delivery_notes', route: 'sales.deliveries.index', path: '/sales/deliveries' },
             { label: 'nav.credit_notes', route: 'sales.returns.index', path: '/sales/returns' },
             { label: 'nav.clients', route: 'sales.clients.index', path: '/sales/clients' },
+            { label: 'nav.crm_leads', route: 'crm.leads.index', path: '/crm/leads' },
             { label: 'nav.payments_received', route: 'sales.payments.index', path: '/sales/payments' },
             { label: 'nav.debit_notes', route: 'sales.debit-notes.index', path: '/sales/debit-notes' },
             { label: 'nav.price_lists', route: 'sales.price-lists.index', path: '/sales/price-lists' },
@@ -149,6 +150,9 @@ export default [
             { label: 'nav.audit_log', route: 'audit.index', path: '/audit-log' },
             { label: 'nav.approval_rules', route: 'approval-rules.index', path: '/approval-rules' },
             { label: 'nav.e_invoicing', route: 'zatca.index', path: '/zatca' },
+            { label: 'nav.billing', route: 'billing.index', path: '/billing' },
+            { label: 'nav.integrations', route: 'integrations.index', path: '/integrations' },
+            { label: 'nav.data_transfer', route: 'data-transfer.index', path: '/data-transfer' },
         ],
     },
 ];

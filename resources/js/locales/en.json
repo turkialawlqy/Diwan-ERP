@@ -96,7 +96,11 @@
         "loans": "Loans",
         "settlements": "End of Service",
         "organization": "Organisation",
-        "self_service": "My Services"
+        "self_service": "My Services",
+        "billing": "Subscription",
+        "integrations": "API & Webhooks",
+        "data_transfer": "Import / Export",
+        "crm_leads": "Leads (CRM)"
     },
     "common": {
         "search": "Search...",

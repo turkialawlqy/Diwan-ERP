@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\Invoice;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Saas\WebhookDispatcher;
 use App\Services\Sales\SalesCycleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -102,6 +103,11 @@ class CustomerPaymentController extends Controller
             Customer::where('id', $validated['customer_id'])->decrement('current_balance', $validated['amount']);
 
             app(DocumentPoster::class)->customerPayment($payment);
+
+            app(WebhookDispatcher::class)->dispatch('payment.received', [
+                'id' => $payment->id, 'number' => $payment->payment_number, 'customer_id' => $payment->customer_id,
+                'amount' => (float) $payment->amount, 'date' => $payment->payment_date, 'method' => $payment->payment_method,
+            ]);
         });
 
         return back()->with('success', 'تم تسجيل سند القبض وتحديث الرصيد بنجاح');

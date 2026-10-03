@@ -65,7 +65,9 @@ class RegisteredUserController extends Controller
         ]);
 
         $user = DB::transaction(function () use ($request) {
-            $basicPlan = SubscriptionPlan::where('slug', 'basic')->first();
+            // New companies try the most popular plan; they choose a plan when subscribing.
+            $basicPlan = SubscriptionPlan::where('is_active', true)->where('is_popular', true)->first()
+                ?? SubscriptionPlan::where('slug', 'basic')->first();
 
             $currenciesMeta = [
                 'SAR' => ['name_ar' => 'ريال سعودي', 'name_en' => 'Saudi Riyal', 'symbol_ar' => 'ر.س', 'symbol_en' => 'SAR'],
@@ -88,7 +90,7 @@ class RegisteredUserController extends Controller
                 'email' => $request->email,
                 'phone' => $request->phone,
                 'status' => 'trial',
-                'trial_ends_at' => now()->addDays(14),
+                'trial_ends_at' => now()->addDays($basicPlan?->trial_days ?: 14),
                 'subscription_plan_id' => $basicPlan?->id,
                 'currency' => $selectedCurrencyCode,
                 'timezone' => 'Asia/Riyadh',

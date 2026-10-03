@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\Branch;
 use App\Models\User;
 use App\Services\Permissions\PermissionRegistry;
+use App\Services\Saas\PlanGuard;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -308,13 +309,8 @@ class UserController extends Controller
      */
     protected function enforceUserLimit(): void
     {
-        $limit = $this->tenantManager->getCompany()?->plan?->max_users;
-
-        if ($limit && User::where('company_id', $this->tenantManager->getTenantId())->count() >= $limit) {
-            throw ValidationException::withMessages([
-                'email' => "وصلت إلى الحد الأقصى للمستخدمين في باقتك ({$limit}). يرجى ترقية الباقة.",
-            ]);
-        }
+        // Same rule as every other plan limit (-1 / null = unlimited).
+        app(PlanGuard::class)->assertCanAdd($this->tenantManager->getCompany()->loadMissing('plan'), 'users');
     }
 
     protected function flushCache(): void

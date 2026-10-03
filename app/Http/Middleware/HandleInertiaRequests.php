@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Saas\PlanGuard;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -65,6 +66,11 @@ class HandleInertiaRequests extends Middleware
                 'trial_ends_at' => $currentTenant->trial_ends_at?->format('Y-m-d'),
             ] : null,
             'impersonation' => $tenantManager->getImpersonationData(),
+            'unreadNotifications' => fn () => $user ? $user->unreadNotifications()->count() : 0,
+            'subscription' => fn () => $currentTenant ? [
+                'state' => app(PlanGuard::class)->state($currentTenant),
+                'ends_at' => ($currentTenant->status === 'trial' ? $currentTenant->trial_ends_at : $currentTenant->subscription_ends_at)?->format('Y-m-d'),
+            ] : null,
             // Route name => permission map (same one the server enforces) so the UI
             // can hide links the user cannot open.
             'routePermissions' => fn () => $user && $currentTenant ? config('erp_permissions.routes') : [],

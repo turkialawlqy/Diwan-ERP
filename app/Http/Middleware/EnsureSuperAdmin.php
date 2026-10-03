@@ -19,6 +19,16 @@ class EnsureSuperAdmin
             abort(403, 'غير مصرح لك بالوصول إلى لوحة التحكم الرئيسية.');
         }
 
+        // With subdomain enforcement on, the console only answers on the
+        // platform domains (admin.{central} or the bare central domain).
+        if (config('tenancy.enforce_subdomain')) {
+            $central = strtolower(config('tenancy.central_domain'));
+            $host = strtolower($request->getHost());
+            if (! in_array($host, [$central, 'admin.'.$central, 'www.'.$central], true)) {
+                abort(404);
+            }
+        }
+
         return $next($request);
     }
 }

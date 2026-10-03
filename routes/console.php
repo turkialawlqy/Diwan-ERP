@@ -17,3 +17,6 @@ Schedule::command('erp:zatca-submit')->everyTenMinutes()->withoutOverlapping()->
 
 // HR: end-of-service provision at the start of each month for the previous month end.
 Schedule::command('erp:hr-provision')->monthlyOn(1, '03:10')->withoutOverlapping()->onOneServer();
+
+// Daily business alerts (overdue invoices, expiring documents, approvals...).
+Schedule::command('erp:alerts')->dailyAt('06:50')->withoutOverlapping()->onOneServer();

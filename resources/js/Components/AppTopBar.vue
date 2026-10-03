@@ -83,14 +83,14 @@ const logout = () => {
             <LanguageSwitcher />
 
             <!-- Notifications Icon -->
-            <button 
-                type="button" 
+            <Link
+                :href="route('notifications.index')"
                 class="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors relative"
                 title="الإشعارات"
             >
                 <BellIcon class="w-5 h-5" />
-                <span class="absolute top-1.5 end-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
-            </button>
+                <span v-if="$page.props.unreadNotifications" class="absolute -top-0.5 -end-0.5 min-w-4 h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white flex items-center justify-center">{{ $page.props.unreadNotifications > 99 ? '99+' : $page.props.unreadNotifications }}</span>
+            </Link>
 
             <!-- User Dropdown Menu -->
             <Menu as="div" class="relative">

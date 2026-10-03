@@ -24,6 +24,11 @@ class SubscriptionPlan extends Model
         'features',
         'is_active',
         'is_popular',
+        'modules',
+        'max_warehouses',
+        'max_employees',
+        'trial_days',
+        'sort',
     ];
 
     protected $casts = [
@@ -35,7 +40,16 @@ class SubscriptionPlan extends Model
         'features' => 'array',
         'is_active' => 'boolean',
         'is_popular' => 'boolean',
+        'modules' => 'array',
+        'max_warehouses' => 'integer',
+        'max_employees' => 'integer',
     ];
+
+    /** Null modules means the plan includes every module. */
+    public function includesModule(string $module): bool
+    {
+        return $this->modules === null || in_array($module, $this->modules, true);
+    }
 
     public function companies(): HasMany
     {

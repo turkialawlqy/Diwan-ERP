@@ -18,6 +18,7 @@ use App\Services\Accounting\DocumentPoster;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
+use App\Services\Saas\WebhookDispatcher;
 use App\Services\Workflow\ApprovalService;
 use App\Services\Zatca\EInvoiceManager;
 use Illuminate\Support\Carbon;
@@ -382,6 +383,9 @@ class SalesCycleService
             $this->settleInvoice($invoice, $total, $refundMethod);
             $this->poster->creditNote($note, [], $warehouseId, round($returnedCost, 2));
             $this->invoices->stampCreditNote($note);
+            app(WebhookDispatcher::class)->dispatch('credit_note.created', [
+                'id' => $note->id, 'number' => $note->credit_note_number, 'invoice_id' => $note->invoice_id, 'total' => (float) $note->total, 'reason' => $note->reason,
+            ]);
 
             return $note;
         });

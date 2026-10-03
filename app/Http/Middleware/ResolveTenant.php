@@ -37,6 +37,12 @@ class ResolveTenant
         $company = null;
         $fromHost = false;
 
+        // Impersonation is time limited.
+        if ($this->tenantManager->isImpersonating() && (int) session('impersonate_expires_at', 0) < now()->timestamp) {
+            $this->tenantManager->stopImpersonation();
+            session()->forget('impersonate_expires_at');
+        }
+
         // 1. Super admin impersonation.
         if ($user && $user->isSuperAdmin() && $this->tenantManager->isImpersonating()) {
             $company = Company::find(session('impersonate_company_id'));
@@ -79,9 +85,11 @@ class ResolveTenant
             // A user may only act inside their own company. Super admins may act
             // inside a company only while impersonating it.
             if ($user && ! $this->userMayAccess($user, $company)) {
-                Auth::guard('web')->logout();
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
+                if ($request->hasSession()) {
+                    Auth::guard('web')->logout();
+                    $request->session()->invalidate();
+                    $request->session()->regenerateToken();
+                }
 
                 abort(403, 'لا تملك صلاحية الوصول إلى هذه المنشأة.');
             }
@@ -92,7 +100,7 @@ class ResolveTenant
 
             $this->tenantManager->setTenant($company);
 
-            if (! session()->has('locale')) {
+            if (! $request->hasSession() || ! session()->has('locale')) {
                 app()->setLocale($company->language ?? 'ar');
             }
         }
@@ -122,7 +130,7 @@ class ResolveTenant
         }
 
         if (! $this->isCentralHost($host) && ! $this->isIpAddress($host)) {
-            return Company::where('custom_domain', $host)->first();
+            return Company::where('custom_domain', $host)->whereNotNull('custom_domain_verified_at')->first();
         }
 
         return null;
