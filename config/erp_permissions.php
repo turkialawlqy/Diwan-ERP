@@ -91,6 +91,21 @@ return [
             ],
         ],
 
+        'projects' => [
+            'ar' => 'المقاولات والمشاريع', 'en' => 'Contracting & Projects',
+            'resources' => [
+                'projects' => ['ar' => 'المشاريع والعقود', 'en' => 'Projects & Contracts', 'actions' => ['view', 'create', 'edit']],
+                'boq' => ['ar' => 'جداول الكميات', 'en' => 'Bill of Quantities', 'actions' => ['view', 'edit']],
+                'billings' => ['ar' => 'مستخلصات العملاء', 'en' => 'Progress Billings', 'actions' => ['view', 'create', 'approve', 'delete', 'print']],
+                'variations' => ['ar' => 'أوامر التغيير', 'en' => 'Variation Orders', 'actions' => ['create', 'approve']],
+                'subcontracts' => ['ar' => 'مقاولو الباطن', 'en' => 'Subcontracts', 'actions' => ['view', 'create', 'approve']],
+                'costs' => ['ar' => 'تكاليف المشاريع', 'en' => 'Project Costs', 'actions' => ['view', 'create']],
+                'finance' => ['ar' => 'الدفعات المقدمة والمحتجزات', 'en' => 'Advances & Retention', 'actions' => ['create', 'approve']],
+                'guarantees' => ['ar' => 'خطابات الضمان', 'en' => 'Letters of Guarantee', 'actions' => ['view', 'create', 'edit']],
+                'daily_reports' => ['ar' => 'التقارير اليومية', 'en' => 'Daily Site Reports', 'actions' => ['view', 'create']],
+            ],
+        ],
+
         'finance' => [
             'ar' => 'المالية', 'en' => 'Finance',
             'resources' => [
@@ -172,7 +187,7 @@ return [
         'admin' => ['ar' => 'مدير المنشأة', 'en' => 'Owner / Administrator', 'permissions' => '*'],
         'accountant' => [
             'ar' => 'محاسب', 'en' => 'Accountant',
-            'permissions' => ['dashboard.*', 'accounting.*', 'finance.*', 'reports.*', 'sales.invoices.view', 'sales.invoices.print', 'sales.clients.view', 'sales.payments.*', 'sales.returns.view', 'sales.debit_notes.*', 'sales.deliveries.view', 'admin.zatca.view', 'admin.zatca.export', 'purchases.invoices.view', 'purchases.landed_costs.*', 'purchases.receipts.view', 'purchases.returns.view', 'purchases.suppliers.view', 'purchases.payments.*', 'hr.payroll.view', 'hr.payroll.post', 'inventory.costs.view', 'inventory.products.view'],
+            'permissions' => ['dashboard.*', 'accounting.*', 'finance.*', 'reports.*', 'projects.projects.view', 'projects.billings.*', 'projects.finance.*', 'projects.subcontracts.*', 'projects.costs.view', 'projects.guarantees.*', 'sales.invoices.view', 'sales.invoices.print', 'sales.clients.view', 'sales.payments.*', 'sales.returns.view', 'sales.debit_notes.*', 'sales.deliveries.view', 'admin.zatca.view', 'admin.zatca.export', 'purchases.invoices.view', 'purchases.landed_costs.*', 'purchases.receipts.view', 'purchases.returns.view', 'purchases.suppliers.view', 'purchases.payments.*', 'hr.payroll.view', 'hr.payroll.post', 'inventory.costs.view', 'inventory.products.view'],
         ],
         'sales' => [
             'ar' => 'مندوب مبيعات', 'en' => 'Sales',
@@ -189,6 +204,12 @@ return [
         'purchasing' => [
             'ar' => 'مسؤول مشتريات', 'en' => 'Purchasing',
             'permissions' => ['dashboard.*', 'purchases.suppliers.*', 'purchases.orders.*', 'purchases.requests.*', 'purchases.receipts.*', 'purchases.landed_costs.*', 'purchases.invoices.view', 'purchases.invoices.create', 'purchases.invoices.print', 'purchases.returns.*', 'inventory.products.view', 'inventory.costs.view'],
+        ],
+        'project_manager' => [
+            'ar' => 'مدير مشاريع', 'en' => 'Project Manager',
+            'permissions' => ['dashboard.*', 'projects.projects.view', 'projects.projects.edit', 'projects.boq.*', 'projects.billings.view', 'projects.billings.create', 'projects.billings.print',
+                'projects.variations.create', 'projects.subcontracts.view', 'projects.subcontracts.create', 'projects.costs.*', 'projects.guarantees.view', 'projects.daily_reports.*',
+                'inventory.products.view', 'sales.clients.view', 'purchases.suppliers.view', 'purchases.requests.view', 'purchases.requests.create'],
         ],
         'hr_manager' => [
             'ar' => 'مدير الموارد البشرية', 'en' => 'HR Manager',
@@ -257,6 +278,30 @@ return [
         'purchases.returns.show' => 'purchases.returns.view',
         'purchases.landed-costs.index' => 'purchases.landed_costs.view',
         'purchases.landed-costs.store' => 'purchases.landed_costs.create',
+        'projects.index' => 'projects.projects.view',
+        'projects.create' => 'projects.projects.create',
+        'projects.store' => 'projects.projects.create',
+        'projects.show' => 'projects.projects.view',
+        'projects.update' => 'projects.projects.edit',
+        'projects.boq.update' => 'projects.boq.edit',
+        'projects.advance' => 'projects.finance.create',
+        'projects.retention.release' => 'projects.finance.approve',
+        'projects.variations.store' => 'projects.variations.create',
+        'projects.variations.approve' => 'projects.variations.approve',
+        'projects.variations.reject' => 'projects.variations.approve',
+        'projects.daily-reports.store' => 'projects.daily_reports.create',
+        'projects.billings.store' => 'projects.billings.create',
+        'projects.billings.show' => 'projects.billings.view',
+        'projects.billings.approve' => 'projects.billings.approve',
+        'projects.billings.destroy' => 'projects.billings.delete',
+        'projects.materials' => 'projects.costs.create',
+        'projects.costs.store' => 'projects.costs.create',
+        'projects.subcontracts.store' => 'projects.subcontracts.create',
+        'projects.subcontracts.advance' => 'projects.subcontracts.approve',
+        'projects.subcontracts.certify' => 'projects.subcontracts.approve',
+        'projects.guarantees.index' => 'projects.guarantees.view',
+        'projects.guarantees.store' => 'projects.guarantees.create',
+        'projects.guarantees.update' => 'projects.guarantees.edit',
         'approval-rules.index' => 'admin.approvals.view',
         'approval-rules.store' => 'admin.approvals.manage',
         'approval-rules.destroy' => 'admin.approvals.manage',

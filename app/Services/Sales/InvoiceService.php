@@ -38,7 +38,8 @@ class InvoiceService
      *                       bank_account_id?, due_date?, supply_date?, reference_number?, notes?, terms?, salesperson_id?,
      *                       sales_order_id?, delivery_note_id?, invoice_type?, number_type?
      * @param  array  $lines  product_id?, item_name, description?, quantity, unit_price, discount?, tax_rate?, unit_id?, batch_id?, serials?
-     * @param  array  $options  issue_stock (default true), cost (known cost when stock already issued), check_credit (default true)
+     * @param  array  $options  issue_stock (default true), cost (known cost when stock already issued), check_credit (default true),
+     *                          post (default true; false when the caller posts its own entry, e.g. project billings)
      */
     public function create(array $data, array $lines, array $options = []): Invoice
     {
@@ -107,7 +108,9 @@ class InvoiceService
                 $cost = $this->stock->issue($lines, $warehouseId, 'sale', $invoice, $date, $invoice->invoice_number);
             }
 
-            $this->poster->salesInvoice($invoice, $invoice->warehouse_id, (float) ($cost ?? 0));
+            if ($options['post'] ?? true) {
+                $this->poster->salesInvoice($invoice, $invoice->warehouse_id, (float) ($cost ?? 0));
+            }
 
             $this->stamp($invoice, $company);
 

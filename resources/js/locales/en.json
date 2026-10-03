@@ -87,7 +87,10 @@
         "purchase_returns": "Purchase Returns",
         "landed_costs": "Landed Costs",
         "approval_rules": "Approval Rules",
-        "e_invoicing": "E-Invoicing (ZATCA)"
+        "e_invoicing": "E-Invoicing (ZATCA)",
+        "projects": "Contracting",
+        "projects_list": "Projects & Contracts",
+        "guarantees": "Letters of Guarantee"
     },
     "common": {
         "search": "Search...",

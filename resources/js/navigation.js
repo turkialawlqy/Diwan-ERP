@@ -13,6 +13,7 @@ import {
     Cog6ToothIcon,
     UsersIcon,
     DocumentChartBarIcon,
+    BuildingOffice2Icon,
 } from '@heroicons/vue/24/outline';
 
 /**
@@ -57,6 +58,13 @@ export default [
             { label: 'nav.reorder', route: 'inventory.reports.reorder', path: '/inventory/reports/reorder' },
             { label: 'nav.slow_moving', route: 'inventory.reports.slow-moving', path: '/inventory/reports/slow-moving' },
             { label: 'nav.expiry', route: 'inventory.reports.expiry', path: '/inventory/reports/expiry' },
+        ],
+    },
+    {
+        key: 'projects', label: 'nav.projects', icon: BuildingOffice2Icon, color: 'indigo',
+        children: [
+            { label: 'nav.projects_list', route: 'projects.index', path: '/projects' },
+            { label: 'nav.guarantees', route: 'projects.guarantees.index', path: '/projects/guarantees' },
         ],
     },
     {

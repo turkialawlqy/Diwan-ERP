@@ -31,6 +31,7 @@ use App\Http\Controllers\LookupController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Projects as PR;
 use App\Http\Controllers\PurchaseInvoiceController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\Purchases as P;
@@ -286,6 +287,34 @@ Route::middleware(['auth', 'tenant', 'erp.authorize', 'throttle:tenant-web'])->g
         // Supplier Payments
         Route::get('/payments', [SupplierPaymentController::class, 'index'])->name('payments.index');
         Route::post('/payments', [SupplierPaymentController::class, 'store'])->name('payments.store');
+    });
+
+    // Contracting & projects
+    Route::prefix('projects')->name('projects.')->group(function () {
+        Route::get('/', [PR\ProjectController::class, 'index'])->name('index');
+        Route::get('/create', [PR\ProjectController::class, 'create'])->name('create');
+        Route::post('/', [PR\ProjectController::class, 'store'])->name('store');
+        Route::get('/guarantees', [PR\GuaranteeController::class, 'index'])->name('guarantees.index');
+        Route::post('/guarantees', [PR\GuaranteeController::class, 'store'])->name('guarantees.store');
+        Route::put('/guarantees/{guarantee}', [PR\GuaranteeController::class, 'update'])->name('guarantees.update');
+        Route::post('/subcontracts/{subcontract}/advance', [PR\ProjectCostController::class, 'subcontractAdvance'])->name('subcontracts.advance');
+        Route::post('/subcontracts/{subcontract}/certify', [PR\ProjectCostController::class, 'certify'])->name('subcontracts.certify');
+        Route::get('/{project}', [PR\ProjectController::class, 'show'])->name('show');
+        Route::put('/{project}', [PR\ProjectController::class, 'update'])->name('update');
+        Route::put('/{project}/boq', [PR\ProjectController::class, 'updateBoq'])->name('boq.update');
+        Route::post('/{project}/advance', [PR\ProjectController::class, 'advance'])->name('advance');
+        Route::post('/{project}/retention/release', [PR\ProjectController::class, 'releaseRetention'])->name('retention.release');
+        Route::post('/{project}/variations', [PR\ProjectController::class, 'storeVariation'])->name('variations.store');
+        Route::post('/{project}/variations/{variation}/approve', [PR\ProjectController::class, 'approveVariation'])->name('variations.approve');
+        Route::post('/{project}/variations/{variation}/reject', [PR\ProjectController::class, 'rejectVariation'])->name('variations.reject');
+        Route::post('/{project}/daily-reports', [PR\ProjectController::class, 'storeDailyReport'])->name('daily-reports.store');
+        Route::post('/{project}/billings', [PR\ProjectBillingController::class, 'store'])->name('billings.store');
+        Route::get('/{project}/billings/{billing}', [PR\ProjectBillingController::class, 'show'])->name('billings.show');
+        Route::post('/{project}/billings/{billing}/approve', [PR\ProjectBillingController::class, 'approve'])->name('billings.approve');
+        Route::delete('/{project}/billings/{billing}', [PR\ProjectBillingController::class, 'destroy'])->name('billings.destroy');
+        Route::post('/{project}/materials', [PR\ProjectCostController::class, 'materials'])->name('materials');
+        Route::post('/{project}/costs', [PR\ProjectCostController::class, 'store'])->name('costs.store');
+        Route::post('/{project}/subcontracts', [PR\ProjectCostController::class, 'storeSubcontract'])->name('subcontracts.store');
     });
 
     // 8. Finance Module

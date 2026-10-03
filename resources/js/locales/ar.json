@@ -87,7 +87,10 @@
         "purchase_returns": "مرتجعات المشتريات",
         "landed_costs": "التكاليف الإضافية",
         "approval_rules": "قواعد الاعتماد",
-        "e_invoicing": "الفوترة الإلكترونية"
+        "e_invoicing": "الفوترة الإلكترونية",
+        "projects": "المقاولات والمشاريع",
+        "projects_list": "المشاريع والعقود",
+        "guarantees": "خطابات الضمان"
     },
     "common": {
         "search": "بحث...",

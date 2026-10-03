@@ -23,7 +23,7 @@ class InventoryReportController extends Controller
     protected const MOVEMENT_LABELS = [
         'opening' => 'رصيد افتتاحي', 'purchase' => 'مشتريات', 'purchase_return' => 'مرتجع مشتريات', 'sale' => 'مبيعات',
         'sale_return' => 'مرتجع مبيعات', 'transfer_out' => 'تحويل صادر', 'transfer_in' => 'تحويل وارد', 'adjustment' => 'تسوية',
-        'count' => 'جرد', 'damage' => 'إتلاف', 'assembly_in' => 'إنتاج', 'assembly_out' => 'صرف للإنتاج', 'project_issue' => 'صرف لمشروع',
+        'count' => 'جرد', 'damage' => 'إتلاف', 'assembly_in' => 'إنتاج', 'assembly_out' => 'صرف للإنتاج', 'project_issue' => 'صرف لمشروع', 'project_return' => 'مرتجع من مشروع',
         'delivery' => 'إذن صرف', 'receipt' => 'إذن استلام',
     ];
 
