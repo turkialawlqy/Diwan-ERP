@@ -19,6 +19,7 @@ use App\Services\Documents\DocumentNumberService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
 use App\Services\Workflow\ApprovalService;
+use App\Services\Zatca\EInvoiceManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -380,6 +381,7 @@ class SalesCycleService
 
             $this->settleInvoice($invoice, $total, $refundMethod);
             $this->poster->creditNote($note, [], $warehouseId, round($returnedCost, 2));
+            $this->invoices->stampCreditNote($note);
 
             return $note;
         });
@@ -449,6 +451,7 @@ class SalesCycleService
 
             Customer::whereKey($note->customer_id)->increment('current_balance', (float) $note->total);
             $this->poster->debitNote($note);
+            app(EInvoiceManager::class)->stamp($note);
 
             return $note;
         });

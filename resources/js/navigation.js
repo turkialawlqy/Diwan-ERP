@@ -134,6 +134,7 @@ export default [
             { label: 'nav.roles', route: 'roles.index', path: '/roles' },
             { label: 'nav.audit_log', route: 'audit.index', path: '/audit-log' },
             { label: 'nav.approval_rules', route: 'approval-rules.index', path: '/approval-rules' },
+            { label: 'nav.e_invoicing', route: 'zatca.index', path: '/zatca' },
         ],
     },
 ];

@@ -86,7 +86,8 @@
         "goods_receipts": "Goods Receipts",
         "purchase_returns": "Purchase Returns",
         "landed_costs": "Landed Costs",
-        "approval_rules": "Approval Rules"
+        "approval_rules": "Approval Rules",
+        "e_invoicing": "E-Invoicing (ZATCA)"
     },
     "common": {
         "search": "Search...",

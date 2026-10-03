@@ -526,84 +526,10 @@ const removeLogo = async () => {
                                 </div>
                             </div>
 
-                            <!-- Phase 2 Extended Configuration (Shows only when Phase 2 is selected) -->
-                            <div v-show="form.zatca_phase === 'phase2'" class="space-y-4 pt-3 border-t border-slate-100">
-                                <h3 class="text-xs font-black text-indigo-900 flex items-center gap-2">
-                                    <KeyIcon class="w-4 h-4 text-indigo-600" />
-                                    <span>إعدادات وشهادات الربط (Phase 2 Integration)</span>
-                                </h3>
-
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-xs font-bold text-slate-700 mb-1">بيئة الربط (ZATCA Environment) *</label>
-                                        <select 
-                                            v-model="form.zatca_environment"
-                                            class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 font-bold bg-slate-50/50"
-                                        >
-                                            <option value="sandbox">بيئة المحاكاة والاختبار (Sandbox / Simulation)</option>
-                                            <option value="production">بيئة الإنتاج الحقيقية المباشرة (Production Portal)</option>
-                                        </select>
-                                        <p class="text-2xs text-slate-400 mt-1">يُوصى بالبدء ببيئة Sandbox لاختبار التوافق قبل الانتقال للإنتاج.</p>
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-xs font-bold text-slate-700 mb-1">حالة توثيق الجهاز (CSID Status)</label>
-                                        <div class="flex items-center gap-2 pt-1.5">
-                                            <span 
-                                                v-if="settings?.zatca_compliance_status === 'active'"
-                                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                            >
-                                                <CheckBadgeIcon class="w-4 h-4 text-emerald-600" />
-                                                <span>موثق ومعتمد بشهادة CSID</span>
-                                            </span>
-                                            <span 
-                                                v-else
-                                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200"
-                                            >
-                                                <span>بانتظار إدخال رمز التحقق OTP للربط</span>
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Onboarding Box -->
-                                <div class="bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-5 space-y-4">
-                                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-indigo-200/60 pb-3">
-                                        <div>
-                                            <h4 class="text-xs font-black text-indigo-900">ربط وتوثيق جهاز الفوترة عبر رمز التحقق (OTP)</h4>
-                                            <p class="text-2xs text-indigo-700 mt-0.5">قم بالدخول لبوابة "فاتورة" لهيئة الزكاة واستخراج رمز OTP المكون من 6 أرقام للربط الفوري.</p>
-                                        </div>
-                                    </div>
-
-                                    <div class="flex flex-col sm:flex-row items-center gap-3">
-                                        <div class="w-full sm:w-64">
-                                            <input 
-                                                v-model="onboardForm.otp"
-                                                type="text" 
-                                                placeholder="أدخل رمز OTP (مثال: 123456)"
-                                                class="w-full text-xs font-mono text-center tracking-widest rounded-xl border-indigo-200 focus:border-indigo-600 focus:ring-indigo-600 bg-white"
-                                                dir="ltr"
-                                                maxlength="10"
-                                            />
-                                        </div>
-                                        <button 
-                                            type="button"
-                                            @click="triggerOnboard"
-                                            :disabled="onboardForm.processing || !onboardForm.otp"
-                                            class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all disabled:opacity-50"
-                                        >
-                                            <ArrowPathIcon v-if="onboardForm.processing" class="w-4 h-4 animate-spin" />
-                                            <KeyIcon v-else class="w-4 h-4" />
-                                            <span>توثيق وربط الجهاز مع ZATCA</span>
-                                        </button>
-                                    </div>
-
-                                    <div v-if="settings?.zatca_csid" class="p-3 bg-white/80 rounded-xl border border-indigo-100 text-2xs space-y-1">
-                                        <p class="text-slate-500 font-medium">الشهادة الرقمية المعتمدة (CSID Token):</p>
-                                        <p class="font-mono text-slate-700 break-all">{{ settings.zatca_csid }}</p>
-                                        <p v-if="settings?.zatca_onboarded_at" class="text-slate-400 mt-1">تاريخ الاعتماد: {{ settings.zatca_onboarded_at }}</p>
-                                    </div>
-                                </div>
+                            <div v-show="form.zatca_phase === 'phase2'" class="bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-5 text-xs space-y-2">
+                                <h4 class="font-black text-indigo-900">الربط والتكامل (المرحلة الثانية)</h4>
+                                <p class="text-indigo-700">تُدار أجهزة الفوترة (EGS) والشهادات وفحوصات الامتثال ومتابعة الاعتماد والإبلاغ من شاشة الفوترة الإلكترونية. تتفعل المرحلة الثانية تلقائياً عند ربط جهاز.</p>
+                                <Link :href="route('zatca.index')" class="inline-block px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold">فتح شاشة الفوترة الإلكترونية</Link>
                             </div>
                         </div>
 

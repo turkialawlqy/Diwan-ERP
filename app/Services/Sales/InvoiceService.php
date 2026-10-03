@@ -11,7 +11,6 @@ use App\Services\Documents\DocumentNumberService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\TenantManager;
 use App\Services\Zatca\EInvoiceManager;
-use App\Services\ZatcaService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -88,7 +87,7 @@ class InvoiceService
                 'notes' => $data['notes'] ?? null,
                 'terms' => $data['terms'] ?? null,
                 'zatca_uuid' => (string) Str::uuid(),
-                'zatca_status' => 'pending',
+                'zatca_status' => 'not_submitted',
             ]);
 
             foreach ($items as $item) {
@@ -196,47 +195,16 @@ class InvoiceService
     }
 
     /**
-     * ZATCA QR (phase 1) — replaced by the signed phase 2 stamp when the
-     * company is onboarded (see App\Services\Zatca).
+     * E-invoice stamp: phase 1 QR, or signed phase 2 XML when the company has
+     * an onboarded EGS device (see App\Services\Zatca\EInvoiceManager).
      */
-    public function stamp(Invoice $invoice, $company): void
+    public function stamp(Invoice $invoice, $company = null): void
     {
-        if (class_exists(EInvoiceManager::class)) {
-            app(EInvoiceManager::class)->stamp($invoice);
-
-            return;
-        }
-
-        $invoice->forceFill([
-            'zatca_qr' => ZatcaService::generateQrCode(
-                $company?->name ?? '',
-                $company?->tax_number ?? '',
-                Carbon::parse($invoice->invoice_date)->format('Y-m-d').'T'.now()->format('H:i:s').'Z',
-                $invoice->total,
-                $invoice->tax_amount,
-            ),
-            'zatca_status' => 'generated',
-        ])->saveQuietly();
+        app(EInvoiceManager::class)->stamp($invoice);
     }
 
-    /**
-     * Phase 1 QR for credit notes (phase 2 signing handled by the e-invoice manager).
-     */
     public function stampCreditNote(CreditNote $note): void
     {
-        if (class_exists(EInvoiceManager::class)) {
-            app(EInvoiceManager::class)->stamp($note);
-
-            return;
-        }
-
-        $company = $this->tenantManager->getCompany();
-        $note->forceFill(['zatca_qr' => ZatcaService::generateQrCode(
-            $company?->name ?? '',
-            $company?->tax_number ?? '',
-            Carbon::parse($note->credit_note_date)->format('Y-m-d').'T'.now()->format('H:i:s').'Z',
-            $note->total,
-            $note->tax_amount,
-        )])->saveQuietly();
+        app(EInvoiceManager::class)->stamp($note);
     }
 }

@@ -6,7 +6,6 @@ use App\Models\Account;
 use App\Models\Company;
 use App\Models\CompanySetting;
 use App\Services\TenantManager;
-use App\Services\ZatcaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -123,7 +122,6 @@ class CompanySettingController extends Controller
             'pos_auto_print' => ! empty($validated['pos_auto_print']) ? '1' : '0',
             'zatca_phase' => $validated['zatca_phase'] ?? 'phase1',
             'zatca_environment' => $validated['zatca_environment'] ?? 'sandbox',
-            'zatca_otp' => $validated['zatca_otp'] ?? '',
 
             // Accounting Mappings
             'acc_sales_revenue_id' => $validated['acc_sales_revenue_id'] ?? null,
@@ -162,34 +160,11 @@ class CompanySettingController extends Controller
     }
 
     /**
-     * Test or perform simulated/real onboarding with ZATCA Fatoora Portal.
+     * Onboarding moved to the e-invoicing (ZATCA) screen with real CSIDs.
      */
-    public function onboardZatca(Request $request, TenantManager $tenantManager)
+    public function onboardZatca()
     {
-        $company = $tenantManager->getCompany() ?? $request->user()?->company;
-
-        if (! $company) {
-            abort(403, 'لا يمكن تحديد سياق المنشأة.');
-        }
-
-        $request->validate([
-            'otp' => 'required|string|min:6|max:10',
-            'environment' => 'required|string|in:sandbox,simulation,production',
-        ]);
-
-        $result = ZatcaService::onboardDevice(
-            $company->id,
-            $request->input('otp'),
-            $request->input('environment', 'sandbox')
-        );
-
-        if (! $result['success']) {
-            return redirect()->route('settings.index')
-                ->with('error', $result['message']);
-        }
-
-        return redirect()->route('settings.index')
-            ->with('success', $result['message']);
+        return redirect()->route('zatca.index');
     }
 
     /**

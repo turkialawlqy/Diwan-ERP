@@ -47,6 +47,7 @@ use App\Http\Controllers\SupplierPaymentController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\ZatcaController;
 use App\Services\TenantManager;
 use Illuminate\Support\Facades\Route;
 
@@ -444,6 +445,18 @@ Route::middleware(['auth', 'tenant', 'erp.authorize', 'throttle:tenant-web'])->g
     Route::post('/settings/logo', [CompanySettingController::class, 'uploadLogo'])->name('settings.logo.upload');
     Route::delete('/settings/logo', [CompanySettingController::class, 'deleteLogo'])->name('settings.logo.delete');
     Route::post('/settings/zatca/onboard', [CompanySettingController::class, 'onboardZatca'])->name('settings.zatca.onboard');
+
+    // E-invoicing (ZATCA phase 2)
+    Route::prefix('zatca')->name('zatca.')->group(function () {
+        Route::get('/', [ZatcaController::class, 'index'])->name('index');
+        Route::put('/seller', [ZatcaController::class, 'updateSeller'])->name('seller');
+        Route::post('/devices', [ZatcaController::class, 'storeDevice'])->name('devices.store');
+        Route::post('/devices/{device}/onboard', [ZatcaController::class, 'onboard'])->name('devices.onboard');
+        Route::post('/devices/{device}/renew', [ZatcaController::class, 'renew'])->name('devices.renew');
+        Route::post('/devices/{device}/revoke', [ZatcaController::class, 'revoke'])->name('devices.revoke');
+        Route::post('/documents/{document}/resubmit', [ZatcaController::class, 'resubmit'])->name('documents.resubmit');
+        Route::get('/documents/{document}/xml', [ZatcaController::class, 'xml'])->name('documents.xml');
+    });
 });
 
 require __DIR__.'/auth.php';

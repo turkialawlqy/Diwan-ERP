@@ -13,7 +13,7 @@ use App\Models\Product;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Inventory\DocumentStock;
 use App\Services\TenantManager;
-use App\Services\ZatcaService;
+use App\Services\Zatca\EInvoiceManager;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -231,18 +231,6 @@ class PosController extends Controller
                 throw ValidationException::withMessages(['paid_amount' => 'المبلغ المدفوع أقل من إجمالي الفاتورة.']);
             }
 
-            // Generate ZATCA QR Code
-            $timestamp = Carbon::now()->format('Y-m-d\TH:i:s\Z');
-            $sellerName = $company?->name ?? 'الأستاذ';
-            $vatNumber = $company?->tax_number ?? '300000000000003';
-            $zatcaQr = ZatcaService::generateQrCode(
-                $sellerName,
-                $vatNumber,
-                $timestamp,
-                $total,
-                $taxAmount
-            );
-
             $orderNumber = $this->nextNumber('pos_order');
 
             // 1. Create linked Simplified Tax Invoice
@@ -267,9 +255,8 @@ class PosController extends Controller
                 'payment_method' => $validated['payment_method'] === 'cash' ? 'cash' : 'card',
                 'bank_account_id' => $validated['payment_method'] === 'cash' ? $session->register?->bank_account_id : null,
                 'notes' => 'فاتورة ضريبية مبسطة - نقطة بيع',
+                'invoice_type' => 'simplified',
                 'zatca_uuid' => (string) Str::uuid(),
-                'zatca_qr' => $zatcaQr,
-                'zatca_status' => 'reported',
             ]);
 
             // 2. Create PosOrder
@@ -288,7 +275,6 @@ class PosController extends Controller
                 'change_amount' => $changeAmount,
                 'payment_method' => $validated['payment_method'],
                 'status' => 'completed',
-                'zatca_qr' => $zatcaQr,
             ]);
 
             foreach ($orderItems as $oItem) {
@@ -307,6 +293,10 @@ class PosController extends Controller
             $cost = $documentStock->issue($orderItems, $warehouseId, 'sale', $invoice, $invoice->invoice_date, $orderNumber);
 
             app(DocumentPoster::class)->salesInvoice($invoice, $warehouseId, $cost);
+
+            // Simplified tax invoice: QR now, reported to ZATCA within 24h (phase 2).
+            app(EInvoiceManager::class)->stamp($invoice);
+            $posOrder->forceFill(['zatca_qr' => $invoice->zatca_qr])->saveQuietly();
 
             return $posOrder;
         });

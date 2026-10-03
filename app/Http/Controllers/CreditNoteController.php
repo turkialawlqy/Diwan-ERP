@@ -10,10 +10,10 @@ use App\Services\Accounting\DocumentPoster;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\SalesCycleService;
 use App\Services\TenantManager;
-use App\Services\ZatcaService;
-use Carbon\Carbon;
+use App\Services\Zatca\EInvoiceManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -166,15 +166,6 @@ class CreditNoteController extends Controller
         $company = $tenantManager->getCompany();
 
         $creditNote = DB::transaction(function () use ($validated, $company) {
-            $timestamp = Carbon::now()->format('Y-m-d\TH:i:s\Z');
-            $zatcaQr = ZatcaService::generateQrCode(
-                $company?->name ?? 'الأستاذ',
-                $company?->tax_number ?? '300000000000003',
-                $timestamp,
-                $validated['total'],
-                $validated['tax_amount']
-            );
-
             $creditNote = CreditNote::create([
                 'company_id' => $company->id,
                 'customer_id' => $validated['customer_id'],
@@ -188,7 +179,8 @@ class CreditNoteController extends Controller
                 'status' => $validated['status'],
                 'refund_method' => $validated['status'] === 'refunded' ? ($validated['refund_method'] ?? 'cash') : 'credit',
                 'bank_account_id' => $validated['bank_account_id'] ?? null,
-                'zatca_qr' => $zatcaQr,
+                'kind' => 'amount',
+                'zatca_uuid' => (string) Str::uuid(),
             ]);
 
             // A credit to the customer's account lowers their balance; a cash/bank
@@ -200,6 +192,9 @@ class CreditNoteController extends Controller
             }
 
             app(DocumentPoster::class)->creditNote($creditNote);
+            if ($creditNote->status !== 'draft') {
+                app(EInvoiceManager::class)->stamp($creditNote);
+            }
 
             return $creditNote;
         });

@@ -86,7 +86,8 @@
         "goods_receipts": "استلام البضاعة",
         "purchase_returns": "مرتجعات المشتريات",
         "landed_costs": "التكاليف الإضافية",
-        "approval_rules": "قواعد الاعتماد"
+        "approval_rules": "قواعد الاعتماد",
+        "e_invoicing": "الفوترة الإلكترونية"
     },
     "common": {
         "search": "بحث...",
