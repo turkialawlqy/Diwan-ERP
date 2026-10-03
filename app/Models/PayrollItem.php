@@ -19,6 +19,8 @@ class PayrollItem extends Model
         'deductions',
         'net_salary',
         'notes',
+        'company_id', 'days_worked', 'housing_allowance', 'transport_allowance', 'other_allowances', 'overtime', 'bonuses', 'absence_deduction',
+        'loan_deduction', 'other_deductions', 'gosi_employee', 'gosi_employer', 'gross_salary', 'cost_center_id', 'breakdown',
     ];
 
     protected $casts = [
@@ -26,6 +28,7 @@ class PayrollItem extends Model
         'allowances' => 'decimal:2',
         'deductions' => 'decimal:2',
         'net_salary' => 'decimal:2',
+        'breakdown' => 'array',
     ];
 
     public function payroll(): BelongsTo

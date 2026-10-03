@@ -38,6 +38,7 @@ return [
         'purchase_return' => ['table' => 'purchase_returns', 'column' => 'return_number', 'prefix' => 'PRT-', 'pad' => 6, 'yearly' => true],
         'landed_cost' => ['table' => 'landed_costs', 'column' => 'landed_number', 'prefix' => 'LC-', 'pad' => 5, 'yearly' => true],
         'customer' => ['table' => 'customers', 'column' => 'code', 'prefix' => 'C-', 'pad' => 5, 'yearly' => false],
+        'employee' => ['table' => 'employees', 'column' => 'employee_number', 'prefix' => 'EMP-', 'pad' => 4, 'yearly' => false],
         'project' => ['table' => 'projects', 'column' => 'code', 'prefix' => 'PRJ-', 'pad' => 4, 'yearly' => false],
         'subcontract' => ['table' => 'subcontracts', 'column' => 'number', 'prefix' => 'SUB-', 'pad' => 5, 'yearly' => true],
         'product' => ['table' => 'products', 'column' => 'sku', 'prefix' => 'PRD-', 'pad' => 5, 'yearly' => false],

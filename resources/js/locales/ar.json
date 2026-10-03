@@ -90,7 +90,13 @@
         "e_invoicing": "الفوترة الإلكترونية",
         "projects": "المقاولات والمشاريع",
         "projects_list": "المشاريع والعقود",
-        "guarantees": "خطابات الضمان"
+        "guarantees": "خطابات الضمان",
+        "attendance": "الحضور والانصراف",
+        "leaves": "الإجازات",
+        "loans": "السلف",
+        "settlements": "نهاية الخدمة",
+        "organization": "الهيكل التنظيمي",
+        "self_service": "خدماتي"
     },
     "common": {
         "search": "بحث...",

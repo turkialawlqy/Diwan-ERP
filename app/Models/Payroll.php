@@ -27,6 +27,7 @@ class Payroll extends Model
         'payment_date',
         'notes',
         'created_by',
+        'total_overtime', 'total_gosi_employee', 'total_gosi_employer', 'total_loans', 'approved_by', 'approved_at', 'paid_at',
     ];
 
     protected $casts = [

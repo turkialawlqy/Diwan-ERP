@@ -14,3 +14,6 @@ Schedule::command('erp:accounting-schedules depreciation')->monthlyOn(1, '02:10'
 
 // ZATCA: re-queue clearance / reporting that did not go through.
 Schedule::command('erp:zatca-submit')->everyTenMinutes()->withoutOverlapping()->onOneServer();
+
+// HR: end-of-service provision at the start of each month for the previous month end.
+Schedule::command('erp:hr-provision')->monthlyOn(1, '03:10')->withoutOverlapping()->onOneServer();

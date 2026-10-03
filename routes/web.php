@@ -22,7 +22,9 @@ use App\Http\Controllers\Finance\ExpenseController;
 use App\Http\Controllers\Finance\RevenueController;
 use App\Http\Controllers\Finance\TransferController;
 use App\Http\Controllers\HR\EmployeeController;
+use App\Http\Controllers\HR\HrOperationsController;
 use App\Http\Controllers\HR\PayrollController;
+use App\Http\Controllers\HR\SelfServiceController;
 use App\Http\Controllers\InventoryOperationController;
 use App\Http\Controllers\InventoryReportController;
 use App\Http\Controllers\InvoiceController;
@@ -448,11 +450,55 @@ Route::middleware(['auth', 'tenant', 'erp.authorize', 'throttle:tenant-web'])->g
     // 12. HR Module
     Route::prefix('hr')->name('hr.')->group(function () {
         Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
+        Route::get('/employees/create', [EmployeeController::class, 'create'])->name('employees.create');
         Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');
+        Route::get('/employees/{employee}', [EmployeeController::class, 'show'])->name('employees.show');
+        Route::get('/employees/{employee}/edit', [EmployeeController::class, 'edit'])->name('employees.edit');
+        Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
         Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
+        Route::post('/employees/{employee}/documents', [EmployeeController::class, 'storeDocument'])->name('employees.documents.store');
+        Route::delete('/employees/{employee}/documents/{document}', [EmployeeController::class, 'destroyDocument'])->name('employees.documents.destroy');
+        Route::post('/employees/{employee}/pay-items', [EmployeeController::class, 'storePayItem'])->name('employees.pay-items.store');
+        Route::delete('/employees/{employee}/pay-items/{item}', [EmployeeController::class, 'destroyPayItem'])->name('employees.pay-items.destroy');
+
+        Route::get('/organization', [HrOperationsController::class, 'organization'])->name('organization');
+        Route::post('/organization/departments', [HrOperationsController::class, 'storeDepartment'])->name('departments.store');
+        Route::post('/organization/positions', [HrOperationsController::class, 'storePosition'])->name('positions.store');
+        Route::post('/organization/shifts', [HrOperationsController::class, 'storeShift'])->name('shifts.store');
+
+        Route::get('/attendance', [HrOperationsController::class, 'attendance'])->name('attendance.index');
+        Route::post('/attendance', [HrOperationsController::class, 'storeAttendance'])->name('attendance.store');
+        Route::post('/attendance/import', [HrOperationsController::class, 'importAttendance'])->name('attendance.import');
+
+        Route::get('/leaves', [HrOperationsController::class, 'leaves'])->name('leaves.index');
+        Route::post('/leaves', [HrOperationsController::class, 'storeLeave'])->name('leaves.store');
+        Route::post('/leaves/{leave}/decide', [HrOperationsController::class, 'decideLeave'])->name('leaves.decide');
+
+        Route::get('/loans', [HrOperationsController::class, 'loans'])->name('loans.index');
+        Route::post('/loans', [HrOperationsController::class, 'storeLoan'])->name('loans.store');
+        Route::post('/loans/{loan}/decide', [HrOperationsController::class, 'decideLoan'])->name('loans.decide');
+
+        Route::get('/settlements', [HrOperationsController::class, 'settlements'])->name('settlements.index');
+        Route::post('/settlements', [HrOperationsController::class, 'storeSettlement'])->name('settlements.store');
+        Route::post('/settlements/{settlement}/approve', [HrOperationsController::class, 'approveSettlement'])->name('settlements.approve');
+        Route::post('/settlements/{settlement}/pay', [HrOperationsController::class, 'paySettlement'])->name('settlements.pay');
+        Route::post('/settlements/provision', [HrOperationsController::class, 'accrueProvision'])->name('settlements.provision');
 
         Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll.index');
         Route::post('/payroll', [PayrollController::class, 'store'])->name('payroll.store');
+        Route::get('/payroll/{payroll}', [PayrollController::class, 'show'])->name('payroll.show');
+        Route::post('/payroll/{payroll}/recalculate', [PayrollController::class, 'recalculate'])->name('payroll.recalculate');
+        Route::post('/payroll/{payroll}/approve', [PayrollController::class, 'approve'])->name('payroll.approve');
+        Route::post('/payroll/{payroll}/pay', [PayrollController::class, 'pay'])->name('payroll.pay');
+        Route::post('/payroll/{payroll}/adjustments', [PayrollController::class, 'storeAdjustment'])->name('payroll.adjustments.store');
+        Route::delete('/payroll/{payroll}/adjustments/{adjustment}', [PayrollController::class, 'destroyAdjustment'])->name('payroll.adjustments.destroy');
+        Route::get('/payroll/{payroll}/wps', [PayrollController::class, 'wps'])->name('payroll.wps');
+        Route::get('/payroll/{payroll}/payslips/{item}', [PayrollController::class, 'payslip'])->name('payroll.payslip');
+
+        Route::get('/me', [SelfServiceController::class, 'index'])->name('me');
+        Route::post('/me/leaves', [SelfServiceController::class, 'requestLeave'])->name('me.leaves');
+        Route::post('/me/loans', [SelfServiceController::class, 'requestLoan'])->name('me.loans');
+        Route::get('/me/payslips/{item}', [SelfServiceController::class, 'payslip'])->name('me.payslip');
     });
 
     // 13. Branches, Templates, Settings

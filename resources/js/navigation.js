@@ -130,6 +130,12 @@ export default [
         children: [
             { label: 'nav.employees', route: 'hr.employees.index', path: '/hr/employees' },
             { label: 'nav.payroll', route: 'hr.payroll.index', path: '/hr/payroll' },
+            { label: 'nav.attendance', route: 'hr.attendance.index', path: '/hr/attendance' },
+            { label: 'nav.leaves', route: 'hr.leaves.index', path: '/hr/leaves' },
+            { label: 'nav.loans', route: 'hr.loans.index', path: '/hr/loans' },
+            { label: 'nav.settlements', route: 'hr.settlements.index', path: '/hr/settlements' },
+            { label: 'nav.organization', route: 'hr.organization', path: '/hr/organization' },
+            { label: 'nav.self_service', route: 'hr.me', path: '/hr/me' },
         ],
     },
     { key: 'branches', label: 'nav.branches', icon: BuildingStorefrontIcon, route: 'branches.index', path: '/branches' },

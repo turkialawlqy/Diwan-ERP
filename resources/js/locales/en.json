@@ -90,7 +90,13 @@
         "e_invoicing": "E-Invoicing (ZATCA)",
         "projects": "Contracting",
         "projects_list": "Projects & Contracts",
-        "guarantees": "Letters of Guarantee"
+        "guarantees": "Letters of Guarantee",
+        "attendance": "Attendance",
+        "leaves": "Leave",
+        "loans": "Loans",
+        "settlements": "End of Service",
+        "organization": "Organisation",
+        "self_service": "My Services"
     },
     "common": {
         "search": "Search...",
