@@ -204,13 +204,28 @@ class CompanySettingController extends Controller
                 return response()->json([
                     'success' => true,
                     'message' => 'تم رفع وتحديث شعار المنشأة بنجاح',
-                    'logo' => $logoUrl,
+                    'logo' => $company->logo_url,
                     'logo_url' => $company->logo_url,
                 ]);
             }
         }
 
         return back()->with('success', 'تم رفع وتحديث شعار المنشأة بنجاح');
+    }
+
+    /**
+     * Stream the current company's logo.
+     */
+    public function showLogo(TenantManager $tenantManager)
+    {
+        $path = $tenantManager->getCompany()?->logoPath();
+
+        abort_unless($path, 404);
+
+        return response()->file(Storage::disk('public')->path($path), [
+            'Cache-Control' => 'private, max-age=604800',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     /**

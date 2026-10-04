@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 
 class Company extends Model
 {
@@ -59,13 +60,33 @@ class Company extends Model
             return $this->logo;
         }
 
-        $cleanPath = ltrim(str_replace('/storage/', '', $this->logo), '/');
-
-        if (file_exists(public_path('storage/'.$cleanPath))) {
-            return asset('storage/'.$cleanPath);
+        // Served through the app (company.logo) so printing and previews work
+        // whether or not `php artisan storage:link` was run on the server. The
+        // version suffix busts the browser cache when the logo is replaced.
+        if ($this->logoPath()) {
+            return '/company/logo?v='.substr(md5($this->logo), 0, 10);
         }
 
         return $this->logo;
+    }
+
+    /**
+     * Path of the uploaded logo on the public disk, or null when the logo is
+     * missing or external.
+     */
+    public function logoPath(): ?string
+    {
+        if (empty($this->logo) || preg_match('#^https?://#i', $this->logo)) {
+            return null;
+        }
+
+        $path = ltrim(preg_replace('#^/?storage/#', '', $this->logo), '/');
+
+        if (str_contains($path, '..') || ! str_starts_with($path, 'logos/'.$this->id.'/')) {
+            return null;
+        }
+
+        return Storage::disk('public')->exists($path) ? $path : null;
     }
 
     public function users(): HasMany

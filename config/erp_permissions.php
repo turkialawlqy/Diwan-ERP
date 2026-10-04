@@ -246,6 +246,7 @@ return [
     'routes' => [
         'dashboard' => 'dashboard.main.view',
         'files.show' => '@authenticated',
+        'company.logo' => '@authenticated',
         'lookup.customers' => ['sales.clients.view', 'sales.invoices.create', 'sales.quotations.create', 'sales.returns.create', 'sales.payments.create', 'pos.terminal.use'],
         'lookup.products' => ['inventory.products.view', 'sales.invoices.create', 'sales.quotations.create', 'purchases.invoices.create', 'purchases.orders.create', 'pos.terminal.use'],
         'lookup.suppliers' => ['purchases.suppliers.view', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.payments.create'],

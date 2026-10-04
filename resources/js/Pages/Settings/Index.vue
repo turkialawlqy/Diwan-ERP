@@ -134,7 +134,7 @@ const triggerOnboard = () => {
     });
 };
 
-const currentLogo = ref(props.company?.logo || null);
+const currentLogo = ref(props.company?.logo_url || props.company?.logo || null);
 const isUploadingLogo = ref(false);
 const logoError = ref('');
 const fileInputRef = ref(null);
@@ -144,7 +144,7 @@ const handleLogoUpload = async (event) => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-        logoError.value = 'يرجى اختيار ملف صورة صالح (PNG, JPG, SVG, WebP).';
+        logoError.value = 'يرجى اختيار ملف صورة صالح (PNG, JPG, WebP, GIF).';
         return;
     }
 
@@ -340,7 +340,7 @@ const removeLogo = async () => {
                                             <input 
                                                 ref="fileInputRef" 
                                                 type="file" 
-                                                accept="image/png,image/jpeg,image/webp,image/svg+xml" 
+                                                accept="image/png,image/jpeg,image/webp,image/gif" 
                                                 class="hidden" 
                                                 @change="handleLogoUpload"
                                             />
@@ -368,7 +368,7 @@ const removeLogo = async () => {
                                         </div>
 
                                         <p class="text-3xs text-slate-400 leading-relaxed">
-                                            الصيغ المدعومة: PNG, JPG, WebP, SVG (حتى 3 ميجابايت).<br>
+                                            الصيغ المدعومة: PNG, JPG, WebP, GIF (حتى 3 ميجابايت).<br>
                                             يظهر الشعار تلقائياً في ترويسة الفواتير الضريبية المطبوعة، قوالب الـ POS الحرارية، وعروض الأسعار.
                                         </p>
 

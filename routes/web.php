@@ -131,6 +131,9 @@ Route::middleware(['auth', 'tenant', 'plan', 'erp.authorize', 'throttle:tenant-w
         ->where('token', '.*')
         ->name('files.show');
 
+    // Company logo, streamed by the app so it never depends on the public/storage symlink.
+    Route::get('/company/logo', [CompanySettingController::class, 'showLogo'])->name('company.logo');
+
     // 4. Sales Module
     Route::prefix('sales')->name('sales.')->group(function () {
         // Invoices

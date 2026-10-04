@@ -172,7 +172,7 @@ const uploadLogoFromDesigner = async (event) => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-        logoError.value = 'يرجى اختيار ملف صورة صالح (PNG, JPG, SVG, WebP).';
+        logoError.value = 'يرجى اختيار ملف صورة صالح (PNG, JPG, WebP, GIF).';
         return;
     }
 
@@ -1705,7 +1705,7 @@ const setAsDefault = () => {
                                             <input 
                                                 ref="logoInputRef" 
                                                 type="file" 
-                                                accept="image/png,image/jpeg,image/webp,image/svg+xml" 
+                                                accept="image/png,image/jpeg,image/webp,image/gif" 
                                                 class="hidden" 
                                                 @change="uploadLogoFromDesigner"
                                             />
@@ -1731,7 +1731,7 @@ const setAsDefault = () => {
                                                     <span>حذف</span>
                                                 </button>
                                             </div>
-                                            <span class="text-3xs text-slate-400 block">PNG, JPG, SVG حتى 3 ميجا</span>
+                                            <span class="text-3xs text-slate-400 block">PNG, JPG, WebP حتى 3 ميجا</span>
                                             <p v-if="logoError" class="text-3xs text-rose-600 font-bold">{{ logoError }}</p>
                                         </div>
                                     </div>

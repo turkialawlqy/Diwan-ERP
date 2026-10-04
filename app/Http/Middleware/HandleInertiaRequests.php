@@ -58,7 +58,7 @@ class HandleInertiaRequests extends Middleware
                 'id' => $currentTenant->id,
                 'name' => $currentTenant->name,
                 'subdomain' => $currentTenant->subdomain,
-                'logo' => $currentTenant->logo,
+                'logo' => $currentTenant->logo_url,
                 'currency' => $currentTenant->currency ?? 'SAR',
                 'language' => $currentTenant->language ?? 'ar',
                 'tax_number' => $currentTenant->tax_number,
