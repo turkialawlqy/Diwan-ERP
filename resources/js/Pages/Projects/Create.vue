@@ -8,7 +8,13 @@ import BoqEditor from '@/Components/Projects/BoqEditor.vue';
 
 defineProps({ managers: Array, warehouses: Array, suggestedCode: String });
 const form = useForm({ customer_id: null, name: '', contract_number: '', manager_id: '', warehouse_id: '', start_date: '', end_date: '', contract_value: 0, advance_percent: 0, retention_percent: 5, location: '', description: '', boq: [] });
-const save = () => form.post(route('projects.store'));
+const save = () => {
+    form.clearErrors();
+    if (!form.name) form.setError('name', 'أدخل اسم المشروع.');
+    if (!form.customer_id) form.setError('customer_id', 'اختر العميل (المالك) من نتائج البحث.');
+    if (form.hasErrors) return;
+    form.post(route('projects.store'), { preserveScroll: true });
+};
 </script>
 
 <template>
@@ -33,8 +39,8 @@ const save = () => form.post(route('projects.store'));
                 <h3 class="text-xs font-black text-slate-700 mb-2">جدول الكميات (BOQ)</h3>
                 <BoqEditor v-model="form.boq" />
             </div>
-            <p v-for="(msg, key) in form.errors" :key="key" class="text-xs text-rose-600">{{ msg }}</p>
-            <div class="flex justify-end"><button @click="save" :disabled="form.processing || !form.customer_id || !form.name" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40">حفظ المشروع</button></div>
+            <div v-if="form.hasErrors" class="rounded-xl bg-rose-50 border border-rose-200 p-3 space-y-1"><p v-for="(msg, key) in form.errors" :key="key" class="text-xs text-rose-700">{{ msg }}</p></div>
+            <div class="flex justify-end"><button @click="save" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40">حفظ المشروع</button></div>
         </div>
     </AppLayout>
 </template>

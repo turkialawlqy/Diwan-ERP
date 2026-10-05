@@ -58,7 +58,10 @@ class ProjectController extends Controller
             'retention_percent' => 'nullable|numeric|min:0|max:100',
             'location' => 'nullable|string|max:255',
             'description' => 'nullable|string|max:5000',
-        ] + $this->boqRules());
+        ] + $this->boqRules(), [
+            'customer_id.required' => 'اختر العميل (المالك) من نتائج البحث.',
+            'name.required' => 'أدخل اسم المشروع.',
+        ] + $this->boqMessages());
 
         $project = $this->projects->create($validated, $validated['boq'] ?? []);
 
@@ -103,7 +106,7 @@ class ProjectController extends Controller
 
     public function updateBoq(Request $request, Project $project)
     {
-        $validated = $request->validate($this->boqRules());
+        $validated = $request->validate($this->boqRules(), $this->boqMessages());
         $this->projects->syncBoq($project, $validated['boq'] ?? []);
 
         return back()->with('success', 'تم حفظ جدول الكميات');
@@ -187,6 +190,18 @@ class ProjectController extends Controller
             'boq.*.quantity' => 'nullable|numeric|min:0',
             'boq.*.unit_price' => 'nullable|numeric|min:0',
             'boq.*.unit_cost' => 'nullable|numeric|min:0',
+        ];
+    }
+
+    protected function boqMessages(): array
+    {
+        return [
+            'boq.*.code.required' => 'جدول الكميات: السطر :position بدون رمز.',
+            'boq.*.code.distinct' => 'جدول الكميات: رمز السطر :position مكرر.',
+            'boq.*.description.required' => 'جدول الكميات: السطر :position بدون وصف.',
+            'boq.*.quantity.numeric' => 'جدول الكميات: كمية السطر :position ليست رقماً.',
+            'boq.*.unit_price.numeric' => 'جدول الكميات: سعر السطر :position ليس رقماً.',
+            'boq.*.unit_cost.numeric' => 'جدول الكميات: تكلفة السطر :position ليست رقماً.',
         ];
     }
 

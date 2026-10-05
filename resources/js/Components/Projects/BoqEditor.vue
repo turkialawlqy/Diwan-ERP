@@ -15,6 +15,12 @@ const addItem = () => {
     const lastGroup = [...rows.value].reverse().find((r) => r.is_group);
     rows.value.push({ code: '', parent_code: lastGroup?.code || null, description: '', unit: '', quantity: 0, unit_price: 0, unit_cost: 0, is_group: false });
 };
+// Excel copies may carry Arabic-Indic digits and thousands separators.
+const num = (v) => Number(String(v ?? '').trim()
+    .replace(/[٠-٩]/g, (d) => d.charCodeAt(0) - 0x0660)
+    .replace(/[۰-۹]/g, (d) => d.charCodeAt(0) - 0x06F0)
+    .replace(/٫/g, '.')
+    .replace(/[,٬\s]/g, '')) || 0;
 const paste = (event) => {
     const text = event.clipboardData.getData('text');
     if (!text.includes('\t')) return;
@@ -22,7 +28,7 @@ const paste = (event) => {
     const lastGroup = [...rows.value].reverse().find((r) => r.is_group);
     text.trim().split(/\r?\n/).forEach((line) => {
         const [code, description, unit, quantity, unitPrice, unitCost] = line.split('\t');
-        rows.value.push({ code: code?.trim(), parent_code: lastGroup?.code || null, description: description?.trim(), unit: unit?.trim(), quantity: Number(quantity) || 0, unit_price: Number(unitPrice) || 0, unit_cost: Number(unitCost) || 0, is_group: false });
+        rows.value.push({ code: code?.trim(), parent_code: lastGroup?.code || null, description: description?.trim(), unit: unit?.trim(), quantity: num(quantity), unit_price: num(unitPrice), unit_cost: num(unitCost), is_group: false });
     });
 };
 const total = computed(() => rows.value.filter((r) => !r.is_group).reduce((s, r) => s + Number(r.quantity || 0) * Number(r.unit_price || 0), 0));
