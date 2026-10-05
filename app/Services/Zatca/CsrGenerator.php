@@ -17,26 +17,32 @@ class CsrGenerator
      */
     public function generate(array $subject, string $environment): array
     {
-        $key = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'secp256k1'])
-            ?: throw new RuntimeException('Could not generate the EGS key: '.openssl_error_string());
-
+        // Every OpenSSL call gets our own config file: on Windows (Laragon,
+        // XAMPP) PHP often has no default openssl.cnf and key generation
+        // fails with "system library::No such process" without one.
         $config = tempnam(sys_get_temp_dir(), 'zatca-csr');
         file_put_contents($config, $this->config($subject, $environment));
+        $options = ['config' => $config, 'digest_alg' => 'sha256'];
 
         try {
+            $this->clearErrors();
+            $key = openssl_pkey_new($options + ['private_key_type' => OPENSSL_KEYTYPE_EC, 'curve_name' => 'secp256k1'])
+                ?: throw new RuntimeException('Could not generate the EGS key: '.$this->errors());
+
             $csr = openssl_csr_new([
                 'countryName' => 'SA',
                 'organizationalUnitName' => $this->clean($subject['organization_unit']),
                 'organizationName' => $this->clean($subject['organization']),
                 'commonName' => $this->clean($subject['common_name']),
-            ], $key, ['config' => $config, 'req_extensions' => 'v3_req', 'digest_alg' => 'sha256']);
+            ], $key, $options + ['req_extensions' => 'v3_req']);
 
             if (! $csr) {
-                throw new RuntimeException('Could not create the CSR: '.openssl_error_string());
+                throw new RuntimeException('Could not create the CSR: '.$this->errors());
             }
 
             openssl_csr_export($csr, $csrPem);
-            openssl_pkey_export($key, $keyPem);
+            openssl_pkey_export($key, $keyPem, null, $options)
+                ?: throw new RuntimeException('Could not export the EGS key: '.$this->errors());
         } finally {
             @unlink($config);
         }
@@ -74,6 +80,22 @@ subjectAltName = dirName:alt_names
 [ alt_names ]
 {$altNames}
 CNF;
+    }
+
+    protected function clearErrors(): void
+    {
+        while (openssl_error_string() !== false);
+    }
+
+    /** All queued OpenSSL errors; the first one alone is often unhelpful. */
+    protected function errors(): string
+    {
+        $errors = [];
+        while (($e = openssl_error_string()) !== false) {
+            $errors[] = $e;
+        }
+
+        return implode(' | ', $errors) ?: 'unknown OpenSSL error';
     }
 
     /** Values go into an OpenSSL config file: no newlines or section syntax. */
