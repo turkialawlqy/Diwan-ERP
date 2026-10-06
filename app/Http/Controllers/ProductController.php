@@ -53,10 +53,11 @@ class ProductController extends Controller
         $stats = [
             'total_products' => Product::count(),
             'total_categories' => Category::count(),
+            // Products at or below their own alert level (5 when unset),
+            // counting those with no stock rows at all as zero stock.
             'low_stock_count' => Product::where('track_inventory', true)
-                ->whereHas('stocks', function ($sq) {
-                    $sq->havingRaw('SUM(quantity) <= 5');
-                })->count(),
+                ->whereRaw('COALESCE((SELECT SUM(s.quantity) FROM inventory_stocks s WHERE s.product_id = products.id), 0) <= COALESCE(products.min_stock_alert, 5)')
+                ->count(),
         ];
 
         return Inertia::render('Inventory/Products/Index', [
@@ -189,7 +190,7 @@ class ProductController extends Controller
             return $product;
         });
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if ($this->wantsJsonResponse($request)) {
             $product->load(['category', 'unit']);
 
             return response()->json([

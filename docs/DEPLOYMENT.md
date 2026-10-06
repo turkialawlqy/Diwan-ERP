@@ -66,6 +66,12 @@ MAIL_MAILER=smtp
 | `erp:accounting-schedules depreciation` | شهرياً | الإهلاك |
 | `erp:hr-provision` | شهرياً | مخصص نهاية الخدمة |
 
+## ملاحظات بيئة التشغيل
+
+- **شعارات المنشآت:** يعرضها النظام عبر المسار `/company/logo`، فلا تحتاج `php artisan storage:link`. يبقى الأمر مفيداً لأي ملفات عامة أخرى.
+- **Windows (Laragon / XAMPP):** إنشاء مفاتيح أجهزة ZATCA لا يعتمد على `openssl.cnf` الخاص بالنظام، لأن النظام يولّد ملف إعداد خاصاً به.
+- **اللغة الافتراضية:** العربية (`APP_LOCALE=ar`)، ورسائل التحقق مترجمة في `lang/ar`.
+
 ## خطوات النشر
 
 ```bash

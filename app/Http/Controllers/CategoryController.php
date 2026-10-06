@@ -47,7 +47,7 @@ class CategoryController extends Controller
             'is_active' => true,
         ]));
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if ($this->wantsJsonResponse($request)) {
             return response()->json([
                 'success' => true,
                 'category' => $category,

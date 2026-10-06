@@ -63,7 +63,7 @@ const addProduct = (p) => {
             <div v-if="editable && count.count_type === 'partial'" class="relative">
                 <input v-model="lookup" @input="search" placeholder="+ إضافة صنف للجرد" class="rounded-xl border-slate-200 text-xs w-64" />
                 <div v-if="results.length" class="absolute z-10 mt-1 w-full bg-white border rounded-xl shadow max-h-48 overflow-y-auto">
-                    <button v-for="p in results" :key="p.id" @click="addProduct(p)" class="block w-full text-start px-3 py-2 hover:bg-indigo-50">{{ p.name_ar }} <span class="text-slate-400">{{ p.sku }}</span></button>
+                    <button type="button" v-for="p in results" :key="p.id" @mousedown.prevent="addProduct(p)" @keydown.enter.prevent="addProduct(p)" class="block w-full text-start px-3 py-2 hover:bg-indigo-50">{{ p.name_ar }} <span class="text-slate-400">{{ p.sku }}</span></button>
                 </div>
             </div>
         </div>

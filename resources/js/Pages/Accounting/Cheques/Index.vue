@@ -103,7 +103,7 @@ const move = (cheque, status) => {
                         <input v-model="partyQuery" @input="searchParty" placeholder="اكتب للبحث..." class="w-full rounded-xl border-slate-200 text-xs" />
                     </Field>
                     <div v-if="partyResults.length" class="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow max-h-48 overflow-y-auto">
-                        <button v-for="p in partyResults" :key="p.id" type="button" @click="pickParty(p)" class="block w-full text-start px-3 py-2 hover:bg-indigo-50">{{ p.name }}</button>
+                        <button v-for="p in partyResults" :key="p.id" type="button" @mousedown.prevent="pickParty(p)" @keydown.enter.prevent="pickParty(p)" class="block w-full text-start px-3 py-2 hover:bg-indigo-50">{{ p.name }}</button>
                     </div>
                 </div>
                 <Field label="رقم الشيك" :error="form.errors.cheque_number"><input v-model="form.cheque_number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>

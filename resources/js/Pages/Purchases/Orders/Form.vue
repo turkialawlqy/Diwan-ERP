@@ -15,12 +15,13 @@ const form = useForm({
     expected_delivery_date: o?.expected_delivery_date?.substring(0, 10) ?? '',
     notes: o?.notes ?? '',
     terms: o?.terms ?? '',
-    submit: false,
     items: (o?.items ?? []).map((i) => ({ product_id: i.product_id, item_name: i.item_name, quantity: Number(i.quantity), unit_price: Number(i.unit_price), discount: Number(i.discount), tax_rate: Number(i.tax_rate) })),
 });
+// "submit" is sent through transform(): as a form field it would shadow
+// Inertia's own form.submit() and post()/put() would silently do nothing.
 const save = (submit) => {
-    form.submit = submit;
-    o ? form.put(route('purchases.orders.update', o.id)) : form.post(route('purchases.orders.store'));
+    const request = form.transform((data) => ({ ...data, submit }));
+    o ? request.put(route('purchases.orders.update', o.id)) : request.post(route('purchases.orders.store'));
 };
 </script>
 

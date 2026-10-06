@@ -250,4 +250,19 @@ class InventoryTest extends TestCase
         $this->get(route('inventory.products.show', $component->id))->assertOk();
         $this->get(route('inventory.reports.valuation', ['as_of' => '2026-06-14']))->assertOk();
     }
+
+    public function test_products_list_counts_low_stock_per_product(): void
+    {
+        $low = $this->product(['min_stock_alert' => 10]);
+        $this->stock()->receive(['product_id' => $low->id, 'warehouse_id' => $this->main->id, 'quantity' => 4, 'unit_cost' => 10, 'type' => 'purchase']);
+        $this->stock()->receive(['product_id' => $low->id, 'warehouse_id' => $this->branch->id, 'quantity' => 4, 'unit_cost' => 10, 'type' => 'purchase']);
+        $healthy = $this->product();
+        $this->stock()->receive(['product_id' => $healthy->id, 'warehouse_id' => $this->main->id, 'quantity' => 50, 'unit_cost' => 10, 'type' => 'purchase']);
+        $this->product(); // never stocked: counts as zero
+        $this->product(['track_inventory' => false]); // services are ignored
+
+        $this->get(route('inventory.products.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('stats.low_stock_count', 2));
+    }
 }

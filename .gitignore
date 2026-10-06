@@ -22,3 +22,8 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+/database/e2e.sqlite
+/test-results
+/playwright-report
+/tests/e2e/.auth

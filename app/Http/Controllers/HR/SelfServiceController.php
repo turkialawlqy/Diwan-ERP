@@ -24,7 +24,12 @@ class SelfServiceController extends Controller
 
     public function index(LeaveService $leaves)
     {
-        $employee = $this->me()->load(['departmentRef:id,name', 'position:id,title', 'leaveRequests.type:id,name', 'loans']);
+        $employee = Employee::where('user_id', auth()->id())->first();
+        if (! $employee) {
+            // Users without an employee file get an explanation, not a 404.
+            return Inertia::render('HR/SelfService', ['employee' => null]);
+        }
+        $employee->load(['departmentRef:id,name', 'position:id,title', 'leaveRequests.type:id,name', 'loans']);
         $leaves->ensureTypes(app(TenantManager::class)->getCompany());
 
         return Inertia::render('HR/SelfService', [

@@ -86,7 +86,7 @@ const run = () => orderForm.post(route('inventory.assembly.orders.store'), { pre
                 </div>
                 <Field label="إضافة مكوّن"><input v-model="lookup" @input="search('component')" placeholder="ابحث عن مكوّن..." class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <div v-if="results.length" class="bg-white border rounded-xl shadow max-h-40 overflow-y-auto">
-                    <button v-for="p in results" :key="p.id" @click="pick(p)" class="block w-full text-start px-3 py-2 hover:bg-indigo-50">{{ p.name_ar }}</button>
+                    <button type="button" v-for="p in results" :key="p.id" @mousedown.prevent="pick(p)" @keydown.enter.prevent="pick(p)" class="block w-full text-start px-3 py-2 hover:bg-indigo-50">{{ p.name_ar }}</button>
                 </div>
                 <table class="w-full">
                     <tr v-for="(item, i) in bomForm.items" :key="i" class="border-t border-slate-100">

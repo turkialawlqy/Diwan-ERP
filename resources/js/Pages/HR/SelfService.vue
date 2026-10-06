@@ -7,13 +7,18 @@ import StatusBadge from '@/Components/Documents/StatusBadge.vue';
 import { money, date } from '@/utils/format';
 
 const props = defineProps({ employee: Object, leaveBalance: Object, leaveRequests: Array, loans: Array, payslips: Array, leaveTypes: Array });
-const leave = useForm({ leave_type_id: props.leaveTypes[0]?.id || '', start_date: '', end_date: '', reason: '' });
+const leave = useForm({ leave_type_id: props.leaveTypes?.[0]?.id || '', start_date: '', end_date: '', reason: '' });
 const loan = useForm({ amount: 0, monthly_installment: 0, reason: '' });
 </script>
 
 <template>
     <AppLayout>
         <Head title="خدماتي" />
+        <div v-if="!employee" class="max-w-xl mx-auto mt-10 bg-white border border-slate-200 rounded-2xl p-8 text-center space-y-2">
+            <h2 class="text-sm font-black text-slate-800">حسابك غير مرتبط بملف موظف</h2>
+            <p class="text-xs text-slate-500">الخدمة الذاتية (الإجازات، السلف، قسائم الرواتب) متاحة بعد ربط حسابك بملف موظف. تواصل مع الموارد البشرية لربط المستخدم من شاشة ملف الموظف.</p>
+        </div>
+        <template v-else>
         <PageHeader :title="`مرحباً ${employee.name}`" :subtitle="`${employee.job_title} · ${employee.department || ''}`" :crumbs="[{ label: 'الخدمة الذاتية' }]" />
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <StatCard label="رصيد الإجازة السنوية" :value="`${leaveBalance.balance} يوم`" tone="indigo" />
@@ -45,5 +50,6 @@ const loan = useForm({ amount: 0, monthly_installment: 0, reason: '' });
                 <p v-if="!payslips.length" class="text-slate-400">لا توجد قسائم بعد</p>
             </div>
         </div>
+        </template>
     </AppLayout>
 </template>

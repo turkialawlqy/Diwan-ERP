@@ -713,6 +713,11 @@ const saveCustomer = async () => {
                 </div>
             </div>
 
+            <!-- Server validation errors for fields that have no inline message -->
+            <div v-if="Object.keys(formErrors).some((k) => k !== 'name')" class="mx-6 mb-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 space-y-1">
+                <p v-for="(msgs, key) in formErrors" v-show="key !== 'name'" :key="key" class="text-xs text-rose-700 font-semibold">{{ msgs[0] }}</p>
+            </div>
+
             <!-- Footer Action Buttons (Matching Screenshot) -->
             <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-start gap-3">
                 <button

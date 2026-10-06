@@ -73,7 +73,7 @@ const trackingLabel = { none: 'بدون', batch: 'تشغيلات وتواريخ 
                 <label class="flex items-center gap-2 mb-3"><input v-model="kitForm.is_kit" type="checkbox" class="rounded border-slate-300 text-indigo-600" /> هذا الصنف طقم (يُصرف من مكوناته عند البيع)</label>
                 <template v-if="kitForm.is_kit">
                     <input v-model="lookup" @input="search" placeholder="إضافة مكوّن..." class="w-full rounded-xl border-slate-200 text-xs mb-2" />
-                    <div v-if="results.length" class="border rounded-xl max-h-40 overflow-y-auto mb-2"><button v-for="p in results" :key="p.id" @click="addComponent(p)" class="block w-full text-start px-3 py-2 hover:bg-indigo-50">{{ p.name_ar }}</button></div>
+                    <div v-if="results.length" class="border rounded-xl max-h-40 overflow-y-auto mb-2"><button type="button" v-for="p in results" :key="p.id" @mousedown.prevent="addComponent(p)" @keydown.enter.prevent="addComponent(p)" class="block w-full text-start px-3 py-2 hover:bg-indigo-50">{{ p.name_ar }}</button></div>
                     <table class="w-full"><tr v-for="(item, i) in kitForm.items" :key="i" class="border-t border-slate-100"><td class="py-1.5">{{ item.name }}</td><td class="py-1.5 w-32"><input v-model="item.quantity" type="number" step="0.0001" class="w-full rounded-lg border-slate-200 text-xs" /></td><td class="w-8"><button @click="kitForm.items.splice(i, 1)" class="text-slate-400 hover:text-rose-600"><TrashIcon class="w-4 h-4" /></button></td></tr></table>
                 </template>
                 <p v-for="(msg, key) in kitForm.errors" :key="key" class="text-rose-600 mt-1">{{ msg }}</p>

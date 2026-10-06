@@ -18,6 +18,16 @@ abstract class Controller
     }
 
     /**
+     * True for API-style calls (axios quick-create modals) that expect JSON.
+     * Inertia form posts are XHR too but must get a redirect, so they are
+     * excluded by their X-Inertia header.
+     */
+    protected function wantsJsonResponse(Request $request): bool
+    {
+        return ! $request->header('X-Inertia') && ($request->wantsJson() || $request->ajax());
+    }
+
+    /**
      * Reserve the next number for a document type (see config/documents.php).
      * Call inside the transaction that creates the document.
      */

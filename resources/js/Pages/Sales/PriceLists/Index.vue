@@ -62,7 +62,7 @@ const destroy = (list) => { if (confirm(`حذف قائمة "${list.name}"؟`)) r
             <div class="relative mb-2">
                 <input v-model="term" @input="search" placeholder="أضف صنفاً..." class="w-full rounded-xl border-slate-200 text-xs" />
                 <div v-if="results.length" class="absolute z-10 mt-1 w-full bg-white border rounded-xl shadow max-h-48 overflow-y-auto">
-                    <button v-for="p in results" :key="p.id" @click="add(p)" class="block w-full text-start px-3 py-2 text-xs hover:bg-indigo-50">{{ p.name_ar }}</button>
+                    <button type="button" v-for="p in results" :key="p.id" @mousedown.prevent="add(p)" @keydown.enter.prevent="add(p)" class="block w-full text-start px-3 py-2 text-xs hover:bg-indigo-50">{{ p.name_ar }}</button>
                 </div>
             </div>
             <table class="w-full text-xs">

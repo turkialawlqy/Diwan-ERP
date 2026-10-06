@@ -162,7 +162,7 @@ class CustomerController extends Controller
             return $customer;
         });
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if ($this->wantsJsonResponse($request)) {
             return response()->json([
                 'success' => true,
                 'customer' => $customer,
@@ -209,7 +209,7 @@ class CustomerController extends Controller
             'quotations' => fn ($q) => $q->latest()->take(30),
         ]);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if ($this->wantsJsonResponse($request)) {
             return response()->json([
                 'success' => true,
                 'client' => $client,
@@ -389,7 +389,7 @@ class CustomerController extends Controller
 
         $client->update($validated);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if ($this->wantsJsonResponse($request)) {
             return response()->json([
                 'success' => true,
                 'customer' => $client,
