@@ -15,6 +15,7 @@ use App\Services\TenantManager;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -46,6 +47,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Sum of a money column in base currency (documents with exchange_rate).
+        Builder::macro('sumBase', function (string $column) {
+            /** @var Builder $this */
+            return round((float) $this->sum(DB::raw("{$column} * exchange_rate")), 2);
+        });
+
         Vite::prefetch(concurrency: 3);
 
         $this->configureRateLimiting();

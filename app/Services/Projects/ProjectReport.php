@@ -36,7 +36,7 @@ class ProjectReport
         $billed = (float) ProgressBilling::where('project_id', $project->id)->where('status', 'approved')->sum('current_value');
 
         $invoiceIds = ProgressBilling::where('project_id', $project->id)->whereNotNull('invoice_id')->pluck('invoice_id');
-        $collected = (float) Invoice::whereIn('id', $invoiceIds)->sum('paid_amount') + (float) $project->advance_received * 1.15;
+        $collected = Invoice::whereIn('id', $invoiceIds)->sumBase('paid_amount') + (float) $project->advance_received * 1.15;
 
         $contract = (float) $project->contract_value;
         $progress = $contract > 0 ? round($billed / $contract * 100, 2) : 0;

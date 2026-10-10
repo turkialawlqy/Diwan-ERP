@@ -24,6 +24,7 @@ const props = defineProps({
     recentInvoices: Array,
     topProducts: Array,
     salesChart: Object,
+    cashOutlook: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -231,6 +232,14 @@ const chartOptions = computed(() => ({
                 </template>
             </KpiCard>
         </div>
+
+        <!-- Cash outlook (from the insights dashboards) -->
+        <Link v-if="cashOutlook" :href="route('reports.insights')" class="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-3 bg-white border border-slate-200 rounded-2xl p-4 text-xs hover:border-indigo-300">
+            <div><div class="text-slate-500">النقدية اليوم</div><div class="text-base font-black font-mono mt-1">{{ Number(cashOutlook.now).toLocaleString('en-US', { maximumFractionDigits: 0 }) }}</div></div>
+            <div><div class="text-slate-500">المتوقع بعد 30 يوماً</div><div class="text-base font-black font-mono mt-1">{{ Number(cashOutlook.in30).toLocaleString('en-US', { maximumFractionDigits: 0 }) }}</div></div>
+            <div><div class="text-slate-500">أدنى رصيد متوقع</div><div class="text-base font-black font-mono mt-1" :class="cashOutlook.lowest < 0 ? 'text-rose-700' : ''">{{ Number(cashOutlook.lowest).toLocaleString('en-US', { maximumFractionDigits: 0 }) }}</div></div>
+            <div><div class="text-slate-500">ذمم عملاء متأخرة</div><div class="text-base font-black font-mono mt-1">{{ Number(cashOutlook.overdue).toLocaleString('en-US', { maximumFractionDigits: 0 }) }}</div></div>
+        </Link>
 
         <!-- 3. Performance Chart & Analytics -->
         <div class="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs mb-8">

@@ -379,12 +379,12 @@ class AccountingReports
             ->where("d.{$dateColumn}", '<=', $asOfStr.' 23:59:59')
             ->groupBy('p.id', 'p.name')
             ->selectRaw("p.id, p.name,
-                SUM(CASE WHEN {$daysExpr} <= 0 THEN d.remaining_amount ELSE 0 END) as current_amount,
-                SUM(CASE WHEN {$daysExpr} BETWEEN 1 AND 30 THEN d.remaining_amount ELSE 0 END) as d30,
-                SUM(CASE WHEN {$daysExpr} BETWEEN 31 AND 60 THEN d.remaining_amount ELSE 0 END) as d60,
-                SUM(CASE WHEN {$daysExpr} BETWEEN 61 AND 90 THEN d.remaining_amount ELSE 0 END) as d90,
-                SUM(CASE WHEN {$daysExpr} > 90 THEN d.remaining_amount ELSE 0 END) as d90plus,
-                SUM(d.remaining_amount) as total")
+                SUM(CASE WHEN {$daysExpr} <= 0 THEN d.remaining_amount * d.exchange_rate ELSE 0 END) as current_amount,
+                SUM(CASE WHEN {$daysExpr} BETWEEN 1 AND 30 THEN d.remaining_amount * d.exchange_rate ELSE 0 END) as d30,
+                SUM(CASE WHEN {$daysExpr} BETWEEN 31 AND 60 THEN d.remaining_amount * d.exchange_rate ELSE 0 END) as d60,
+                SUM(CASE WHEN {$daysExpr} BETWEEN 61 AND 90 THEN d.remaining_amount * d.exchange_rate ELSE 0 END) as d90,
+                SUM(CASE WHEN {$daysExpr} > 90 THEN d.remaining_amount * d.exchange_rate ELSE 0 END) as d90plus,
+                SUM(d.remaining_amount * d.exchange_rate) as total")
             ->orderByDesc('total')
             ->get()
             ->map(fn ($r) => [
@@ -415,21 +415,23 @@ class AccountingReports
         $companyId = $this->companyId();
         $range = [$from->toDateString(), $to->toDateString().' 23:59:59'];
 
+        // Foreign-currency documents are converted at their own rate: the
+        // return is filed in SAR.
         $sales = DB::table('invoices')->where('company_id', $companyId)->whereBetween('invoice_date', $range)
-            ->selectRaw('COALESCE(SUM(CASE WHEN tax_amount > 0 THEN subtotal ELSE 0 END),0) as standard,
-                         COALESCE(SUM(CASE WHEN tax_amount > 0 THEN tax_amount ELSE 0 END),0) as standard_vat,
-                         COALESCE(SUM(CASE WHEN tax_amount = 0 THEN subtotal ELSE 0 END),0) as zero')->first();
+            ->selectRaw('COALESCE(SUM(CASE WHEN tax_amount > 0 THEN subtotal * exchange_rate ELSE 0 END),0) as standard,
+                         COALESCE(SUM(CASE WHEN tax_amount > 0 THEN tax_amount * exchange_rate ELSE 0 END),0) as standard_vat,
+                         COALESCE(SUM(CASE WHEN tax_amount = 0 THEN subtotal * exchange_rate ELSE 0 END),0) as zero')->first();
 
         $returns = DB::table('credit_notes')->where('company_id', $companyId)->whereIn('status', ['approved', 'refunded'])->whereBetween('credit_note_date', $range)
-            ->selectRaw('COALESCE(SUM(subtotal),0) as amount, COALESCE(SUM(tax_amount),0) as vat')->first();
+            ->selectRaw('COALESCE(SUM(subtotal * exchange_rate),0) as amount, COALESCE(SUM(tax_amount * exchange_rate),0) as vat')->first();
 
         $otherRevenue = DB::table('revenues')->where('company_id', $companyId)->whereBetween('revenue_date', $range)
             ->selectRaw('COALESCE(SUM(CASE WHEN tax_amount > 0 THEN amount ELSE 0 END),0) as amount, COALESCE(SUM(tax_amount),0) as vat')->first();
 
         $purchases = DB::table('purchase_invoices')->where('company_id', $companyId)->whereBetween('invoice_date', $range)
-            ->selectRaw('COALESCE(SUM(CASE WHEN tax_amount > 0 THEN subtotal ELSE 0 END),0) as standard,
-                         COALESCE(SUM(CASE WHEN tax_amount > 0 THEN tax_amount ELSE 0 END),0) as vat,
-                         COALESCE(SUM(CASE WHEN tax_amount = 0 THEN subtotal ELSE 0 END),0) as zero')->first();
+            ->selectRaw('COALESCE(SUM(CASE WHEN tax_amount > 0 THEN subtotal * exchange_rate ELSE 0 END),0) as standard,
+                         COALESCE(SUM(CASE WHEN tax_amount > 0 THEN tax_amount * exchange_rate ELSE 0 END),0) as vat,
+                         COALESCE(SUM(CASE WHEN tax_amount = 0 THEN subtotal * exchange_rate ELSE 0 END),0) as zero')->first();
 
         $expenses = DB::table('expenses')->where('company_id', $companyId)->whereBetween('expense_date', $range)
             ->selectRaw('COALESCE(SUM(CASE WHEN tax_amount > 0 THEN amount ELSE 0 END),0) as amount, COALESCE(SUM(tax_amount),0) as vat')->first();

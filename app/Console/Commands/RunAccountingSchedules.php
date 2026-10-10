@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Company;
 use App\Services\Accounting\DepreciationService;
 use App\Services\Accounting\RecurringJournalRunner;
+use App\Services\Sales\RecurringInvoiceRunner;
 use App\Services\TenantManager;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -19,6 +20,7 @@ class RunAccountingSchedules extends Command
     {
         if ($this->argument('task') === 'recurring') {
             $this->info('Recurring entries posted: '.$recurring->runDue());
+            $this->info('Recurring invoices issued: '.app(RecurringInvoiceRunner::class)->runDue());
 
             return self::SUCCESS;
         }

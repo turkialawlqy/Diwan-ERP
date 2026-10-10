@@ -63,9 +63,9 @@ class InvoiceController extends Controller
         // Calculate summary KPI stats using aggregate queries (no full load)
         $stats = [
             'total_count' => Invoice::count(),
-            'total_amount' => (float) Invoice::sum('total'),
-            'paid_amount' => (float) Invoice::where('payment_status', 'paid')->sum('total'),
-            'unpaid_amount' => (float) Invoice::whereIn('payment_status', ['unpaid', 'partially_paid'])->sum('remaining_amount'),
+            'total_amount' => Invoice::query()->sumBase('total'),
+            'paid_amount' => Invoice::where('payment_status', 'paid')->sumBase('total'),
+            'unpaid_amount' => Invoice::whereIn('payment_status', ['unpaid', 'partially_paid'])->sumBase('remaining_amount'),
         ];
 
         return Inertia::render('Sales/Invoices/Index', [

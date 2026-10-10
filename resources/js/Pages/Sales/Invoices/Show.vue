@@ -462,6 +462,13 @@ const resolveTag = (tag) => {
                         <span class="hidden sm:inline">مرتجع</span>
                     </Link>
 
+                    <Link
+                        v-if="$canRoute('sales.recurring.store')"
+                        :href="route('sales.recurring.index', { from_invoice: invoice.id })"
+                        class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50"
+                        title="فوترة نفس البنود تلقائياً كل شهر / ربع / سنة"
+                    >فاتورة دورية</Link>
+
                     <ShareDocument v-if="$can('sales.invoices.print')" type="invoice" :id="invoice.id" />
 
                     <!-- Split / Quick Print Button with Dropdown Trigger -->

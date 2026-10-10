@@ -50,6 +50,8 @@
         "templates": "Print Templates",
         "settings": "Settings",
         "general_settings": "General Settings",
+        "recurring_invoices": "Recurring Invoices",
+        "insights": "Management Insights",
         "currencies": "Currencies & Rates",
         "company_profile": "Company Profile",
         "tax_settings": "Tax Settings",

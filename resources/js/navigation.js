@@ -35,6 +35,7 @@ export default [
             { label: 'nav.payments_received', route: 'sales.payments.index', path: '/sales/payments' },
             { label: 'nav.debit_notes', route: 'sales.debit-notes.index', path: '/sales/debit-notes' },
             { label: 'nav.price_lists', route: 'sales.price-lists.index', path: '/sales/price-lists' },
+            { label: 'nav.recurring_invoices', route: 'sales.recurring.index', path: '/sales/recurring' },
         ],
     },
     {
@@ -120,6 +121,7 @@ export default [
     {
         key: 'reports', label: 'nav.reports', icon: ChartBarIcon, color: 'indigo',
         children: [
+            { label: 'nav.insights', route: 'reports.insights', path: '/reports/insights' },
             { label: 'nav.sales_reports', route: 'reports.sales', path: '/reports/sales' },
             { label: 'nav.inventory_reports', route: 'reports.inventory', path: '/reports/inventory' },
             { label: 'nav.financial_reports', route: 'reports.financial', path: '/reports/financial' },

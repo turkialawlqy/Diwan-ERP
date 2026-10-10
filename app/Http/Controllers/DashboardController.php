@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Product;
+use App\Services\Reports\Insights;
 use App\Services\TenantManager;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -33,9 +34,9 @@ class DashboardController extends Controller
         $cacheKey = 'dashboard:'.$tenantManager->getTenantId().':'.$today->toDateString();
         $cached = Cache::remember($cacheKey.':kpis', now()->addMinutes(5), function () use ($today, $startOfMonth, $lastMonthStart, $lastMonthEnd) {
             return [
-                'today' => (float) Invoice::whereBetween('invoice_date', [$today->toDateString(), $today->toDateString().' 23:59:59'])->sum('total'),
-                'month' => (float) Invoice::where('invoice_date', '>=', $startOfMonth->toDateString())->sum('total'),
-                'last_month' => (float) Invoice::whereBetween('invoice_date', [$lastMonthStart->toDateString(), $lastMonthEnd->toDateTimeString()])->sum('total'),
+                'today' => (float) Invoice::whereBetween('invoice_date', [$today->toDateString(), $today->toDateString().' 23:59:59'])->sumBase('total'),
+                'month' => (float) Invoice::where('invoice_date', '>=', $startOfMonth->toDateString())->sumBase('total'),
+                'last_month' => (float) Invoice::whereBetween('invoice_date', [$lastMonthStart->toDateString(), $lastMonthEnd->toDateTimeString()])->sumBase('total'),
                 'month_count' => Invoice::where('invoice_date', '>=', $startOfMonth->toDateString())->count(),
                 'last_month_count' => Invoice::whereBetween('invoice_date', [$lastMonthStart->toDateString(), $lastMonthEnd->toDateTimeString()])->count(),
                 'receivables' => (float) Customer::where('status', 'active')->sum('current_balance'),
@@ -120,7 +121,7 @@ class DashboardController extends Controller
                 fn () => (float) Invoice::whereBetween('invoice_date', [
                     $date->copy()->startOfMonth()->toDateString(),
                     $date->copy()->endOfMonth()->toDateTimeString(),
-                ])->sum('total')
+                ])->sumBase('total')
             );
         }
 
@@ -139,6 +140,14 @@ class DashboardController extends Controller
             'recentInvoices' => $recentInvoices,
             'topProducts' => $topProducts,
             'salesChart' => $salesChart,
+            // Short cash outlook for users who can open the insights page.
+            'cashOutlook' => fn () => $request->user()?->can('reports.insights.view')
+                ? Cache::remember('insights:'.$tenantManager->getTenantId().':outlook:'.now()->toDateString(), now()->addMinutes(10), function () {
+                    $cash = app(Insights::class)->cashForecast(5);
+
+                    return ['now' => $cash['opening'], 'in30' => $cash['weeks'][4]['balance'] ?? $cash['closing'], 'lowest' => $cash['lowest'], 'overdue' => $cash['overdue']['receivables']];
+                })
+                : null,
         ]);
     }
 }

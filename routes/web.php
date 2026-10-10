@@ -47,9 +47,11 @@ use App\Http\Controllers\PurchaseInvoiceController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\Purchases as P;
 use App\Http\Controllers\QuotationController;
+use App\Http\Controllers\Reports\InsightsController;
 use App\Http\Controllers\Reports\ReportController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Sales as S;
+use App\Http\Controllers\Sales\RecurringInvoiceController;
 use App\Http\Controllers\StockCountController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SuperAdmin\ImpersonationController;
@@ -199,6 +201,13 @@ Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'thr
         Route::get('/payments', [CustomerPaymentController::class, 'index'])->name('payments.index');
         Route::post('/payments', [CustomerPaymentController::class, 'store'])->name('payments.store');
         Route::get('/payments/open-invoices', [CustomerPaymentController::class, 'openInvoices'])->name('payments.open-invoices');
+
+        Route::get('/recurring', [RecurringInvoiceController::class, 'index'])->name('recurring.index');
+        Route::post('/recurring', [RecurringInvoiceController::class, 'store'])->name('recurring.store');
+        Route::put('/recurring/{recurring}', [RecurringInvoiceController::class, 'update'])->name('recurring.update');
+        Route::post('/recurring/{recurring}/toggle', [RecurringInvoiceController::class, 'toggle'])->name('recurring.toggle');
+        Route::post('/recurring/{recurring}/run', [RecurringInvoiceController::class, 'run'])->name('recurring.run');
+        Route::delete('/recurring/{recurring}', [RecurringInvoiceController::class, 'destroy'])->name('recurring.destroy');
         Route::post('/payments/{payment}/allocate', [CustomerPaymentController::class, 'allocate'])->name('payments.allocate');
 
         // Sales orders → delivery notes → invoices
@@ -469,6 +478,7 @@ Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'thr
     // 10. Reports Module
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/sales', [ReportController::class, 'sales'])->name('sales');
+        Route::get('/insights', [InsightsController::class, 'index'])->name('insights');
         Route::get('/inventory', [ReportController::class, 'inventory'])->name('inventory');
         Route::get('/financial', [ReportController::class, 'financial'])->name('financial');
         Route::get('/vat', [ReportController::class, 'vat'])->name('vat');

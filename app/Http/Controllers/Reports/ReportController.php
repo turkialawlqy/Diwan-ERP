@@ -19,14 +19,14 @@ class ReportController extends Controller
 {
     public function sales(Request $request): Response
     {
-        $totalSales = (float) Invoice::sum('total');
-        $totalCogs = (float) PurchaseInvoice::sum('total');
+        $totalSales = Invoice::query()->sumBase('total');
+        $totalCogs = PurchaseInvoice::query()->sumBase('total');
 
         $stats = [
             'total_sales' => $totalSales,
-            'total_tax' => Invoice::sum('tax_amount'),
+            'total_tax' => Invoice::query()->sumBase('tax_amount'),
             'invoices_count' => Invoice::count(),
-            'total_payments_received' => CustomerPayment::sum('amount'),
+            'total_payments_received' => CustomerPayment::query()->sumBase('amount'),
             'gross_profit' => $totalSales - $totalCogs,
         ];
 
@@ -81,11 +81,11 @@ class ReportController extends Controller
 
     public function vat(Request $request): Response
     {
-        $salesSubtotal = Invoice::sum('subtotal');
-        $salesTax = Invoice::sum('tax_amount');
+        $salesSubtotal = Invoice::query()->sumBase('subtotal');
+        $salesTax = Invoice::query()->sumBase('tax_amount');
 
-        $purchasesSubtotal = PurchaseInvoice::sum('subtotal');
-        $purchasesTax = PurchaseInvoice::sum('tax_amount');
+        $purchasesSubtotal = PurchaseInvoice::query()->sumBase('subtotal');
+        $purchasesTax = PurchaseInvoice::query()->sumBase('tax_amount');
 
         $expensesTax = Expense::sum('tax_amount');
         $revenuesTax = Revenue::sum('tax_amount');
@@ -113,11 +113,11 @@ class ReportController extends Controller
 
     public function financial(Request $request): Response
     {
-        $salesRevenue = Invoice::sum('subtotal');
+        $salesRevenue = Invoice::query()->sumBase('subtotal');
         $otherRevenue = Revenue::sum('amount');
         $totalRevenue = $salesRevenue + $otherRevenue;
 
-        $cogs = PurchaseInvoice::sum('subtotal');
+        $cogs = PurchaseInvoice::query()->sumBase('subtotal');
         $grossProfit = $totalRevenue - $cogs;
 
         $operatingExpenses = Expense::sum('amount');

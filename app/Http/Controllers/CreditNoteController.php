@@ -44,7 +44,7 @@ class CreditNoteController extends Controller
 
         $stats = [
             'total_returns' => CreditNote::count(),
-            'total_amount' => (float) CreditNote::sum('total'),
+            'total_amount' => CreditNote::query()->sumBase('total'),
         ];
 
         return Inertia::render('Sales/Returns/Index', [
