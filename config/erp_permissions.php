@@ -247,6 +247,10 @@ return [
         'dashboard' => 'dashboard.main.view',
         'files.show' => '@authenticated',
         'company.logo' => '@authenticated',
+        // Each document type re-checks its own permission in DocumentShareController.
+        'documents.pdf' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view'],
+        'documents.dispatches' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view'],
+        'documents.send' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view'],
         'lookup.customers' => ['sales.clients.view', 'sales.invoices.create', 'sales.quotations.create', 'sales.orders.create', 'sales.returns.create', 'sales.payments.create', 'sales.debit_notes.create', 'sales.price_lists.edit', 'pos.terminal.use', 'accounting.cheques.create', 'projects.projects.create', 'projects.projects.edit'],
         'lookup.products' => ['inventory.products.view', 'sales.invoices.create', 'sales.quotations.create', 'sales.orders.create', 'sales.price_lists.edit', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.requests.create', 'inventory.transfers.create', 'inventory.counts.create', 'inventory.assembly.create', 'projects.costs.create', 'pos.terminal.use'],
         'lookup.suppliers' => ['purchases.suppliers.view', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.payments.create', 'purchases.landed_costs.create', 'accounting.cheques.create', 'projects.subcontracts.create', 'projects.costs.create'],

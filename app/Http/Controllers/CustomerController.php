@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Sales\CustomerStatement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -224,105 +225,15 @@ class CustomerController extends Controller
     /**
      * Show statement for customer.
      */
-    public function statement(Customer $client)
+    public function statement(Customer $client, CustomerStatement $statements)
     {
-        $client->load([
-            'invoices' => fn ($q) => $q->orderBy('invoice_date', 'asc'),
-            'payments' => fn ($q) => $q->orderBy('payment_date', 'asc'),
-        ]);
-
-        $rawTransactions = collect();
-
-        // 1. Process Invoices (Debit) and their immediate checkout payments (Credit)
-        foreach ($client->invoices as $inv) {
-            $invDate = $inv->invoice_date ? $inv->invoice_date->format('Y-m-d') : ($inv->created_at ? $inv->created_at->format('Y-m-d') : now()->format('Y-m-d'));
-            $invTotal = (float) ($inv->total ?? $inv->total_amount ?? 0);
-
-            $rawTransactions->push([
-                'date' => $invDate,
-                'created_at' => $inv->created_at ? $inv->created_at->toIso8601String() : $invDate,
-                'order_key' => 1,
-                'type' => 'invoice',
-                'type_ar' => 'فاتورة ضريبية',
-                'reference' => $inv->invoice_number,
-                'debit' => $invTotal,
-                'credit' => 0.00,
-                'notes' => $inv->notes ?: ('فاتورة مبيعات '.$inv->invoice_number),
-            ]);
-
-            // Account for any immediate payments at checkout not recorded in customer payments table
-            $linkedPaymentsSum = (float) $client->payments->where('invoice_id', $inv->id)->sum('amount');
-            $immediatePaid = max(0, (float) $inv->paid_amount - $linkedPaymentsSum);
-
-            if ($immediatePaid > 0) {
-                $rawTransactions->push([
-                    'date' => $invDate,
-                    'created_at' => $inv->created_at ? $inv->created_at->toIso8601String() : $invDate,
-                    'order_key' => 2,
-                    'type' => 'payment',
-                    'type_ar' => 'سداد فوري للفاتورة',
-                    'reference' => 'سداد '.$inv->invoice_number,
-                    'debit' => 0.00,
-                    'credit' => $immediatePaid,
-                    'notes' => 'سداد فوري عند إصدار الفاتورة ('.($inv->payment_method === 'cash' ? 'نقداً' : ($inv->payment_method === 'card' ? 'بطاقة/مدى' : 'تحويل')).')',
-                ]);
-            }
-        }
-
-        // 2. Process Customer Payments (Credit)
-        foreach ($client->payments as $pmt) {
-            $pmtDate = $pmt->payment_date ? $pmt->payment_date->format('Y-m-d') : ($pmt->created_at ? $pmt->created_at->format('Y-m-d') : now()->format('Y-m-d'));
-            $rawTransactions->push([
-                'date' => $pmtDate,
-                'created_at' => $pmt->created_at ? $pmt->created_at->toIso8601String() : $pmtDate,
-                'order_key' => 2,
-                'type' => 'payment',
-                'type_ar' => 'سند قبض',
-                'reference' => $pmt->payment_number ?: ('PAY-'.$pmt->id),
-                'debit' => 0.00,
-                'credit' => (float) $pmt->amount,
-                'notes' => $pmt->notes ?: ('سند قبض عبر '.($pmt->payment_method === 'cash' ? 'نقداً' : ($pmt->payment_method === 'card' ? 'بطاقة/مدى' : 'تحويل'))),
-            ]);
-        }
-
-        // 3. Sort transactions chronologically
-        $sorted = $rawTransactions->sortBy(function ($item) {
-            return $item['date'].'_'.$item['order_key'].'_'.($item['created_at'] ?? '');
-        })->values();
-
-        // 4. Calculate Progressive Running Balance
-        $openingBalance = (float) ($client->opening_balance ?? 0);
-        $runningBalance = $openingBalance;
-        $finalTransactions = collect();
-
-        // First date for opening balance
-        $firstDate = $sorted->first()['date'] ?? ($client->created_at ? $client->created_at->format('Y-m-d') : now()->format('Y-m-d'));
-
-        // Always show opening balance at the very top if non-zero or if no other transactions exist
-        if ($openingBalance != 0 || $sorted->isEmpty()) {
-            $finalTransactions->push([
-                'date' => $firstDate,
-                'type' => 'opening_balance',
-                'type_ar' => 'رصيد افتتاحي',
-                'reference' => 'افتتاحي',
-                'debit' => $openingBalance > 0 ? $openingBalance : 0.00,
-                'credit' => $openingBalance < 0 ? abs($openingBalance) : 0.00,
-                'balance' => $runningBalance,
-                'notes' => 'الرصيد الافتتاحي للعميل',
-            ]);
-        }
-
-        foreach ($sorted as $item) {
-            $runningBalance += ($item['debit'] - $item['credit']);
-            $item['balance'] = round($runningBalance, 2);
-            $finalTransactions->push($item);
-        }
+        $statement = $statements->build($client);
 
         return Inertia::render('Sales/Clients/Statement', [
-            'client' => $client,
-            'transactions' => $finalTransactions,
-            'openingBalance' => $openingBalance,
-            'closingBalance' => round($runningBalance, 2),
+            'client' => $client->setRelations([]),
+            'transactions' => $statement['transactions'],
+            'openingBalance' => $statement['opening'],
+            'closingBalance' => $statement['closing'],
         ]);
     }
 

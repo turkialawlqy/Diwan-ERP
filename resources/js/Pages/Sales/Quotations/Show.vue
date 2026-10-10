@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import AlOstazLogo from '../../../Components/AlOstazLogo.vue';
@@ -81,6 +82,8 @@ const formatDateArabic = (dateStr) => {
                 </div>
 
                 <div class="flex items-center gap-2">
+                    <ShareDocument v-if="$can('sales.quotations.print')" type="quotation" :id="quotation.id" />
+
                     <!-- Convert to Invoice Button -->
                     <button 
                         v-if="quotation.status !== 'converted'"

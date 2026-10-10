@@ -61,6 +61,7 @@ class CompanySettingController extends Controller
             'vat_rate' => 'nullable|numeric|min:0|max:100',
             'invoice_prefix' => 'nullable|string|max:10',
             'invoice_terms' => 'nullable|string',
+            'document_message' => 'nullable|string|max:3000',
             'pos_auto_print' => 'nullable|boolean',
 
             // ZATCA settings
@@ -119,6 +120,7 @@ class CompanySettingController extends Controller
             'vat_rate' => $validated['vat_rate'] ?? 15,
             'invoice_prefix' => $validated['invoice_prefix'] ?? 'INV',
             'invoice_terms' => $validated['invoice_terms'] ?? '',
+            'document_message' => $validated['document_message'] ?? '',
             'pos_auto_print' => ! empty($validated['pos_auto_print']) ? '1' : '0',
             'zatca_phase' => $validated['zatca_phase'] ?? 'phase1',
             'zatca_environment' => $validated['zatca_environment'] ?? 'sandbox',

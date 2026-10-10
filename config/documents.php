@@ -43,4 +43,17 @@ return [
         'subcontract' => ['table' => 'subcontracts', 'column' => 'number', 'prefix' => 'SUB-', 'pad' => 5, 'yearly' => true],
         'product' => ['table' => 'products', 'column' => 'sku', 'prefix' => 'PRD-', 'pad' => 5, 'yearly' => false],
     ],
+
+    /*
+    | PDF output (mPDF). The default font ships with mPDF and shapes Arabic
+    | correctly; put another TTF in resources/fonts and set PDF_FONT_FILE to
+    | use it (e.g. Cairo-Regular.ttf with PDF_FONT=cairo).
+    */
+    'pdf' => [
+        'font' => env('PDF_FONT', 'xbriyaz'),
+        'font_file' => env('PDF_FONT_FILE'),
+    ],
+
+    // Signed links sent to customers (PDF download, account statement).
+    'share_link_days' => (int) env('DOCUMENT_LINK_DAYS', 30),
 ];

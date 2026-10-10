@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -457,6 +458,8 @@ const resolveTag = (tag) => {
                         <ArrowUturnLeftIcon class="w-4 h-4 stroke-2" />
                         <span class="hidden sm:inline">مرتجع</span>
                     </Link>
+
+                    <ShareDocument v-if="$can('sales.invoices.print')" type="invoice" :id="invoice.id" />
 
                     <!-- Split / Quick Print Button with Dropdown Trigger -->
                     <div class="inline-flex rounded-xl shadow-xs">

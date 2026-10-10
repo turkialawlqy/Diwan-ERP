@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref, onMounted } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -97,6 +98,8 @@ const formatDateArabic = (dateStr) => {
                         <DocumentTextIcon class="w-4 h-4" />
                         <span>عرض الفاتورة الأصلية</span>
                     </Link>
+
+                    <ShareDocument v-if="$can('sales.returns.print')" type="credit_note" :id="creditNote.id" />
 
                     <button 
                         @click="triggerPrint"

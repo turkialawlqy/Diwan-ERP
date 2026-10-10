@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -22,6 +23,7 @@ const printPage = () => window.print();
                     <button v-if="$can('projects.billings.delete')" @click="remove" class="px-3 py-2 rounded-xl border border-rose-200 text-rose-600 text-xs font-bold">حذف</button>
                 </template>
                 <Link v-if="billing.invoice" :href="route('sales.invoices.show', billing.invoice.id)" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold">الفاتورة {{ billing.invoice.invoice_number }}</Link>
+                <ShareDocument v-if="$can('projects.billings.print')" type="billing" :id="billing.id" />
                 <button @click="printPage" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold">طباعة</button>
             </template>
         </PageHeader>

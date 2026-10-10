@@ -95,6 +95,7 @@ const form = useForm({
     vat_rate: props.settings?.vat_rate ? Number(props.settings.vat_rate) : 15,
     invoice_prefix: props.settings?.invoice_prefix || 'INV',
     invoice_terms: props.settings?.invoice_terms || 'تطبق الشروط والأحكام الخاصة بالمبيعات.',
+    document_message: props.settings?.document_message || '',
     pos_auto_print: props.settings?.pos_auto_print === '1',
 
     // ZATCA Settings
@@ -571,6 +572,17 @@ const removeLogo = async () => {
                                     class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 leading-relaxed"
                                     placeholder="تظهر هذه الشروط في أسفل جميع الفواتير الصادرة للعملاء..."
                                 ></textarea>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">نص رسالة إرسال المستندات للعملاء (بريد / واتساب)</label>
+                                <textarea
+                                    v-model="form.document_message"
+                                    rows="5"
+                                    class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 leading-relaxed"
+                                    placeholder="اتركه فارغاً لاستخدام النص الافتراضي"
+                                ></textarea>
+                                <p class="text-2xs text-slate-400 mt-1">المتغيرات المتاحة: {customer} {document} {number} {total} {company}</p>
                             </div>
                         </div>
 

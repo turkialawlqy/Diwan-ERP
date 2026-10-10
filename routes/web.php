@@ -19,6 +19,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerPaymentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DataTransferController;
+use App\Http\Controllers\DocumentShareController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\Finance\BankAccountController;
 use App\Http\Controllers\Finance\ExpenseController;
@@ -75,6 +76,12 @@ Route::get('/', function () {
 });
 
 // Localization Switcher
+// Customer-facing signed links (no login): document PDF and account statement.
+Route::middleware(['signed', 'throttle:60,1'])->prefix('share/{company}')->whereNumber('company')->name('share.')->group(function () {
+    Route::get('/pdf/{type}/{id}', [DocumentShareController::class, 'sharedPdf'])->whereNumber('id')->name('pdf');
+    Route::get('/statement/{customer}', [DocumentShareController::class, 'portal'])->whereNumber('customer')->name('statement');
+});
+
 Route::post('/locale/switch', [LocaleController::class, 'switch'])->name('locale.switch');
 
 // Google OAuth
@@ -130,6 +137,14 @@ Route::middleware(['auth', 'tenant', 'plan', 'erp.authorize', 'throttle:tenant-w
     Route::get('/files/{token}', [FileController::class, 'show'])
         ->where('token', '.*')
         ->name('files.show');
+
+    // Official PDF and "send to customer" for every customer-facing document
+    // (type checked against DocumentSharing::TYPES and its own permission).
+    Route::prefix('documents/{type}/{id}')->whereNumber('id')->name('documents.')->group(function () {
+        Route::get('/pdf', [DocumentShareController::class, 'pdf'])->name('pdf');
+        Route::get('/dispatches', [DocumentShareController::class, 'dispatches'])->name('dispatches');
+        Route::post('/send', [DocumentShareController::class, 'send'])->middleware('throttle:30,1')->name('send');
+    });
 
     // Company logo, streamed by the app so it never depends on the public/storage symlink.
     Route::get('/company/logo', [CompanySettingController::class, 'showLogo'])->name('company.logo');
