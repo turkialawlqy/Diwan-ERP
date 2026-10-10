@@ -11,7 +11,7 @@ class DebitNote extends Model
 {
     use Auditable, BelongsToCompany;
 
-    protected $fillable = ['company_id', 'customer_id', 'invoice_id', 'debit_note_number', 'debit_note_date', 'reason', 'subtotal', 'tax_rate', 'tax_amount', 'total', 'status', 'zatca_uuid', 'zatca_qr', 'created_by'];
+    protected $fillable = ['company_id', 'customer_id', 'invoice_id', 'debit_note_number', 'debit_note_date', 'reason', 'subtotal', 'tax_rate', 'tax_amount', 'total', 'status', 'zatca_uuid', 'zatca_qr', 'created_by', 'currency_code', 'exchange_rate'];
 
     protected $casts = ['debit_note_date' => 'date', 'subtotal' => 'decimal:2', 'tax_amount' => 'decimal:2', 'total' => 'decimal:2'];
 

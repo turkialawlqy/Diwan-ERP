@@ -27,3 +27,19 @@ export function monthLabel(period) {
     const s = String(period);
     return `${s.substring(0, 4)}-${s.substring(4, 6)}`;
 }
+
+// Hijri (Umm al-Qura) date, e.g. "29 ربيع الآخر 1448 هـ". Noon avoids
+// day shifts from the viewer's timezone.
+const hijriFormatter = (() => {
+    try {
+        return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-latn', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Riyadh' });
+    } catch {
+        return null;
+    }
+})();
+
+export function hijri(value) {
+    if (!value || !hijriFormatter) return '';
+    const d = new Date(`${String(value).substring(0, 10)}T12:00:00+03:00`);
+    return Number.isNaN(d.getTime()) ? '' : hijriFormatter.format(d);
+}

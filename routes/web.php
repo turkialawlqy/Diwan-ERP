@@ -16,6 +16,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CompanySettingController;
 use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\Crm;
+use App\Http\Controllers\CurrencyController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerPaymentController;
 use App\Http\Controllers\DashboardController;
@@ -197,6 +198,7 @@ Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'thr
         Route::get('/returns/{creditNote}', [CreditNoteController::class, 'show'])->name('returns.show');
         Route::get('/payments', [CustomerPaymentController::class, 'index'])->name('payments.index');
         Route::post('/payments', [CustomerPaymentController::class, 'store'])->name('payments.store');
+        Route::get('/payments/open-invoices', [CustomerPaymentController::class, 'openInvoices'])->name('payments.open-invoices');
         Route::post('/payments/{payment}/allocate', [CustomerPaymentController::class, 'allocate'])->name('payments.allocate');
 
         // Sales orders → delivery notes → invoices
@@ -567,6 +569,10 @@ Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'thr
     Route::get('/templates/preview-invoice/{invoice}', [TemplateController::class, 'getInvoicePreview'])->name('templates.preview-invoice');
 
     Route::get('/settings', [CompanySettingController::class, 'index'])->name('settings.index');
+    Route::get('/settings/currencies', [CurrencyController::class, 'index'])->name('settings.currencies');
+    Route::post('/settings/currencies', [CurrencyController::class, 'store'])->name('settings.currencies.store');
+    Route::post('/settings/currencies/rates', [CurrencyController::class, 'storeRate'])->name('settings.currencies.rates');
+    Route::delete('/settings/currencies/{currency}', [CurrencyController::class, 'destroy'])->name('settings.currencies.destroy');
     Route::put('/settings', [CompanySettingController::class, 'update'])->name('settings.update');
     Route::post('/settings/logo', [CompanySettingController::class, 'uploadLogo'])->name('settings.logo.upload');
     Route::delete('/settings/logo', [CompanySettingController::class, 'deleteLogo'])->name('settings.logo.delete');

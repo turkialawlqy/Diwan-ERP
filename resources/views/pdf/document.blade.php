@@ -66,7 +66,7 @@
     <tr>
         <td style="width: 55%; vertical-align: top; padding-left: 10pt;">
             @if(($layout['footer']['show_tafqeet'] ?? true) && $grand)
-                <div class="words small"><span class="bold">المبلغ كتابةً:</span> {{ \App\Services\Documents\DocumentPdf::words($grand[1]) }}</div>
+                <div class="words small"><span class="bold">المبلغ كتابةً:</span> {{ \App\Services\Documents\DocumentPdf::words($grand[1], $currency_words) }}</div>
             @endif
             @if($qr && ($layout['qr']['show'] ?? true))
                 <div style="margin-top: 8pt;">
@@ -80,10 +80,16 @@
                 @foreach($totals as $row)
                     <tr class="{{ !empty($row[2]) ? 'grand' : '' }}">
                         <td>{{ $row[0] }}</td>
-                        <td class="num">{{ number_format($row[1], 2) }} <span style="font-family: xbriyaz;">ر.س</span></td>
+                        <td class="num">{{ number_format($row[1], 2) }} <span style="font-family: xbriyaz;">{{ $currency_label }}</span></td>
                     </tr>
                 @endforeach
             </table>
+            @if($base_equivalent)
+                <div class="small muted" style="margin-top: 4pt;">
+                    سعر الصرف: <span class="num">1 {{ $currency_label }} = {{ rtrim(rtrim(number_format($base_equivalent['rate'], 6, '.', ''), '0'), '.') }} SAR</span><br>
+                    الإجمالي بالريال: <span class="num">{{ number_format($base_equivalent['total'], 2) }} SAR</span> — الضريبة بالريال: <span class="num">{{ number_format($base_equivalent['tax'], 2) }} SAR</span>
+                </div>
+            @endif
         </td>
     </tr>
 </table>

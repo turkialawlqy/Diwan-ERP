@@ -7,6 +7,7 @@ use App\Models\CreditNoteItem;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Accounting\ExchangeRates;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\SalesCycleService;
 use App\Services\TenantManager;
@@ -166,7 +167,11 @@ class CreditNoteController extends Controller
         $company = $tenantManager->getCompany();
 
         $creditNote = DB::transaction(function () use ($validated, $company) {
+            // An amount credit note on an invoice follows the invoice currency.
+            $source = ! empty($validated['invoice_id']) ? Invoice::find($validated['invoice_id']) : null;
             $creditNote = CreditNote::create([
+                'currency_code' => $source?->currency_code,
+                'exchange_rate' => $source?->exchange_rate ?: 1,
                 'company_id' => $company->id,
                 'customer_id' => $validated['customer_id'],
                 'invoice_id' => $validated['invoice_id'] ?? null,
@@ -188,7 +193,7 @@ class CreditNoteController extends Controller
             $creditsAccount = $creditNote->status === 'approved'
                 || ($creditNote->status === 'refunded' && $creditNote->refund_method === 'credit');
             if ($creditsAccount) {
-                Customer::where('id', $validated['customer_id'])->decrement('current_balance', $validated['total']);
+                Customer::where('id', $validated['customer_id'])->decrement('current_balance', ExchangeRates::toBase((float) $validated['total'], $creditNote->exchange_rate));
             }
 
             app(DocumentPoster::class)->creditNote($creditNote);

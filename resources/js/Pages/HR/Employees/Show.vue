@@ -1,4 +1,5 @@
 <script setup>
+import HijriDate from '@/Components/UI/HijriDate.vue';
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -32,8 +33,8 @@ const minutes = (m) => (m ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, 
             <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-1.5">
                 <div class="flex justify-between"><span>الجنسية</span><b>{{ employee.nationality }}</b></div>
                 <div class="flex justify-between"><span>{{ employee.id_type === 'iqama' ? 'الإقامة' : 'الهوية' }}</span><b class="font-mono">{{ employee.national_id }}</b></div>
-                <div class="flex justify-between"><span>انتهاء الهوية</span><b class="font-mono">{{ date(employee.id_expiry) }}</b></div>
-                <div class="flex justify-between"><span>الجواز</span><b class="font-mono">{{ employee.passport_number || '—' }} {{ employee.passport_expiry ? '(' + date(employee.passport_expiry) + ')' : '' }}</b></div>
+                <div class="flex justify-between"><span>انتهاء الهوية</span><b><HijriDate :value="employee.id_expiry" inline /></b></div>
+                <div class="flex justify-between"><span>الجواز</span><b class="font-mono">{{ employee.passport_number || '—' }} </b></div><div v-if="employee.passport_expiry" class="flex justify-between"><span>انتهاء الجواز</span><b><HijriDate :value="employee.passport_expiry" inline /></b></div>
                 <div class="flex justify-between"><span>الجوال</span><b>{{ employee.phone }}</b></div>
                 <div class="flex justify-between"><span>المستخدم</span><b>{{ employee.user?.email || '—' }}</b></div>
             </div>
@@ -60,7 +61,7 @@ const minutes = (m) => (m ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, 
                     <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">النوع</th><th class="px-3 py-2">الرقم</th><th class="px-3 py-2">الانتهاء</th><th class="px-3 py-2">الملف</th><th></th></tr></thead>
                     <tbody>
                         <tr v-for="d in employee.documents" :key="d.id" class="border-t border-slate-100">
-                            <td class="px-3 py-2">{{ docLabel[d.type] }}</td><td class="px-3 py-2 text-center font-mono">{{ d.number }}</td><td class="px-3 py-2 text-center font-mono">{{ date(d.expiry_date) }}</td>
+                            <td class="px-3 py-2">{{ docLabel[d.type] }}</td><td class="px-3 py-2 text-center font-mono">{{ d.number }}</td><td class="px-3 py-2 text-center"><HijriDate :value="d.expiry_date" /></td>
                             <td class="px-3 py-2 text-center"><a v-if="d.url" :href="d.url" target="_blank" class="text-indigo-600 font-bold">عرض</a></td>
                             <td class="px-3 py-2 text-end"><button v-if="$can('hr.employees.edit')" @click="router.delete(route('hr.employees.documents.destroy', [employee.id, d.id]), { preserveScroll: true })" class="text-rose-600">حذف</button></td>
                         </tr>

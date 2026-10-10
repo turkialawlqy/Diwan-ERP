@@ -1,4 +1,5 @@
 <script setup>
+import CurrencyPicker from '@/Components/Documents/CurrencyPicker.vue';
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -32,6 +33,8 @@ const form = useForm({
     payment_method: 'bank_transfer',
     reference_number: '',
     notes: '',
+    currency_code: '',
+    exchange_rate: '',
 });
 
 const filteredInvoices = ref([]);
@@ -241,7 +244,8 @@ const formatCurrency = (val) => {
                         <div>
                             <label class="block font-bold text-slate-700 mb-1">فاتورة الشراء (اختياري)</label>
                             <select 
-                                v-model="form.purchase_invoice_id" 
+                                v-model="form.purchase_invoice_id"
+                                @change="() => { const inv = filteredInvoices.find((i) => i.id === form.purchase_invoice_id); form.currency_code = inv?.currency_code || ''; form.exchange_rate = ''; }" 
                                 class="w-full rounded-xl border border-slate-200 px-3 py-2 font-medium"
                             >
                                 <option value="">سداد عام على رصيد الحساب</option>
@@ -250,6 +254,8 @@ const formatCurrency = (val) => {
                                 </option>
                             </select>
                         </div>
+
+                        <CurrencyPicker v-model:code="form.currency_code" v-model:rate="form.exchange_rate" :errors="form.errors" />
 
                         <div class="grid grid-cols-2 gap-3">
                             <div>

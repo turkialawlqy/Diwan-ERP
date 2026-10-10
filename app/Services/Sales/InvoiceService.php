@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Accounting\ExchangeRates;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Saas\WebhookDispatcher;
@@ -53,10 +54,12 @@ class InvoiceService
             $total = round($subtotal + $taxAmount, 2);
 
             [$paidAmount, $remaining, $status] = $this->payment($data, $total);
+            // Amounts are in the invoice currency; balances and the ledger use base.
+            [$currency, $rate] = app(ExchangeRates::class)->resolve($data['currency_code'] ?? null, $data['exchange_rate'] ?? null, $data['invoice_date']);
 
             $customer = Customer::lockForUpdate()->findOrFail($data['customer_id']);
             if (($options['check_credit'] ?? true) && $remaining > 0) {
-                $this->checkCreditLimit($customer, $remaining);
+                $this->checkCreditLimit($customer, ExchangeRates::toBase($remaining, $rate));
             }
 
             $date = Carbon::parse($data['invoice_date']);
@@ -92,6 +95,8 @@ class InvoiceService
                 'terms' => $data['terms'] ?? null,
                 'zatca_uuid' => (string) Str::uuid(),
                 'zatca_status' => 'not_submitted',
+                'currency_code' => $currency,
+                'exchange_rate' => $rate,
             ]);
 
             foreach ($items as $item) {
@@ -99,7 +104,7 @@ class InvoiceService
             }
 
             if ($remaining > 0) {
-                $customer->increment('current_balance', $remaining);
+                $customer->increment('current_balance', ExchangeRates::toBase($remaining, $rate));
             }
 
             // Stock leaves the warehouse at actual cost, unless it already left

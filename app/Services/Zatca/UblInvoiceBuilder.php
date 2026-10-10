@@ -29,10 +29,13 @@ class UblInvoiceBuilder
 
     protected string $currency;
 
+    protected float $rate = 1.0;
+
     public function build(array $data, int $icv, string $previousHash): DOMDocument
     {
         $this->doc = new DOMDocument('1.0', 'UTF-8');
         $this->currency = $data['currency'] ?? 'SAR';
+        $this->rate = (float) ($data['exchange_rate'] ?? 1) ?: 1.0;
         $totals = $this->totals($data['lines']);
 
         $root = $this->doc->createElementNS(self::NS['inv'], 'Invoice');
@@ -80,8 +83,10 @@ class UblInvoiceBuilder
             $this->cbc($means, 'InstructionNote', $data['instruction_note']);
         }
 
-        // Tax totals: one in accounting currency, one with the breakdown.
-        $this->amount($this->cac($root, 'TaxTotal'), 'TaxAmount', $totals['tax']);
+        // Tax totals: the first in the tax currency (SAR, converted at the
+        // document rate for foreign-currency invoices), the second in the
+        // invoice currency with the per-category breakdown.
+        $this->cbc($this->cac($root, 'TaxTotal'), 'TaxAmount', number_format(round($totals['tax'] * $this->rate, 2), 2, '.', ''), ['currencyID' => 'SAR']);
         $taxTotal = $this->cac($root, 'TaxTotal');
         $this->amount($taxTotal, 'TaxAmount', $totals['tax']);
         foreach ($totals['categories'] as $category) {

@@ -4,6 +4,7 @@ namespace App\Services\Documents;
 
 use App\Models\Company;
 use App\Models\CreditNote;
+use App\Models\Currency;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\PrintTemplate;
@@ -12,6 +13,7 @@ use App\Models\Quotation;
 use App\Models\ZatcaDocument;
 use App\Services\Sales\CustomerStatement;
 use App\Services\TenantManager;
+use App\Support\Hijri;
 use App\Support\Tafqeet;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
@@ -39,6 +41,8 @@ class DocumentPdf
         };
 
         $data += $this->common($document->company_id);
+        $data += $this->currency($document);
+        $data['meta'] = $this->withHijri($data['meta'], $document->company_id);
         $attachments = [];
         if ($xml = $this->signedXml($document)) {
             $attachments[] = ['name' => $data['number'].'.xml', 'mime' => 'text/xml', 'description' => 'ZATCA signed e-invoice (UBL 2.1)', 'content' => $xml];
@@ -181,6 +185,45 @@ class DocumentPdf
         ];
     }
 
+    /** Adds the Hijri date after the document's first date (company setting, on by default). */
+    protected function withHijri(array $meta, int $companyId): array
+    {
+        $company = Company::find($companyId);
+        if ($company && in_array($company->setting('show_hijri', '1'), ['0', false, 0], true)) {
+            return $meta;
+        }
+        $out = [];
+        $added = false;
+        foreach ($meta as $label => $value) {
+            $out[$label] = $value;
+            if (! $added && is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+                $out['التاريخ الهجري'] = Hijri::format($value);
+                $added = true;
+            }
+        }
+
+        return $out;
+    }
+
+    /** Currency shown on the document; foreign ones also give the SAR equivalent. */
+    protected function currency(Model $document): array
+    {
+        $code = $document->currency_code ?? null;
+        if (! $code) {
+            return ['currency_label' => 'ر.س', 'currency_words' => ['ريال سعودي', 'هللة'], 'base_equivalent' => null];
+        }
+        $currency = Currency::where('company_id', $document->company_id)->where('code', $code)->first();
+        $fractions = ['USD' => 'سنت', 'EUR' => 'سنت', 'GBP' => 'بنس', 'AED' => 'فلس', 'KWD' => 'فلس', 'BHD' => 'فلس', 'QAR' => 'درهم', 'OMR' => 'بيسة', 'EGP' => 'قرش', 'JOD' => 'قرش'];
+        $rate = (float) ($document->exchange_rate ?: 1);
+        $total = (float) ($document->total ?? $document->net_payable ?? 0);
+
+        return [
+            'currency_label' => $code,
+            'currency_words' => [$currency?->name_ar ?? $code, $fractions[$code] ?? 'جزء من مائة'],
+            'base_equivalent' => ['rate' => $rate, 'total' => round($total * $rate, 2), 'tax' => round((float) ($document->tax_amount ?? 0) * $rate, 2)],
+        ];
+    }
+
     protected function common(int $companyId): array
     {
         $company = app(TenantManager::class)->getCompany()?->id === $companyId
@@ -271,8 +314,8 @@ class DocumentPdf
         return preg_replace('/[^A-Za-z0-9_.-]+/', '-', $number).'.pdf';
     }
 
-    public static function words(float $amount): string
+    public static function words(float $amount, array $currency = ['ريال سعودي', 'هللة']): string
     {
-        return Tafqeet::amount($amount);
+        return Tafqeet::amount($amount, $currency[0], $currency[1]);
     }
 }

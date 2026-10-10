@@ -1,4 +1,5 @@
 <script setup>
+import CurrencyPicker from '@/Components/Documents/CurrencyPicker.vue';
 import { createRemoteLookup } from '@/lookup';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
@@ -51,6 +52,8 @@ const form = useForm({
     due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     supply_date: new Date().toISOString().split('T')[0],
     payment_method: 'bank_transfer',
+    currency_code: '',
+    exchange_rate: '',
     payment_status: 'unpaid',
     paid_amount: 0,
     notes: '',
@@ -623,6 +626,7 @@ onUnmounted(() => {
                                 />
                             </div>
                         </div>
+                        <CurrencyPicker v-model:code="form.currency_code" v-model:rate="form.exchange_rate" :errors="form.errors" class="pt-2" />
                     </div>
 
                     <!-- Items Table Card -->

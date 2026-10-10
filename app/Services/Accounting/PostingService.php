@@ -51,7 +51,7 @@ class PostingService
         $date = Carbon::parse($data['date'] ?? now())->startOfDay();
         $status = $data['status'] ?? JournalEntry::STATUS_POSTED;
         $entryType = $data['entry_type'] ?? 'system';
-        $lines = $this->normaliseLines($data['lines'] ?? [], $companyId, $entryType !== 'manual');
+        $lines = $this->normaliseLines($this->convert($data['lines'] ?? [], (float) ($data['rate'] ?? 1)), $companyId, $entryType !== 'manual');
 
         $this->validateLines($lines, $companyId);
 
@@ -273,6 +273,54 @@ class PostingService
      * Resolve roles, round, drop empty lines and (for system entries) absorb a
      * tiny rounding difference into the rounding account.
      */
+    /**
+     * Foreign-currency documents: amounts become base currency at the
+     * document rate. Lines flagged 'base' (e.g. stock cost from the ledger)
+     * are already in base currency.
+     */
+    protected function convert(array $lines, float $rate): array
+    {
+        if ($rate <= 0 || abs($rate - 1.0) < 1e-9) {
+            return $lines;
+        }
+
+        $converted = [];
+        foreach ($lines as $line) {
+            if (empty($line['base'])) {
+                foreach (['debit', 'credit'] as $side) {
+                    if (isset($line[$side])) {
+                        $line[$side] = round((float) $line[$side] * $rate, 2);
+                    }
+                }
+                $line['_converted'] = true;
+            }
+            unset($line['base']);
+            $converted[] = $line;
+        }
+
+        // Per-line rounding can leave a few halalas between the sides; put
+        // them on the largest converted line so the entry stays exact.
+        $difference = round(array_sum(array_map(fn ($l) => (float) ($l['debit'] ?? 0) - (float) ($l['credit'] ?? 0), $converted)), 2);
+        if ($difference != 0.0) {
+            $side = $difference > 0 ? 'credit' : 'debit';
+            $target = null;
+            foreach ($converted as $i => $line) {
+                if (! empty($line['_converted']) && (float) ($line[$side] ?? 0) > 0 && ($target === null || (float) $line[$side] > (float) $converted[$target][$side])) {
+                    $target = $i;
+                }
+            }
+            if ($target !== null) {
+                $converted[$target][$side] = round((float) $converted[$target][$side] + abs($difference), 2);
+            }
+        }
+
+        return array_map(function ($line) {
+            unset($line['_converted']);
+
+            return $line;
+        }, $converted);
+    }
+
     protected function normaliseLines(array $lines, int $companyId, bool $allowRounding): array
     {
         $normalised = [];

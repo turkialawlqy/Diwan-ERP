@@ -14,6 +14,8 @@ class CreditNote extends Model
     use Auditable, BelongsToCompany, HasFactory;
 
     protected $fillable = [
+        'currency_code',
+        'exchange_rate',
         'warehouse_id',
         'kind',
         'zatca_uuid',

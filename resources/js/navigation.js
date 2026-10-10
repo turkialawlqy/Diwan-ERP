@@ -146,6 +146,7 @@ export default [
         key: 'settings', label: 'nav.settings', icon: Cog6ToothIcon, color: 'indigo',
         children: [
             { label: 'nav.general_settings', route: 'settings.index', path: '/settings' },
+            { label: 'nav.currencies', route: 'settings.currencies', path: '/settings/currencies' },
             { label: 'nav.users', route: 'users.index', path: '/users' },
             { label: 'nav.roles', route: 'roles.index', path: '/roles' },
             { label: 'nav.audit_log', route: 'audit.index', path: '/audit-log' },

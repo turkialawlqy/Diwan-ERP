@@ -16,6 +16,7 @@ use App\Models\StockLayer;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Accounting\ExchangeRates;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
@@ -498,7 +499,7 @@ class PurchaseCycleService
                     $remaining = round((float) $invoice->remaining_amount - $applied, 2);
                     $invoice->update(['remaining_amount' => $remaining, 'payment_status' => $remaining <= 0 ? 'paid' : 'partially_paid']);
                 }
-                Supplier::whereKey($invoice->supplier_id)->decrement('current_balance', $total);
+                Supplier::whereKey($invoice->supplier_id)->decrement('current_balance', ExchangeRates::toBase($total, $invoice->exchange_rate));
             }
 
             $this->poster->purchaseReturn($return->fresh());

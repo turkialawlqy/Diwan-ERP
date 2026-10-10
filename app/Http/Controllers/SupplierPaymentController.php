@@ -6,6 +6,7 @@ use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Accounting\ExchangeRates;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -42,7 +43,7 @@ class SupplierPaymentController extends Controller
         $suppliers = Supplier::where('status', 'active')->orderBy('name')->limit(500)->get(['id', 'name', 'current_balance']);
         $unpaidInvoices = PurchaseInvoice::where('remaining_amount', '>', 0)
             ->with('supplier:id,name')
-            ->get(['id', 'supplier_id', 'invoice_number', 'total', 'remaining_amount']);
+            ->get(['id', 'supplier_id', 'invoice_number', 'total', 'remaining_amount', 'currency_code']);
 
         $stats = [
             'total_payments_count' => SupplierPayment::count(),
@@ -74,7 +75,13 @@ class SupplierPaymentController extends Controller
             'reference_number' => 'nullable|string|max:50',
             'notes' => 'nullable|string',
             'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
-        ]);
+        ] + ExchangeRates::rules());
+
+        if (empty($validated['currency_code']) && ! empty($validated['purchase_invoice_id'])) {
+            $validated['currency_code'] = PurchaseInvoice::whereKey($validated['purchase_invoice_id'])->value('currency_code');
+        }
+        [$validated['currency_code'], $validated['exchange_rate']] = app(ExchangeRates::class)
+            ->resolve($validated['currency_code'] ?? null, $validated['exchange_rate'] ?? null, $validated['payment_date']);
 
         $companyId = app(TenantManager::class)->getTenantId()
             ?? auth()->user()?->company_id;
@@ -97,12 +104,14 @@ class SupplierPaymentController extends Controller
                 'reference_number' => $validated['reference_number'] ?? null,
                 'notes' => $validated['notes'] ?? null,
                 'bank_account_id' => $validated['bank_account_id'] ?? null,
+                'currency_code' => $validated['currency_code'],
+                'exchange_rate' => $validated['exchange_rate'],
             ]);
 
             // Deduct supplier balance
             $supplier = Supplier::find($validated['supplier_id']);
             if ($supplier) {
-                $supplier->decrement('current_balance', $validated['amount']);
+                $supplier->decrement('current_balance', ExchangeRates::toBase((float) $validated['amount'], $validated['exchange_rate']));
             }
 
             // Update linked purchase invoice if applicable
@@ -114,6 +123,9 @@ class SupplierPaymentController extends Controller
                     throw ValidationException::withMessages(['purchase_invoice_id' => 'الفاتورة المحددة لا تخص هذا المورد.']);
                 }
                 if ($invoice) {
+                    if (($invoice->currency_code ?: null) !== $validated['currency_code']) {
+                        throw ValidationException::withMessages(['currency_code' => 'عملة السند يجب أن تطابق عملة فاتورة الشراء ('.($invoice->currency_code ?: app(ExchangeRates::class)->base()).').']);
+                    }
                     if ($validated['amount'] > $invoice->remaining_amount + 0.01) {
                         throw ValidationException::withMessages([
                             'amount' => "مبلغ الدفعة ({$validated['amount']}) أكبر من المبلغ المتبقي على فاتورة الشراء ({$invoice->remaining_amount}).",
@@ -133,6 +145,16 @@ class SupplierPaymentController extends Controller
             }
 
             app(DocumentPoster::class)->supplierPayment($payment);
+
+            // Paid at the payment rate, booked at the bill rate: for a supplier
+            // a higher payment rate is a loss.
+            if (! empty($invoice) && $validated['currency_code']) {
+                $difference = ExchangeRates::toBase((float) $validated['amount'], $invoice->exchange_rate) - ExchangeRates::toBase((float) $validated['amount'], $validated['exchange_rate']);
+                if (round($difference, 2) != 0.0) {
+                    app(DocumentPoster::class)->exchangeDifference($payment, 'supplier', (int) $payment->supplier_id, $difference, $payment->payment_date, $payment->payment_number);
+                    Supplier::whereKey($payment->supplier_id)->decrement('current_balance', round($difference, 2));
+                }
+            }
         });
 
         return back()->with('success', 'تم تسجيل سند الصرف وتحديث رصيد المورد بنجاح');

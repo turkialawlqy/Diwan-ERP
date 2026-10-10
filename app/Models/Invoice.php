@@ -15,6 +15,8 @@ class Invoice extends Model
     use Auditable, BelongsToCompany, BranchScoped, HasFactory;
 
     protected $fillable = [
+        'currency_code',
+        'exchange_rate',
         'salesperson_id',
         'sales_order_id',
         'delivery_note_id',

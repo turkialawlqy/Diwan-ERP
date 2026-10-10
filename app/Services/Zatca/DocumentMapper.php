@@ -148,7 +148,10 @@ class DocumentMapper
             'issue_time' => $issuedAt->format('H:i:s'),
             'type_code' => $data['type_code'],
             'subtype' => $data['subtype'],
-            'currency' => 'SAR',
+            // Foreign-currency documents: amounts in their currency, VAT also
+            // reported in SAR at the document rate (KSA-15 / BR-KSA-68).
+            'currency' => $document->currency_code ?: 'SAR',
+            'exchange_rate' => (float) ($document->exchange_rate ?: 1),
             'supply_date' => $data['supply_date'] ?? null,
             'billing_reference' => $data['billing_reference'] ?? null,
             'instruction_note' => $data['instruction_note'] ?? null,

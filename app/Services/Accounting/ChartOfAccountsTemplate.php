@@ -99,6 +99,7 @@ class ChartOfAccountsTemplate
             ['55', '5', 'خسائر بيع أصول', 'Loss on Asset Disposal', 'expense', 'debit', false, 'asset_disposal_loss', 'investing'],
             ['56', '5', 'فروقات التقريب', 'Rounding Differences', 'expense', 'debit', false, 'rounding', 'operating'],
             ['57', '5', 'الزكاة', 'Zakat Expense', 'expense', 'debit', false, 'zakat_expense', 'operating'],
+            ['58', '5', 'أرباح وخسائر فروق العملة', 'Exchange Gains & Losses', 'expense', 'debit', false, 'fx_difference', 'operating'],
         ];
     }
 }

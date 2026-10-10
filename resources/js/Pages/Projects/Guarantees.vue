@@ -1,4 +1,5 @@
 <script setup>
+import HijriDate from '@/Components/UI/HijriDate.vue';
 import { ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -45,7 +46,7 @@ const daysLeft = (d) => Math.ceil((new Date(d) - new Date()) / 86400000);
                     <tr v-for="g in guarantees.data" :key="g.id" class="border-t border-slate-100">
                         <td class="px-3 py-2 font-mono">{{ g.number }}</td><td class="px-3 py-2 text-center">{{ types[g.type] }}</td><td class="px-3 py-2 text-center font-mono">{{ g.project?.code || '—' }}</td>
                         <td class="px-3 py-2 text-center">{{ g.bank_name }}</td><td class="px-3 py-2 text-center">{{ g.beneficiary }}</td><td class="px-3 py-2 text-end font-mono">{{ money(g.amount) }}</td>
-                        <td class="px-3 py-2 text-center font-mono" :class="g.status === 'active' && daysLeft(g.expiry_date) <= 30 ? 'text-rose-600 font-bold' : ''">{{ date(g.expiry_date) }}</td>
+                        <td class="px-3 py-2 text-center" :class="g.status === 'active' && daysLeft(g.expiry_date) <= 30 ? 'text-rose-600 font-bold' : ''"><HijriDate :value="g.expiry_date" /></td>
                         <td class="px-3 py-2 text-center">{{ statuses[g.status] }}</td>
                         <td class="px-3 py-2 text-end"><button v-if="$can('projects.guarantees.edit')" @click="edit(g)" class="text-indigo-600 font-bold">تعديل</button></td>
                     </tr>

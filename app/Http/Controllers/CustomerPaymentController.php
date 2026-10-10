@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BankAccount;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\Invoice;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Accounting\ExchangeRates;
 use App\Services\Saas\WebhookDispatcher;
 use App\Services\Sales\SalesCycleService;
 use Illuminate\Http\Request;
@@ -45,6 +47,7 @@ class CustomerPaymentController extends Controller
 
         return Inertia::render('Sales/Payments/Index', [
             'payments' => $payments,
+            'bankAccounts' => BankAccount::where('is_active', true)->orderBy('type')->get(['id', 'name', 'type']),
             'filters' => [
                 'search' => $search,
             ],
@@ -55,6 +58,16 @@ class CustomerPaymentController extends Controller
     /**
      * Store a payment against an invoice or customer account.
      */
+    /** Open invoices of a customer for the receipt voucher form. */
+    public function openInvoices(Request $request)
+    {
+        $request->validate(['customer_id' => 'required|tenant_exists:customers,id']);
+
+        return response()->json(['data' => Invoice::where('customer_id', $request->integer('customer_id'))->where('remaining_amount', '>', 0)
+            ->orderBy('invoice_date')->limit(200)
+            ->get(['id', 'invoice_number', 'invoice_date', 'total', 'remaining_amount', 'currency_code'])]);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -70,7 +83,14 @@ class CustomerPaymentController extends Controller
             'allocations' => 'nullable|array|max:200',
             'allocations.*.invoice_id' => 'required|tenant_exists:invoices,id',
             'allocations.*.amount' => 'required|numeric|min:0',
-        ]);
+        ] + ExchangeRates::rules());
+
+        // A payment against one invoice defaults to that invoice's currency.
+        if (empty($validated['currency_code']) && ! empty($validated['invoice_id'])) {
+            $validated['currency_code'] = Invoice::whereKey($validated['invoice_id'])->value('currency_code');
+        }
+        [$validated['currency_code'], $validated['exchange_rate']] = app(ExchangeRates::class)
+            ->resolve($validated['currency_code'] ?? null, $validated['exchange_rate'] ?? null, $validated['payment_date']);
 
         DB::transaction(function () use ($validated) {
             $payment = CustomerPayment::create(array_merge(
@@ -86,6 +106,9 @@ class CustomerPaymentController extends Controller
                 if ((int) $invoice->customer_id !== (int) $validated['customer_id']) {
                     throw ValidationException::withMessages(['invoice_id' => 'الفاتورة المحددة لا تخص هذا العميل.']);
                 }
+                if (($invoice->currency_code ?: null) !== $validated['currency_code']) {
+                    throw ValidationException::withMessages(['currency_code' => 'عملة السند يجب أن تطابق عملة الفاتورة ('.($invoice->currency_code ?: app(ExchangeRates::class)->base()).').']);
+                }
                 if ((float) $validated['amount'] > (float) $invoice->remaining_amount + 0.01) {
                     throw ValidationException::withMessages([
                         'amount' => "مبلغ الدفعة ({$validated['amount']}) أكبر من المبلغ المتبقي على الفاتورة ({$invoice->remaining_amount}).",
@@ -100,7 +123,7 @@ class CustomerPaymentController extends Controller
                 app(SalesCycleService::class)->allocatePayment($payment, $allocations);
             }
 
-            Customer::where('id', $validated['customer_id'])->decrement('current_balance', $validated['amount']);
+            Customer::where('id', $validated['customer_id'])->decrement('current_balance', ExchangeRates::toBase((float) $validated['amount'], $payment->exchange_rate));
 
             app(DocumentPoster::class)->customerPayment($payment);
 

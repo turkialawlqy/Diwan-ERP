@@ -67,6 +67,7 @@ class AccountMap
         'bank_charges' => ['عمولات بنكية', 'expense'],
         'asset_disposal_loss' => ['خسائر بيع أصول', 'expense'],
         'rounding' => ['فروقات التقريب', 'expense'],
+        'fx_difference' => ['أرباح وخسائر فروق العملة', 'expense'],
         'zakat_expense' => ['مصروف الزكاة', 'expense'],
     ];
 

@@ -98,6 +98,7 @@ const form = useForm({
     invoice_prefix: props.settings?.invoice_prefix || 'INV',
     invoice_terms: props.settings?.invoice_terms || 'تطبق الشروط والأحكام الخاصة بالمبيعات.',
     document_message: props.settings?.document_message || '',
+    show_hijri: props.settings?.show_hijri !== '0',
     two_factor_required_roles: [...(props.twoFactorRoles || [])],
     pos_auto_print: props.settings?.pos_auto_print === '1',
 
@@ -587,6 +588,11 @@ const removeLogo = async () => {
                                 ></textarea>
                                 <p class="text-2xs text-slate-400 mt-1">المتغيرات المتاحة: {customer} {document} {number} {total} {company}</p>
                             </div>
+
+                            <label class="flex items-center gap-2 text-xs font-bold text-slate-700">
+                                <input v-model="form.show_hijri" type="checkbox" class="rounded border-slate-300 text-indigo-600" />
+                                إظهار التاريخ الهجري (أم القرى) في ملفات PDF للمستندات
+                            </label>
                         </div>
 
                         <!-- Accounting Tab (الربط والتوجيه المحاسبي) -->

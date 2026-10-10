@@ -4,7 +4,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import StatCard from '@/Components/UI/StatCard.vue';
 import StatusBadge from '@/Components/Documents/StatusBadge.vue';
-import { money, date } from '@/utils/format';
+import { money, date, hijri } from '@/utils/format';
 
 const props = defineProps({ employee: Object, leaveBalance: Object, leaveRequests: Array, loans: Array, payslips: Array, leaveTypes: Array });
 const leave = useForm({ leave_type_id: props.leaveTypes?.[0]?.id || '', start_date: '', end_date: '', reason: '' });
@@ -24,7 +24,7 @@ const loan = useForm({ amount: 0, monthly_installment: 0, reason: '' });
             <StatCard label="رصيد الإجازة السنوية" :value="`${leaveBalance.balance} يوم`" tone="indigo" />
             <StatCard label="الرقم الوظيفي" :value="employee.employee_number || '—'" />
             <StatCard label="تاريخ المباشرة" :value="date(employee.hire_date)" />
-            <StatCard label="انتهاء الهوية/الإقامة" :value="date(employee.id_expiry)" />
+            <StatCard label="انتهاء الهوية/الإقامة" :value="employee.id_expiry ? `${date(employee.id_expiry)} — ${hijri(employee.id_expiry)}` : '—'" />
         </div>
         <div class="grid lg:grid-cols-3 gap-4 text-xs">
             <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-2">

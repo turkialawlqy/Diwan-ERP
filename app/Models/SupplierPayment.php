@@ -13,6 +13,8 @@ class SupplierPayment extends Model
     use Auditable, BelongsToCompany, HasFactory;
 
     protected $fillable = [
+        'currency_code',
+        'exchange_rate',
         'bank_account_id',
         'company_id',
         'supplier_id',

@@ -14,6 +14,7 @@ use App\Models\SupplierPayment;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Accounting\ExchangeRates;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Purchases\PurchaseCycleService;
 use App\Services\TenantManager;
@@ -170,7 +171,10 @@ class PurchaseInvoiceController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.tax_rate' => 'nullable|numeric|min:0',
-        ]);
+        ] + ExchangeRates::rules());
+        [$validated['currency_code'], $validated['exchange_rate']] = app(ExchangeRates::class)
+            ->resolve($validated['currency_code'] ?? null, $validated['exchange_rate'] ?? null, $validated['invoice_date']);
+        $rate = $validated['exchange_rate'];
 
         $companyId = app(TenantManager::class)->getTenantId()
             ?? auth()->user()?->company_id;
@@ -181,7 +185,7 @@ class PurchaseInvoiceController extends Controller
 
         app(PurchaseCycleService::class)->assertUniqueSupplierInvoice((int) $validated['supplier_id'], $validated['supplier_invoice_number'] ?? null);
 
-        $invoice = DB::transaction(function () use ($validated, $companyId) {
+        $invoice = DB::transaction(function () use ($validated, $companyId, $rate) {
             $validated['invoice_number'] = $this->nextNumber('purchase_invoice', $validated['invoice_date']);
 
             $subtotal = 0;
@@ -244,6 +248,8 @@ class PurchaseInvoiceController extends Controller
                 'remaining_amount' => $remainingAmount,
                 'bank_account_id' => $validated['bank_account_id'] ?? null,
                 'notes' => $validated['notes'] ?? null,
+                'currency_code' => $validated['currency_code'],
+                'exchange_rate' => $rate,
             ]);
 
             foreach ($itemsData as $iData) {
@@ -256,7 +262,8 @@ class PurchaseInvoiceController extends Controller
                 'product_id' => $i['product_id'],
                 'quantity' => (float) $i['quantity'],
                 'unit_id' => $i['unit_id'] ?? null,
-                'unit_cost' => ((float) $i['quantity'] * (float) $i['unit_price'] - (float) ($i['discount'] ?? 0)) / max((float) $i['quantity'], 0.0001),
+                // Stock is valued in base currency at the bill's rate.
+                'unit_cost' => ((float) $i['quantity'] * (float) $i['unit_price'] - (float) ($i['discount'] ?? 0)) / max((float) $i['quantity'], 0.0001) * $rate,
                 'batch_number' => $i['batch_number'] ?? null,
                 'expiry_date' => $i['expiry_date'] ?? null,
                 'serials' => $i['serials'] ?? [],
@@ -267,7 +274,7 @@ class PurchaseInvoiceController extends Controller
             $supplier = Supplier::find($validated['supplier_id']);
             if ($supplier) {
                 // If unpaid balance remains, supplier balance increases (we owe them)
-                $supplier->increment('current_balance', $remainingAmount);
+                $supplier->increment('current_balance', ExchangeRates::toBase($remainingAmount, $rate));
             }
 
             // ⭐ Record Payment if paid or partially paid
@@ -283,6 +290,8 @@ class PurchaseInvoiceController extends Controller
                     'reference_number' => $validated['supplier_invoice_number'] ?? null,
                     'bank_account_id' => $validated['bank_account_id'] ?? null,
                     'notes' => 'سداد مرتبط بفاتورة الشراء '.$validated['invoice_number'],
+                    'currency_code' => $validated['currency_code'],
+                    'exchange_rate' => $rate,
                 ]);
             }
 

@@ -73,6 +73,7 @@ class DocumentPoster
             : $this->costOfSalesLines($invoice->items, $warehouseId, "تكلفة فاتورة {$invoice->invoice_number}")));
 
         return $this->posting->post([
+            'rate' => (float) ($invoice->exchange_rate ?: 1),
             'date' => $invoice->invoice_date,
             'branch_id' => $invoice->branch_id,
             'reference' => $invoice->invoice_number,
@@ -115,11 +116,12 @@ class DocumentPoster
         ));
         $cost = round($cost, 2);
         if ($cost > 0) {
-            $lines[] = ['role' => 'inventory', 'debit' => $cost, 'description' => 'إرجاع بضاعة للمخزون'];
-            $lines[] = ['role' => 'cogs', 'credit' => $cost, 'description' => 'عكس تكلفة مبيعات مرتجعة'];
+            $lines[] = ['role' => 'inventory', 'debit' => $cost, 'description' => 'إرجاع بضاعة للمخزون', 'base' => true];
+            $lines[] = ['role' => 'cogs', 'credit' => $cost, 'description' => 'عكس تكلفة مبيعات مرتجعة', 'base' => true];
         }
 
         return $this->posting->post([
+            'rate' => (float) ($note->exchange_rate ?: 1),
             'date' => $note->credit_note_date,
             'reference' => $note->credit_note_number,
             'description' => "إشعار دائن / مرتجع مبيعات {$note->credit_note_number}",
@@ -134,6 +136,7 @@ class DocumentPoster
     public function customerPayment(CustomerPayment $payment): JournalEntry
     {
         return $this->posting->post([
+            'rate' => (float) ($payment->exchange_rate ?: 1),
             'date' => $payment->payment_date,
             'reference' => $payment->payment_number,
             'description' => "سند قبض رقم {$payment->payment_number}",
@@ -190,6 +193,7 @@ class DocumentPoster
         }
 
         return $this->posting->post([
+            'rate' => (float) ($invoice->exchange_rate ?: 1),
             'date' => $invoice->invoice_date,
             'branch_id' => $invoice->branch_id,
             'reference' => $invoice->supplier_invoice_number ?: $invoice->invoice_number,
@@ -205,6 +209,7 @@ class DocumentPoster
     public function supplierPayment(SupplierPayment $payment): JournalEntry
     {
         return $this->posting->post([
+            'rate' => (float) ($payment->exchange_rate ?: 1),
             'date' => $payment->payment_date,
             'reference' => $payment->payment_number,
             'description' => "سند صرف للمورد رقم {$payment->payment_number}",
@@ -410,6 +415,7 @@ class DocumentPoster
     public function debitNote(DebitNote $note): JournalEntry
     {
         return $this->posting->post([
+            'rate' => (float) ($note->exchange_rate ?: 1),
             'date' => $note->debit_note_date,
             'reference' => $note->debit_note_number,
             'description' => "إشعار مدين {$note->debit_note_number} - {$note->reason}",
@@ -487,8 +493,10 @@ class DocumentPoster
      */
     public function purchaseReturn(PurchaseReturn $return): JournalEntry
     {
-        $total = (float) $return->total;
-        $tax = (float) $return->tax_amount;
+        // Amounts follow the original bill's currency; stock cost is base.
+        $rate = (float) ($return->purchaseInvoice?->exchange_rate ?: 1);
+        $total = ExchangeRates::toBase((float) $return->total, $rate);
+        $tax = ExchangeRates::toBase((float) $return->tax_amount, $rate);
         $net = $total - $tax;
         $cost = round((float) $return->cost_value, 2);
         $difference = round($net - $cost, 2);
@@ -565,12 +573,41 @@ class DocumentPoster
         ]);
     }
 
+    /**
+     * Realised exchange difference when a foreign-currency payment settles an
+     * invoice booked at another rate. $difference is in base currency:
+     * positive = gain. The receivable/payable is corrected by the same amount.
+     */
+    public function exchangeDifference(Model $source, string $partyType, int $partyId, float $difference, $date, string $reference): ?JournalEntry
+    {
+        $difference = round($difference, 2);
+        if ($difference == 0.0) {
+            return null;
+        }
+        $role = $partyType === 'customer' ? 'receivables' : 'payables';
+        $gain = $difference > 0;
+        $amount = abs($difference);
+        // A gain leaves the receivable over-credited (customer) or the payable
+        // under-debited (supplier): both are corrected with a debit, a loss with
+        // a credit; the other side goes to the exchange differences account.
+        $partyLine = ['role' => $role, 'party_type' => $partyType, 'party_id' => $partyId, 'description' => "فرق عملة - {$reference}", $gain ? 'debit' : 'credit' => $amount];
+        $fxLine = ['role' => 'fx_difference', 'description' => ($gain ? 'أرباح' : 'خسائر')." فروق عملة - {$reference}", $gain ? 'credit' : 'debit' => $amount];
+
+        return $this->posting->post([
+            'date' => $date,
+            'reference' => $reference,
+            'description' => "فروق عملة محققة - {$reference}",
+            'source' => $source,
+            'lines' => [$partyLine, $fxLine],
+        ]);
+    }
+
     protected function costLines(float $cost, string $description): array
     {
         $cost = round($cost, 2);
 
         return $cost > 0
-            ? [['role' => 'cogs', 'debit' => $cost, 'description' => $description], ['role' => 'inventory', 'credit' => $cost, 'description' => $description]]
+            ? [['role' => 'cogs', 'debit' => $cost, 'description' => $description, 'base' => true], ['role' => 'inventory', 'credit' => $cost, 'description' => $description, 'base' => true]]
             : [];
     }
 
@@ -585,7 +622,7 @@ class DocumentPoster
         $cost = round($cost, 2);
 
         return $cost > 0
-            ? [['role' => 'cogs', 'debit' => $cost, 'description' => $description], ['role' => 'inventory', 'credit' => $cost, 'description' => $description]]
+            ? [['role' => 'cogs', 'debit' => $cost, 'description' => $description, 'base' => true], ['role' => 'inventory', 'credit' => $cost, 'description' => $description, 'base' => true]]
             : [];
     }
 }

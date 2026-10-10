@@ -15,6 +15,7 @@ use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use App\Models\StockMovement;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Accounting\ExchangeRates;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
@@ -347,6 +348,8 @@ class SalesCycleService
                 'bank_account_id' => $data['bank_account_id'] ?? null,
                 'kind' => 'return',
                 'zatca_uuid' => (string) Str::uuid(),
+                'currency_code' => $invoice->currency_code,
+                'exchange_rate' => $invoice->exchange_rate ?: 1,
             ]);
 
             $returnedCost = 0.0;
@@ -412,7 +415,7 @@ class SalesCycleService
             ]);
         }
 
-        Customer::whereKey($invoice->customer_id)->decrement('current_balance', $amount);
+        Customer::whereKey($invoice->customer_id)->decrement('current_balance', ExchangeRates::toBase($amount, $invoice->exchange_rate));
     }
 
     /**
@@ -439,8 +442,12 @@ class SalesCycleService
             $subtotal = round((float) $data['subtotal'], 2);
             $taxRate = (float) ($data['tax_rate'] ?? 15);
             $tax = round($subtotal * $taxRate / 100, 2);
+            // A debit note on an invoice is in that invoice's currency and rate.
+            $source = ! empty($data['invoice_id']) ? Invoice::find($data['invoice_id']) : null;
 
             $note = DebitNote::create([
+                'currency_code' => $source?->currency_code,
+                'exchange_rate' => $source?->exchange_rate ?: 1,
                 'customer_id' => $data['customer_id'],
                 'invoice_id' => $data['invoice_id'] ?? null,
                 'debit_note_number' => $this->numbers->next('debit_note', Carbon::parse($data['debit_note_date'])),
@@ -455,7 +462,7 @@ class SalesCycleService
                 'created_by' => auth()->id(),
             ]);
 
-            Customer::whereKey($note->customer_id)->increment('current_balance', (float) $note->total);
+            Customer::whereKey($note->customer_id)->increment('current_balance', ExchangeRates::toBase((float) $note->total, $note->exchange_rate));
             $this->poster->debitNote($note);
             app(EInvoiceManager::class)->stamp($note);
 
@@ -470,6 +477,7 @@ class SalesCycleService
     public function allocatePayment(CustomerPayment $payment, ?array $allocations = null): void
     {
         $remaining = (float) $payment->amount - (float) PaymentAllocation::where('customer_payment_id', $payment->id)->sum('amount');
+        $exchangeDifference = 0.0;
 
         $targets = $allocations !== null
             ? collect($allocations)->filter(fn ($a) => (float) $a['amount'] > 0)
@@ -486,6 +494,12 @@ class SalesCycleService
             if (! $invoice || (int) $invoice->customer_id !== (int) $payment->customer_id) {
                 throw ValidationException::withMessages(['allocations' => 'إحدى الفواتير لا تخص العميل.']);
             }
+            if (($invoice->currency_code ?: null) !== ($payment->currency_code ?: null)) {
+                if ($allocations === null) {
+                    continue; // automatic allocation only settles same-currency invoices
+                }
+                throw ValidationException::withMessages(['allocations' => "عملة الفاتورة {$invoice->invoice_number} تختلف عن عملة السند."]);
+            }
 
             $amount = round(min((float) $target['amount'], (float) $invoice->remaining_amount, $remaining), 2);
             if ($allocations !== null && (float) $target['amount'] > (float) $invoice->remaining_amount + 0.005) {
@@ -496,6 +510,8 @@ class SalesCycleService
             }
 
             PaymentAllocation::create(['customer_payment_id' => $payment->id, 'invoice_id' => $invoice->id, 'amount' => $amount]);
+            // Settled at the payment rate, booked at the invoice rate.
+            $exchangeDifference += ExchangeRates::toBase($amount, $payment->exchange_rate) - ExchangeRates::toBase($amount, $invoice->exchange_rate);
 
             $newRemaining = round((float) $invoice->remaining_amount - $amount, 2);
             $invoice->update([
@@ -505,6 +521,12 @@ class SalesCycleService
             ]);
 
             $remaining -= $amount;
+        }
+
+        $exchangeDifference = round($exchangeDifference, 2);
+        if ($exchangeDifference != 0.0) {
+            $this->poster->exchangeDifference($payment, 'customer', (int) $payment->customer_id, $exchangeDifference, $payment->payment_date, $payment->payment_number);
+            Customer::whereKey($payment->customer_id)->increment('current_balance', $exchangeDifference);
         }
     }
 }

@@ -11,6 +11,7 @@ use App\Models\PrintTemplate;
 use App\Models\Product;
 use App\Models\Unit;
 use App\Models\Warehouse;
+use App\Services\Accounting\ExchangeRates;
 use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
@@ -200,7 +201,7 @@ class InvoiceController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.tax_rate' => 'nullable|numeric|min:0',
-        ]);
+        ] + ExchangeRates::rules());
 
         $invoice = app(InvoiceService::class)->create(
             collect($validated)->except('items')->all(),

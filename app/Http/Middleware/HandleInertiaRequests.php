@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Currency;
 use App\Services\Saas\PlanGuard;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
@@ -65,6 +66,9 @@ class HandleInertiaRequests extends Middleware
                 'status' => $currentTenant->status,
                 'trial_ends_at' => $currentTenant->trial_ends_at?->format('Y-m-d'),
             ] : null,
+            // Currencies the company uses (forms show a currency picker when > 1).
+            'currencies' => fn () => $currentTenant ? Currency::orderByDesc('is_default')->orderBy('code')
+                ->get(['code', 'name_ar', 'symbol_ar', 'exchange_rate'])->toArray() : [],
             'impersonation' => $tenantManager->getImpersonationData(),
             'unreadNotifications' => fn () => $user ? $user->unreadNotifications()->count() : 0,
             'subscription' => fn () => $currentTenant ? [

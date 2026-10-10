@@ -35,6 +35,9 @@ const currentTemplate = computed(() => {
     return props.templates?.find(t => t.id === currentTemplateId.value) || props.template || {};
 });
 
+// Foreign-currency invoices show their currency and the base equivalent.
+const curSymbol = computed(() => props.invoice?.currency_code || 'ر.س');
+const baseTotal = computed(() => props.invoice?.currency_code ? Number(props.invoice.total) * Number(props.invoice.exchange_rate || 1) : null);
 const isLogoBroken = ref(false);
 const companyLogoUrl = computed(() => {
     return props.company?.logo_url || props.company?.logo || null;
@@ -600,7 +603,7 @@ const resolveTag = (tag) => {
                                     {{ Number(item.quantity) }} × {{ formatCurrency(item.unit_price) }}
                                 </span>
                                 <span class="font-mono font-bold text-slate-900">
-                                    {{ formatCurrency(item.total || item.subtotal || (item.quantity * item.unit_price)) }} ر.س
+                                    {{ formatCurrency(item.total || item.subtotal || (item.quantity * item.unit_price)) }} {{ curSymbol }}
                                 </span>
                             </div>
                         </div>
@@ -613,30 +616,31 @@ const resolveTag = (tag) => {
                     <div class="text-3xs space-y-1">
                         <div class="flex justify-between items-center text-slate-600">
                             <span>المجموع الخاضع للضريبة:</span>
-                            <span class="font-mono">{{ formatCurrency(invoice.subtotal) }} ر.س</span>
+                            <span class="font-mono">{{ formatCurrency(invoice.subtotal) }} {{ curSymbol }}</span>
                         </div>
                         <div v-if="Number(invoice.discount_amount) > 0" class="flex justify-between items-center text-rose-600">
                             <span>الخصم:</span>
-                            <span class="font-mono">-{{ formatCurrency(invoice.discount_amount) }} ر.س</span>
+                            <span class="font-mono">-{{ formatCurrency(invoice.discount_amount) }} {{ curSymbol }}</span>
                         </div>
                         <div class="flex justify-between items-center text-slate-600">
                             <span>ضريبة القيمة المضافة (15%):</span>
-                            <span class="font-mono">{{ formatCurrency(invoice.tax_amount) }} ر.س</span>
+                            <span class="font-mono">{{ formatCurrency(invoice.tax_amount) }} {{ curSymbol }}</span>
                         </div>
                         
                         <!-- Grand Total Highlighted -->
                         <div class="border-y-2 border-dashed border-slate-800 py-1.5 my-1 flex justify-between items-center text-xs font-black">
                             <span>الإجمالي شامل الضريبة:</span>
-                            <span class="font-mono text-sm font-black">{{ formatCurrency(invoice.total ?? invoice.total_amount) }} ر.س</span>
+                            <span class="font-mono text-sm font-black">{{ formatCurrency(invoice.total ?? invoice.total_amount) }} {{ curSymbol }}</span>
+                            <span v-if="baseTotal !== null" class="block text-2xs text-slate-500 font-mono">≈ {{ formatCurrency(baseTotal) }} ر.س (سعر {{ Number(invoice.exchange_rate).toFixed(4) }})</span>
                         </div>
 
                         <div v-if="Number(invoice.paid_amount) > 0" class="flex justify-between items-center text-slate-600 pt-0.5">
                             <span>المبلغ المدفوع:</span>
-                            <span class="font-mono font-bold">{{ formatCurrency(invoice.paid_amount) }} ر.س</span>
+                            <span class="font-mono font-bold">{{ formatCurrency(invoice.paid_amount) }} {{ curSymbol }}</span>
                         </div>
                         <div v-if="Number(invoice.remaining_amount) > 0" class="flex justify-between items-center text-amber-700 font-bold">
                             <span>المبلغ المتبقي:</span>
-                            <span class="font-mono">{{ formatCurrency(invoice.remaining_amount) }} ر.س</span>
+                            <span class="font-mono">{{ formatCurrency(invoice.remaining_amount) }} {{ curSymbol }}</span>
                         </div>
                     </div>
 
@@ -916,13 +920,13 @@ const resolveTag = (tag) => {
                                     <div v-if="item.description && item.item_name" class="text-3xs text-slate-500">{{ item.description }}</div>
                                 </td>
                                 <td v-if="layout.table.columns.find(c => c.key === 'unit_price')?.visible" class="py-3 px-3 text-center font-mono">
-                                    {{ formatCurrency(item.unit_price) }} ﷼
+                                    {{ formatCurrency(item.unit_price) }} {{ curSymbol }}
                                 </td>
                                 <td v-if="layout.table.columns.find(c => c.key === 'quantity')?.visible" class="py-3 px-3 text-center font-mono font-bold">
                                     {{ item.quantity }}
                                 </td>
                                 <td v-if="layout.table.columns.find(c => c.key === 'total')?.visible" class="py-3 px-3 text-center font-mono font-bold text-slate-900">
-                                    {{ formatCurrency(item.total || (item.unit_price * item.quantity)) }} ﷼
+                                    {{ formatCurrency(item.total || (item.unit_price * item.quantity)) }} {{ curSymbol }}
                                 </td>
                             </tr>
                         </tbody>
@@ -934,29 +938,33 @@ const resolveTag = (tag) => {
                     <div class="w-80 bg-slate-50/80 rounded-xl border border-slate-200 p-4 space-y-2.5 text-xs">
                         <div v-if="layout.footer.show_subtotal" class="flex justify-between items-center text-slate-600">
                             <span>المجموع غير شامل الضريبة:</span>
-                            <span class="font-mono font-semibold">{{ formatCurrency(invoice.subtotal) }} ﷼</span>
+                            <span class="font-mono font-semibold">{{ formatCurrency(invoice.subtotal) }} {{ curSymbol }}</span>
                         </div>
 
                         <div v-if="layout.footer.show_vat_15" class="flex justify-between items-center text-slate-600">
                             <span>ضريبة القيمة المضافة 15%:</span>
-                            <span class="font-mono font-semibold">{{ formatCurrency(invoice.tax_amount) }} ﷼</span>
+                            <span class="font-mono font-semibold">{{ formatCurrency(invoice.tax_amount) }} {{ curSymbol }}</span>
                         </div>
 
                         <div v-if="layout.footer.show_grand_total" class="flex justify-between items-center text-slate-900 font-bold border-t border-slate-200 pt-2.5 text-sm">
                             <span>الإجمالي شامل الضريبة:</span>
                             <span class="font-mono" :style="{ color: layout.design.primary_color || '#4F46E5' }">
-                                {{ formatCurrency(invoice.total) }} ﷼
+                                {{ formatCurrency(invoice.total) }} {{ curSymbol }}
                             </span>
+                        </div>
+                        <div v-if="baseTotal !== null" class="flex items-center justify-between text-2xs text-slate-500 font-mono px-1">
+                            <span>ما يعادل بالريال (سعر {{ Number(invoice.exchange_rate).toFixed(4) }})</span>
+                            <span>{{ formatCurrency(baseTotal) }} ر.س</span>
                         </div>
 
                         <div v-if="layout.footer.show_paid" class="flex justify-between items-center text-emerald-700 text-3xs font-semibold pt-1">
                             <span>المبلغ المدفوع:</span>
-                            <span class="font-mono">{{ formatCurrency(invoice.paid_amount) }} ﷼</span>
+                            <span class="font-mono">{{ formatCurrency(invoice.paid_amount) }} {{ curSymbol }}</span>
                         </div>
 
                         <div v-if="layout.footer.show_due" class="flex justify-between items-center text-slate-700 text-3xs font-semibold border-t border-dashed border-slate-200 pt-1">
                             <span>المبلغ المتبقي:</span>
-                            <span class="font-mono font-bold">{{ formatCurrency(invoice.remaining_amount) }} ﷼</span>
+                            <span class="font-mono font-bold">{{ formatCurrency(invoice.remaining_amount) }} {{ curSymbol }}</span>
                         </div>
                     </div>
                 </div>
