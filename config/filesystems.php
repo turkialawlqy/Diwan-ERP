@@ -38,6 +38,14 @@ return [
             'report' => false,
         ],
 
+        // Encrypted backups (erp:backup). Point BACKUP_DISK at an S3-compatible
+        // disk to keep copies off the server.
+        'backups' => [
+            'driver' => 'local',
+            'root' => storage_path('app/backups'),
+            'throw' => true,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

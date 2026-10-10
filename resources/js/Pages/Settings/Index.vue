@@ -27,6 +27,8 @@ const props = defineProps({
     company: Object,
     settings: Object,
     accounts: Array,
+    roles: { type: Array, default: () => [] },
+    twoFactorRoles: { type: Array, default: () => [] },
 });
 
 const activeTab = ref('general');
@@ -96,6 +98,7 @@ const form = useForm({
     invoice_prefix: props.settings?.invoice_prefix || 'INV',
     invoice_terms: props.settings?.invoice_terms || 'تطبق الشروط والأحكام الخاصة بالمبيعات.',
     document_message: props.settings?.document_message || '',
+    two_factor_required_roles: [...(props.twoFactorRoles || [])],
     pos_auto_print: props.settings?.pos_auto_print === '1',
 
     // ZATCA Settings
@@ -834,7 +837,22 @@ const removeLogo = async () => {
                                     </select>
                                 </div>
                             </div>
+                            <h2 class="text-sm font-black text-slate-900 border-b border-slate-100 pb-3 mb-2 mt-6">
+                                الأمان: التحقق الثنائي الإلزامي
+                            </h2>
+                            <p class="text-xs text-slate-500">المستخدمون في الأدوار المختارة يجب أن يفعّلوا التحقق الثنائي (تطبيق المصادقة) قبل استخدام النظام.</p>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                                <label class="flex items-center gap-2 font-bold text-indigo-700">
+                                    <input v-model="form.two_factor_required_roles" type="checkbox" value="*" class="rounded border-slate-300 text-indigo-600" />
+                                    جميع المستخدمين
+                                </label>
+                                <label v-for="r in roles" :key="r.name" class="flex items-center gap-2" :class="form.two_factor_required_roles.includes('*') ? 'opacity-50' : ''">
+                                    <input v-model="form.two_factor_required_roles" type="checkbox" :value="r.name" :disabled="form.two_factor_required_roles.includes('*')" class="rounded border-slate-300 text-indigo-600" />
+                                    {{ r.label }}
+                                </label>
+                            </div>
                         </div>
+
 
                         <!-- 5. POS Tab -->
                         <div v-show="activeTab === 'pos'" class="space-y-4">

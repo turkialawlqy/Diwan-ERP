@@ -3,15 +3,18 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Models\BackupRun;
 use App\Models\Company;
 use App\Models\PlatformAuditLog;
 use App\Models\SubscriptionInvoice;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Services\Platform\BackupService;
 use App\Services\Saas\PlanGuard;
 use App\Services\Saas\SubscriptionService;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -131,5 +134,35 @@ class PlatformController extends Controller
         return Inertia::render('SuperAdmin/Audit', [
             'logs' => PlatformAuditLog::with(['user:id,name', 'company:id,name'])->latest('id')->paginate(50),
         ]);
+    }
+
+    public function backups()
+    {
+        $disk = Storage::disk(config('backup.disk'));
+        $files = collect(rescue(fn () => $disk->files(), [], false))
+            ->filter(fn ($f) => str_starts_with($f, BackupService::PREFIX))->sortDesc()->values()
+            ->map(fn ($f) => ['file' => $f, 'size' => rescue(fn () => $disk->size($f), null, false)]);
+
+        return Inertia::render('SuperAdmin/Backups', [
+            'runs' => BackupRun::latest('id')->limit(60)->get(),
+            'files' => $files,
+            'config' => [
+                'disk' => config('backup.disk'),
+                'encrypted' => (bool) config('backup.password'),
+                'verifyDatabase' => (bool) config('backup.verify_database'),
+                'notify' => (bool) config('backup.notify'),
+                'keep' => config('backup.keep'),
+            ],
+        ]);
+    }
+
+    /** Runs in the queue: a large database can take longer than a request. */
+    public function runBackup(Request $request)
+    {
+        $verify = $request->boolean('verify');
+        $this->subscriptions->audit($verify ? 'backup_verify_requested' : 'backup_requested', null);
+        dispatch(fn () => $verify ? app(BackupService::class)->verify() : app(BackupService::class)->create());
+
+        return back()->with('success', $verify ? 'بدأ اختبار الاستعادة في الخلفية، حدّث الصفحة بعد قليل.' : 'بدأ النسخ الاحتياطي في الخلفية، حدّث الصفحة بعد قليل.');
     }
 }

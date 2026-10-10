@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Account;
 use App\Models\Company;
 use App\Models\CompanySetting;
+use App\Services\Auth\TwoFactor;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Spatie\Permission\Models\Role;
 
 class CompanySettingController extends Controller
 {
@@ -31,10 +33,16 @@ class CompanySettingController extends Controller
             ->orderBy('code')
             ->get(['id', 'code', 'name_ar', 'name_en', 'type', 'nature']);
 
+        $labels = collect(config('erp_permissions.default_roles'))->map(fn ($r) => $r['ar'] ?? null);
+        $roles = Role::where(config('permission.column_names.team_foreign_key'), $company->id)->orderBy('id')->pluck('name')
+            ->map(fn ($name) => ['name' => $name, 'label' => $labels[$name] ?? $name])->values();
+
         return Inertia::render('Settings/Index', [
             'company' => $company,
             'settings' => $settings,
             'accounts' => $accounts,
+            'roles' => $roles,
+            'twoFactorRoles' => app(TwoFactor::class)->requiredRoles($company),
         ]);
     }
 
@@ -62,6 +70,8 @@ class CompanySettingController extends Controller
             'invoice_prefix' => 'nullable|string|max:10',
             'invoice_terms' => 'nullable|string',
             'document_message' => 'nullable|string|max:3000',
+            'two_factor_required_roles' => 'nullable|array',
+            'two_factor_required_roles.*' => 'string|max:100',
             'pos_auto_print' => 'nullable|boolean',
 
             // ZATCA settings
@@ -114,6 +124,10 @@ class CompanySettingController extends Controller
 
         // Update company profile
         $company->update($companyData);
+
+        // Roles that must use two-factor authentication ("*" = everyone).
+        $validRoles = Role::where(config('permission.column_names.team_foreign_key'), $company->id)->pluck('name')->push('*')->all();
+        app(TwoFactor::class)->setRequiredRoles($company, array_values(array_intersect($validated['two_factor_required_roles'] ?? [], $validRoles)));
 
         // Save key-value settings
         $settingsToSave = [

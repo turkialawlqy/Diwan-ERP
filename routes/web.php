@@ -9,6 +9,7 @@ use App\Http\Controllers\ApprovalRuleController;
 use App\Http\Controllers\AssemblyController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\GoogleAuthController;
+use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CategoryController;
@@ -95,6 +96,14 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    // Own two-factor authentication (profile page).
+    Route::prefix('user/two-factor')->name('two-factor.')->middleware('throttle:20,1')->group(function () {
+        Route::post('/enable', [TwoFactorController::class, 'enable'])->name('enable');
+        Route::post('/confirm', [TwoFactorController::class, 'confirm'])->name('confirm');
+        Route::post('/recovery-codes', [TwoFactorController::class, 'recoveryCodes'])->name('recovery-codes');
+        Route::delete('/', [TwoFactorController::class, 'disable'])->name('disable');
+    });
+
     // 3. Super Admin Routes
     Route::prefix('super-admin')->name('super-admin.')->group(function () {
         // Leave Impersonation route - requires auth + must be actually impersonating
@@ -102,7 +111,7 @@ Route::middleware(['auth'])->group(function () {
             ->name('impersonate.leave')
             ->middleware('super_admin');
 
-        Route::middleware(['super_admin'])->group(function () {
+        Route::middleware(['super_admin', 'two_factor'])->group(function () {
             Route::get('/dashboard', [SuperAdminDashboardController::class, 'index'])->name('dashboard');
             Route::post('/impersonate/{company}', [ImpersonationController::class, 'enter'])->name('impersonate.enter');
             Route::get('/companies/{company}', [PlatformController::class, 'company'])->name('companies.show');
@@ -115,13 +124,15 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/invoices/{invoice}/confirm', [PlatformController::class, 'confirmInvoice'])->name('invoices.confirm');
             Route::post('/invoices/{invoice}/void', [PlatformController::class, 'voidInvoice'])->name('invoices.void');
             Route::get('/audit', [PlatformController::class, 'audit'])->name('audit');
+            Route::get('/backups', [PlatformController::class, 'backups'])->name('backups');
+            Route::post('/backups', [PlatformController::class, 'runBackup'])->middleware('throttle:6,1')->name('backups.run');
         });
     });
 
 });
 
 // Company (tenant) ERP routes: authenticated user + resolved tenant required.
-Route::middleware(['auth', 'tenant', 'plan', 'erp.authorize', 'throttle:tenant-web'])->group(function () {
+Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'throttle:tenant-web'])->group(function () {
     // 1. Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 

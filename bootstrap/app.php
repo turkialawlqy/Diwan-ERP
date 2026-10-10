@@ -4,6 +4,7 @@ use App\Http\Middleware\AuthorizeRoutePermission;
 use App\Http\Middleware\EnsurePlanAccess;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\EnsureTenant;
+use App\Http\Middleware\EnsureTwoFactorEnrolled;
 use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ResolveTenant;
@@ -67,6 +68,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'erp.authorize' => AuthorizeRoutePermission::class,
             'plan' => EnsurePlanAccess::class,
             'tenant.resolve' => ResolveTenant::class,
+            'two_factor' => EnsureTwoFactorEnrolled::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

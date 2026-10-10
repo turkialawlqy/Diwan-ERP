@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Services\Auth\TwoFactor;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,9 +19,16 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): Response
     {
+        $user = $request->user();
+
         return Inertia::render('Profile/Edit', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
+            'mustVerifyEmail' => $user instanceof MustVerifyEmail,
             'status' => session('status'),
+            'twoFactor' => [
+                'enabled' => $user->hasTwoFactorEnabled(),
+                'required' => app(TwoFactor::class)->required($user),
+                'recoveryRemaining' => $user->hasTwoFactorEnabled() ? count((array) $user->two_factor_recovery_codes) : 0,
+            ],
         ]);
     }
 

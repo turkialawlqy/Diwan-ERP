@@ -78,6 +78,9 @@ return [
     |
     */
 
+    // Show the seeded demo accounts on the login page (never in production).
+    'demo_login' => (bool) env('DEMO_LOGIN', false),
+
     'locale' => env('APP_LOCALE', 'ar'),
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),

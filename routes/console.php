@@ -20,3 +20,7 @@ Schedule::command('erp:hr-provision')->monthlyOn(1, '03:10')->withoutOverlapping
 
 // Daily business alerts (overdue invoices, expiring documents, approvals...).
 Schedule::command('erp:alerts')->dailyAt('06:50')->withoutOverlapping()->onOneServer();
+
+// Encrypted backups: daily at 02:40, restore test every Sunday.
+Schedule::command('erp:backup')->dailyAt('02:40')->withoutOverlapping()->onOneServer();
+Schedule::command('erp:backup --verify')->weeklyOn(0, '04:20')->withoutOverlapping()->onOneServer();

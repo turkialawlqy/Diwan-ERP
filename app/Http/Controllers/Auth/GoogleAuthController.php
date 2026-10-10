@@ -61,6 +61,13 @@ class GoogleAuthController extends Controller
                     ]);
                 }
 
+                // Google proves the password step only; two-factor still applies.
+                if ($user->hasTwoFactorEnabled()) {
+                    TwoFactorChallengeController::begin(request(), $user, false);
+
+                    return redirect()->route('two-factor.challenge');
+                }
+
                 Auth::login($user);
                 request()->session()->regenerate();
 

@@ -19,13 +19,18 @@ defineProps({
     status: {
         type: String,
     },
+    // Only sent by the server when DEMO_LOGIN=true (never in production).
+    demoAccounts: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const showPassword = ref(false);
 
 const form = useForm({
-    email: 'anas@alostaz.io',
-    password: 'password',
+    email: '',
+    password: '',
     remember: true,
 });
 
@@ -35,14 +40,9 @@ const submit = () => {
     });
 };
 
-const fillSuperAdmin = () => {
-    form.email = 'admin@alostaz.io';
-    form.password = 'admin123456';
-};
-
-const fillDemoCompany = () => {
-    form.email = 'anas@alostaz.io';
-    form.password = 'password';
+const fillDemo = (account) => {
+    form.email = account.email;
+    form.password = account.password;
 };
 </script>
 
@@ -59,23 +59,18 @@ const fillDemoCompany = () => {
             {{ status }}
         </div>
 
-        <!-- Quick Fill Buttons for Testing & Evaluation -->
-        <div class="mb-6 p-3 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-center justify-between gap-2 text-xs">
+        <!-- Demo accounts: only when the server enables DEMO_LOGIN -->
+        <div v-if="demoAccounts.length" class="mb-6 p-3 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-center justify-between gap-2 text-xs">
             <span class="text-slate-500 text-[11px] font-medium">حسابات تجريبية سريعة:</span>
             <div class="flex gap-2">
-                <button 
-                    type="button" 
-                    @click="fillDemoCompany" 
+                <button
+                    v-for="account in demoAccounts"
+                    :key="account.email"
+                    type="button"
+                    @click="fillDemo(account)"
                     class="px-2.5 py-1 bg-white hover:bg-indigo-600 hover:text-white border border-indigo-200 rounded-lg font-bold text-[11px] text-indigo-700 transition shadow-xs"
                 >
-                    مدير منشأة (أنس)
-                </button>
-                <button 
-                    type="button" 
-                    @click="fillSuperAdmin" 
-                    class="px-2.5 py-1 bg-white hover:bg-purple-600 hover:text-white border border-purple-200 rounded-lg font-bold text-[11px] text-purple-700 transition shadow-xs"
-                >
-                    مسؤول عام (Super Admin)
+                    {{ account.label }}
                 </button>
             </div>
         </div>

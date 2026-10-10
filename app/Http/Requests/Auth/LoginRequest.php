@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
 use App\Services\TenantManager;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -39,11 +40,25 @@ class LoginRequest extends FormRequest
      *
      * @throws ValidationException
      */
-    public function authenticate(): void
+    /**
+     * Checks the credentials. Users with two-factor enabled are not logged in
+     * here: the user is returned so the second step can finish the login.
+     */
+    public function authenticate(): ?User
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->credentials(), $this->boolean('remember'))) {
+        $guard = Auth::guard('web');
+        $credentials = $this->credentials();
+        $user = $guard->getProvider()->retrieveByCredentials($credentials);
+
+        if ($user instanceof User && $user->hasTwoFactorEnabled() && $guard->validate($credentials)) {
+            RateLimiter::clear($this->throttleKey());
+
+            return $user;
+        }
+
+        if (! Auth::attempt($credentials, $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -52,6 +67,8 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+
+        return null;
     }
 
     /**
