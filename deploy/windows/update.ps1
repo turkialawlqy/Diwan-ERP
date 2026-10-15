@@ -6,9 +6,10 @@
     - First run on a folder that is not a git clone: takes a full backup copy,
       then links the folder to the repository (.env, storage and uploads stay).
     - Later runs: pulls new commits only when there are any.
-    - Then: maintenance mode, database backup, composer, npm build, migrations,
-      permission sync, cache clear, back online. Any failure brings the site
-      back online and stops with the error.
+    - Then: maintenance page, database backup, composer, npm build, migrations,
+      permission sync, cache clear, back online. A version counts as installed
+      only once all of that succeeded, so re-running after a failure finishes
+      the job instead of reporting "up to date".
 
     Double-click update.bat, or run every hour via install-auto-update.ps1.
 
@@ -83,6 +84,38 @@ function Copy-Backup([string]$Reason) {
     if ($LASTEXITCODE -ge 8) { throw "فشل إنشاء النسخة الاحتياطية للمجلد (robocopy $LASTEXITCODE)" }
     Write-Log "    تم حفظ النسخة الاحتياطية: $target" 'Green'
     return $target
+}
+
+# Maintenance page served by public/index.php before vendor/ is loaded, so it
+# keeps showing even while composer is half-way through replacing packages.
+$downFile = Join-Path $Path 'storage/framework/down'
+$maintenanceFile = Join-Path $Path 'storage/framework/maintenance.php'
+$preparedFile = Join-Path $Path 'storage/framework/alostaz-prepared'
+function Enter-Maintenance {
+    $html = '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta http-equiv="refresh" content="20"><title>جارٍ التحديث</title></head>' +
+        '<body style="font-family:Tahoma,sans-serif;background:#f8fafc;color:#334155;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">' +
+        '<div style="text-align:center"><h1 style="color:#4f46e5">جارٍ تحديث النظام</h1><p>يعود النظام للعمل خلال دقائق؛ ستُحدَّث الصفحة تلقائياً.</p></div></body></html>'
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    [IO.File]::WriteAllText($downFile, (@{ template = $html; status = 503; retry = 60 } | ConvertTo-Json -Compress), $utf8)
+    $stub = @'
+<?php
+if (! file_exists($down = __DIR__.'/down')) { return; }
+$data = json_decode(file_get_contents($down), true);
+if (! isset($data['template'])) { return; }
+http_response_code($data['status'] ?? 503);
+header('Retry-After: '.($data['retry'] ?? 60));
+echo $data['template'];
+exit;
+'@
+    [IO.File]::WriteAllText($maintenanceFile, $stub, $utf8)
+}
+function Exit-Maintenance {
+    Remove-Item -LiteralPath $downFile, $maintenanceFile -Force -ErrorAction SilentlyContinue
+}
+function Test-Vendor {
+    if (-not (Test-Path (Join-Path $Path 'vendor/autoload.php'))) { return $false }
+    & $php -r "require 'vendor/autoload.php';" 2>&1 | Out-Null
+    return ($LASTEXITCODE -eq 0)
 }
 
 $siteDown = $false
@@ -167,9 +200,28 @@ try {
 
     $localHead = ''
     if ($isRepo) { $localHead = "$(@(Invoke-Tool $git @('rev-parse', 'HEAD') -AllowFail)[0])".Trim() }
-    if ($isRepo -and $localHead -eq $remoteHead -and -not $Force) {
+    $prepared = ''
+    if (Test-Path $preparedFile) { $prepared = (Get-Content $preparedFile -Raw).Trim() }
+    if ($isRepo -and $localHead -eq $remoteHead -and $prepared -eq $remoteHead -and -not $Force) {
         Write-Log ("النظام محدّث (الإصدار {0})." -f $remoteHead.Substring(0, 7)) 'Green'
         exit 0
+    }
+    if ($isRepo -and $localHead -eq $remoteHead) { Write-Log '    الكود محدّث لكن التجهيز لم يكتمل في المرة السابقة؛ سيُكمل الآن.' 'Yellow' }
+
+    # PHP extensions the new version needs, checked before anything changes.
+    $lockJson = (@(Invoke-Tool $git @('show', "origin/${Branch}:composer.lock")) -join "`n")
+    $needed = @()
+    foreach ($pkg in @(($lockJson | ConvertFrom-Json).packages)) {
+        if ($pkg.require) { $needed += $pkg.require.PSObject.Properties.Name | Where-Object { $_ -like 'ext-*' } }
+    }
+    $loaded = @(& $php -m 2>$null | ForEach-Object { 'ext-' + ("$_".Trim().ToLower() -replace ' ', '-') })
+    $absent = @($needed | Sort-Object -Unique | Where-Object { $loaded -notcontains $_ -and $_ -ne 'ext-zend-opcache' })
+    if ($absent.Count) {
+        Write-Log ('امتدادات PHP التالية غير مفعّلة: ' + (($absent | ForEach-Object { $_ -replace '^ext-', '' }) -join '، ')) 'Red' -Always
+        Write-Log "فعّلها ثم أعد التشغيل: في Laragon من القائمة PHP ← Extensions، أو احذف ; من بداية سطر extension=<الاسم> في ملف php.ini:" 'Yellow' -Always
+        Write-Log ("    " + (@(& $php --ini 2>$null) | Where-Object { $_ -match 'Loaded Configuration' } | Select-Object -First 1)) 'Yellow' -Always
+        Write-Log 'لم يُغيَّر شيء في النظام.' 'Yellow' -Always
+        exit 5
     }
 
     if ($isRepo) {
@@ -186,11 +238,10 @@ try {
         }
     }
 
-    Step 'تجهيز وضع الصيانة'
-    if (Test-Path (Join-Path $Path 'vendor/autoload.php')) {
-        Invoke-Tool $php @('artisan', 'down', '--retry=60') -AllowFail | Out-Null
-        $siteDown = $true
-
+    Step 'تفعيل صفحة الصيانة'
+    Enter-Maintenance
+    $siteDown = $true
+    if (Test-Vendor) {
         Step 'نسخ احتياطي لقاعدة البيانات'
         $backup = Invoke-Tool $php @('artisan', 'erp:backup') -AllowFail
         if ($LASTEXITCODE -ne 0) { Write-Log '    تعذّر النسخ الاحتياطي لقاعدة البيانات (سيُكمل التحديث). راجع BACKUP_PASSWORD و BACKUP_MYSQLDUMP.' 'Yellow' }
@@ -209,8 +260,14 @@ try {
     Invoke-Tool $git @('branch', "--set-upstream-to=origin/$Branch", $Branch) -AllowFail | Out-Null
 
     Step 'تثبيت مكتبات PHP (composer)'
-    Invoke-Tool $composer ($composerArgs + @('install', '--no-interaction', '--prefer-dist', '--optimize-autoloader')) | Out-Null
-    if (-not $siteDown) { Invoke-Tool $php @('artisan', 'down', '--retry=60') -AllowFail | Out-Null; $siteDown = $true }
+    $composerInstall = $composerArgs + @('install', '--no-interaction', '--prefer-dist', '--optimize-autoloader')
+    Invoke-Tool $composer $composerInstall -AllowFail | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        # Windows often fails here on a file briefly locked by antivirus or the web server.
+        Write-Log '    فشلت المحاولة الأولى؛ إعادة المحاولة بعد 10 ثوانٍ...' 'Yellow'
+        Start-Sleep -Seconds 10
+        Invoke-Tool $composer $composerInstall | Out-Null
+    }
 
     Step 'بناء الواجهة (npm)'
     Invoke-Tool $npm @('ci', '--no-audit', '--no-fund') | Out-Null
@@ -222,7 +279,8 @@ try {
     Invoke-Tool $php @('artisan', 'erp:accounting', 'provision') | Out-Null
     Invoke-Tool $php @('artisan', 'optimize:clear') | Out-Null
 
-    Invoke-Tool $php @('artisan', 'up') | Out-Null
+    Set-Content -Path $preparedFile -Value ((@(Invoke-Tool $git @('rev-parse', 'HEAD'))[0]).Trim()) -Encoding ASCII
+    Exit-Maintenance
     $siteDown = $false
 
     # Settings added to .env.example that this .env does not have yet.
@@ -240,8 +298,12 @@ try {
 catch {
     Write-Log ("خطأ: " + $_.Exception.Message) 'Red' -Always
     if ($siteDown -and $php) {
-        & $php artisan up 2>&1 | Out-Null
-        Write-Log 'أُعيد النظام للعمل؛ راجع الخطأ أعلاه ثم أعد تشغيل التحديث.' 'Yellow' -Always
+        if (Test-Vendor) {
+            Exit-Maintenance
+            Write-Log 'أُعيد النظام للعمل؛ راجع الخطأ أعلاه ثم أعد تشغيل التحديث.' 'Yellow' -Always
+        } else {
+            Write-Log 'بقيت صفحة "جارٍ التحديث" ظاهرة لأن مكتبات PHP غير مكتملة؛ أعد تشغيل update.bat لإكمال التحديث.' 'Yellow' -Always
+        }
     }
     Write-Log "السجل الكامل: $logFile" 'Gray' -Always
     exit 1
