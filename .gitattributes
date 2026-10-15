@@ -1,4 +1,7 @@
 * text=auto eol=lf
+# Windows scripts need CRLF (cmd) and keep their UTF-8 BOM (PowerShell 5.1).
+*.bat text eol=crlf
+*.ps1 text eol=crlf
 
 *.blade.php diff=html
 *.css diff=css

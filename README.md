@@ -114,6 +114,10 @@ npm run test:e2e
 - **قاعدة البيانات:** تُنشأ قاعدة SQLite مستقلة (`database/e2e.sqlite`) من البيانات التجريبية في كل تشغيل، ولا تُمسّ قاعدة التطوير.
 - **متصفح مثبّت مسبقاً:** إن وُجد، مرّر مساره عبر `PLAYWRIGHT_CHROMIUM_PATH`.
 
+## التشغيل على ويندوز (MAMP)
+
+انقر على `deploy\windows\update.bat` لتحديث النسخة المحلية من GitHub، و`install-auto-update.bat` لتحديثها تلقائياً كل ساعة. التفاصيل في [docs/WINDOWS-LOCAL.md](docs/WINDOWS-LOCAL.md).
+
 ## الوثائق
 
 - [النشر والتشغيل](docs/DEPLOYMENT.md)
