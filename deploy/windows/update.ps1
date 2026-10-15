@@ -138,7 +138,9 @@ try {
     # is backed up in full before being linked.
     $isRepo = Test-Path (Join-Path $Path '.git')
     $origin = ''
-    if ($isRepo) { $origin = "$(@(Invoke-Tool $git @('remote', 'get-url', 'origin') -AllowFail)[0])".Trim() }
+    if ($isRepo -and (@(Invoke-Tool $git @('remote') -AllowFail) | ForEach-Object { "$_".Trim() }) -contains 'origin') {
+        $origin = "$(@(Invoke-Tool $git @('remote', 'get-url', 'origin') -AllowFail)[0])".Trim()
+    }
     $linked = $isRepo -and ($origin -match 'turkialawlqy/AlOstaz' -or $origin -eq $Repository)
     if (-not $linked) {
         if ($Auto) { Write-Log 'المجلد غير مرتبط بالمستودع بعد؛ شغّل update.bat يدوياً أول مرة.' 'Yellow' -Always; exit 3 }
