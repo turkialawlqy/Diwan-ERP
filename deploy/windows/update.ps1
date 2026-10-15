@@ -133,15 +133,25 @@ try {
     if ($mysqldump) { $env:BACKUP_MYSQLDUMP = $mysqldump.FullName; $env:BACKUP_MYSQL = Join-Path $mysqldump.DirectoryName 'mysql.exe' }
 
     # ---------------------------------------------------------------- code
+    # Linked = a git folder whose "origin" already points at this repository.
+    # A folder copied by hand, or a local git folder without that remote,
+    # is backed up in full before being linked.
     $isRepo = Test-Path (Join-Path $Path '.git')
-    if ($isRepo) {
-        Invoke-Tool $git @('remote', 'set-url', 'origin', $Repository) -AllowFail | Out-Null
-    } else {
+    $origin = ''
+    if ($isRepo) { $origin = "$(@(Invoke-Tool $git @('remote', 'get-url', 'origin') -AllowFail)[0])".Trim() }
+    $linked = $isRepo -and ($origin -match 'turkialawlqy/AlOstaz' -or $origin -eq $Repository)
+    if (-not $linked) {
         if ($Auto) { Write-Log 'المجلد غير مرتبط بالمستودع بعد؛ شغّل update.bat يدوياً أول مرة.' 'Yellow' -Always; exit 3 }
         Copy-Backup 'أول ربط بالمستودع' | Out-Null
         Step 'ربط المجلد بالمستودع'
-        Invoke-Tool $git @('init', '-q') | Out-Null
-        Invoke-Tool $git @('remote', 'add', 'origin', $Repository) | Out-Null
+        if (-not $isRepo) { Invoke-Tool $git @('init', '-q') | Out-Null }
+        if ($origin) { Invoke-Tool $git @('remote', 'set-url', 'origin', $Repository) | Out-Null }
+        else { Invoke-Tool $git @('remote', 'add', 'origin', $Repository) | Out-Null }
+        # The local history is unrelated: switch to the repository's version
+        # (untracked .env, storage and uploads are not touched).
+        $isRepo = $false
+    } elseif ($origin -ne $Repository) {
+        Invoke-Tool $git @('remote', 'set-url', 'origin', $Repository) -AllowFail | Out-Null
     }
 
     Step 'جلب آخر التعديلات من GitHub'
