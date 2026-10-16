@@ -10,6 +10,7 @@ return [
         'finance.' => 'accounting',
         'accounting.' => 'accounting',
         'projects.' => 'projects',
+        'equipment.' => 'equipment',
         'hr.' => 'hr',
         'zatca.' => 'zatca',
         'crm.' => 'crm',
@@ -19,7 +20,7 @@ return [
 
     'modules' => [
         'sales' => 'المبيعات', 'pos' => 'نقاط البيع', 'inventory' => 'المستودعات', 'purchases' => 'المشتريات',
-        'accounting' => 'المحاسبة والمالية', 'projects' => 'المقاولات والمشاريع', 'hr' => 'الموارد البشرية والرواتب',
+        'accounting' => 'المحاسبة والمالية', 'projects' => 'المقاولات والمشاريع', 'equipment' => 'المعدات والتأجير والصيانة', 'hr' => 'الموارد البشرية والرواتب',
         'zatca' => 'الربط مع فاتورة (المرحلة الثانية)', 'crm' => 'إدارة العملاء المحتملين', 'api' => 'الواجهة البرمجية API',
     ],
 

@@ -75,6 +75,8 @@ class ChartOfAccountsTemplate
             ['45', '4', 'خصم مسموح به', 'Sales Discounts', 'revenue', 'debit', false, 'sales_discounts', 'operating'],
             ['46', '4', 'إيرادات أخرى', 'Other Income', 'revenue', 'credit', false, 'other_revenue', 'operating'],
             ['47', '4', 'أرباح بيع أصول', 'Gain on Asset Disposal', 'revenue', 'credit', false, 'asset_disposal_gain', 'investing'],
+            ['48', '4', 'إيرادات تأجير المعدات', 'Equipment Rental Revenue', 'revenue', 'credit', false, 'rental_revenue', 'operating'],
+            ['49', '4', 'تحميل المعدات على المشاريع', 'Equipment Charged to Projects', 'revenue', 'credit', false, 'equipment_recovery', 'operating'],
 
             // 5 Expenses
             ['5', null, 'المصروفات', 'Expenses', 'expense', 'debit', true, null, null],
@@ -90,7 +92,7 @@ class ChartOfAccountsTemplate
             ['523', '52', 'مكافأة نهاية الخدمة', 'End of Service Expense', 'expense', 'debit', false, 'end_of_service_expense', 'operating'],
             ['524', '52', 'الإيجارات', 'Rent', 'expense', 'debit', false, 'rent_expense', 'operating'],
             ['525', '52', 'الكهرباء والمياه والاتصالات', 'Utilities & Telecom', 'expense', 'debit', false, null, 'operating'],
-            ['526', '52', 'الصيانة', 'Maintenance', 'expense', 'debit', false, null, 'operating'],
+            ['526', '52', 'الصيانة', 'Maintenance', 'expense', 'debit', false, 'maintenance_expense', 'operating'],
             ['527', '52', 'مصروفات حكومية ورسوم', 'Government Fees', 'expense', 'debit', false, null, 'operating'],
             ['528', '52', 'مصروفات عمومية أخرى', 'Other G&A Expenses', 'expense', 'debit', false, 'general_expense', 'operating'],
             ['529', '52', 'مصروف الإهلاك', 'Depreciation Expense', 'expense', 'debit', false, 'depreciation_expense', 'operating'],

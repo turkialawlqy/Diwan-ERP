@@ -42,7 +42,7 @@ class DocumentPoster
      *   Cr Sales (net of discount)  Cr VAT output
      *   Dr COGS  Cr Inventory (stock items)
      */
-    public function salesInvoice(Invoice $invoice, ?int $warehouseId = null, ?float $cost = null): JournalEntry
+    public function salesInvoice(Invoice $invoice, ?int $warehouseId = null, ?float $cost = null, string $revenueRole = 'sales_revenue'): JournalEntry
     {
         $invoice->loadMissing('items', 'customer');
 
@@ -61,7 +61,7 @@ class DocumentPoster
             $lines[] = ['role' => 'receivables', 'debit' => $total - $paid, 'description' => "ذمم {$customer} - فاتورة {$invoice->invoice_number}", 'party_type' => 'customer', 'party_id' => $invoice->customer_id];
         }
 
-        $lines[] = ['role' => 'sales_revenue', 'credit' => $total - $tax, 'description' => "مبيعات فاتورة {$invoice->invoice_number}"];
+        $lines[] = ['role' => $revenueRole, 'credit' => $total - $tax, 'description' => "مبيعات فاتورة {$invoice->invoice_number}"];
 
         if ($tax > 0) {
             $lines[] = ['role' => 'vat_output', 'credit' => $tax, 'description' => "ضريبة مخرجات فاتورة {$invoice->invoice_number}"];

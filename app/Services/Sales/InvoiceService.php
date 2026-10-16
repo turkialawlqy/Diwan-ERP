@@ -43,7 +43,8 @@ class InvoiceService
      *                       sales_order_id?, delivery_note_id?, invoice_type?, number_type?
      * @param  array  $lines  product_id?, item_name, description?, quantity, unit_price, discount?, tax_rate?, unit_id?, batch_id?, serials?
      * @param  array  $options  issue_stock (default true), cost (known cost when stock already issued), check_credit (default true),
-     *                          post (default true; false when the caller posts its own entry, e.g. project billings)
+     *                          post (default true; false when the caller posts its own entry, e.g. project billings),
+     *                          revenue_role (default sales_revenue; e.g. rental_revenue for equipment rent)
      */
     public function create(array $data, array $lines, array $options = []): Invoice
     {
@@ -117,7 +118,7 @@ class InvoiceService
             }
 
             if ($options['post'] ?? true) {
-                $this->poster->salesInvoice($invoice, $invoice->warehouse_id, (float) ($cost ?? 0));
+                $this->poster->salesInvoice($invoice, $invoice->warehouse_id, (float) ($cost ?? 0), $options['revenue_role'] ?? 'sales_revenue');
             }
 
             $this->stamp($invoice, $company);

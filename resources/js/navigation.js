@@ -14,6 +14,7 @@ import {
     UsersIcon,
     DocumentChartBarIcon,
     BuildingOffice2Icon,
+    WrenchScrewdriverIcon,
 } from '@heroicons/vue/24/outline';
 
 /**
@@ -67,6 +68,17 @@ export default [
         children: [
             { label: 'nav.projects_list', route: 'projects.index', path: '/projects' },
             { label: 'nav.guarantees', route: 'projects.guarantees.index', path: '/projects/guarantees' },
+        ],
+    },
+    {
+        key: 'equipment', label: 'nav.equipment', icon: WrenchScrewdriverIcon, color: 'indigo',
+        children: [
+            { label: 'nav.equipment_list', route: 'equipment.index', path: '/equipment', exact: true },
+            { label: 'nav.equipment_readings', route: 'equipment.readings.index', path: '/equipment/readings' },
+            { label: 'nav.equipment_rentals', route: 'equipment.rentals.index', path: '/equipment/rentals' },
+            { label: 'nav.maintenance_dashboard', route: 'equipment.maintenance.dashboard', path: '/equipment/maintenance/dashboard' },
+            { label: 'nav.maintenance_orders', route: 'equipment.maintenance.index', path: '/equipment/maintenance', exact: true },
+            { label: 'nav.equipment_reports', route: 'equipment.reports.index', path: '/equipment/reports' },
         ],
     },
     {

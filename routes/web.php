@@ -42,6 +42,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Equipment as EQ;
 use App\Http\Controllers\Projects as PR;
 use App\Http\Controllers\PurchaseInvoiceController;
 use App\Http\Controllers\PurchaseOrderController;
@@ -374,6 +375,41 @@ Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'thr
         Route::post('/{project}/materials', [PR\ProjectCostController::class, 'materials'])->name('materials');
         Route::post('/{project}/costs', [PR\ProjectCostController::class, 'store'])->name('costs.store');
         Route::post('/{project}/subcontracts', [PR\ProjectCostController::class, 'storeSubcontract'])->name('subcontracts.store');
+    });
+
+    // Equipment: rental, daily meter readings, periodic maintenance
+    Route::prefix('equipment')->name('equipment.')->group(function () {
+        Route::get('/', [EQ\EquipmentController::class, 'index'])->name('index');
+        Route::post('/', [EQ\EquipmentController::class, 'store'])->name('store');
+        Route::get('/readings', [EQ\ReadingController::class, 'index'])->name('readings.index');
+        Route::post('/readings', [EQ\ReadingController::class, 'store'])->name('readings.store');
+        Route::delete('/readings/{reading}', [EQ\ReadingController::class, 'destroy'])->name('readings.destroy');
+        Route::get('/rentals', [EQ\RentalController::class, 'index'])->name('rentals.index');
+        Route::post('/rentals', [EQ\RentalController::class, 'store'])->name('rentals.store');
+        Route::get('/rentals/{rental}', [EQ\RentalController::class, 'show'])->name('rentals.show');
+        Route::put('/rentals/{rental}', [EQ\RentalController::class, 'update'])->name('rentals.update');
+        Route::post('/rentals/{rental}/close', [EQ\RentalController::class, 'close'])->name('rentals.close');
+        Route::get('/rentals/{rental}/preview', [EQ\RentalController::class, 'preview'])->name('rentals.preview');
+        Route::post('/rentals/{rental}/bill', [EQ\RentalController::class, 'bill'])->name('rentals.bill');
+        Route::get('/maintenance', [EQ\MaintenanceOrderController::class, 'index'])->name('maintenance.index');
+        Route::get('/maintenance/dashboard', [EQ\MaintenanceOrderController::class, 'dashboard'])->name('maintenance.dashboard');
+        Route::get('/maintenance/stock', [EQ\MaintenanceOrderController::class, 'stock'])->name('maintenance.stock');
+        Route::post('/maintenance', [EQ\MaintenanceOrderController::class, 'store'])->name('maintenance.store');
+        Route::get('/maintenance/{order}', [EQ\MaintenanceOrderController::class, 'show'])->name('maintenance.show');
+        Route::post('/maintenance/{order}/issue', [EQ\MaintenanceOrderController::class, 'issue'])->name('maintenance.issue');
+        Route::post('/maintenance/{order}/complete', [EQ\MaintenanceOrderController::class, 'complete'])->name('maintenance.complete');
+        Route::delete('/maintenance/{order}', [EQ\MaintenanceOrderController::class, 'destroy'])->name('maintenance.destroy');
+        Route::get('/reports', [EQ\EquipmentReportController::class, 'index'])->name('reports.index');
+        Route::get('/reports/export', [EQ\EquipmentReportController::class, 'export'])->name('reports.export');
+        Route::put('/schedules/{schedule}', [EQ\EquipmentController::class, 'updateSchedule'])->name('schedules.update');
+        Route::delete('/schedules/{schedule}', [EQ\EquipmentController::class, 'destroySchedule'])->name('schedules.destroy');
+        Route::get('/{equipment}', [EQ\EquipmentController::class, 'show'])->name('show');
+        Route::put('/{equipment}', [EQ\EquipmentController::class, 'update'])->name('update');
+        Route::delete('/{equipment}', [EQ\EquipmentController::class, 'destroy'])->name('destroy');
+        Route::post('/{equipment}/schedules', [EQ\EquipmentController::class, 'storeSchedule'])->name('schedules.store');
+        Route::post('/{equipment}/schedules/copy', [EQ\EquipmentController::class, 'copySchedules'])->name('schedules.copy');
+        Route::get('/{equipment}/supplier-preview', [EQ\RentalController::class, 'supplierPreview'])->name('supplier.preview');
+        Route::post('/{equipment}/supplier-bill', [EQ\RentalController::class, 'supplierBill'])->name('supplier.bill');
     });
 
     // 8. Finance Module

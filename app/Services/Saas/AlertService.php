@@ -6,6 +6,9 @@ use App\Models\Company;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeLoan;
+use App\Models\Equipment;
+use App\Models\EquipmentRental;
+use App\Models\InventoryStock;
 use App\Models\Invoice;
 use App\Models\Lead;
 use App\Models\LeaveRequest;
@@ -17,6 +20,7 @@ use App\Models\SalesOrder;
 use App\Models\User;
 use App\Models\ZatcaDocument;
 use App\Notifications\ErpAlert;
+use App\Services\Equipment\MaintenanceTracker;
 
 /**
  * Daily digest of what needs attention in a company, sent to the users who
@@ -89,6 +93,49 @@ class AlertService
         $followUps = Lead::whereNotIn('status', ['won', 'lost'])->whereDate('next_follow_up', '<=', $today)->count();
         if ($followUps) {
             $alerts[] = $this->alert('crm_followups', 'crm.leads.view', 'متابعات عملاء محتملين مستحقة', "{$followUps} متابعة مستحقة اليوم", route('crm.leads.index', [], false));
+        }
+
+        array_push($alerts, ...$this->equipment($today));
+
+        return $alerts;
+    }
+
+    /** Fleet: maintenance due, contracts ending, rented equipment without readings, parts short. */
+    protected function equipment(string $today): array
+    {
+        $alerts = [];
+        $due = app(MaintenanceTracker::class)->dueList();
+        if ($due->isEmpty() && ! EquipmentRental::where('status', 'active')->exists()) {
+            return [];
+        }
+
+        $overdue = $due->where('status.state', 'overdue');
+        if ($overdue->count()) {
+            $names = $overdue->map(fn ($r) => $r['equipment']->code.': '.$r['schedule']->name)->take(5)->implode('، ');
+            $alerts[] = $this->alert('equipment_overdue', 'equipment.maintenance.view', 'صيانة دورية متأخرة', "{$overdue->count()} بند صيانة متأخر ({$names})", route('equipment.maintenance.dashboard', [], false), 'danger');
+        }
+        $soon = $due->where('status.state', 'due_soon');
+        if ($soon->count()) {
+            $alerts[] = $this->alert('equipment_due_soon', 'equipment.maintenance.view', 'صيانة دورية تستحق قريباً', "{$soon->count()} بند صيانة يقترب موعده", route('equipment.maintenance.dashboard', [], false), 'warning');
+        }
+
+        $ending = EquipmentRental::where('status', 'active')->whereNotNull('end_date')->whereDate('end_date', '<=', now()->addDays(7)->toDateString())->count();
+        if ($ending) {
+            $alerts[] = $this->alert('equipment_rentals_ending', 'equipment.rentals.view', 'عقود تأجير معدات تنتهي قريباً', "{$ending} عقد ينتهي خلال 7 أيام", route('equipment.rentals.index', [], false), 'warning');
+        }
+
+        $silent = Equipment::whereIn('status', ['rented', 'internal'])->where('meter_type', '!=', 'none')
+            ->where(fn ($q) => $q->whereNull('last_reading_date')->orWhereDate('last_reading_date', '<', now()->subDays(2)->toDateString()))->count();
+        if ($silent) {
+            $alerts[] = $this->alert('equipment_no_readings', 'equipment.readings.create', 'معدات عاملة بلا قراءات', "{$silent} معدة مؤجرة أو في مشروع بلا قراءة عداد منذ يومين", route('equipment.readings.index', [], false), 'warning');
+        }
+
+        // Parts needed by due items that the stock cannot cover.
+        $needed = $due->filter(fn ($r) => $r['schedule']->product_id)->groupBy(fn ($r) => $r['schedule']->product_id)
+            ->map(fn ($g) => $g->sum(fn ($r) => $r['schedule']->default_quantity));
+        $short = $needed->filter(fn ($qty, $productId) => (float) InventoryStock::where('product_id', $productId)->sum('quantity') < $qty)->count();
+        if ($short) {
+            $alerts[] = $this->alert('equipment_parts_short', 'inventory.products.view', 'قطع غيار صيانة غير كافية', "{$short} صنف لا يكفي رصيده لبنود الصيانة المستحقة", route('equipment.maintenance.dashboard', [], false), 'warning');
         }
 
         return $alerts;

@@ -41,6 +41,8 @@ return [
         'employee' => ['table' => 'employees', 'column' => 'employee_number', 'prefix' => 'EMP-', 'pad' => 4, 'yearly' => false],
         'project' => ['table' => 'projects', 'column' => 'code', 'prefix' => 'PRJ-', 'pad' => 4, 'yearly' => false],
         'subcontract' => ['table' => 'subcontracts', 'column' => 'number', 'prefix' => 'SUB-', 'pad' => 5, 'yearly' => true],
+        'equipment_rental' => ['table' => 'equipment_rentals', 'column' => 'number', 'prefix' => 'ER-', 'pad' => 5, 'yearly' => true],
+        'maintenance_order' => ['table' => 'maintenance_orders', 'column' => 'number', 'prefix' => 'MO-', 'pad' => 5, 'yearly' => true],
         'product' => ['table' => 'products', 'column' => 'sku', 'prefix' => 'PRD-', 'pad' => 5, 'yearly' => false],
     ],
 

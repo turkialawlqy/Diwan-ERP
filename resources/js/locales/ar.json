@@ -104,7 +104,14 @@
         "integrations": "الربط البرمجي",
         "data_transfer": "استيراد وتصدير",
         "crm_leads": "العملاء المحتملون",
-        "hr_settings": "إعدادات الرواتب ونظام العمل"
+        "hr_settings": "إعدادات الرواتب ونظام العمل",
+        "equipment": "المعدات والصيانة",
+        "equipment_list": "المعدات",
+        "equipment_readings": "قراءات العدادات",
+        "equipment_rentals": "عقود التأجير",
+        "maintenance_dashboard": "لوحة الصيانة",
+        "maintenance_orders": "أوامر الصيانة",
+        "equipment_reports": "تقارير المعدات"
     },
     "common": {
         "search": "بحث...",

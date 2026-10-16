@@ -104,7 +104,14 @@
         "integrations": "API & Webhooks",
         "data_transfer": "Import / Export",
         "crm_leads": "Leads (CRM)",
-        "hr_settings": "Payroll Settings"
+        "hr_settings": "Payroll Settings",
+        "equipment": "Equipment",
+        "equipment_list": "Equipment",
+        "equipment_readings": "Meter Readings",
+        "equipment_rentals": "Rental Contracts",
+        "maintenance_dashboard": "Maintenance Board",
+        "maintenance_orders": "Maintenance Orders",
+        "equipment_reports": "Equipment Reports"
     },
     "common": {
         "search": "Search...",
