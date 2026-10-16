@@ -110,7 +110,18 @@ exit;
     [IO.File]::WriteAllText($maintenanceFile, $stub, $utf8)
 }
 function Exit-Maintenance {
+    # Laravel's own "artisan down" (older runs, or done by hand) is lifted too.
+    if ($php -and (Test-Vendor)) { & $php artisan up 2>&1 | Out-Null }
     Remove-Item -LiteralPath $downFile, $maintenanceFile -Force -ErrorAction SilentlyContinue
+    if (Test-Path $downFile) { Write-Log "    تعذّر حذف $downFile؛ احذفه يدوياً ليعود النظام للعمل." 'Red' -Always }
+}
+# A maintenance flag left behind by an interrupted run must not keep the site
+# down when there is nothing to do now.
+function Clear-StaleMaintenance {
+    if ((Test-Path $downFile) -and (Test-Vendor)) {
+        Exit-Maintenance
+        Write-Log '    أُلغي وضع الصيانة المتبقي من تحديث سابق.' 'Yellow' -Always
+    }
 }
 function Test-Vendor {
     if (-not (Test-Path (Join-Path $Path 'vendor/autoload.php'))) { return $false }
@@ -203,6 +214,7 @@ try {
     $prepared = ''
     if (Test-Path $preparedFile) { $prepared = (Get-Content $preparedFile -Raw).Trim() }
     if ($isRepo -and $localHead -eq $remoteHead -and $prepared -eq $remoteHead -and -not $Force) {
+        Clear-StaleMaintenance
         Write-Log ("النظام محدّث (الإصدار {0})." -f $remoteHead.Substring(0, 7)) 'Green'
         exit 0
     }
@@ -221,6 +233,7 @@ try {
         Write-Log "فعّلها ثم أعد التشغيل: في Laragon من القائمة PHP ← Extensions، أو احذف ; من بداية سطر extension=<الاسم> في ملف php.ini:" 'Yellow' -Always
         Write-Log ("    " + (@(& $php --ini 2>$null) | Where-Object { $_ -match 'Loaded Configuration' } | Select-Object -First 1)) 'Yellow' -Always
         Write-Log 'لم يُغيَّر شيء في النظام.' 'Yellow' -Always
+        Clear-StaleMaintenance
         exit 5
     }
 
