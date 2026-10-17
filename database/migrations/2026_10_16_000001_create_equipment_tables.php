@@ -9,6 +9,17 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // A first run on MySQL could stop half-way (DDL is not transactional),
+        // leaving some of these tables behind while the migration stays
+        // unrecorded. They hold no data then, so start clean.
+        Schema::disableForeignKeyConstraints();
+        foreach (['maintenance_order_schedules', 'maintenance_order_items', 'maintenance_orders', 'equipment_billings', 'equipment_readings',
+            'equipment_rentals', 'equipment_maintenance_schedules', 'equipment'] as $leftover) {
+            Schema::dropIfExists($leftover);
+        }
+        Schema::enableForeignKeyConstraints();
+
+        // Index names are explicit: MySQL limits identifiers to 64 characters.
         Schema::create('equipment', function (Blueprint $table) {
             $table->id();
             $table->foreignId('company_id')->constrained()->cascadeOnDelete();
@@ -37,8 +48,8 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamps();
             $table->softDeletes();
-            $table->unique(['company_id', 'code']);
-            $table->index(['company_id', 'status']);
+            $table->unique(['company_id', 'code'], 'eq_company_code_unique');
+            $table->index(['company_id', 'status'], 'eq_company_status_idx');
         });
 
         // Periodic maintenance per item: due when ANY interval is reached.
@@ -61,7 +72,7 @@ return new class extends Migration
             $table->string('alert_state', 10)->default('ok'); // ok, due_soon, overdue
             $table->boolean('is_active')->default(true);
             $table->timestamps();
-            $table->index(['company_id', 'is_active', 'alert_state']);
+            $table->index(['company_id', 'is_active', 'alert_state'], 'eq_sched_company_active_state_idx');
         });
 
         Schema::create('equipment_rentals', function (Blueprint $table) {
@@ -85,8 +96,8 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->unique(['company_id', 'number']);
-            $table->index(['company_id', 'status']);
+            $table->unique(['company_id', 'number'], 'eq_rentals_company_number_unique');
+            $table->index(['company_id', 'status'], 'eq_rentals_company_status_idx');
         });
 
         Schema::create('equipment_readings', function (Blueprint $table) {
@@ -102,8 +113,8 @@ return new class extends Migration
             $table->string('notes', 500)->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->unique(['equipment_id', 'date']);
-            $table->index(['company_id', 'date']);
+            $table->unique(['equipment_id', 'date'], 'eq_readings_equipment_date_unique');
+            $table->index(['company_id', 'date'], 'eq_readings_company_date_idx');
         });
 
         // Billed periods: customer invoices / project charges (out) and supplier rent (in).
@@ -126,8 +137,8 @@ return new class extends Migration
             $table->string('reference', 60)->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->index(['company_id', 'direction', 'period_from']);
-            $table->index(['equipment_id', 'period_from']);
+            $table->index(['company_id', 'direction', 'period_from'], 'eq_billings_company_dir_from_idx');
+            $table->index(['equipment_id', 'period_from'], 'eq_billings_equipment_from_idx');
         });
 
         Schema::create('maintenance_orders', function (Blueprint $table) {
@@ -148,8 +159,8 @@ return new class extends Migration
             $table->timestamp('completed_at')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
-            $table->unique(['company_id', 'number']);
-            $table->index(['company_id', 'status']);
+            $table->unique(['company_id', 'number'], 'mo_company_number_unique');
+            $table->index(['company_id', 'status'], 'mo_company_status_idx');
         });
 
         Schema::create('maintenance_order_items', function (Blueprint $table) {
@@ -172,7 +183,7 @@ return new class extends Migration
             $table->foreignId('maintenance_order_id')->constrained()->cascadeOnDelete();
             $table->foreignId('schedule_id')->constrained('equipment_maintenance_schedules')->cascadeOnDelete();
             $table->boolean('was_overdue')->default(false);
-            $table->unique(['maintenance_order_id', 'schedule_id']);
+            $table->unique(['maintenance_order_id', 'schedule_id'], 'mo_sched_order_schedule_unique');
         });
 
         // Plans that sell contracting also get the equipment module.
