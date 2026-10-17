@@ -63,6 +63,7 @@ class RevenueController extends Controller
             'category' => 'required|string|max:100',
             'amount' => 'required|numeric|min:0.01',
             'tax_amount' => 'nullable|numeric|min:0',
+            'taxable' => 'boolean',
             'revenue_date' => 'required|date',
             'payment_method' => 'required|string',
             'reference_number' => 'nullable|string|max:100',
@@ -70,7 +71,9 @@ class RevenueController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $tax = $validated['tax_amount'] ?? round($validated['amount'] * 0.15, 2);
+        // No VAT unless the voucher is marked taxable (government fees, salaries,
+        // unregistered vendors carry none).
+        $tax = ($validated['taxable'] ?? false) ? (float) ($validated['tax_amount'] ?? round($validated['amount'] * 0.15, 2)) : 0.0;
         $total = $validated['amount'] + $tax;
 
         $revenue = DB::transaction(function () use ($validated, $tax, $total) {

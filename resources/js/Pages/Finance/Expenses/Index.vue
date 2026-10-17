@@ -36,6 +36,8 @@ const form = useForm({
     bank_account_id: props.bankAccounts?.[0]?.id || '',
     amount: '',
     tax_amount: '',
+    taxable: false,
+    vendor_tax_number: '',
     expense_date: new Date().toISOString().split('T')[0],
     payment_method: 'bank_transfer',
     reference_number: '',
@@ -44,7 +46,7 @@ const form = useForm({
 });
 
 const onAmountChange = () => {
-    if (form.amount) {
+    if (form.amount && form.taxable) {
         form.tax_amount = (parseFloat(form.amount) * 0.15).toFixed(2);
     } else {
         form.tax_amount = '0.00';
@@ -399,9 +401,10 @@ const formatCurrency = (val) => {
                                 />
                             </div>
                             <div>
-                                <label class="block font-medium text-slate-700 mb-1">ضريبة القيمة المضافة 15%</label>
+                                <label class="flex items-center gap-2 font-medium text-slate-700 mb-1"><input v-model="form.taxable" type="checkbox" @change="onAmountChange" class="rounded border-slate-300" /> خاضع لضريبة القيمة المضافة 15%</label>
                                 <input 
                                     v-model="form.tax_amount" 
+                                    :disabled="!form.taxable"
                                     type="number" 
                                     step="0.01" 
                                     placeholder="0.00"
@@ -451,6 +454,11 @@ const formatCurrency = (val) => {
                                     placeholder="اسم الشركة أو الشخص"
                                     class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-rose-500 focus:border-rose-500" 
                                 />
+                                <template v-if="form.taxable">
+                                    <label class="block font-medium text-slate-700 mt-2 mb-1" for="vendor-vat">الرقم الضريبي للمورد</label>
+                                    <input id="vendor-vat" v-model="form.vendor_tax_number" dir="ltr" maxlength="15" placeholder="3xxxxxxxxxxxxx3" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono" />
+                                    <p v-if="form.errors.vendor_tax_number" class="text-rose-600 text-3xs mt-1">{{ form.errors.vendor_tax_number }}</p>
+                                </template>
                             </div>
                             <div>
                                 <label class="block font-medium text-slate-700 mb-1">طريقة الدفع</label>

@@ -35,6 +35,7 @@ const form = useForm({
     bank_account_id: props.bankAccounts?.[0]?.id || '',
     amount: '',
     tax_amount: '',
+    taxable: false,
     revenue_date: new Date().toISOString().split('T')[0],
     payment_method: 'bank_transfer',
     reference_number: '',
@@ -43,7 +44,7 @@ const form = useForm({
 });
 
 const onAmountChange = () => {
-    if (form.amount) {
+    if (form.amount && form.taxable) {
         form.tax_amount = (parseFloat(form.amount) * 0.15).toFixed(2);
     } else {
         form.tax_amount = '0.00';
@@ -398,9 +399,10 @@ const formatCurrency = (val) => {
                                 />
                             </div>
                             <div>
-                                <label class="block font-medium text-slate-700 mb-1">ضريبة القيمة المضافة 15%</label>
+                                <label class="flex items-center gap-2 font-medium text-slate-700 mb-1"><input v-model="form.taxable" type="checkbox" @change="onAmountChange" class="rounded border-slate-300" /> خاضع لضريبة القيمة المضافة 15%</label>
                                 <input 
                                     v-model="form.tax_amount" 
+                                    :disabled="!form.taxable"
                                     type="number" 
                                     step="0.01" 
                                     placeholder="0.00"

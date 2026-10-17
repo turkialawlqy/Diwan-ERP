@@ -459,18 +459,27 @@ class DocumentPoster
      * Supplier bill for goods already received on GRNs.
      *   Dr GRNI (received value)  Dr/Cr price variance  Dr VAT input   Cr Payables / Cash
      */
-    public function purchaseInvoiceFromReceipts(PurchaseInvoice $invoice, float $receivedValue): JournalEntry
+    public function purchaseInvoiceFromReceipts(PurchaseInvoice $invoice, float $receivedValue, float $varianceToInventory = 0.0): JournalEntry
     {
         $invoice->loadMissing('supplier');
         $tax = (float) $invoice->tax_amount;
         $total = (float) $invoice->total;
         $net = $total - $tax;
         $paid = min((float) $invoice->paid_amount, $total);
-        $variance = round($net - $receivedValue, 2);
+        // Net beyond the received stock value: service lines and the price
+        // variance of goods already sold are expenses; the variance of goods
+        // still held was capitalised on inventory.
+        $expense = round($net - $receivedValue - $varianceToInventory, 2);
 
-        $lines = [['role' => 'grni', 'debit' => round($receivedValue, 2), 'party_type' => 'supplier', 'party_id' => $invoice->supplier_id]];
-        if ($variance != 0.0) {
-            $lines[] = ['role' => 'purchases_cogs', 'debit' => $variance, 'description' => 'فرق سعر فاتورة عن الاستلام'];
+        $lines = [];
+        if ($receivedValue != 0.0) {
+            $lines[] = ['role' => 'grni', 'debit' => round($receivedValue, 2), 'party_type' => 'supplier', 'party_id' => $invoice->supplier_id];
+        }
+        if ($varianceToInventory != 0.0) {
+            $lines[] = ['role' => 'inventory', $varianceToInventory > 0 ? 'debit' : 'credit' => abs($varianceToInventory), 'description' => 'فرق سعر فاتورة عن الاستلام (أصناف بالمخزون)'];
+        }
+        if ($expense != 0.0) {
+            $lines[] = ['role' => 'purchases_cogs', $expense > 0 ? 'debit' : 'credit' => abs($expense), 'description' => 'خدمات وفرق سعر أصناف مباعة'];
         }
         if ($tax > 0) {
             $lines[] = ['role' => 'vat_input', 'debit' => $tax];

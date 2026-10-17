@@ -307,7 +307,11 @@ class PurchaseCycleService
                 }
 
                 $grnItem->increment('invoiced_quantity', $quantity);
-                $receivedValue += round((float) $grnItem->unit_cost * $quantity, 2);
+                // Only stock lines went through GRNI on receipt (services carry no value there).
+                $isStock = $grnItem->product_id && Product::find($grnItem->product_id)?->isStockItem();
+                if ($isStock) {
+                    $receivedValue += round((float) $grnItem->unit_cost * $quantity, 2);
+                }
                 $receiptIds[$grnItem->goods_receipt_id] = true;
 
                 $rows[] = [
@@ -320,6 +324,7 @@ class PurchaseCycleService
                         'tax_rate' => (float) ($line['tax_rate'] ?? 15),
                     ],
                     'grn_item' => $grnItem,
+                    'stock' => $isStock,
                 ];
             }
 
@@ -381,7 +386,24 @@ class PurchaseCycleService
                 Supplier::whereKey($invoice->supplier_id)->increment('current_balance', $remaining);
             }
 
-            $this->poster->purchaseInvoiceFromReceipts($invoice, $receivedValue);
+            // Invoice price above/below the receipt cost: the part for goods
+            // still in stock goes to inventory (and the average cost), only the
+            // part for goods already sold is an expense.
+            $invoice->load('items');
+            $toInventory = 0.0;
+            foreach ($items as $i => $item) {
+                if (! $rows[$i]['stock']) {
+                    continue;
+                }
+                $grnItem = $rows[$i]['grn_item'];
+                $variance = round((float) $item['quantity'] * (float) $item['unit_price'] - (float) ($item['discount'] ?? 0) - (float) $grnItem->unit_cost * (float) $item['quantity'], 2);
+                if ($variance != 0.0) {
+                    $toInventory += $this->capitalise((int) $grnItem->product_id, $invoice, $variance, (float) $item['quantity'], ['type' => 'revaluation', 'source' => $invoice,
+                        'date' => $invoice->invoice_date, 'reference' => $invoice->invoice_number, 'notes' => 'فرق سعر الفاتورة عن الاستلام']);
+                }
+            }
+
+            $this->poster->purchaseInvoiceFromReceipts($invoice, $receivedValue, round($toInventory, 2));
 
             return $invoice;
         });
@@ -550,16 +572,8 @@ class PurchaseCycleService
                     continue;
                 }
 
-                $product = Product::whereKey($productId)->lockForUpdate()->first();
-                $onHand = (float) InventoryStock::where('product_id', $productId)->sum('quantity');
-                $stillHeld = max(0, min($quantity, $onHand));
-                $inventoryShare = round($share * $stillHeld / $quantity, 2);
-
-                if ($inventoryShare > 0 && $onHand > 0) {
-                    $newAverage = ((float) $product->average_cost * $onHand + $inventoryShare) / $onHand;
-                    $product->forceFill(['average_cost' => round($newAverage, 4)])->saveQuietly();
-                    $this->raiseLayers((int) $productId, $invoice, $inventoryShare);
-                }
+                $inventoryShare = $this->capitalise((int) $productId, $invoice, $share, $quantity, ['type' => 'revaluation', 'source' => $landed,
+                    'date' => $landed->date, 'reference' => $landed->landed_number, 'notes' => 'تكاليف إضافية: '.$landed->description]);
 
                 $toInventory += $inventoryShare;
                 $toCogs += $share - $inventoryShare;
@@ -581,6 +595,35 @@ class PurchaseCycleService
 
             return $landed;
         });
+    }
+
+    /**
+     * Puts an extra cost (or a price variance) of $quantity purchased units
+     * onto the stock still held: average cost, FIFO layers and a value-only
+     * stock movement. Returns the part capitalised; the rest belongs to
+     * goods already sold (cost of sales).
+     */
+    protected function capitalise(int $productId, PurchaseInvoice $invoice, float $amount, float $quantity, array $context): float
+    {
+        if ($quantity <= 0 || $amount == 0.0) {
+            return 0.0;
+        }
+        $product = Product::whereKey($productId)->lockForUpdate()->first();
+        $onHand = (float) InventoryStock::where('product_id', $productId)->sum('quantity');
+        $stillHeld = max(0, min($quantity, $onHand));
+        $share = round($amount * $stillHeld / $quantity, 2);
+        if ($share == 0.0 || $onHand <= 0) {
+            return 0.0;
+        }
+
+        $product->forceFill(['average_cost' => round(max(0, ((float) $product->average_cost * $onHand + $share) / $onHand), 4)])->saveQuietly();
+        $this->raiseLayers($productId, $invoice, $share);
+        $warehouseId = $invoice->warehouse_id ?: (int) InventoryStock::where('product_id', $productId)->where('quantity', '>', 0)->value('warehouse_id');
+        if ($warehouseId) {
+            $this->stock->revalue($productId, $warehouseId, $share, $context);
+        }
+
+        return $share;
     }
 
     /**

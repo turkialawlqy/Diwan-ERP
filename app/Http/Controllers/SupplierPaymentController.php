@@ -134,7 +134,8 @@ class SupplierPaymentController extends Controller
                     }
 
                     $newPaid = $invoice->paid_amount + $validated['amount'];
-                    $newRemaining = max(0, $invoice->total - $newPaid);
+                    // Remaining already reflects purchase returns: never recompute it from the total.
+                    $newRemaining = max(0, round((float) $invoice->remaining_amount - (float) $validated['amount'], 2));
                     $newStatus = $newRemaining <= 0 ? 'paid' : 'partially_paid';
 
                     $invoice->update([

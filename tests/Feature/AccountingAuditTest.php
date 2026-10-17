@@ -237,4 +237,93 @@ class AccountingAuditTest extends TestCase
         $this->assertSame(round($bankBefore + 1150, 2), $this->balance('default_bank'));
         $this->assertLedgerBalanced();
     }
+
+    // ------------------------------------------------------------ C. purchases & inventory
+
+    protected function purchaseSetup(): array
+    {
+        $warehouse = \App\Models\Warehouse::create(['name_ar' => 'رئيسي', 'code' => 'W1', 'is_main' => true, 'is_active' => true]);
+        $supplier = \App\Models\Supplier::create(['name' => 'مورد', 'status' => 'active']);
+        $item = \App\Models\Product::create(['name_ar' => 'صنف مخزني', 'sku' => 'S1', 'track_inventory' => true, 'is_active' => true]);
+
+        return [$warehouse, $supplier, $item];
+    }
+
+    public function test_supplier_payment_after_a_return_closes_the_invoice(): void
+    {
+        [$warehouse, $supplier, $item] = $this->purchaseSetup();
+        $cycle = app(\App\Services\Purchases\PurchaseCycleService::class);
+        $receipt = $cycle->receive(null, ['supplier_id' => $supplier->id, 'warehouse_id' => $warehouse->id, 'receipt_date' => '2026-06-01'],
+            [['product_id' => $item->id, 'item_name' => 'صنف مخزني', 'quantity' => 10, 'unit_cost' => 100]]);
+        $invoice = $cycle->invoiceReceipts(['supplier_id' => $supplier->id, 'invoice_date' => '2026-06-02', 'payment_method' => 'credit'],
+            [['goods_receipt_item_id' => $receipt->items->first()->id, 'quantity' => 10, 'unit_price' => 100, 'tax_rate' => 15]]);
+        $cycle->returnInvoice($invoice, ['return_date' => '2026-06-03', 'reason' => 'تالف', 'warehouse_id' => $warehouse->id],
+            [['purchase_invoice_item_id' => $invoice->items->first()->id, 'quantity' => 2]]);
+        $this->assertSame(920.0, (float) $invoice->fresh()->remaining_amount);
+
+        $this->post(route('purchases.payments.store'), ['supplier_id' => $supplier->id, 'purchase_invoice_id' => $invoice->id, 'amount' => 920,
+            'payment_date' => '2026-06-05', 'payment_method' => 'bank_transfer'])->assertSessionHasNoErrors();
+
+        $this->assertSame(0.0, (float) $invoice->fresh()->remaining_amount); // was 230 "still due"
+        $this->assertSame('paid', $invoice->fresh()->payment_status);
+        $this->assertSame(0.0, $this->balance('payables'));
+    }
+
+    public function test_service_lines_skip_grni_and_price_variance_follows_the_stock(): void
+    {
+        [$warehouse, $supplier, $item] = $this->purchaseSetup();
+        $service = \App\Models\Product::create(['name_ar' => 'شحن', 'sku' => 'SV1', 'track_inventory' => false, 'type' => 'service', 'is_active' => true]);
+        $cycle = app(\App\Services\Purchases\PurchaseCycleService::class);
+        $receipt = $cycle->receive(null, ['supplier_id' => $supplier->id, 'warehouse_id' => $warehouse->id, 'receipt_date' => '2026-06-01'], [
+            ['product_id' => $item->id, 'item_name' => 'صنف مخزني', 'quantity' => 10, 'unit_cost' => 100],
+            ['product_id' => $service->id, 'item_name' => 'شحن', 'quantity' => 1, 'unit_cost' => 50],
+        ]);
+        // 4 of the 10 units are sold before the supplier's invoice arrives at 110 instead of 100.
+        app(\App\Services\Inventory\StockService::class)->issue(['product_id' => $item->id, 'warehouse_id' => $warehouse->id, 'quantity' => 4, 'type' => 'sale']);
+
+        $cycle->invoiceReceipts(['supplier_id' => $supplier->id, 'invoice_date' => '2026-06-05', 'payment_method' => 'credit'], [
+            ['goods_receipt_item_id' => $receipt->items->firstWhere('product_id', $item->id)->id, 'quantity' => 10, 'unit_price' => 110, 'tax_rate' => 15],
+            ['goods_receipt_item_id' => $receipt->items->firstWhere('product_id', $service->id)->id, 'quantity' => 1, 'unit_price' => 50, 'tax_rate' => 15],
+        ]);
+
+        $this->assertSame(0.0, $this->balance('grni')); // was 50 debit: the service went through GRNI at no value
+        $this->assertSame(90.0, $this->balance('purchases_cogs')); // service 50 + variance of the 4 sold units 40
+        // 1,000 received + 60 variance on the 6 units held (the test's direct stock issue posts no COGS entry).
+        $this->assertSame(1060.0, $this->balance('inventory'));
+        $this->assertSame(110.0, round((float) $item->fresh()->average_cost, 2));
+        $valuation = (float) \App\Models\StockMovement::where('product_id', $item->id)->sum('total_cost');
+        $this->assertSame(660.0, round($valuation, 2)); // the stock report matches the ledger
+        $this->assertLedgerBalanced();
+    }
+
+    public function test_fifo_receipt_covers_negative_stock_before_creating_a_layer(): void
+    {
+        [$warehouse, , $item] = $this->purchaseSetup();
+        $this->company->setSetting('costing_method', 'fifo');
+        $this->company->setSetting('allow_negative_stock', '1');
+        $item->update(['purchase_price' => 20]);
+        $stock = app(\App\Services\Inventory\StockService::class);
+
+        $early = $stock->issue(['product_id' => $item->id, 'warehouse_id' => $warehouse->id, 'quantity' => 5, 'type' => 'sale']);
+        $this->assertSame(100.0, $early); // costed at the purchase price, not zero
+        $stock->receive(['product_id' => $item->id, 'warehouse_id' => $warehouse->id, 'quantity' => 10, 'unit_cost' => 20, 'type' => 'purchase']);
+        $later = $stock->issue(['product_id' => $item->id, 'warehouse_id' => $warehouse->id, 'quantity' => 5, 'type' => 'sale']);
+
+        $this->assertSame(100.0, $later);
+        $this->assertSame(0.0, (float) \App\Models\StockLayer::where('product_id', $item->id)->sum('remaining')); // no phantom layer left
+        $this->assertSame(0.0, $stock->onHand($item->id, $warehouse->id));
+    }
+
+    public function test_expense_vat_only_when_taxable_with_a_supplier_vat_number(): void
+    {
+        $this->post(route('finance.expenses.store'), ['title' => 'رسوم حكومية', 'category' => 'رسوم', 'amount' => 1000, 'expense_date' => '2026-06-10', 'payment_method' => 'cash'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(0.0, $this->balance('vat_input')); // was 150 claimed on a government fee
+
+        $this->post(route('finance.expenses.store'), ['title' => 'صيانة', 'category' => 'صيانة', 'amount' => 1000, 'taxable' => true, 'expense_date' => '2026-06-10', 'payment_method' => 'cash'])
+            ->assertSessionHasErrors('vendor_tax_number');
+        $this->post(route('finance.expenses.store'), ['title' => 'صيانة', 'category' => 'صيانة', 'amount' => 1000, 'taxable' => true, 'vendor_tax_number' => '310000000000003',
+            'expense_date' => '2026-06-10', 'payment_method' => 'cash'])->assertSessionHasNoErrors();
+        $this->assertSame(150.0, $this->balance('vat_input'));
+    }
 }

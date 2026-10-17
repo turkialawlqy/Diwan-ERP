@@ -18,6 +18,7 @@ class Expense extends Model
         'account_id',
         'bank_account_id',
         'expense_number',
+        'vendor_tax_number',
         'title',
         'category',
         'amount',

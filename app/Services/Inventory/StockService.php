@@ -60,6 +60,10 @@ class StockService
             $batchId = $this->receiveBatch($product, $data, $quantity);
             $this->receiveSerials($product, $data, $quantity);
 
+            // Stock below zero was already issued (costed at the average):
+            // the receipt first covers that deficit, so its FIFO layer only
+            // holds what is physically left and nothing is costed twice.
+            $deficit = max(0, -(float) $stock->quantity);
             $stock->quantity = (float) $stock->quantity + $quantity;
             $stock->save();
 
@@ -71,7 +75,7 @@ class StockService
                 'movement_id' => $movement->id,
                 'date' => $movement->date,
                 'quantity' => $quantity,
-                'remaining' => $quantity,
+                'remaining' => max(0, round($quantity - $deficit, 4)),
                 'unit_cost' => $unitCost,
             ]);
 
@@ -253,10 +257,12 @@ class StockService
             $remaining -= $take;
         }
 
-        // Quantity without layers (negative stock) is costed at the average.
-        $fifoCost += max(0, $remaining) * (float) $product->average_cost;
+        // Quantity without layers (negative stock) is costed at the average,
+        // or the purchase price when nothing was received yet (never at zero).
+        $fallback = (float) $product->average_cost > 0 ? (float) $product->average_cost : (float) $product->purchase_price;
+        $fifoCost += max(0, $remaining) * $fallback;
 
-        return round($this->costingMethod() === 'fifo' ? $fifoCost : $quantity * (float) $product->average_cost, 2);
+        return round($this->costingMethod() === 'fifo' ? $fifoCost : $quantity * $fallback, 2);
     }
 
     protected function receiveBatch(Product $product, array $data, float $quantity): ?int
@@ -373,6 +379,21 @@ class StockService
             'last_source_type' => $this->sourceType($data),
             'last_source_id' => $this->sourceId($data),
         ]);
+    }
+
+    /**
+     * Value-only movement (quantity 0): landed costs and price variances
+     * capitalised on stock, so the valuation report matches the ledger.
+     */
+    public function revalue(int $productId, int $warehouseId, float $value, array $context = []): ?StockMovement
+    {
+        if (abs($value) < 0.005) {
+            return null;
+        }
+        $product = Product::findOrFail($productId);
+        $balance = (float) InventoryStock::where('product_id', $productId)->where('warehouse_id', $warehouseId)->value('quantity');
+
+        return $this->movement($product, $context + ['warehouse_id' => $warehouseId, 'type' => 'revaluation'], 0, 0, $balance, null, $value);
     }
 
     protected function movement(Product $product, array $data, float $quantity, float $unitCost, float $balance, ?int $batchId, ?float $totalCost = null): StockMovement

@@ -252,7 +252,9 @@ class SalesPurchaseCycleTest extends TestCase
 
         $this->assertSame(358.8, (float) $invoice->total);
         $this->assertSame(0.0, $this->balance('grni'));
-        $this->assertSame(12.0, $this->balance('purchases_cogs'));
+        // All 6 units are still held, so the price variance is capitalised into inventory.
+        $this->assertSame(0.0, $this->balance('purchases_cogs'));
+        $this->assertSame(312.0, $this->balance('inventory'));
         $this->assertSame(358.8, $this->balance('payables'));
         $this->assertSame('invoiced', $receipt->fresh()->status);
         $this->assertLedgerBalanced();
