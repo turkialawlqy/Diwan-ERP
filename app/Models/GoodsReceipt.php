@@ -13,7 +13,7 @@ class GoodsReceipt extends Model
 {
     use Auditable, BelongsToCompany, BranchScoped;
 
-    protected $fillable = ['company_id', 'branch_id', 'warehouse_id', 'supplier_id', 'purchase_order_id', 'purchase_invoice_id', 'receipt_number', 'receipt_date', 'supplier_delivery_number', 'status', 'total_value', 'notes', 'created_by'];
+    protected $fillable = ['company_id', 'branch_id', 'warehouse_id', 'supplier_id', 'purchase_order_id', 'purchase_invoice_id', 'receipt_number', 'receipt_date', 'supplier_delivery_number', 'status', 'total_value', 'notes', 'created_by', 'cancelled_at', 'cancelled_by', 'cancel_reason'];
 
     protected $casts = ['receipt_date' => 'date', 'total_value' => 'decimal:2'];
 

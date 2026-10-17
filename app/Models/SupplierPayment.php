@@ -13,6 +13,10 @@ class SupplierPayment extends Model
     use Auditable, BelongsToCompany, HasFactory;
 
     protected $fillable = [
+        'status',
+        'cancelled_at',
+        'cancelled_by',
+        'cancel_reason',
         'currency_code',
         'exchange_rate',
         'bank_account_id',

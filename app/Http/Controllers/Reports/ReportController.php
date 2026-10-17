@@ -26,7 +26,7 @@ class ReportController extends Controller
             'total_sales' => $totalSales,
             'total_tax' => Invoice::query()->sumBase('tax_amount'),
             'invoices_count' => Invoice::count(),
-            'total_payments_received' => CustomerPayment::query()->sumBase('amount'),
+            'total_payments_received' => CustomerPayment::where('status', '!=', 'cancelled')->sumBase('amount'),
             'gross_profit' => $totalSales - $totalCogs,
         ];
 

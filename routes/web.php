@@ -20,6 +20,7 @@ use App\Http\Controllers\CurrencyController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerPaymentController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocumentCancellationController;
 use App\Http\Controllers\DataTransferController;
 use App\Http\Controllers\DocumentShareController;
 use App\Http\Controllers\FileController;
@@ -211,6 +212,7 @@ Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'thr
         Route::post('/recurring/{recurring}/run', [RecurringInvoiceController::class, 'run'])->name('recurring.run');
         Route::delete('/recurring/{recurring}', [RecurringInvoiceController::class, 'destroy'])->name('recurring.destroy');
         Route::post('/payments/{payment}/allocate', [CustomerPaymentController::class, 'allocate'])->name('payments.allocate');
+        Route::post('/payments/{payment}/cancel', [DocumentCancellationController::class, 'customerPayment'])->name('payments.cancel');
 
         // Sales orders → delivery notes → invoices
         Route::get('/orders', [S\SalesOrderController::class, 'index'])->name('orders.index');
@@ -225,6 +227,7 @@ Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'thr
         Route::get('/deliveries', [S\DeliveryNoteController::class, 'index'])->name('deliveries.index');
         Route::get('/deliveries/{delivery}', [S\DeliveryNoteController::class, 'show'])->name('deliveries.show');
         Route::post('/deliveries/{delivery}/invoice', [S\DeliveryNoteController::class, 'invoice'])->name('deliveries.invoice');
+        Route::post('/deliveries/{delivery}/cancel', [DocumentCancellationController::class, 'deliveryNote'])->name('deliveries.cancel');
         Route::get('/debit-notes', [S\DebitNoteController::class, 'index'])->name('debit-notes.index');
         Route::post('/debit-notes', [S\DebitNoteController::class, 'store'])->name('debit-notes.store');
         Route::get('/price-lists', [S\PriceListController::class, 'index'])->name('price-lists.index');
@@ -338,6 +341,7 @@ Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'thr
         // Goods receipts, returns, landed costs
         Route::get('/receipts', [P\GoodsReceiptController::class, 'index'])->name('receipts.index');
         Route::get('/receipts/{receipt}', [P\GoodsReceiptController::class, 'show'])->name('receipts.show');
+        Route::post('/receipts/{receipt}/cancel', [DocumentCancellationController::class, 'goodsReceipt'])->name('receipts.cancel');
         Route::get('/returns', [P\PurchaseReturnController::class, 'index'])->name('returns.index');
         Route::get('/returns/create', [P\PurchaseReturnController::class, 'create'])->name('returns.create');
         Route::post('/returns', [P\PurchaseReturnController::class, 'store'])->name('returns.store');
@@ -348,6 +352,7 @@ Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'thr
         // Supplier Payments
         Route::get('/payments', [SupplierPaymentController::class, 'index'])->name('payments.index');
         Route::post('/payments', [SupplierPaymentController::class, 'store'])->name('payments.store');
+        Route::post('/payments/{payment}/cancel', [DocumentCancellationController::class, 'supplierPayment'])->name('payments.cancel');
     });
 
     // Contracting & projects
@@ -432,6 +437,7 @@ Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'thr
 
         Route::get('/transfers', [TransferController::class, 'index'])->name('transfers.index');
         Route::post('/transfers', [TransferController::class, 'store'])->name('transfers.store');
+        Route::post('/transfers/{entry}/cancel', [DocumentCancellationController::class, 'transfer'])->name('transfers.cancel');
     });
 
     // 9. Accounting Module

@@ -13,7 +13,7 @@ class DeliveryNote extends Model
 {
     use Auditable, BelongsToCompany, BranchScoped;
 
-    protected $fillable = ['company_id', 'branch_id', 'warehouse_id', 'customer_id', 'sales_order_id', 'invoice_id', 'delivery_number', 'delivery_date', 'status', 'total_cost', 'receiver_name', 'notes', 'created_by'];
+    protected $fillable = ['company_id', 'branch_id', 'warehouse_id', 'customer_id', 'sales_order_id', 'invoice_id', 'delivery_number', 'delivery_date', 'status', 'total_cost', 'receiver_name', 'notes', 'created_by', 'cancelled_at', 'cancelled_by', 'cancel_reason'];
 
     protected $casts = ['delivery_date' => 'date', 'total_cost' => 'decimal:2'];
 

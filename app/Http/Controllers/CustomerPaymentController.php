@@ -42,8 +42,8 @@ class CustomerPaymentController extends Controller
             ->withQueryString();
 
         $stats = [
-            'total_payments' => CustomerPayment::count(),
-            'total_amount' => (float) CustomerPayment::sum('amount'),
+            'total_payments' => CustomerPayment::where('status', '!=', 'cancelled')->count(),
+            'total_amount' => (float) CustomerPayment::where('status', '!=', 'cancelled')->sum('amount'),
         ];
 
         return Inertia::render('Sales/Payments/Index', [
@@ -133,6 +133,7 @@ class CustomerPaymentController extends Controller
                     'party_type' => 'customer', 'party_id' => $payment->customer_id, 'party_name' => $payment->customer?->name ?? '',
                     'amount' => round((float) $payment->amount * (float) ($payment->exchange_rate ?: 1), 2),
                     'issue_date' => $payment->payment_date, 'due_date' => $payment->payment_date, 'notes' => 'سند قبض '.$payment->payment_number,
+                    'source_type' => $payment->getMorphClass(), 'source_id' => $payment->id,
                 ]);
             }
 
@@ -156,6 +157,7 @@ class CustomerPaymentController extends Controller
             'allocations.*.amount' => 'required|numeric|min:0',
         ]);
 
+        abort_if($payment->status === 'cancelled', 422, 'السند ملغى.');
         DB::transaction(fn () => app(SalesCycleService::class)->allocatePayment(
             CustomerPayment::whereKey($payment->id)->lockForUpdate()->firstOrFail(),
             $validated['allocations'] ?? null,

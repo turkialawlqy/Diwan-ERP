@@ -1,4 +1,5 @@
 <script setup>
+import CancelDocument from '@/Components/CancelDocument.vue';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref } from 'vue';
 import axios from 'axios';
@@ -134,7 +135,7 @@ const formatCurrency = (val) => {
                                     {{ p.payment_method === 'cash' ? 'نقداً' : p.payment_method === 'card' ? 'بطاقة / مدى' : 'تحويل بنكي' }}
                                 </td>
                                 <td class="py-4 px-6 text-slate-500">{{ p.payment_date }}</td>
-                                <td class="py-4 px-6"><ShareDocument v-if="$can('sales.payments.print')" type="receipt" :id="p.id" compact /></td>
+                                <td class="py-4 px-6"><div class="flex items-center gap-3"><ShareDocument v-if="$can('sales.payments.print') && p.status !== 'cancelled'" type="receipt" :id="p.id" compact /><CancelDocument v-if="$can('sales.payments.cancel') || p.status === 'cancelled'" :url="route('sales.payments.cancel', p.id)" label="سند القبض" :status="p.status" /></div></td>
                             </tr>
                             <tr v-if="!payments.data || payments.data.length === 0">
                                 <td colspan="6" class="py-12 text-center text-slate-400">

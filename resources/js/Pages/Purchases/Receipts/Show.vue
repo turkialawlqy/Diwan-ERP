@@ -1,4 +1,5 @@
 <script setup>
+import CancelDocument from '@/Components/CancelDocument.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -17,6 +18,8 @@ const printPage = () => window.print();
                 <StatusBadge :status="receipt.status" />
                 <Link v-if="receipt.status === 'received' && $can('purchases.invoices.create')" :href="route('purchases.invoices.from-receipts', { supplier_id: receipt.supplier_id })" class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">فاتورة المورد</Link>
                 <button @click="printPage" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold">طباعة</button>
+                <CancelDocument v-if="receipt.status === 'received' && $can('purchases.receipts.cancel')" :url="route('purchases.receipts.cancel', receipt.id)" label="إذن الاستلام" />
+                <p v-if="receipt.cancel_reason" class="text-3xs text-rose-600">سبب الإلغاء: {{ receipt.cancel_reason }}</p>
             </template>
         </PageHeader>
         <div class="bg-white border border-slate-200 rounded-2xl p-4 grid grid-cols-2 md:grid-cols-5 gap-3 text-xs mb-4">

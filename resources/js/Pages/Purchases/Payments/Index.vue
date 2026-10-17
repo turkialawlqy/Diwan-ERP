@@ -1,4 +1,5 @@
 <script setup>
+import CancelDocument from '@/Components/CancelDocument.vue';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import CurrencyPicker from '@/Components/Documents/CurrencyPicker.vue';
 import { ref } from 'vue';
@@ -176,7 +177,7 @@ const formatCurrency = (val) => {
                                 <td class="py-4 px-6 font-mono font-black text-slate-900 text-end">
                                     {{ formatCurrency(pay.amount) }} <span class="text-xs font-normal">﷼</span>
                                 </td>
-                                <td class="py-4 px-6"><ShareDocument v-if="$can('purchases.payments.print')" type="payment" :id="pay.id" compact /></td>
+                                <td class="py-4 px-6"><div class="flex items-center gap-3"><ShareDocument v-if="$can('purchases.payments.print') && pay.status !== 'cancelled'" type="payment" :id="pay.id" compact /><CancelDocument v-if="$can('purchases.payments.cancel') || pay.status === 'cancelled'" :url="route('purchases.payments.cancel', pay.id)" label="سند الصرف" :status="pay.status" /></div></td>
                             </tr>
                             <tr v-if="!payments.data || payments.data.length === 0">
                                 <td colspan="8" class="py-12 text-center text-slate-400">

@@ -47,8 +47,8 @@ class SupplierPaymentController extends Controller
             ->get(['id', 'supplier_id', 'invoice_number', 'total', 'remaining_amount', 'currency_code']);
 
         $stats = [
-            'total_payments_count' => SupplierPayment::count(),
-            'total_paid_amount' => SupplierPayment::sum('amount'),
+            'total_payments_count' => SupplierPayment::where('status', '!=', 'cancelled')->count(),
+            'total_paid_amount' => SupplierPayment::where('status', '!=', 'cancelled')->sum('amount'),
         ];
 
         return Inertia::render('Purchases/Payments/Index', [
@@ -153,6 +153,7 @@ class SupplierPaymentController extends Controller
                     'party_type' => 'supplier', 'party_id' => $payment->supplier_id, 'party_name' => $payment->supplier?->name ?? '',
                     'amount' => round((float) $payment->amount * (float) ($payment->exchange_rate ?: 1), 2),
                     'issue_date' => $payment->payment_date, 'due_date' => $payment->payment_date, 'notes' => 'سند صرف '.$payment->payment_number,
+                    'source_type' => $payment->getMorphClass(), 'source_id' => $payment->id,
                 ]);
             }
 

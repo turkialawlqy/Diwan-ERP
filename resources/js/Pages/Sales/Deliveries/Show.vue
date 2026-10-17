@@ -1,4 +1,5 @@
 <script setup>
+import CancelDocument from '@/Components/CancelDocument.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -18,6 +19,8 @@ const printPage = () => window.print();
                 <StatusBadge :status="note.status" />
                 <button v-if="note.status === 'delivered' && $can('sales.deliveries.convert')" @click="invoice" class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">إصدار فاتورة</button>
                 <button @click="printPage" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold">طباعة</button>
+                <CancelDocument v-if="note.status === 'delivered' && $can('sales.deliveries.cancel')" :url="route('sales.deliveries.cancel', note.id)" label="إذن التسليم" />
+                <p v-if="note.cancel_reason" class="text-3xs text-rose-600">سبب الإلغاء: {{ note.cancel_reason }}</p>
             </template>
         </PageHeader>
         <div class="bg-white border border-slate-200 rounded-2xl p-4 grid grid-cols-2 md:grid-cols-5 gap-3 text-xs mb-4">

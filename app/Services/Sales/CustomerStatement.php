@@ -26,7 +26,7 @@ class CustomerStatement
     {
         $customer->load([
             'invoices' => fn ($q) => $q->orderBy('invoice_date'),
-            'payments' => fn ($q) => $q->orderBy('payment_date'),
+            'payments' => fn ($q) => $q->where('status', '!=', 'cancelled')->orderBy('payment_date'),
         ]);
 
         $rows = collect();

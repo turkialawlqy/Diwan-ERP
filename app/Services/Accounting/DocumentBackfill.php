@@ -45,10 +45,10 @@ class DocumentBackfill
                 // Billing invoices are posted by their progress billing (contract revenue).
                 'invoices' => [Invoice::query()->whereNotIn('id', ProgressBilling::whereNotNull('invoice_id')->select('invoice_id')), 'invoice_number', fn (Invoice $d) => $this->salesInvoice($d)],
                 'credit_notes' => [CreditNote::query()->whereIn('status', ['approved', 'refunded']), 'credit_note_number', fn (CreditNote $d) => $this->poster->creditNote($d)],
-                'customer_payments' => [CustomerPayment::query(), 'payment_number', fn (CustomerPayment $d) => $this->poster->customerPayment($d)],
+                'customer_payments' => [CustomerPayment::where('status', '!=', 'cancelled'), 'payment_number', fn (CustomerPayment $d) => $this->poster->customerPayment($d)],
                 'purchase_invoices' => [PurchaseInvoice::query(), 'invoice_number', fn (PurchaseInvoice $d) => $this->purchaseInvoice($d)],
                 // Payments recorded together with their bill are covered by the bill's entry.
-                'supplier_payments' => [SupplierPayment::query()->where(fn ($q) => $q->whereNull('notes')->orWhere('notes', 'not like', self::BILL_PAYMENT_NOTE)), 'payment_number', fn (SupplierPayment $d) => $this->poster->supplierPayment($d)],
+                'supplier_payments' => [SupplierPayment::where('status', '!=', 'cancelled')->where(fn ($q) => $q->whereNull('notes')->orWhere('notes', 'not like', self::BILL_PAYMENT_NOTE)), 'payment_number', fn (SupplierPayment $d) => $this->poster->supplierPayment($d)],
                 'expenses' => [Expense::query(), 'expense_number', fn (Expense $d) => $this->poster->expense($d)],
                 'revenues' => [Revenue::query(), 'revenue_number', fn (Revenue $d) => $this->poster->revenue($d)],
                 // Only approved payrolls are accrued, with the entry approval posts (summary-only legacy payrolls keep the simple entry).
@@ -94,7 +94,7 @@ class DocumentBackfill
      */
     protected function salesInvoice(Invoice $invoice): JournalEntry
     {
-        $payments = CustomerPayment::where('invoice_id', $invoice->id)->whereDoesntHave('allocations')->sum('amount');
+        $payments = CustomerPayment::where('invoice_id', $invoice->id)->where('status', '!=', 'cancelled')->whereDoesntHave('allocations')->sum('amount');
         $allocated = PaymentAllocation::where('invoice_id', $invoice->id)->sum('amount');
         $invoice->paid_amount = max(0, round((float) $invoice->paid_amount - (float) $payments - (float) $allocated, 2));
 
@@ -106,7 +106,7 @@ class DocumentBackfill
 
     protected function purchaseInvoice(PurchaseInvoice $invoice): JournalEntry
     {
-        $later = SupplierPayment::where('purchase_invoice_id', $invoice->id)
+        $later = SupplierPayment::where('purchase_invoice_id', $invoice->id)->where('status', '!=', 'cancelled')
             ->where(fn ($q) => $q->whereNull('notes')->orWhere('notes', 'not like', self::BILL_PAYMENT_NOTE))->sum('amount');
         $invoice->paid_amount = max(0, round((float) $invoice->paid_amount - (float) $later, 2));
 

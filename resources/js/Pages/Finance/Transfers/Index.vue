@@ -1,4 +1,5 @@
 <script setup>
+import CancelDocument from '@/Components/CancelDocument.vue';
 import { ref, computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -168,10 +169,13 @@ const submitTransfer = () => {
                                     {{ Number(t.total_debit).toLocaleString() }} ر.س
                                 </td>
                                 <td class="px-6 py-4 text-center">
-                                    <span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-200">
-                                        <CheckCircleIcon class="w-3.5 h-3.5" />
-                                        <span>مرحل ومكتمل</span>
-                                    </span>
+                                    <div class="flex items-center justify-center gap-3">
+                                        <span v-if="t.status !== 'reversed'" class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-200">
+                                            <CheckCircleIcon class="w-3.5 h-3.5" />
+                                            <span>مرحل ومكتمل</span>
+                                        </span>
+                                        <CancelDocument v-if="$can('finance.transfers.cancel') || t.status === 'reversed'" :url="route('finance.transfers.cancel', t.id)" label="التحويل" :status="t.status === 'reversed' ? 'cancelled' : null" />
+                                    </div>
                                 </td>
                             </tr>
 
