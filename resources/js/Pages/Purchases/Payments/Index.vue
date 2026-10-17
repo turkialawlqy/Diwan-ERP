@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import CurrencyPicker from '@/Components/Documents/CurrencyPicker.vue';
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -140,6 +141,7 @@ const formatCurrency = (val) => {
                                 <th class="py-4 px-6">طريقة الصرف</th>
                                 <th class="py-4 px-6">رقم المرجع / التحويل</th>
                                 <th class="py-4 px-6 text-end">المبلغ المصروف</th>
+                                <th class="py-4 px-6"></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 text-slate-700">
@@ -174,9 +176,10 @@ const formatCurrency = (val) => {
                                 <td class="py-4 px-6 font-mono font-black text-slate-900 text-end">
                                     {{ formatCurrency(pay.amount) }} <span class="text-xs font-normal">﷼</span>
                                 </td>
+                                <td class="py-4 px-6"><ShareDocument v-if="$can('purchases.payments.print')" type="payment" :id="pay.id" compact /></td>
                             </tr>
                             <tr v-if="!payments.data || payments.data.length === 0">
-                                <td colspan="7" class="py-12 text-center text-slate-400">
+                                <td colspan="8" class="py-12 text-center text-slate-400">
                                     لا توجد سندات صرف مسجلة.
                                 </td>
                             </tr>

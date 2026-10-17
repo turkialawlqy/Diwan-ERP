@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref } from 'vue';
 import axios from 'axios';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -121,6 +122,7 @@ const formatCurrency = (val) => {
                                 <th class="py-4 px-6">المبلغ</th>
                                 <th class="py-4 px-6">طريقة الدفع</th>
                                 <th class="py-4 px-6">تاريخ السداد</th>
+                                <th class="py-4 px-6"></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -132,9 +134,10 @@ const formatCurrency = (val) => {
                                     {{ p.payment_method === 'cash' ? 'نقداً' : p.payment_method === 'card' ? 'بطاقة / مدى' : 'تحويل بنكي' }}
                                 </td>
                                 <td class="py-4 px-6 text-slate-500">{{ p.payment_date }}</td>
+                                <td class="py-4 px-6"><ShareDocument v-if="$can('sales.payments.print')" type="receipt" :id="p.id" compact /></td>
                             </tr>
                             <tr v-if="!payments.data || payments.data.length === 0">
-                                <td colspan="5" class="py-12 text-center text-slate-400">
+                                <td colspan="6" class="py-12 text-center text-slate-400">
                                     <div class="flex flex-col items-center justify-center gap-2">
                                         <BanknotesIcon class="w-10 h-10 text-slate-300 stroke-1" />
                                         <p class="font-semibold text-slate-500">لا توجد سندات قبض مسجلة حالياً</p>

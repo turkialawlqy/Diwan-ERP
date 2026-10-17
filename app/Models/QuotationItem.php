@@ -47,4 +47,9 @@ class QuotationItem extends Model
     {
         return $this->quotation;
     }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
 }

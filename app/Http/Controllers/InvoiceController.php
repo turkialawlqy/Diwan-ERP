@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\PrintTemplate;
+use App\Services\Documents\FreeformTemplates;
 use App\Models\Product;
 use App\Models\Unit;
 use App\Models\Warehouse;
@@ -236,7 +237,8 @@ class InvoiceController extends Controller
             $template = $templates->firstWhere('id', (int) $selectedTemplateId);
         }
         if (! $template) {
-            $template = $templates->where('template_type', 'invoice_a4')->where('is_default', true)->first()
+            $template = $templates->where('template_type', 'invoice')->where('is_default', true)->first(fn ($t) => FreeformTemplates::isFreeform($t))
+                ?? $templates->where('template_type', 'invoice_a4')->where('is_default', true)->first()
                 ?? $templates->firstWhere('template_type', 'invoice_a4')
                 ?? $templates->first();
         }

@@ -6,6 +6,10 @@ use App\Jobs\SendDocumentEmail;
 use App\Models\Company;
 use App\Models\CreditNote;
 use App\Models\Customer;
+use App\Models\CustomerPayment;
+use App\Models\DebitNote;
+use App\Models\SalesOrder;
+use App\Models\SupplierPayment;
 use App\Models\DocumentDispatch;
 use App\Models\Invoice;
 use App\Models\ProgressBilling;
@@ -24,6 +28,10 @@ class DocumentSharing
         'invoice' => ['model' => Invoice::class, 'permission' => 'sales.invoices.print', 'label' => 'الفاتورة', 'number' => 'invoice_number', 'total' => 'total'],
         'credit_note' => ['model' => CreditNote::class, 'permission' => 'sales.returns.print', 'label' => 'الإشعار الدائن', 'number' => 'credit_note_number', 'total' => 'total'],
         'quotation' => ['model' => Quotation::class, 'permission' => 'sales.quotations.print', 'label' => 'عرض السعر', 'number' => 'quotation_number', 'total' => 'total'],
+        'sales_order' => ['model' => SalesOrder::class, 'permission' => 'sales.orders.print', 'label' => 'أمر البيع', 'number' => 'order_number', 'total' => 'total'],
+        'debit_note' => ['model' => DebitNote::class, 'permission' => 'sales.debit_notes.print', 'label' => 'الإشعار المدين', 'number' => 'debit_note_number', 'total' => 'total'],
+        'receipt' => ['model' => CustomerPayment::class, 'permission' => 'sales.payments.print', 'label' => 'سند القبض', 'number' => 'payment_number', 'total' => 'amount'],
+        'payment' => ['model' => SupplierPayment::class, 'permission' => 'purchases.payments.print', 'label' => 'سند الصرف', 'number' => 'payment_number', 'total' => 'amount'],
         'billing' => ['model' => ProgressBilling::class, 'permission' => 'projects.billings.print', 'label' => 'المستخلص', 'number' => 'number', 'total' => 'net_payable'],
         'statement' => ['model' => Customer::class, 'permission' => 'sales.clients.view', 'label' => 'كشف الحساب', 'number' => 'code', 'total' => 'current_balance'],
     ];
@@ -52,6 +60,7 @@ class DocumentSharing
         return match (true) {
             $document instanceof Customer => $document,
             $document instanceof ProgressBilling => $document->project?->customer,
+            $document instanceof SupplierPayment => null,
             default => $document->customer,
         };
     }
@@ -64,11 +73,11 @@ class DocumentSharing
     }
 
     /** @return array{content: string, filename: string} */
-    public function pdf(Model $document): array
+    public function pdf(Model $document, ?int $templateId = null): array
     {
         return $document instanceof Customer
             ? app(DocumentPdf::class)->statement($document)
-            : app(DocumentPdf::class)->make($document);
+            : app(DocumentPdf::class)->make($document, $templateId);
     }
 
     /** Signed, expiring link to the document's PDF (no login needed). */
@@ -94,7 +103,7 @@ class DocumentSharing
         $def = self::TYPES[$this->typeOf($document)];
 
         return strtr($template, [
-            '{customer}' => $this->customer($document)?->name ?? 'عميلنا العزيز',
+            '{customer}' => $this->customer($document)?->name ?? ($document instanceof SupplierPayment ? $document->supplier?->name : null) ?? 'عميلنا العزيز',
             '{document}' => $def['label'],
             '{number}' => $this->number($document),
             '{total}' => number_format((float) $document->{$def['total']}, 2),

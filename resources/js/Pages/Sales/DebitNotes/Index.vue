@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -30,7 +31,9 @@ const save = () => form.post(route('sales.debit-notes.store'), { onSuccess: () =
         <PageHeader title="الإشعارات المدينة" subtitle="مبالغ إضافية على العميل (فرق سعر، رسوم...) تزيد مديونيته وضريبة المخرجات" :crumbs="[{ label: 'المبيعات' }, { label: 'الإشعارات المدينة' }]">
             <template #actions><button v-if="$can('sales.debit_notes.create')" @click="open = true" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> إشعار مدين</button></template>
         </PageHeader>
-        <DocumentTable :paginator="notes" :columns="columns" :filters="filters" search-route="sales.debit-notes.index" />
+        <DocumentTable :paginator="notes" :columns="columns" :filters="filters" search-route="sales.debit-notes.index">
+            <template #actions="{ row }"><ShareDocument v-if="$can('sales.debit_notes.print')" type="debit_note" :id="row.id" compact /></template>
+        </DocumentTable>
         <Dialog :show="open" title="إشعار مدين" @close="open = false">
             <div class="grid grid-cols-2 gap-3">
                 <Field label="العميل" :error="form.errors.customer_id" class="col-span-2"><PartyPicker v-model="form.customer_id" /></Field>

@@ -35,6 +35,11 @@ const currentTemplate = computed(() => {
     return props.templates?.find(t => t.id === currentTemplateId.value) || props.template || {};
 });
 
+// Free-form designs print from the server PDF, which is laid out exactly as designed.
+const invoiceTemplates = computed(() => (props.templates || []).filter((t) => ['invoice', 'invoice_a4', 'invoice_thermal_80mm'].includes(t.template_type)));
+const isFreeform = computed(() => currentTemplate.value?.layout_data?.mode === 'freeform');
+const freeformPdf = computed(() => route('documents.pdf', { type: 'invoice', id: props.invoice.id, template: currentTemplate.value?.id }));
+
 // Foreign-currency invoices show their currency and the base equivalent.
 const curSymbol = computed(() => props.invoice?.currency_code || 'ر.س');
 const baseTotal = computed(() => props.invoice?.currency_code ? Number(props.invoice.total) * Number(props.invoice.exchange_rate || 1) : null);
@@ -313,12 +318,20 @@ const switchTemplate = (id) => {
 };
 
 const triggerPrint = () => {
+    if (isFreeform.value) {
+        window.open(freeformPdf.value, '_blank');
+        return;
+    }
     window.print();
 };
 
 const printWithTemplate = (id) => {
     currentTemplateId.value = Number(id);
     showPrintModal.value = false;
+    if (isFreeform.value) {
+        window.open(freeformPdf.value, '_blank');
+        return;
+    }
     setTimeout(() => {
         window.print();
     }, 200);
@@ -435,7 +448,7 @@ const resolveTag = (tag) => {
                             @change="switchTemplate($event.target.value)"
                             class="bg-transparent text-xs font-semibold text-slate-800 border-none p-0 focus:ring-0 cursor-pointer"
                         >
-                            <option v-for="t in templates" :key="t.id" :value="t.id">
+                            <option v-for="t in invoiceTemplates" :key="t.id" :value="t.id">
                                 {{ t.name }} {{ t.is_default ? '★ (الافتراضي)' : '' }}
                             </option>
                         </select>
@@ -493,8 +506,13 @@ const resolveTag = (tag) => {
                 </div>
             </div>
 
+            <div v-if="isFreeform" class="max-w-4xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden print:hidden">
+                <iframe :src="freeformPdf" title="معاينة الفاتورة بالتصميم الحر" class="w-full" style="height: 1150px"></iframe>
+            </div>
+
             <!-- Dynamic Invoice Sheet Container (Matches Designer layout_data) -->
             <div 
+                v-else
                 id="printable-invoice" 
                 dir="rtl"
                 :class="[
@@ -1041,7 +1059,7 @@ const resolveTag = (tag) => {
                 <!-- Template Choices Grid -->
                 <div class="space-y-2.5 max-h-80 overflow-y-auto pr-1">
                     <div 
-                        v-for="tmpl in templates" 
+                        v-for="tmpl in invoiceTemplates" 
                         :key="tmpl.id"
                         @click="switchTemplate(tmpl.id)"
                         :class="[

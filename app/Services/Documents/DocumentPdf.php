@@ -30,8 +30,23 @@ class DocumentPdf
     public function __construct(protected PdfRenderer $renderer) {}
 
     /** @return array{content: string, filename: string} */
-    public function make(Model $document): array
+    public function make(Model $document, ?int $templateId = null): array
     {
+        // Free-form designs (and kinds that only print free-form) take over.
+        $freeform = app(FreeformTemplates::class);
+        if ($layout = $freeform->resolve($document, $templateId)) {
+            $number = app(DocumentSharing::class)->number($document);
+            $attachments = [];
+            if ($xml = $this->signedXml($document)) {
+                $attachments[] = ['name' => $number.'.xml', 'mime' => 'text/xml', 'description' => 'ZATCA signed e-invoice (UBL 2.1)', 'content' => $xml];
+            }
+
+            return [
+                'content' => $freeform->render($document, $layout, $attachments, TemplateData::KINDS[TemplateData::kindOf($document)][0].' '.$number),
+                'filename' => $this->filename($number),
+            ];
+        }
+
         $data = match (true) {
             $document instanceof Invoice => $this->invoice($document),
             $document instanceof CreditNote => $this->creditNote($document),

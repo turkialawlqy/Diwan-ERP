@@ -42,7 +42,54 @@ class PdfRenderer
         return $mpdf->Output('', 'S');
     }
 
-    protected function make(): Mpdf
+    /**
+     * Free-form layouts: one HTML fragment per page, absolutely positioned on
+     * a margin-less page of the template's size.
+     *
+     * @param  string[]  $pages
+     */
+    public function renderPages(array $pages, array $page, array $attachments = [], string $title = '', string $author = ''): string
+    {
+        $mpdf = $this->make([
+            'format' => [$page['width'], $page['height']],
+            'margin_top' => 0, 'margin_bottom' => 0, 'margin_left' => 0, 'margin_right' => 0,
+            'margin_header' => 0, 'margin_footer' => 0,
+            'default_font' => $page['font'] ?? config('documents.pdf.font', 'xbriyaz'),
+        ]);
+        $mpdf->SetTitle($title);
+        $mpdf->SetAuthor($author ?: config('app.name'));
+        $mpdf->SetCreator(config('app.name'));
+        $mpdf->autoPageBreak = false;
+        $this->attach($mpdf, $attachments);
+
+        foreach ($pages as $i => $html) {
+            if ($i > 0) {
+                $mpdf->AddPage();
+            }
+            $mpdf->WriteHTML('<body dir="rtl">'.$html.'</body>');
+        }
+
+        return $mpdf->Output('', 'S');
+    }
+
+    protected function attach(Mpdf $mpdf, array $attachments): void
+    {
+        if (! $attachments) {
+            return;
+        }
+        $mpdf->PDFA = true;
+        $mpdf->PDFAauto = true;
+        $mpdf->PDFAversion = '3-B';
+        $mpdf->SetAssociatedFiles(array_map(fn ($file) => [
+            'name' => $file['name'],
+            'mime' => $file['mime'] ?? 'application/octet-stream',
+            'description' => $file['description'] ?? $file['name'],
+            'AFRelationship' => $file['relationship'] ?? 'Data',
+            'content' => $file['content'],
+        ], $attachments));
+    }
+
+    protected function make(array $options = []): Mpdf
     {
         $tempDir = storage_path('app/mpdf');
         if (! is_dir($tempDir)) {
@@ -60,7 +107,7 @@ class PdfRenderer
             $fontData[config('documents.pdf.font')] = ['R' => $custom, 'useOTL' => 0xFF, 'useKashida' => 75];
         }
 
-        return new Mpdf([
+        return new Mpdf($options + [
             'mode' => 'utf-8',
             'format' => 'A4',
             'margin_top' => 12,

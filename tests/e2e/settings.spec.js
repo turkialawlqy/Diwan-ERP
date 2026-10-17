@@ -7,7 +7,8 @@ const LOGO = path.resolve('tests/e2e/fixtures/logo.png');
 test('logo uploaded in the template designer shows on the printed invoice', async ({ page }) => {
     const errors = watchErrors(page);
     await page.goto('/templates');
-    const designer = await page.locator('a[href*="/designer"]').first().getAttribute('href');
+    // The quick (section-based) A4 designer, not a free-form one.
+    const designer = await page.locator('div.group').filter({ hasText: 'فاتورة ضريبية A4 (ZATCA)' }).first().locator('a[href*="/designer"]').getAttribute('href');
     await page.goto(designer);
     await page.getByRole('button', { name: 'الشعار', exact: true }).click();
     await page.locator('input[type=file]').setInputFiles(LOGO);

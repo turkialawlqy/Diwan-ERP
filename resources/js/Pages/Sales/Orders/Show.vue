@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { computed, ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -34,6 +35,7 @@ const act = (name, message) => { if (!message || confirm(message)) router.post(r
         <PageHeader :title="`أمر بيع ${order.order_number}`" :crumbs="[{ label: 'المبيعات' }, { label: 'أوامر البيع', href: route('sales.orders.index') }, { label: order.order_number }]">
             <template #actions>
                 <StatusBadge :status="order.status" />
+                <ShareDocument v-if="$can('sales.orders.print')" type="sales_order" :id="order.id" />
                 <template v-if="order.status === 'pending_approval' && $can('sales.orders.approve')">
                     <button @click="act('sales.orders.approve')" class="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">اعتماد</button>
                     <button @click="act('sales.orders.reject', 'رفض أمر البيع؟')" class="px-3 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold">رفض</button>

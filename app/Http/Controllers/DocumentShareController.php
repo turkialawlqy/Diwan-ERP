@@ -28,7 +28,7 @@ class DocumentShareController extends Controller
     {
         $document = $this->authorized($request, $type, $id);
 
-        return $this->pdfResponse($document, $request->boolean('download'));
+        return $this->pdfResponse($document, $request->boolean('download'), $request->integer('template') ?: null);
     }
 
     public function send(Request $request, string $type, int $id): JsonResponse
@@ -125,9 +125,9 @@ class DocumentShareController extends Controller
         return $this->sharing->find($type, $id);
     }
 
-    protected function pdfResponse(Model $document, bool $download): Response
+    protected function pdfResponse(Model $document, bool $download, ?int $templateId = null): Response
     {
-        $pdf = $this->sharing->pdf($document);
+        $pdf = $this->sharing->pdf($document, $templateId);
 
         return response($pdf['content'], 200, [
             'Content-Type' => 'application/pdf',

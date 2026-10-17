@@ -41,4 +41,9 @@ class SupplierPayment extends Model
     {
         return $this->belongsTo(PurchaseInvoice::class);
     }
+
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class);
+    }
 }

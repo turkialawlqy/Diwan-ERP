@@ -60,6 +60,7 @@ use App\Http\Controllers\SuperAdmin\PlatformController;
 use App\Http\Controllers\SuperAdmin\SuperAdminDashboardController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierPaymentController;
+use App\Http\Controllers\FreeformTemplateController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
@@ -613,6 +614,12 @@ Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'thr
     Route::post('/templates/{template}/default', [TemplateController::class, 'setDefault'])->name('templates.default');
     Route::delete('/templates/{template}', [TemplateController::class, 'destroy'])->name('templates.destroy');
     Route::get('/templates/preview-invoice/{invoice}', [TemplateController::class, 'getInvoicePreview'])->name('templates.preview-invoice');
+    Route::post('/templates/images', [FreeformTemplateController::class, 'upload'])->name('templates.images');
+    Route::get('/templates/fonts/{font}', [FreeformTemplateController::class, 'font'])->name('templates.fonts');
+    Route::get('/templates/images/{file}', [FreeformTemplateController::class, 'image'])->name('templates.image');
+    Route::get('/templates/{template}/data', [FreeformTemplateController::class, 'data'])->name('templates.data');
+    Route::post('/templates/{template}/preview', [FreeformTemplateController::class, 'preview'])->name('templates.preview');
+    Route::get('/templates/{template}/preset', [FreeformTemplateController::class, 'preset'])->name('templates.preset');
 
     Route::get('/settings', [CompanySettingController::class, 'index'])->name('settings.index');
     Route::get('/settings/currencies', [CurrencyController::class, 'index'])->name('settings.currencies');
