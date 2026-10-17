@@ -182,9 +182,10 @@ class Insights
         $planned = DB::table('budget_lines')->where('budget_id', $budget->id)->whereBetween('period', [$from, $to])
             ->groupBy('account_id')->selectRaw('account_id, SUM(amount) as amount')->pluck('amount', 'account_id');
         $accounts = Account::whereIn('id', $planned->keys())->get(['id', 'code', 'name_ar', 'type']);
-        $actual = DB::table('account_balances')->where('company_id', $this->companyId())->whereBetween('period', [$from, $to])
-            ->whereIn('account_id', $accounts->pluck('id'))->groupBy('account_id')
-            ->selectRaw('account_id, SUM(debit) as d, SUM(credit) as c')->get()->keyBy('account_id');
+        // Actuals exclude the year-end closing entry (it zeroes revenue and expenses).
+        $actual = collect(app(\App\Services\Accounting\AccountingReports::class)->totalsBetween(
+            Carbon::parse($year->start_date)->startOfDay(), $asOf->copy()->endOfMonth(), $accounts->pluck('id')->all() ?: [0], null, true,
+        ))->map(fn ($t) => (object) ['d' => $t['debit'], 'c' => $t['credit']]);
 
         $rows = $accounts->map(function ($a) use ($planned, $actual) {
             $b = $actual->get($a->id);

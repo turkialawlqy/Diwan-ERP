@@ -26,6 +26,13 @@ class YearEndClosing
         if ($year->isClosed()) {
             throw new AccountingException('السنة المالية مغلقة مسبقاً.');
         }
+        if (Carbon::parse($year->end_date)->endOfDay()->isFuture()) {
+            throw new AccountingException('لا يمكن إقفال سنة مالية قبل انتهائها.');
+        }
+        $earlier = FiscalYear::where('company_id', $year->company_id)->whereDate('end_date', '<', $year->start_date)->where('status', '!=', 'closed')->orderBy('start_date')->first();
+        if ($earlier) {
+            throw new AccountingException("يجب إقفال السنة المالية السابقة ({$earlier->name}) أولاً.");
+        }
 
         $drafts = JournalEntry::where('status', JournalEntry::STATUS_DRAFT)
             ->whereBetween('date', [$year->start_date->toDateString(), $year->end_date->toDateString().' 23:59:59'])
@@ -78,7 +85,8 @@ class YearEndClosing
                 ]);
             }
 
-            FiscalPeriod::where('fiscal_year_id', $year->id)->update(['status' => 'closed']);
+            // Open periods become closed; locked periods stay locked.
+            FiscalPeriod::where('fiscal_year_id', $year->id)->where('status', 'open')->update(['status' => 'closed']);
             $year->update([
                 'status' => 'closed',
                 'closing_entry_id' => $entry?->id,

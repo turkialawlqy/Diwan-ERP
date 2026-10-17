@@ -254,9 +254,15 @@ class AccountingTest extends TestCase
         $posting->post(['date' => '2026-04-05', 'description' => 'مصروف', 'lines' => [['role' => 'rent_expense', 'debit' => 2000], ['role' => 'default_cash', 'credit' => 2000]]]);
 
         $year = FiscalYear::firstOrFail();
+        $this->assertThrows(fn () => app(YearEndClosing::class)->close($year), AccountingException::class); // the year has not ended
+        Carbon::setTestNow('2027-01-10 09:00:00');
         app(YearEndClosing::class)->close($year);
 
         $this->assertSame(0.0, $this->balance('sales_revenue'));
+        // The closed year still reports its profit (the closing entry is not a result).
+        $income = app(AccountingReports::class)->incomeStatement(Carbon::parse('2026-01-01'), Carbon::parse('2026-12-31'));
+        $this->assertSame(5000.0, $income['total_revenue']);
+        $this->assertSame(3000.0, $income['net_profit']);
         $this->assertSame(0.0, $this->balance('rent_expense'));
         $this->assertSame(3000.0, $this->balance('retained_earnings'));
         $this->assertSame(0, FiscalPeriod::where('fiscal_year_id', $year->id)->where('status', 'open')->count());

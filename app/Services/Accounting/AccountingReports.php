@@ -33,10 +33,22 @@ class AccountingReports
      * account_id => ['debit' => x, 'credit' => y] for postings dated between
      * $from and $to inclusive (null $from = since the beginning).
      */
-    public function totalsBetween(?Carbon $from, Carbon $to, ?array $accountIds = null, ?int $costCenterId = null): array
+    public function totalsBetween(?Carbon $from, Carbon $to, ?array $accountIds = null, ?int $costCenterId = null, bool $excludeClosing = false): array
     {
         $companyId = $this->companyId();
         $totals = [];
+
+        // Profit reports must not see the year-end closing entry (nor its
+        // reversal when a year is reopened), or a closed year shows zero.
+        if ($excludeClosing) {
+            $totals = $this->totalsBetween($from, $to, $accountIds, $costCenterId);
+            foreach ($this->closingTotals($from, $to, $accountIds, $costCenterId) as $row) {
+                $totals[$row->account_id]['debit'] = ($totals[$row->account_id]['debit'] ?? 0) - (float) $row->debit;
+                $totals[$row->account_id]['credit'] = ($totals[$row->account_id]['credit'] ?? 0) - (float) $row->credit;
+            }
+
+            return $totals;
+        }
 
         $add = function ($rows) use (&$totals) {
             foreach ($rows as $row) {
@@ -80,6 +92,27 @@ class AccountingReports
         }
 
         return $totals;
+    }
+
+    protected function closingTotals(?Carbon $from, Carbon $to, ?array $accountIds = null, ?int $costCenterId = null): Collection
+    {
+        $closingIds = DB::table('journal_entries')->where('company_id', $this->companyId())->where('entry_type', 'closing')->pluck('id');
+        if ($closingIds->isEmpty()) {
+            return collect();
+        }
+
+        return DB::table('journal_entry_lines as l')
+            ->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
+            ->where('l.company_id', $this->companyId())
+            ->whereIn('e.status', self::STATUSES)
+            ->where(fn ($q) => $q->whereIn('e.id', $closingIds)->orWhereIn('e.reversal_of_id', $closingIds))
+            ->when($from, fn ($q) => $q->where('l.date', '>=', $from->toDateString()))
+            ->where('l.date', '<=', $to->toDateString().' 23:59:59')
+            ->when($accountIds, fn ($q) => $q->whereIn('l.account_id', $accountIds))
+            ->when($costCenterId, fn ($q) => $q->where('l.cost_center_id', $costCenterId))
+            ->groupBy('l.account_id')
+            ->selectRaw('l.account_id, SUM(l.debit) as debit, SUM(l.credit) as credit')
+            ->get();
     }
 
     protected function lineTotals(?Carbon $from, Carbon $to, ?array $accountIds = null, ?int $costCenterId = null): Collection
@@ -241,23 +274,46 @@ class AccountingReports
      */
     public function incomeStatement(Carbon $from, Carbon $to, ?int $costCenterId = null): array
     {
-        $movement = $this->totalsBetween($from, $to, null, $costCenterId);
+        $movement = $this->totalsBetween($from, $to, null, $costCenterId, true);
         $sections = $this->sections(['revenue', 'expense'], $movement);
 
         $revenue = $sections['revenue']['total'];
         $expense = $sections['expense']['total'];
-        $cogsIds = array_filter([$this->map->find('cogs'), $this->map->find('purchases_cogs'), $this->map->find('inventory_adjustment')]);
+        // Cost of sales = every account of the cost-of-sales group (COGS,
+        // non-stock purchases, adjustments, project and subcontract costs).
+        $cogsIds = $this->groupLeafIds(array_filter([$this->map->find('cogs'), $this->map->find('purchases_cogs'), $this->map->find('inventory_adjustment'),
+            $this->map->find('project_costs'), $this->map->find('subcontractor_costs')]));
         $cogs = collect($sections['expense']['rows'])->whereIn('id', $cogsIds)->sum('amount');
+        // Gross profit compares operating revenue only (no other income or asset gains).
+        $nonOperating = array_filter([$this->map->find('other_revenue'), $this->map->find('asset_disposal_gain')]);
+        $operatingRevenue = $revenue - collect($sections['revenue']['rows'])->whereIn('id', $nonOperating)->sum('amount');
 
         return [
             'revenue' => $sections['revenue'],
             'expense' => $sections['expense'],
             'total_revenue' => round($revenue, 2),
+            'operating_revenue' => round($operatingRevenue, 2),
             'cost_of_sales' => round($cogs, 2),
-            'gross_profit' => round($revenue - $cogs, 2),
+            'gross_profit' => round($operatingRevenue - $cogs, 2),
             'total_expense' => round($expense, 2),
             'net_profit' => round($revenue - $expense, 2),
         ];
+    }
+
+    /** Leaf accounts under the parents of the given accounts (the cost-of-sales group). */
+    protected function groupLeafIds(array $accountIds): array
+    {
+        $accounts = Account::query()->get(['id', 'parent_id', 'is_parent']);
+        $parents = $accounts->whereIn('id', $accountIds)->pluck('parent_id')->filter()->unique()->all();
+        $ids = $accountIds;
+        $frontier = $parents;
+        while ($frontier) {
+            $children = $accounts->whereIn('parent_id', $frontier);
+            $ids = array_merge($ids, $children->where('is_parent', false)->pluck('id')->all());
+            $frontier = $children->where('is_parent', true)->pluck('id')->all();
+        }
+
+        return array_values(array_unique($ids));
     }
 
     /**
@@ -300,6 +356,7 @@ class AccountingReports
         $names = Account::query()->pluck('name_ar', 'id');
 
         $flows = ['operating' => [], 'investing' => [], 'financing' => []];
+        $openingInRange = 0.0;
 
         DB::table('journal_entry_lines as l')
             ->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
@@ -313,8 +370,8 @@ class AccountingReports
                     ->whereBetween('date', [$from->toDateString(), $to->toDateString().' 23:59:59']);
             })
             ->orderBy('l.journal_entry_id')
-            ->select('l.journal_entry_id', 'l.account_id', 'l.debit', 'l.credit')
-            ->chunk(5000, function ($lines) use (&$flows, $cashIds, $categories) {
+            ->select('l.journal_entry_id', 'l.account_id', 'l.debit', 'l.credit', 'e.entry_type')
+            ->chunk(5000, function ($lines) use (&$flows, &$openingInRange, $cashIds, $categories) {
                 foreach ($lines->groupBy('journal_entry_id') as $entryLines) {
                     $cashNet = 0.0;
                     $others = [];
@@ -328,10 +385,18 @@ class AccountingReports
                     if (abs($cashNet) < 0.005 || ! $others) {
                         continue; // transfers between cash accounts
                     }
-                    $weight = array_sum(array_map(fn ($l) => (float) $l->debit + (float) $l->credit, $others)) ?: 1;
+                    // Opening balances are not a cash flow of the period.
+                    if ($entryLines->first()->entry_type === 'opening') {
+                        $openingInRange += $cashNet;
+
+                        continue;
+                    }
+                    // In a balanced entry the cash movement equals the other
+                    // lines' credits minus debits, so each line's signed
+                    // amount is exactly its share of the flow.
                     foreach ($others as $line) {
-                        $share = $cashNet * (((float) $line->debit + (float) $line->credit) / $weight);
-                        $category = $categories[$line->account_id] ?: 'operating';
+                        $share = (float) $line->credit - (float) $line->debit;
+                        $category = in_array($categories[$line->account_id] ?? null, ['operating', 'investing', 'financing'], true) ? $categories[$line->account_id] : 'operating';
                         $flows[$category][$line->account_id] = ($flows[$category][$line->account_id] ?? 0) + $share;
                     }
                 }
@@ -347,7 +412,7 @@ class AccountingReports
             $result[$category] = ['rows' => $rows, 'total' => $total];
         }
 
-        $openingCash = collect($this->totalsBetween(null, $from->copy()->subDay(), $cashIds ?: [0]))->sum(fn ($t) => $t['debit'] - $t['credit']);
+        $openingCash = collect($this->totalsBetween(null, $from->copy()->subDay(), $cashIds ?: [0]))->sum(fn ($t) => $t['debit'] - $t['credit']) + $openingInRange;
 
         return [
             'sections' => $result,
@@ -406,38 +471,96 @@ class AccountingReports
         return ['rows' => $rows->values(), 'totals' => $totals];
     }
 
+    /** Zero-rated supplies that are exports (ZATCA exemption codes). */
+    protected const EXPORT_CODES = ['VATEX-SA-32', 'VATEX-SA-33', 'VATEX-SA-34-1', 'VATEX-SA-34-2', 'VATEX-SA-34-3', 'VATEX-SA-34-4', 'VATEX-SA-34-5'];
+
     /**
      * VAT return in the ZATCA return layout, from documents, cross-checked
-     * against the VAT ledger accounts.
+     * against the VAT ledger accounts. Sales are classified line by line
+     * (standard / zero-rated / export / exempt); credit notes and debit notes
+     * are adjustments of the box of the lines they correct, purchase returns
+     * adjust the purchases. Foreign-currency documents are converted at their
+     * own rate: the return is filed in SAR.
      */
     public function vatReturn(Carbon $from, Carbon $to): array
     {
         $companyId = $this->companyId();
         $range = [$from->toDateString(), $to->toDateString().' 23:59:59'];
+        $boxes = array_fill_keys([1, 3, 4, 5, 7, 10], ['amount' => 0.0, 'adjustment' => 0.0, 'vat' => 0.0]);
+        $boxOf = function (?string $category, ?string $code, float $vat): ?int {
+            if ($vat > 0.0001 || ($category ?? 'S') === 'S') {
+                return $vat > 0.0001 ? 1 : 3; // legacy lines without a category and no VAT are zero-rated
+            }
 
-        // Foreign-currency documents are converted at their own rate: the
-        // return is filed in SAR.
-        $sales = DB::table('invoices')->where('company_id', $companyId)->whereBetween('invoice_date', $range)
-            ->selectRaw('COALESCE(SUM(CASE WHEN tax_amount > 0 THEN subtotal * exchange_rate ELSE 0 END),0) as standard,
-                         COALESCE(SUM(CASE WHEN tax_amount > 0 THEN tax_amount * exchange_rate ELSE 0 END),0) as standard_vat,
-                         COALESCE(SUM(CASE WHEN tax_amount = 0 THEN subtotal * exchange_rate ELSE 0 END),0) as zero')->first();
+            return match ($category) {
+                'Z' => in_array($code, self::EXPORT_CODES, true) ? 4 : 3,
+                'E' => 5,
+                default => null, // O: out of scope, not reported
+            };
+        };
+        $add = function (?int $box, string $column, float $amount, float $vat) use (&$boxes) {
+            if ($box) {
+                $boxes[$box][$column] += $amount;
+                $boxes[$box]['vat'] += $vat;
+            }
+        };
 
-        $returns = DB::table('credit_notes')->where('company_id', $companyId)->whereIn('status', ['approved', 'refunded'])->whereBetween('credit_note_date', $range)
-            ->selectRaw('COALESCE(SUM(subtotal * exchange_rate),0) as amount, COALESCE(SUM(tax_amount * exchange_rate),0) as vat')->first();
+        // Sales, line by line (POS lines saved before the fix have no subtotal).
+        DB::table('invoice_items as i')->join('invoices as v', 'v.id', '=', 'i.invoice_id')
+            ->where('v.company_id', $companyId)->whereBetween('v.invoice_date', $range)
+            ->selectRaw('i.vat_category as cat, i.vat_exemption_code as code,
+                SUM(COALESCE(NULLIF(i.subtotal, 0), i.quantity * i.unit_price - i.discount) * v.exchange_rate) as amount,
+                SUM(i.tax_amount * v.exchange_rate) as vat, SUM(i.tax_amount) as raw_vat')
+            ->groupBy('i.vat_category', 'i.vat_exemption_code', DB::raw('CASE WHEN i.tax_amount > 0 THEN 1 ELSE 0 END'))
+            ->get()->each(fn ($r) => $add($boxOf($r->cat, $r->code, (float) $r->raw_vat), 'amount', (float) $r->amount, (float) $r->vat));
 
-        $otherRevenue = DB::table('revenues')->where('company_id', $companyId)->whereBetween('revenue_date', $range)
-            ->selectRaw('COALESCE(SUM(CASE WHEN tax_amount > 0 THEN amount ELSE 0 END),0) as amount, COALESCE(SUM(tax_amount),0) as vat')->first();
+        // Other revenue vouchers with VAT are standard-rated sales.
+        $otherRevenue = DB::table('revenues')->where('company_id', $companyId)->whereBetween('revenue_date', $range)->where('tax_amount', '>', 0)
+            ->selectRaw('COALESCE(SUM(amount),0) as amount, COALESCE(SUM(tax_amount),0) as vat')->first();
+        $add(1, 'amount', (float) $otherRevenue->amount, (float) $otherRevenue->vat);
 
-        $purchases = DB::table('purchase_invoices')->where('company_id', $companyId)->whereBetween('invoice_date', $range)
-            ->selectRaw('COALESCE(SUM(CASE WHEN tax_amount > 0 THEN subtotal * exchange_rate ELSE 0 END),0) as standard,
-                         COALESCE(SUM(CASE WHEN tax_amount > 0 THEN tax_amount * exchange_rate ELSE 0 END),0) as vat,
-                         COALESCE(SUM(CASE WHEN tax_amount = 0 THEN subtotal * exchange_rate ELSE 0 END),0) as zero')->first();
+        // Credit notes reduce the box of the lines they credit.
+        $notes = DB::table('credit_notes')->where('company_id', $companyId)->whereIn('status', ['approved', 'refunded'])->whereBetween('credit_note_date', $range)->get();
+        $noteLines = DB::table('credit_note_items')->whereIn('credit_note_id', $notes->pluck('id'))->get()->groupBy('credit_note_id');
+        foreach ($notes as $note) {
+            $rate = (float) ($note->exchange_rate ?: 1);
+            $lines = $noteLines->get($note->id);
+            if ($lines && $lines->isNotEmpty()) {
+                foreach ($lines as $l) {
+                    $add($boxOf($l->vat_category, $l->vat_exemption_code, (float) $l->tax_amount), 'adjustment', -((float) $l->total - (float) $l->tax_amount) * $rate, -(float) $l->tax_amount * $rate);
+                }
+            } else {
+                $add($boxOf(null, null, (float) $note->tax_amount), 'adjustment', -(float) $note->subtotal * $rate, -(float) $note->tax_amount * $rate);
+            }
+        }
 
-        $expenses = DB::table('expenses')->where('company_id', $companyId)->whereBetween('expense_date', $range)
-            ->selectRaw('COALESCE(SUM(CASE WHEN tax_amount > 0 THEN amount ELSE 0 END),0) as amount, COALESCE(SUM(tax_amount),0) as vat')->first();
+        // Debit notes increase the supplies they correct.
+        foreach (DB::table('debit_notes')->where('company_id', $companyId)->whereNotIn('status', ['draft', 'cancelled'])->whereBetween('debit_note_date', $range)->get() as $note) {
+            $rate = (float) ($note->exchange_rate ?: 1);
+            $add($boxOf(null, null, (float) $note->tax_amount), 'adjustment', (float) $note->subtotal * $rate, (float) $note->tax_amount * $rate);
+        }
 
-        $outputVat = (float) $sales->standard_vat + (float) $otherRevenue->vat - (float) $returns->vat;
-        $inputVat = (float) $purchases->vat + (float) $expenses->vat;
+        // Purchases (taxed lines → box 7, untaxed → box 10), expenses with VAT, minus purchase returns.
+        DB::table('purchase_invoice_items as i')->join('purchase_invoices as p', 'p.id', '=', 'i.purchase_invoice_id')
+            ->where('p.company_id', $companyId)->whereBetween('p.invoice_date', $range)
+            ->selectRaw('CASE WHEN i.tax_amount > 0 THEN 7 ELSE 10 END as box,
+                SUM((i.quantity * i.unit_price - i.discount) * p.exchange_rate) as amount, SUM(i.tax_amount * p.exchange_rate) as vat')
+            ->groupBy(DB::raw('CASE WHEN i.tax_amount > 0 THEN 7 ELSE 10 END'))
+            ->get()->each(fn ($r) => $add((int) $r->box, 'amount', (float) $r->amount, (float) $r->vat));
+
+        $expenses = DB::table('expenses')->where('company_id', $companyId)->whereBetween('expense_date', $range)->where('tax_amount', '>', 0)
+            ->selectRaw('COALESCE(SUM(amount),0) as amount, COALESCE(SUM(tax_amount),0) as vat')->first();
+        $add(7, 'amount', (float) $expenses->amount, (float) $expenses->vat);
+
+        DB::table('purchase_returns as r')->leftJoin('purchase_invoices as p', 'p.id', '=', 'r.purchase_invoice_id')
+            ->where('r.company_id', $companyId)->whereNotIn('r.status', ['draft', 'cancelled'])->whereBetween('r.return_date', $range)
+            ->get(['r.subtotal', 'r.tax_amount', 'p.exchange_rate'])
+            ->each(fn ($r) => $add((float) $r->tax_amount > 0 ? 7 : 10, 'adjustment', -(float) $r->subtotal * (float) ($r->exchange_rate ?: 1), -(float) $r->tax_amount * (float) ($r->exchange_rate ?: 1)));
+
+        $row = fn (int $no, string $label) => ['no' => $no, 'label' => $label, 'amount' => round($boxes[$no]['amount'], 2), 'adjustment' => round($boxes[$no]['adjustment'], 2), 'vat' => round($boxes[$no]['vat'], 2)];
+        $sum = fn (array $nos, string $key) => round(array_sum(array_map(fn ($n) => $boxes[$n][$key], $nos)), 2);
+        $outputVat = round($boxes[1]['vat'], 2);
+        $inputVat = round($boxes[7]['vat'], 2);
 
         $ledger = $this->totalsBetween($from, $to, array_filter([$this->map->find('vat_output'), $this->map->find('vat_input')]));
         $ledgerOutput = ($ledger[$this->map->find('vat_output')]['credit'] ?? 0) - ($ledger[$this->map->find('vat_output')]['debit'] ?? 0);
@@ -445,13 +568,17 @@ class AccountingReports
 
         return [
             'boxes' => [
-                ['no' => 1, 'label' => 'المبيعات الخاضعة للنسبة الأساسية', 'amount' => round((float) $sales->standard + (float) $otherRevenue->amount, 2), 'adjustment' => round(-(float) $returns->amount, 2), 'vat' => round((float) $sales->standard_vat + (float) $otherRevenue->vat - (float) $returns->vat, 2)],
-                ['no' => 3, 'label' => 'المبيعات الخاضعة للنسبة الصفرية / المعفاة', 'amount' => round((float) $sales->zero, 2), 'adjustment' => 0, 'vat' => 0],
-                ['no' => 7, 'label' => 'المشتريات الخاضعة للنسبة الأساسية', 'amount' => round((float) $purchases->standard + (float) $expenses->amount, 2), 'adjustment' => 0, 'vat' => round($inputVat, 2)],
-                ['no' => 10, 'label' => 'المشتريات الخاضعة للنسبة الصفرية / المعفاة', 'amount' => round((float) $purchases->zero, 2), 'adjustment' => 0, 'vat' => 0],
+                $row(1, 'المبيعات الخاضعة للنسبة الأساسية'),
+                $row(3, 'المبيعات المحلية الخاضعة للنسبة الصفرية'),
+                $row(4, 'الصادرات'),
+                $row(5, 'المبيعات المعفاة'),
+                ['no' => 6, 'label' => 'إجمالي المبيعات', 'amount' => $sum([1, 3, 4, 5], 'amount'), 'adjustment' => $sum([1, 3, 4, 5], 'adjustment'), 'vat' => $outputVat],
+                $row(7, 'المشتريات الخاضعة للنسبة الأساسية'),
+                $row(10, 'المشتريات الخاضعة للنسبة الصفرية / المعفاة'),
+                ['no' => 12, 'label' => 'إجمالي المشتريات', 'amount' => $sum([7, 10], 'amount'), 'adjustment' => $sum([7, 10], 'adjustment'), 'vat' => $inputVat],
             ],
-            'output_vat' => round($outputVat, 2),
-            'input_vat' => round($inputVat, 2),
+            'output_vat' => $outputVat,
+            'input_vat' => $inputVat,
             'net_vat' => round($outputVat - $inputVat, 2),
             'ledger_output_vat' => round($ledgerOutput, 2),
             'ledger_input_vat' => round($ledgerInput, 2),
@@ -464,7 +591,10 @@ class AccountingReports
      */
     public function cashAccountIds(): array
     {
-        $ids = BankAccount::query()->whereNotNull('account_id')->pluck('account_id')->all();
+        $ids = array_merge(
+            BankAccount::query()->whereNotNull('account_id')->pluck('account_id')->all(),
+            Account::query()->where('cash_flow_category', 'cash')->where('is_parent', false)->pluck('id')->all(),
+        );
         foreach (['default_cash', 'default_bank', 'petty_cash'] as $role) {
             if ($id = $this->map->find($role)) {
                 $ids[] = $id;
