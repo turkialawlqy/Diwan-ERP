@@ -38,6 +38,7 @@ class AccountMap
         'customer_advances' => ['دفعات مقدمة من العملاء', 'liability'],
         'retention_payable' => ['محتجزات مقاولي الباطن', 'liability'],
         'accrued_expenses' => ['مصروفات مستحقة', 'liability'],
+        'workers_fund' => ['صندوق جزاءات العمال', 'liability'],
         'zakat_payable' => ['زكاة مستحقة', 'liability'],
         'end_of_service_provision' => ['مخصص نهاية الخدمة', 'liability'],
         'long_term_loans' => ['قروض طويلة الأجل', 'liability'],
@@ -53,7 +54,6 @@ class AccountMap
         'other_revenue' => ['إيرادات أخرى', 'revenue'],
         'asset_disposal_gain' => ['أرباح بيع أصول', 'revenue'],
         'rental_revenue' => ['إيرادات تأجير المعدات', 'revenue'],
-        'equipment_recovery' => ['تحميل المعدات على المشاريع', 'revenue'],
         'cogs' => ['تكلفة البضاعة المباعة', 'expense'],
         'purchases_cogs' => ['المشتريات غير المخزنية', 'expense'],
         'inventory_adjustment' => ['تسويات المخزون', 'expense'],
@@ -72,6 +72,7 @@ class AccountMap
         'rounding' => ['فروقات التقريب', 'expense'],
         'fx_difference' => ['أرباح وخسائر فروق العملة', 'expense'],
         'zakat_expense' => ['مصروف الزكاة', 'expense'],
+        'equipment_recovery' => ['تكاليف معدات محمّلة على المشاريع', 'expense'],
     ];
 
     protected array $cache = [];

@@ -44,6 +44,10 @@ class AccountMappingController extends Controller
             if ($account && $account->is_parent) {
                 throw ValidationException::withMessages(["mapping.{$role}" => 'يجب اختيار حساب فرعي.']);
             }
+            if ($account && $account->type !== AccountMap::ROLES[$role][1]) {
+                $types = ['asset' => 'أصول', 'liability' => 'خصوم', 'equity' => 'حقوق ملكية', 'revenue' => 'إيرادات', 'expense' => 'مصروفات'];
+                throw ValidationException::withMessages(["mapping.{$role}" => 'حساب «'.AccountMap::ROLES[$role][0].'» يجب أن يكون من نوع '.$types[AccountMap::ROLES[$role][1]].'.']);
+            }
 
             $map->set($role, $account?->id, $companyId);
         }

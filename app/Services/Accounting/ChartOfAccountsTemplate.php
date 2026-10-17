@@ -47,6 +47,7 @@ class ChartOfAccountsTemplate
             ['21', '2', 'الخصوم المتداولة', 'Current Liabilities', 'liability', 'credit', true, null, null],
             ['211', '21', 'الموردون', 'Accounts Payable', 'liability', 'credit', false, 'payables', 'operating'],
             ['2110', '21', 'بضاعة مستلمة لم تصل فواتيرها', 'Goods Received Not Invoiced', 'liability', 'credit', false, 'grni', 'operating'],
+            ['2111', '21', 'صندوق جزاءات العمال', 'Workers Fund (Penalties)', 'liability', 'credit', false, 'workers_fund', 'operating'],
             ['212', '21', 'ضريبة القيمة المضافة المخرجة', 'VAT Output', 'liability', 'credit', false, 'vat_output', 'operating'],
             ['213', '21', 'رواتب مستحقة', 'Salaries Payable', 'liability', 'credit', false, 'salaries_payable', 'operating'],
             ['214', '21', 'التأمينات الاجتماعية المستحقة', 'GOSI Payable', 'liability', 'credit', false, 'gosi_payable', 'operating'],
@@ -76,7 +77,6 @@ class ChartOfAccountsTemplate
             ['46', '4', 'إيرادات أخرى', 'Other Income', 'revenue', 'credit', false, 'other_revenue', 'operating'],
             ['47', '4', 'أرباح بيع أصول', 'Gain on Asset Disposal', 'revenue', 'credit', false, 'asset_disposal_gain', 'investing'],
             ['48', '4', 'إيرادات تأجير المعدات', 'Equipment Rental Revenue', 'revenue', 'credit', false, 'rental_revenue', 'operating'],
-            ['49', '4', 'تحميل المعدات على المشاريع', 'Equipment Charged to Projects', 'revenue', 'credit', false, 'equipment_recovery', 'operating'],
 
             // 5 Expenses
             ['5', null, 'المصروفات', 'Expenses', 'expense', 'debit', true, null, null],
@@ -102,6 +102,8 @@ class ChartOfAccountsTemplate
             ['56', '5', 'فروقات التقريب', 'Rounding Differences', 'expense', 'debit', false, 'rounding', 'operating'],
             ['57', '5', 'الزكاة', 'Zakat Expense', 'expense', 'debit', false, 'zakat_expense', 'operating'],
             ['58', '5', 'أرباح وخسائر فروق العملة', 'Exchange Gains & Losses', 'expense', 'debit', false, 'fx_difference', 'operating'],
+            // Contra-expense: equipment running costs moved into project costs (not revenue).
+            ['59', '5', 'تكاليف معدات محمّلة على المشاريع', 'Equipment Costs Charged to Projects', 'expense', 'credit', false, 'equipment_recovery', 'operating'],
         ];
     }
 }

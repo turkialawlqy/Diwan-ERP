@@ -519,6 +519,11 @@ class AccountingReports
             ->selectRaw('COALESCE(SUM(amount),0) as amount, COALESCE(SUM(tax_amount),0) as vat')->first();
         $add(1, 'amount', (float) $otherRevenue->amount, (float) $otherRevenue->vat);
 
+        // Taxable sales of fixed assets.
+        $assetSales = DB::table('fixed_assets')->where('company_id', $companyId)->whereBetween('disposal_date', $range)->where('disposal_vat', '>', 0)
+            ->selectRaw('COALESCE(SUM(disposal_amount),0) as amount, COALESCE(SUM(disposal_vat),0) as vat')->first();
+        $add(1, 'amount', (float) $assetSales->amount, (float) $assetSales->vat);
+
         // Credit notes reduce the box of the lines they credit.
         $notes = DB::table('credit_notes')->where('company_id', $companyId)->whereIn('status', ['approved', 'refunded'])->whereBetween('credit_note_date', $range)->get();
         $noteLines = DB::table('credit_note_items')->whereIn('credit_note_id', $notes->pluck('id'))->get()->groupBy('credit_note_id');
@@ -551,6 +556,10 @@ class AccountingReports
         $expenses = DB::table('expenses')->where('company_id', $companyId)->whereBetween('expense_date', $range)->where('tax_amount', '>', 0)
             ->selectRaw('COALESCE(SUM(amount),0) as amount, COALESCE(SUM(tax_amount),0) as vat')->first();
         $add(7, 'amount', (float) $expenses->amount, (float) $expenses->vat);
+
+        $assets = DB::table('fixed_assets')->where('company_id', $companyId)->whereBetween('acquisition_date', $range)->where('acquisition_vat', '>', 0)
+            ->selectRaw('COALESCE(SUM(cost),0) as amount, COALESCE(SUM(acquisition_vat),0) as vat')->first();
+        $add(7, 'amount', (float) $assets->amount, (float) $assets->vat);
 
         DB::table('purchase_returns as r')->leftJoin('purchase_invoices as p', 'p.id', '=', 'r.purchase_invoice_id')
             ->where('r.company_id', $companyId)->whereNotIn('r.status', ['draft', 'cancelled'])->whereBetween('r.return_date', $range)

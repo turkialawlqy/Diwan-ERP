@@ -16,7 +16,7 @@ class FixedAsset extends Model
         'company_id', 'asset_category_id', 'branch_id', 'cost_center_id', 'code', 'name_ar', 'name_en', 'serial_number',
         'location', 'acquisition_date', 'depreciation_start_date', 'cost', 'salvage_value', 'useful_life_months',
         'depreciation_method', 'accumulated_depreciation', 'last_depreciation_date', 'status', 'disposal_date',
-        'disposal_amount', 'acquisition_entry_id', 'disposal_entry_id', 'notes',
+        'disposal_amount', 'acquisition_entry_id', 'disposal_entry_id', 'notes', 'opening_accumulated', 'acquisition_vat', 'disposal_vat',
     ];
 
     protected $casts = [
@@ -28,6 +28,9 @@ class FixedAsset extends Model
         'salvage_value' => 'decimal:2',
         'accumulated_depreciation' => 'decimal:2',
         'disposal_amount' => 'decimal:2',
+        'opening_accumulated' => 'decimal:2',
+        'acquisition_vat' => 'decimal:2',
+        'disposal_vat' => 'decimal:2',
     ];
 
     protected $appends = ['book_value'];

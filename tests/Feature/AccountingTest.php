@@ -298,7 +298,9 @@ class AccountingTest extends TestCase
 
         $service->dispose($asset->fresh(), Carbon::parse('2026-02-15'), 4000, null, 'cash');
         $this->assertSame('disposed', $asset->fresh()->status);
-        $this->assertSame(500.0, $this->balance('asset_disposal_gain'));
+        // February is depreciated to the 15th first (100 x 15/28), then gain = 4000 - (3600 - 153.57).
+        $this->assertSame(153.57, (float) $asset->fresh()->accumulated_depreciation);
+        $this->assertSame(553.57, $this->balance('asset_disposal_gain'));
         $this->assertLedgerBalanced();
     }
 

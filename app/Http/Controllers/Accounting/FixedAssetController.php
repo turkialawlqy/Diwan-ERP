@@ -12,10 +12,12 @@ use App\Models\FixedAsset;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DepreciationService;
 use App\Services\TenantManager;
+use App\Services\Zatca\VatClassifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -96,14 +98,24 @@ class FixedAssetController extends Controller
             'paid_from' => 'required|in:cash,bank_transfer,payables,opening',
             'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
             'supplier_id' => 'nullable|required_if:paid_from,payables|tenant_exists:suppliers,id',
+            'acquisition_vat' => 'nullable|numeric|min:0',
+            'opening_accumulated' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
         ]);
+        $this->guardAmounts($validated);
 
         $category = AssetCategory::findOrFail($validated['asset_category_id']);
 
         DB::transaction(function () use ($validated, $category, $depreciation) {
+            $opening = $validated['paid_from'] === 'opening';
+            $accumulated = $opening ? round((float) ($validated['opening_accumulated'] ?? 0), 2) : 0.0;
             $asset = FixedAsset::create(array_merge(collect($validated)->except(['paid_from', 'bank_account_id', 'supplier_id'])->all(), [
-                'depreciation_start_date' => $validated['depreciation_start_date'] ?? Carbon::parse($validated['acquisition_date'])->startOfMonth()->toDateString(),
+                // An opening asset depreciates from the go-live month; its earlier depreciation is the opening accumulated amount.
+                'depreciation_start_date' => $validated['depreciation_start_date']
+                    ?? ($opening ? now()->startOfMonth()->toDateString() : Carbon::parse($validated['acquisition_date'])->startOfMonth()->toDateString()),
+                'acquisition_vat' => $opening ? 0 : round((float) ($validated['acquisition_vat'] ?? 0), 2),
+                'opening_accumulated' => $accumulated,
+                'accumulated_depreciation' => $accumulated,
                 'useful_life_months' => $validated['useful_life_months'] ?? $category->useful_life_months,
                 'depreciation_method' => $category->depreciation_method,
                 'salvage_value' => $validated['salvage_value'] ?? 0,
@@ -143,10 +155,28 @@ class FixedAssetController extends Controller
             'proceeds' => 'required|numeric|min:0',
             'method' => 'required|in:cash,bank_transfer',
             'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'vat_amount' => 'nullable|numeric|min:0',
         ]);
+        $vat = round((float) ($validated['vat_amount'] ?? 0), 2);
+        if ($vat > 0 && abs($vat - round((float) $validated['proceeds'] * VatClassifier::standardRate() / 100, 2)) > 0.01) {
+            throw ValidationException::withMessages(['vat_amount' => 'ضريبة البيع يجب أن تساوي 15% من سعر البيع أو صفراً.']);
+        }
 
-        $depreciation->dispose($asset, Carbon::parse($validated['date']), (float) $validated['proceeds'], $validated['bank_account_id'] ?? null, $validated['method']);
+        $depreciation->dispose($asset, Carbon::parse($validated['date']), (float) $validated['proceeds'], $validated['bank_account_id'] ?? null, $validated['method'], $vat);
 
         return back()->with('success', 'تم استبعاد الأصل وترحيل قيد البيع/الاستبعاد');
+    }
+
+    protected function guardAmounts(array $data): void
+    {
+        $cost = (float) $data['cost'];
+        $vat = (float) ($data['acquisition_vat'] ?? 0);
+        if ($vat > 0 && ($data['paid_from'] === 'opening' || abs($vat - round($cost * VatClassifier::standardRate() / 100, 2)) > 0.01)) {
+            throw ValidationException::withMessages(['acquisition_vat' => 'ضريبة الشراء يجب أن تساوي 15% من التكلفة أو صفراً، ولا تُسجَّل للأصول الافتتاحية.']);
+        }
+        if ((float) ($data['opening_accumulated'] ?? 0) > 0 && ($data['paid_from'] !== 'opening'
+            || (float) $data['opening_accumulated'] > $cost - (float) ($data['salvage_value'] ?? 0))) {
+            throw ValidationException::withMessages(['opening_accumulated' => 'مجمع الإهلاك السابق للأصول الافتتاحية فقط، ولا يتجاوز التكلفة ناقص قيمة الخردة.']);
+        }
     }
 }

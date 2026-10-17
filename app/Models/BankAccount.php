@@ -34,6 +34,33 @@ class BankAccount extends Model
         'is_active' => 'boolean',
     ];
 
+    /**
+     * The box's balance as the books show it: its ledger account. The stored
+     * current_balance is only moved by some screens (invoices and vouchers post
+     * to the ledger alone), so it is kept as a fallback for unlinked boxes.
+     */
+    public function ledgerBalance(): float
+    {
+        if (! $this->account_id) {
+            return (float) $this->current_balance;
+        }
+
+        return (float) Account::withoutGlobalScopes()->whereKey($this->account_id)->value('balance');
+    }
+
+    /** Replace current_balance with the ledger balance for display. */
+    public static function withLedgerBalances(iterable $boxes): iterable
+    {
+        $balances = Account::withoutGlobalScopes()->whereIn('id', collect($boxes)->pluck('account_id')->filter()->unique())->pluck('balance', 'id');
+        foreach ($boxes as $box) {
+            if ($box->account_id && $balances->has($box->account_id)) {
+                $box->current_balance = (float) $balances[$box->account_id];
+            }
+        }
+
+        return $boxes;
+    }
+
     public function account(): BelongsTo
     {
         return $this->belongsTo(Account::class);

@@ -10,8 +10,8 @@ import { money, date, monthLabel } from '@/utils/format';
 
 const props = defineProps({ asset: Object, monthlyAmount: Number, bankAccounts: Array });
 const disposeOpen = ref(false);
-const form = useForm({ date: new Date().toISOString().substring(0, 10), proceeds: 0, method: 'bank_transfer', bank_account_id: '' });
-const dispose = () => form.post(route('accounting.fixed-assets.dispose', props.asset.id), { onSuccess: () => (disposeOpen.value = false) });
+const form = useForm({ date: new Date().toISOString().substring(0, 10), proceeds: 0, method: 'bank_transfer', bank_account_id: '', taxable: false });
+const dispose = () => form.transform((d) => ({ ...d, vat_amount: d.taxable ? Math.round((parseFloat(d.proceeds) || 0) * 15) / 100 : 0 })).post(route('accounting.fixed-assets.dispose', props.asset.id), { onSuccess: () => (disposeOpen.value = false) });
 </script>
 
 <template>
@@ -56,9 +56,11 @@ const dispose = () => form.post(route('accounting.fixed-assets.dispose', props.a
             <div class="space-y-3 text-xs">
                 <Field label="التاريخ" :error="form.errors.date"><input v-model="form.date" type="date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="مبلغ البيع (0 للإتلاف)" :error="form.errors.proceeds"><input v-model="form.proceeds" type="number" step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <label class="flex items-center gap-2"><input v-model="form.taxable" type="checkbox" class="rounded" /> بيع خاضع للضريبة 15% ({{ ((parseFloat(form.proceeds) || 0) * 0.15).toFixed(2) }})</label>
+                <p v-if="form.errors.vat_amount" class="text-rose-600">{{ form.errors.vat_amount }}</p>
                 <Field label="طريقة القبض"><select v-model="form.method" class="w-full rounded-xl border-slate-200 text-xs"><option value="bank_transfer">بنك</option><option value="cash">نقداً</option></select></Field>
                 <Field label="الصندوق / البنك"><select v-model="form.bank_account_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">الافتراضي</option><option v-for="b in bankAccounts" :key="b.id" :value="b.id">{{ b.name }}</option></select></Field>
-                <p class="text-slate-500">سيتم احتساب الربح/الخسارة = مبلغ البيع − القيمة الدفترية ({{ money(asset.book_value) }}).</p>
+                <p class="text-slate-500">يُحتسب إهلاك الأصل حتى تاريخ البيع أولاً، ثم الربح/الخسارة = مبلغ البيع (بدون الضريبة) − القيمة الدفترية (حالياً {{ money(asset.book_value) }}).</p>
             </div>
             <template #footer><button @click="dispose" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold">تأكيد الاستبعاد</button></template>
         </Dialog>

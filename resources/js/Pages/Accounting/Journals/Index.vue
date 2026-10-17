@@ -22,8 +22,21 @@ const props = defineProps({
     stats: Object,
     accounts: Array,
     costCenters: Array,
+    customers: { type: Array, default: () => [] },
+    suppliers: { type: Array, default: () => [] },
+    partyAccounts: { type: Object, default: () => ({}) },
     filters: Object,
 });
+
+// Receivable / payable lines name their customer or supplier.
+const partyType = (line) => props.partyAccounts?.[String(line.account_id)] || null;
+const syncParty = (line) => {
+    const type = partyType(line);
+    if (line.party_type !== type) {
+        line.party_type = type || '';
+        line.party_id = '';
+    }
+};
 
 const statusBadge = {
     draft: ['مسودة', 'bg-amber-50 text-amber-700 border-amber-200'],
@@ -43,8 +56,8 @@ const form = useForm({
     entry_type: 'manual',
     save_as: 'posted',
     lines: [
-        { account_id: props.accounts?.[0]?.id || '', cost_center_id: '', description: '', debit: 0, credit: 0 },
-        { account_id: props.accounts?.[1]?.id || '', cost_center_id: '', description: '', debit: 0, credit: 0 },
+        { account_id: props.accounts?.[0]?.id || '', cost_center_id: '', party_type: '', party_id: '', description: '', debit: 0, credit: 0 },
+        { account_id: props.accounts?.[1]?.id || '', cost_center_id: '', party_type: '', party_id: '', description: '', debit: 0, credit: 0 },
     ],
 });
 
@@ -52,6 +65,8 @@ const addLine = () => {
     form.lines.push({
         account_id: props.accounts?.[0]?.id || '',
         cost_center_id: '',
+        party_type: '',
+        party_id: '',
         description: '',
         debit: 0,
         credit: 0,
@@ -80,13 +95,14 @@ const openAddModal = () => {
     form.reset();
     form.date = new Date().toISOString().split('T')[0];
     form.lines = [
-        { account_id: props.accounts?.[0]?.id || '', cost_center_id: '', description: '', debit: 0, credit: 0 },
-        { account_id: props.accounts?.[1]?.id || '', cost_center_id: '', description: '', debit: 0, credit: 0 },
+        { account_id: props.accounts?.[0]?.id || '', cost_center_id: '', party_type: '', party_id: '', description: '', debit: 0, credit: 0 },
+        { account_id: props.accounts?.[1]?.id || '', cost_center_id: '', party_type: '', party_id: '', description: '', debit: 0, credit: 0 },
     ];
     isAddModalOpen.value = true;
 };
 
 const submitEntry = (saveAs = 'posted') => {
+    form.lines.forEach(syncParty);
     if (!isBalanced.value) return;
     form.save_as = saveAs;
 
@@ -413,11 +429,17 @@ const formatCurrency = (val) => {
                                             <select 
                                                 v-model="line.account_id" 
                                                 required 
+                                                @change="syncParty(line)"
                                                 class="w-full py-1 px-2 bg-slate-50 border border-slate-200 rounded-lg text-3xs"
                                             >
                                                 <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
                                                     {{ acc.code }} - {{ acc.name_ar }}
                                                 </option>
+                                            </select>
+                                            <select v-if="partyType(line)" v-model="line.party_id" required
+                                                class="mt-1 w-full py-1 px-2 bg-amber-50 border border-amber-200 rounded-lg text-3xs">
+                                                <option value="">{{ partyType(line) === 'customer' ? '— اختر العميل —' : '— اختر المورد —' }}</option>
+                                                <option v-for="p in (partyType(line) === 'customer' ? customers : suppliers)" :key="p.id" :value="p.id">{{ p.name }}</option>
                                             </select>
                                         </td>
                                         <td class="p-2">

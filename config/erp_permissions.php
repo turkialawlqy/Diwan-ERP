@@ -132,7 +132,7 @@ return [
             'ar' => 'المحاسبة', 'en' => 'Accounting',
             'resources' => [
                 'accounts' => ['ar' => 'دليل الحسابات', 'en' => 'Chart of Accounts', 'actions' => ['view', 'create', 'edit', 'delete']],
-                'journals' => ['ar' => 'القيود اليومية', 'en' => 'Journal Entries', 'actions' => ['view', 'create', 'edit', 'delete', 'post', 'cancel', 'print']],
+                'journals' => ['ar' => 'القيود اليومية', 'en' => 'Journal Entries', 'actions' => ['view', 'create', 'edit', 'delete', 'post', 'cancel', 'print', 'manage']],
                 'recurring' => ['ar' => 'القيود المتكررة', 'en' => 'Recurring Journals', 'actions' => ['view', 'create', 'edit', 'delete']],
                 'ledger' => ['ar' => 'الأستاذ العام', 'en' => 'General Ledger', 'actions' => ['view', 'export']],
                 'trial_balance' => ['ar' => 'ميزان المراجعة', 'en' => 'Trial Balance', 'actions' => ['view', 'export']],

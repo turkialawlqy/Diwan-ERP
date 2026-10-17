@@ -147,12 +147,12 @@ class InvoiceController extends Controller
         // Preview only; the definitive number is reserved when the invoice is saved.
         $suggestedNumber = $this->peekNumber('sales_invoice');
 
-        $bankAccounts = BankAccount::where('company_id', $company?->id)
+        $bankAccounts = BankAccount::withLedgerBalances(BankAccount::where('company_id', $company?->id)
             ->where('is_active', true)
             ->with('account')
             ->orderBy('type')
             ->orderBy('name')
-            ->get();
+            ->get());
 
         return Inertia::render('Sales/Invoices/Create', [
             'customers' => $customers,

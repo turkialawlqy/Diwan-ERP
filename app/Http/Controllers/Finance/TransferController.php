@@ -20,9 +20,9 @@ class TransferController extends Controller
         $tenantManager = app(TenantManager::class);
         $companyId = $tenantManager->getTenantId() ?? auth()->user()?->company_id;
 
-        $accounts = BankAccount::where('company_id', $companyId)
+        $accounts = BankAccount::withLedgerBalances(BankAccount::where('company_id', $companyId)
             ->where('is_active', true)
-            ->get();
+            ->get());
 
         $transfers = JournalEntry::with('lines.account')
             ->where('source_type', 'transfer')
@@ -72,7 +72,7 @@ class TransferController extends Controller
 
             $amount = (float) $validated['amount'];
 
-            if ($from->current_balance < $amount) {
+            if ($from->ledgerBalance() < $amount - 0.005) {
                 throw ValidationException::withMessages([
                     'amount' => 'رصيد الحساب المصدر غير كافٍ لإتمام عملية التحويل.',
                 ]);
@@ -83,7 +83,7 @@ class TransferController extends Controller
             $to->increment('current_balance', $amount);
 
             $transferRef = $validated['reference'] ?? $this->nextNumber('transfer', $validated['transfer_date']);
-            $desc = "تحويل مالي من [{$from->name}] إلى [{$to->name}]".($validated['notes'] ? ' - '.$validated['notes'] : '');
+            $desc = "تحويل مالي من [{$from->name}] إلى [{$to->name}]".(! empty($validated['notes']) ? ' - '.$validated['notes'] : '');
 
             app(DocumentPoster::class)->transfer($from, $to, $amount, $validated['transfer_date'], $transferRef, $desc);
         });

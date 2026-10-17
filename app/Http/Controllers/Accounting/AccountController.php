@@ -108,6 +108,11 @@ class AccountController extends Controller
             return back()->with('error', 'لا يمكن تحويل حساب عليه حركات إلى حساب رئيسي.');
         }
 
+        // Postings were classified under the current type and nature; changing them would move history between statements.
+        if (($validated['type'] !== $account->type || $validated['nature'] !== $account->nature) && $account->journalLines()->exists()) {
+            return back()->with('error', 'لا يمكن تغيير نوع أو طبيعة حساب عليه حركات. أنشئ حساباً جديداً وانقل الرصيد بقيد تسوية.');
+        }
+
         // The balance is derived from posted journal lines and is never edited directly.
 
         // Prevent making account its own parent

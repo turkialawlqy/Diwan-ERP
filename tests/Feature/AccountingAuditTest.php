@@ -326,4 +326,147 @@ class AccountingAuditTest extends TestCase
             'expense_date' => '2026-06-10', 'payment_method' => 'cash'])->assertSessionHasNoErrors();
         $this->assertSame(150.0, $this->balance('vat_input'));
     }
+
+    // ------------------------------------------------------------ D. ledger, assets, equipment, payroll
+
+    protected function journal(array $lines): \Illuminate\Testing\TestResponse
+    {
+        return $this->post(route('accounting.journals.store'), ['date' => '2026-06-10', 'description' => 'قيد يدوي', 'save_as' => 'posted', 'lines' => $lines]);
+    }
+
+    public function test_manual_journals_name_the_party_and_keep_document_accounts_closed(): void
+    {
+        $line = fn (string $role, float $debit, float $credit, array $extra = []) => array_merge(['account_id' => $this->role($role), 'debit' => $debit, 'credit' => $credit], $extra);
+
+        $this->journal([$line('receivables', 500, 0), $line('other_revenue', 0, 500)])->assertSessionHasErrors('lines.0.party_id');
+        $this->journal([$line('receivables', 500, 0, ['party_type' => 'customer', 'party_id' => $this->customer->id]), $line('other_revenue', 0, 500)])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(500.0, (float) DB::table('journal_entry_lines')->where('party_type', 'customer')->where('party_id', $this->customer->id)->sum('debit'));
+
+        // An accountant without "manage journals" cannot touch inventory by hand.
+        $accountant = $this->userWithRole($this->company, 'accountant');
+        app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
+        $accountant->roles->first()->revokePermissionTo('accounting.journals.manage');
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        $this->actingAs($accountant->fresh());
+        $this->journal([$line('inventory', 100, 0), $line('capital', 0, 100)])->assertSessionHasErrors('lines.0.account_id');
+    }
+
+    public function test_account_type_is_locked_once_posted_and_roles_need_the_right_type(): void
+    {
+        $account = Account::find($this->role('other_revenue'));
+        $this->journal([['account_id' => $this->role('default_cash'), 'debit' => 100, 'credit' => 0], ['account_id' => $account->id, 'debit' => 0, 'credit' => 100]]);
+
+        $this->put(route('accounting.accounts.update', $account), ['code' => $account->code, 'name_ar' => $account->name_ar, 'type' => 'liability', 'nature' => 'credit'])
+            ->assertSessionHas('error');
+        $this->assertSame('revenue', $account->fresh()->type);
+
+        $this->put(route('accounting.mappings.update'), ['mapping' => ['sales_revenue' => $this->role('default_cash')]])->assertSessionHasErrors('mapping.sales_revenue');
+    }
+
+    protected function assetCategory(): \App\Models\AssetCategory
+    {
+        return \App\Models\AssetCategory::create(['name_ar' => 'معدات', 'useful_life_months' => 60, 'depreciation_method' => 'straight_line',
+            'asset_account_id' => $this->role('fixed_assets'), 'accumulated_account_id' => $this->role('accumulated_depreciation'), 'expense_account_id' => $this->role('depreciation_expense')]);
+    }
+
+    public function test_opening_asset_brings_its_accumulated_depreciation_and_missed_months_catch_up(): void
+    {
+        $category = $this->assetCategory();
+        $this->post(route('accounting.fixed-assets.store'), ['asset_category_id' => $category->id, 'code' => 'FA-OLD', 'name_ar' => 'رافعة',
+            'acquisition_date' => '2022-01-01', 'depreciation_start_date' => '2026-04-01', 'cost' => 60000, 'useful_life_months' => 60,
+            'paid_from' => 'opening', 'opening_accumulated' => 50000])->assertSessionHasNoErrors();
+        $asset = \App\Models\FixedAsset::where('code', 'FA-OLD')->first();
+
+        $this->assertSame(50000.0, (float) $asset->accumulated_depreciation);
+        $this->assertSame(50000.0, $this->balance('accumulated_depreciation')); // credit-nature contra account
+        $this->assertSame(10000.0, $this->balance('opening_balance_equity'));
+
+        // Nobody ran April and May: running June posts all three months.
+        $result = app(\App\Services\Accounting\DepreciationService::class)->run(Carbon::parse('2026-06-30'));
+        $this->assertSame(3000.0, $result['amount']);
+        $this->assertSame(3, \App\Models\AssetDepreciation::where('fixed_asset_id', $asset->id)->count());
+        $this->assertSame(53000.0, (float) $asset->fresh()->accumulated_depreciation);
+        $this->assertLedgerBalanced();
+    }
+
+    public function test_fixed_asset_vat_on_purchase_and_sale_reaches_the_vat_return(): void
+    {
+        $category = $this->assetCategory();
+        $this->post(route('accounting.fixed-assets.store'), ['asset_category_id' => $category->id, 'code' => 'FA-1', 'name_ar' => 'سيارة',
+            'acquisition_date' => '2026-06-01', 'cost' => 100000, 'acquisition_vat' => 15000, 'paid_from' => 'bank_transfer'])->assertSessionHasNoErrors();
+        $this->post(route('accounting.fixed-assets.store'), ['asset_category_id' => $category->id, 'code' => 'FA-2', 'name_ar' => 'سيارة',
+            'acquisition_date' => '2026-06-01', 'cost' => 1000, 'acquisition_vat' => 99, 'paid_from' => 'bank_transfer'])->assertSessionHasErrors('acquisition_vat');
+        $this->assertSame(15000.0, $this->balance('vat_input'));
+
+        $asset = \App\Models\FixedAsset::where('code', 'FA-1')->first();
+        $this->post(route('accounting.fixed-assets.dispose', $asset), ['date' => '2026-06-20', 'proceeds' => 90000, 'vat_amount' => 13500, 'method' => 'bank_transfer'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(13500.0, $this->balance('vat_output'));
+
+        $boxes = collect($this->reports()->vatReturn(Carbon::parse('2026-06-01'), Carbon::parse('2026-06-30'))['boxes'])->keyBy('no');
+        $this->assertSame(13500.0, $boxes[1]['vat']);
+        $this->assertSame(15000.0, $boxes[7]['vat']);
+        $this->assertLedgerBalanced();
+    }
+
+    public function test_equipment_charged_to_projects_is_a_contra_expense_and_old_accounts_are_reclassified(): void
+    {
+        $account = Account::find($this->role('equipment_recovery'));
+        $this->assertSame(['expense', 'credit'], [$account->type, $account->nature]);
+
+        // A company provisioned before the fix: the unused revenue account is reclassified in place.
+        $account->update(['type' => 'revenue', 'code' => '49']);
+        (include base_path('database/migrations/2026_10_18_000002_accounting_review_ledger_fixes.php'))->up();
+        $account->refresh();
+        $this->assertSame(['expense', 'credit', '59'], [$account->type, $account->nature, $account->code]);
+        $this->assertSame($account->id, $this->role('equipment_recovery'));
+    }
+
+    public function test_cash_box_balance_and_transfer_check_follow_the_ledger(): void
+    {
+        $cash = \App\Models\BankAccount::create(['name' => 'الصندوق', 'type' => 'cash', 'currency' => 'SAR', 'account_id' => $this->role('default_cash'), 'current_balance' => 0, 'is_active' => true]);
+        $bank = \App\Models\BankAccount::create(['name' => 'البنك', 'type' => 'bank', 'currency' => 'SAR', 'account_id' => $this->role('default_bank'), 'current_balance' => 0, 'is_active' => true]);
+        app(InvoiceService::class)->create(['customer_id' => $this->customer->id, 'invoice_date' => '2026-06-10', 'payment_method' => 'cash', 'payment_status' => 'paid', 'bank_account_id' => $cash->id],
+            [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 1000, 'tax_rate' => 15]], ['issue_stock' => false]);
+
+        $this->assertSame(1150.0, $cash->fresh()->ledgerBalance()); // the stored current_balance is still 0
+        $this->post(route('finance.transfers.store'), ['from_account_id' => $cash->id, 'to_account_id' => $bank->id, 'amount' => 1000, 'transfer_date' => '2026-06-11'])
+            ->assertSessionHasNoErrors();
+        $this->post(route('finance.transfers.store'), ['from_account_id' => $cash->id, 'to_account_id' => $bank->id, 'amount' => 500, 'transfer_date' => '2026-06-11'])
+            ->assertSessionHasErrors('amount');
+        $this->assertSame(150.0, $this->balance('default_cash'));
+    }
+
+    public function test_backfill_does_not_post_a_later_receipt_twice(): void
+    {
+        $invoice = app(InvoiceService::class)->create(['customer_id' => $this->customer->id, 'invoice_date' => '2026-06-01'],
+            [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 1000, 'tax_rate' => 15]], ['issue_stock' => false, 'post' => false]);
+        $this->post(route('sales.payments.store'), ['customer_id' => $this->customer->id, 'invoice_id' => $invoice->id, 'amount' => 1150,
+            'payment_date' => '2026-06-05', 'payment_method' => 'cash'])->assertSessionHasNoErrors();
+        $this->assertSame(1150.0, (float) $invoice->fresh()->paid_amount);
+
+        app(\App\Services\Accounting\DocumentBackfill::class)->run($this->company);
+
+        $this->assertSame(0.0, $this->balance('receivables'));
+        $this->assertSame(1150.0, $this->balance('default_cash')); // was 2,300: invoice "paid part" + the receipt
+        $this->assertSame(1000.0, $this->balance('sales_revenue'));
+        $this->assertLedgerBalanced();
+    }
+
+    public function test_payroll_fines_are_held_for_the_workers_fund(): void
+    {
+        $employee = \App\Models\Employee::create(['name' => 'أحمد', 'job_title' => 'فني', 'department' => 'التشغيل', 'hire_date' => '2020-01-01', 'nationality' => 'IN',
+            'basic_salary' => 3000, 'housing_allowance' => 0, 'transport_allowance' => 0, 'other_allowances' => 0, 'total_salary' => 3000,
+            'status' => 'active', 'gosi_registered' => false, 'employee_number' => 'E100']);
+        \App\Models\EmployeeAdjustment::create(['employee_id' => $employee->id, 'year' => 2026, 'month' => 5, 'type' => 'penalty', 'amount' => 200]);
+
+        $payroll = app(\App\Services\HR\PayrollService::class)->generate(2026, 5);
+        app(\App\Services\HR\PayrollService::class)->approve($payroll);
+
+        $this->assertSame(200.0, $this->balance('workers_fund'));
+        $this->assertSame((float) $payroll->items()->first()->gross_salary, $this->balance('salaries_expense')); // not reduced by the fine
+        $this->assertSame(round((float) $payroll->items()->first()->gross_salary - 200, 2), $this->balance('salaries_payable'));
+        $this->assertLedgerBalanced();
+    }
 }

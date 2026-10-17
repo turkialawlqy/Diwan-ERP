@@ -17,14 +17,18 @@ const categoryOpen = ref(false);
 const depreciateOpen = ref(false);
 
 const today = new Date().toISOString().substring(0, 10);
-const assetForm = useForm({ asset_category_id: '', code: '', name_ar: '', serial_number: '', location: '', branch_id: '', cost_center_id: '', acquisition_date: today, cost: '', salvage_value: 0, useful_life_months: '', paid_from: 'bank_transfer', bank_account_id: '', supplier_id: '', notes: '' });
+const assetForm = useForm({ asset_category_id: '', code: '', name_ar: '', serial_number: '', location: '', branch_id: '', cost_center_id: '', acquisition_date: today, cost: '', salvage_value: 0, useful_life_months: '', paid_from: 'bank_transfer', bank_account_id: '', supplier_id: '', taxable: false, opening_accumulated: 0, notes: '' });
 const categoryForm = useForm({ name_ar: '', useful_life_months: 60, depreciation_method: 'straight_line', declining_rate: '', asset_account_id: '', accumulated_account_id: '', expense_account_id: '' });
 const depreciateForm = useForm({ month: new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().substring(0, 7) });
 
 const filters = reactive({ search: props.filters.search ?? '', status: props.filters.status ?? '' });
 const apply = () => router.get(route('accounting.fixed-assets.index'), filters, { preserveState: true });
 
-const saveAsset = () => assetForm.post(route('accounting.fixed-assets.store'), { preserveScroll: true, onSuccess: () => { assetOpen.value = false; assetForm.reset(); } });
+const saveAsset = () => assetForm.transform((d) => ({
+    ...d,
+    acquisition_vat: d.taxable && d.paid_from !== 'opening' ? Math.round((parseFloat(d.cost) || 0) * 15) / 100 : 0,
+    opening_accumulated: d.paid_from === 'opening' ? d.opening_accumulated || 0 : 0,
+})).post(route('accounting.fixed-assets.store'), { preserveScroll: true, onSuccess: () => { assetOpen.value = false; assetForm.reset(); } });
 const saveCategory = () => categoryForm.post(route('accounting.fixed-assets.categories.store'), { preserveScroll: true, onSuccess: () => { categoryOpen.value = false; categoryForm.reset(); } });
 const runDepreciation = () => depreciateForm.post(route('accounting.fixed-assets.depreciate'), { preserveScroll: true, onSuccess: () => (depreciateOpen.value = false) });
 
@@ -94,6 +98,10 @@ const statusLabel = { active: 'نشط', fully_depreciated: 'مهلك بالكا�
                 <Field label="طريقة السداد"><select v-model="assetForm.paid_from" class="w-full rounded-xl border-slate-200 text-xs"><option value="bank_transfer">بنك</option><option value="cash">نقداً</option><option value="payables">آجل لمورد</option><option value="opening">رصيد افتتاحي</option></select></Field>
                 <Field v-if="['cash','bank_transfer'].includes(assetForm.paid_from)" label="الصندوق / البنك"><select v-model="assetForm.bank_account_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">الافتراضي</option><option v-for="b in bankAccounts" :key="b.id" :value="b.id">{{ b.name }}</option></select></Field>
                 <Field v-if="assetForm.paid_from === 'payables'" label="رقم المورد" :error="assetForm.errors.supplier_id"><input v-model="assetForm.supplier_id" type="number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field v-if="assetForm.paid_from !== 'opening'" label="ضريبة المدخلات" :error="assetForm.errors.acquisition_vat">
+                    <label class="flex items-center gap-2 py-2"><input v-model="assetForm.taxable" type="checkbox" class="rounded" /> فاتورة ضريبية 15% ({{ ((parseFloat(assetForm.cost) || 0) * 0.15).toFixed(2) }})</label>
+                </Field>
+                <Field v-else label="مجمع الإهلاك حتى تاريخ البدء" :error="assetForm.errors.opening_accumulated"><input v-model="assetForm.opening_accumulated" type="number" step="0.01" min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
             </form>
             <template #footer>
                 <button @click="assetOpen = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('ui.cancel') }}</button>

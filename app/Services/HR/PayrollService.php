@@ -5,6 +5,7 @@ namespace App\Services\HR;
 use App\Models\Employee;
 use App\Models\EmployeeAdjustment;
 use App\Models\EmployeeLoan;
+use App\Models\JournalEntry;
 use App\Models\Payroll;
 use App\Models\PayrollItem;
 use App\Services\Accounting\DocumentPoster;
@@ -111,37 +112,7 @@ class PayrollService
                 throw ValidationException::withMessages(['payroll' => 'المسير معتمد مسبقاً.']);
             }
 
-            $date = Carbon::create($payroll->year, $payroll->month, 1)->endOfMonth()->toDateString();
-            $lines = [];
-
-            // Salary expense per cost centre (gross less penalties).
-            foreach ($payroll->items->groupBy(fn ($i) => $i->cost_center_id ?? 0) as $cc => $items) {
-                $expense = round($items->sum('gross_salary') - $items->sum('other_deductions'), 2);
-                if ($expense != 0.0) {
-                    $lines[] = ['role' => 'salaries_expense', 'debit' => $expense, 'cost_center_id' => $cc ?: null, 'description' => 'رواتب وبدلات الشهر'];
-                }
-                $employer = round($items->sum('gosi_employer'), 2);
-                if ($employer > 0) {
-                    $lines[] = ['role' => 'gosi_expense', 'debit' => $employer, 'cost_center_id' => $cc ?: null, 'description' => 'حصة المنشأة في التأمينات'];
-                }
-            }
-
-            $gosi = round((float) $payroll->total_gosi_employee + (float) $payroll->total_gosi_employer, 2);
-            if ($gosi > 0) {
-                $lines[] = ['role' => 'gosi_payable', 'credit' => $gosi, 'description' => 'اشتراكات التأمينات المستحقة'];
-            }
-            foreach ($payroll->items->where('loan_deduction', '>', 0) as $item) {
-                $lines[] = ['role' => 'employee_advances', 'credit' => (float) $item->loan_deduction, 'party_type' => 'employee', 'party_id' => $item->employee_id, 'description' => 'استقطاع سلفة'];
-            }
-            $lines[] = ['role' => 'salaries_payable', 'credit' => (float) $payroll->net_total, 'description' => 'صافي الرواتب المستحقة'];
-
-            $this->posting->post([
-                'date' => $date,
-                'reference' => $payroll->payroll_number,
-                'description' => "استحقاق رواتب شهر {$payroll->month}/{$payroll->year}",
-                'source' => $payroll,
-                'lines' => array_values(array_filter($lines, fn ($l) => ($l['debit'] ?? 0) > 0 || ($l['credit'] ?? 0) > 0)),
-            ]);
+            $this->postAccrual($payroll);
 
             // Loans repaid and adjustments consumed.
             foreach ($payroll->items->where('loan_deduction', '>', 0) as $item) {
@@ -160,6 +131,50 @@ class PayrollService
 
             $payroll->update(['status' => 'approved', 'approved_by' => auth()->id(), 'approved_at' => now()]);
         });
+    }
+
+    /**
+     * Accrual entry of a payroll: salary expense per cost centre, GOSI, loan
+     * repayments, fines held for the workers' fund and the net payable.
+     */
+    public function postAccrual(Payroll $payroll): JournalEntry
+    {
+        $payroll->loadMissing('items');
+        $date = Carbon::create($payroll->year, $payroll->month, 1)->endOfMonth()->toDateString();
+        $lines = [];
+
+        // Salary expense per cost centre (gross less recoveries); disciplinary fines go to the workers' fund.
+        $fines = round($payroll->items->sum(fn ($i) => (float) ($i->breakdown['penalties'] ?? 0)), 2);
+        foreach ($payroll->items->groupBy(fn ($i) => $i->cost_center_id ?? 0) as $cc => $items) {
+            $expense = round($items->sum('gross_salary') - $items->sum('other_deductions') + $items->sum(fn ($i) => (float) ($i->breakdown['penalties'] ?? 0)), 2);
+            if ($expense != 0.0) {
+                $lines[] = ['role' => 'salaries_expense', 'debit' => $expense, 'cost_center_id' => $cc ?: null, 'description' => 'رواتب وبدلات الشهر'];
+            }
+            $employer = round($items->sum('gosi_employer'), 2);
+            if ($employer > 0) {
+                $lines[] = ['role' => 'gosi_expense', 'debit' => $employer, 'cost_center_id' => $cc ?: null, 'description' => 'حصة المنشأة في التأمينات'];
+            }
+        }
+
+        $gosi = round((float) $payroll->total_gosi_employee + (float) $payroll->total_gosi_employer, 2);
+        if ($gosi > 0) {
+            $lines[] = ['role' => 'gosi_payable', 'credit' => $gosi, 'description' => 'اشتراكات التأمينات المستحقة'];
+        }
+        foreach ($payroll->items->where('loan_deduction', '>', 0) as $item) {
+            $lines[] = ['role' => 'employee_advances', 'credit' => (float) $item->loan_deduction, 'party_type' => 'employee', 'party_id' => $item->employee_id, 'description' => 'استقطاع سلفة'];
+        }
+        if ($fines > 0) {
+            $lines[] = ['role' => 'workers_fund', 'credit' => $fines, 'description' => 'جزاءات محسومة لصندوق العمال'];
+        }
+        $lines[] = ['role' => 'salaries_payable', 'credit' => (float) $payroll->net_total, 'description' => 'صافي الرواتب المستحقة'];
+
+        return $this->posting->post([
+            'date' => $date,
+            'reference' => $payroll->payroll_number,
+            'description' => "استحقاق رواتب شهر {$payroll->month}/{$payroll->year}",
+            'source' => $payroll,
+            'lines' => array_values(array_filter($lines, fn ($l) => ($l['debit'] ?? 0) > 0 || ($l['credit'] ?? 0) > 0)),
+        ]);
     }
 
     public function pay(Payroll $payroll, ?int $bankAccountId, string $date): void

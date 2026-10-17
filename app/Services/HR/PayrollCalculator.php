@@ -66,6 +66,7 @@ class PayrollCalculator
 
         $bonuses = round((float) $adjustments->whereIn('type', ['bonus', 'commission'])->sum('amount'), 2);
         $penalties = round((float) $adjustments->whereIn('type', ['penalty', 'deduction'])->sum('amount') + $fixedDeductions, 2);
+        $disciplinary = round((float) $adjustments->where('type', 'penalty')->sum('amount'), 2);
 
         $earnedBasic = round($basic * $ratio, 2);
         $earnedHousing = round($housing * $ratio, 2);
@@ -78,6 +79,8 @@ class PayrollCalculator
         // Loans and penalties within half the wage (Art. 92).
         $cap = max(0, round($gross * CompanyPolicy::get('hr.max_deduction_ratio', 0.5), 2));
         $penalties = min($penalties, $cap);
+        // Disciplinary fines are not the employer's income (Art. 72): they are held for the workers' fund.
+        $disciplinary = min($disciplinary, $penalties);
         $loanDue = $this->loanInstallments($employee, $to);
         $loanDeduction = round(min($loanDue, max(0, $cap - $penalties)), 2);
 
@@ -110,6 +113,7 @@ class PayrollCalculator
                 'gosi_base' => $gosiBase,
                 'loan_due' => $loanDue,
                 'deduction_cap' => $cap,
+                'penalties' => $disciplinary,
             ],
         ];
     }

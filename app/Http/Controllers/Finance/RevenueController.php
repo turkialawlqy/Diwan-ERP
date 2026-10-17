@@ -42,7 +42,7 @@ class RevenueController extends Controller
         ];
 
         $revenueAccounts = Account::where('type', 'revenue')->where('is_parent', false)->get(['id', 'code', 'name_ar']);
-        $bankAccounts = BankAccount::where('is_active', true)->get(['id', 'name', 'type', 'current_balance']);
+        $bankAccounts = BankAccount::withLedgerBalances(BankAccount::where('is_active', true)->get(['id', 'name', 'type', 'account_id', 'current_balance']));
 
         return Inertia::render('Finance/Revenues/Index', [
             'revenues' => $revenues,

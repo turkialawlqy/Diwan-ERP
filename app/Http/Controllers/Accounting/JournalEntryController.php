@@ -5,15 +5,25 @@ namespace App\Http\Controllers\Accounting;
 use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\CostCenter;
+use App\Models\Customer;
 use App\Models\JournalEntry;
+use App\Models\Supplier;
+use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\PostingService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class JournalEntryController extends Controller
 {
-    public function __construct(protected PostingService $posting) {}
+    /** Control accounts whose lines must name the customer / supplier, so the sub-ledgers stay equal to the GL. */
+    protected const PARTY_ROLES = ['receivables' => 'customer', 'payables' => 'supplier'];
+
+    /** Accounts kept by documents (stock movements, receipts); manual postings need accounting.journals.manage. */
+    protected const DOCUMENT_ROLES = ['inventory', 'grni'];
+
+    public function __construct(protected PostingService $posting, protected AccountMap $map) {}
 
     public function index(Request $request): Response
     {
@@ -52,6 +62,9 @@ class JournalEntryController extends Controller
             'stats' => $stats,
             'accounts' => Account::where('is_parent', false)->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_ar', 'type', 'requires_cost_center']),
             'costCenters' => CostCenter::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_ar']),
+            'customers' => Customer::orderBy('name')->get(['id', 'name']),
+            'suppliers' => Supplier::orderBy('name')->get(['id', 'name']),
+            'partyAccounts' => collect(self::PARTY_ROLES)->mapWithKeys(fn ($type, $role) => [(string) $this->map->find($role) => $type])->except(''),
             'filters' => $filters,
         ]);
     }
@@ -70,7 +83,10 @@ class JournalEntryController extends Controller
             'lines.*.description' => 'nullable|string|max:500',
             'lines.*.debit' => 'required|numeric|min:0',
             'lines.*.credit' => 'required|numeric|min:0',
+            'lines.*.party_type' => 'nullable|in:customer,supplier',
+            'lines.*.party_id' => 'nullable|integer',
         ]);
+        $this->guardControlAccounts($validated['lines'], $request);
 
         $status = ($validated['save_as'] ?? 'posted') === 'draft' ? JournalEntry::STATUS_DRAFT : JournalEntry::STATUS_POSTED;
 
@@ -90,6 +106,8 @@ class JournalEntryController extends Controller
                 'description' => $line['description'] ?? $validated['description'],
                 'debit' => (float) $line['debit'],
                 'credit' => (float) $line['credit'],
+                'party_type' => ! empty($line['party_id']) ? $line['party_type'] : null,
+                'party_id' => ! empty($line['party_id']) ? (int) $line['party_id'] : null,
             ])->all(),
         ]);
 
@@ -111,8 +129,9 @@ class JournalEntryController extends Controller
     /**
      * Post a draft entry.
      */
-    public function post(JournalEntry $entry)
+    public function post(Request $request, JournalEntry $entry)
     {
+        $this->guardControlAccounts($entry->lines()->get(['account_id', 'party_type', 'party_id'])->toArray(), $request);
         $this->posting->postDraft($entry);
 
         return back()->with('success', "تم ترحيل القيد {$entry->entry_number}");
@@ -158,5 +177,38 @@ class JournalEntryController extends Controller
         $entry->delete();
 
         return redirect()->route('accounting.journals.index')->with('success', 'تم حذف مسودة القيد');
+    }
+
+    /**
+     * Receivable / payable lines must name their customer / supplier, and
+     * inventory / GRNI are only adjusted manually with a dedicated permission.
+     */
+    protected function guardControlAccounts(array $lines, Request $request): void
+    {
+        $parties = collect(self::PARTY_ROLES)->mapWithKeys(fn ($type, $role) => [(int) $this->map->find($role) => $type])->except(0);
+        $documentAccounts = collect(self::DOCUMENT_ROLES)->map(fn ($role) => (int) $this->map->find($role))->filter()->all();
+        $errors = [];
+
+        foreach (array_values($lines) as $i => $line) {
+            $accountId = (int) $line['account_id'];
+            $partyId = (int) ($line['party_id'] ?? 0);
+            $partyType = $line['party_type'] ?? null;
+
+            if ($expected = $parties->get($accountId)) {
+                if (! $partyId || $partyType !== $expected) {
+                    $errors["lines.{$i}.party_id"] = $expected === 'customer' ? 'اختر العميل لسطر حساب العملاء.' : 'اختر المورد لسطر حساب الموردين.';
+                }
+            }
+            if ($partyId && ! ($partyType === 'customer' ? Customer::whereKey($partyId)->exists() : Supplier::whereKey($partyId)->exists())) {
+                $errors["lines.{$i}.party_id"] = 'الطرف المحدد غير موجود.';
+            }
+            if (in_array($accountId, $documentAccounts, true) && ! $request->user()->can('accounting.journals.manage')) {
+                $errors["lines.{$i}.account_id"] = 'حساب المخزون والبضاعة المستلمة غير المفوترة يُحدَّث من المستندات. القيد اليدوي عليه يحتاج صلاحية «إدارة القيود».';
+            }
+        }
+
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
+        }
     }
 }

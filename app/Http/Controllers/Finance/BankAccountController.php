@@ -16,12 +16,12 @@ class BankAccountController extends Controller
 {
     public function index(): Response
     {
-        $accounts = BankAccount::with('account')->latest()->get();
+        $accounts = BankAccount::withLedgerBalances(BankAccount::with('account')->latest()->get());
 
         $stats = [
-            'total_bank_balance' => BankAccount::where('type', 'bank')->sum('current_balance'),
-            'total_cash_balance' => BankAccount::where('type', 'cash')->sum('current_balance'),
-            'total_liquidity' => BankAccount::sum('current_balance'),
+            'total_bank_balance' => round($accounts->where('type', 'bank')->sum(fn ($b) => (float) $b->current_balance), 2),
+            'total_cash_balance' => round($accounts->where('type', 'cash')->sum(fn ($b) => (float) $b->current_balance), 2),
+            'total_liquidity' => round($accounts->sum(fn ($b) => (float) $b->current_balance), 2),
             'bank_count' => BankAccount::where('type', 'bank')->count(),
             'cash_count' => BankAccount::where('type', 'cash')->count(),
         ];
@@ -78,7 +78,7 @@ class BankAccountController extends Controller
 
     public function destroy(BankAccount $bank)
     {
-        if (abs((float) $bank->current_balance) > 0.009) {
+        if (abs($bank->ledgerBalance()) > 0.009) {
             return back()->with('error', 'لا يمكن حذف حساب يحتوي على رصيد. قم بتحويل الرصيد أولاً.');
         }
 
