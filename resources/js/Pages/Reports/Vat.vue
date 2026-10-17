@@ -1,4 +1,5 @@
 <script setup>
+import DateRangeFilter from '@/Components/UI/DateRangeFilter.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
+    filters: { type: Object, default: () => ({}) },
     vat: Object,
 });
 
@@ -31,6 +33,7 @@ const printReport = () => {
         <Head title="إقرار ضريبة القيمة المضافة ZATCA - الأستاذ" />
 
         <div class="space-y-5">
+            <DateRangeFilter route-name="reports.vat" :filters="filters" />
             <!-- Header Ribbon -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
                 <div class="flex items-center gap-2">

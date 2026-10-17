@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Supplier;
+use App\Services\Accounting\DocumentPoster;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class SupplierController extends Controller
@@ -79,21 +81,35 @@ class SupplierController extends Controller
 
         $openingBal = (float) ($validated['opening_balance'] ?? 0);
 
-        $supplier = Supplier::create([
-            'company_id' => $companyId,
-            'name' => $validated['name'],
-            'company_name' => $validated['company_name'] ?? null,
-            'tax_number' => $validated['tax_number'] ?? null,
-            'commercial_register' => $validated['commercial_register'] ?? null,
-            'phone' => $validated['phone'] ?? null,
-            'email' => $validated['email'] ?? null,
-            'address' => $validated['address'] ?? null,
-            'bank_name' => $validated['bank_name'] ?? null,
-            'iban' => $validated['iban'] ?? null,
-            'opening_balance' => $openingBal,
-            'current_balance' => $openingBal,
-            'status' => 'active',
-        ]);
+        $supplier = DB::transaction(function () use ($validated, $companyId, $openingBal) {
+            $supplier = Supplier::create([
+                'company_id' => $companyId,
+                'name' => $validated['name'],
+                'company_name' => $validated['company_name'] ?? null,
+                'tax_number' => $validated['tax_number'] ?? null,
+                'commercial_register' => $validated['commercial_register'] ?? null,
+                'phone' => $validated['phone'] ?? null,
+                'email' => $validated['email'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'bank_name' => $validated['bank_name'] ?? null,
+                'iban' => $validated['iban'] ?? null,
+                'opening_balance' => $openingBal,
+                'current_balance' => $openingBal,
+                'status' => 'active',
+            ]);
+
+            // Opening payable (positive) or supplier advance (negative) in the ledger, so the
+            // supplier list and the payables account agree from day one.
+            app(DocumentPoster::class)->openingBalance(
+                $supplier,
+                ['role' => 'payables', 'side' => 'credit', 'party_type' => 'supplier', 'party_id' => $supplier->id],
+                $openingBal,
+                now(),
+                'رصيد افتتاحي للمورد '.$supplier->name,
+            );
+
+            return $supplier;
+        });
 
         if ($this->wantsJsonResponse($request)) {
             return response()->json([

@@ -31,12 +31,13 @@ class DebitNoteController extends Controller
     {
         $validated = $request->validate([
             'customer_id' => 'required|tenant_exists:customers,id',
-            'invoice_id' => 'nullable|tenant_exists:invoices,id',
+            // ZATCA: a debit note always references the invoice it corrects.
+            'invoice_id' => 'required|tenant_exists:invoices,id',
             'debit_note_date' => 'required|date',
             'reason' => 'required|string|max:500',
             'subtotal' => 'required|numeric|gt:0',
             'tax_rate' => 'nullable|numeric|in:0,15', // standard rate or zero-rated/exempt only
-        ]);
+        ], ['invoice_id.required' => 'اختر الفاتورة الأصلية التي يعدّلها الإشعار المدين.']);
 
         if (! empty($validated['invoice_id']) && (int) Invoice::find($validated['invoice_id'])->customer_id !== (int) $validated['customer_id']) {
             throw ValidationException::withMessages(['invoice_id' => 'الفاتورة المحددة لا تخص هذا العميل.']);

@@ -2,16 +2,21 @@
 
 namespace Tests\Feature;
 
+use App\Models\Account;
 use App\Models\AuditLog;
 use App\Models\Company;
+use App\Models\Customer;
 use App\Models\User;
 use App\Services\Accounting\AccountingSetupService;
+use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\PostingService;
 use App\Services\Auth\Totp;
 use App\Services\Auth\TwoFactor;
 use App\Services\Saas\WebhookDispatcher;
+use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -159,5 +164,80 @@ class ProductionReadinessTest extends TestCase
 
         $this->actingAs($this->owner)->delete(route('users.destroy', $cashier))->assertSessionHasNoErrors();
         $this->assertSame('inactive', $cashier->fresh()?->status);
+    }
+
+    // ------------------------------------------------------------ data & time
+
+    protected function balance(string $role): float
+    {
+        return round((float) Account::find(app(AccountMap::class)->id($role, $this->company->id))->balance, 2);
+    }
+
+    public function test_business_dates_follow_riyadh_time(): void
+    {
+        $this->assertSame('Asia/Riyadh', config('app.timezone'));
+        Carbon::setTestNow(Carbon::parse('2026-06-15 22:30:00', 'UTC')); // 01:30 on the 16th in Riyadh
+        $this->assertSame('2026-06-16', now()->toDateString());
+        Carbon::setTestNow();
+    }
+
+    public function test_supplier_opening_balance_reaches_the_payables_account(): void
+    {
+        $this->actingAs($this->owner)->post(route('purchases.suppliers.store'), ['name' => 'مورد قديم', 'opening_balance' => 4500])->assertSessionHasNoErrors();
+
+        $this->assertSame(4500.0, $this->balance('payables'));
+        $this->assertSame(-4500.0, $this->balance('opening_balance_equity')); // equity debited for the opening payable
+    }
+
+    public function test_tax_invoices_check_the_buyer_and_notes_need_the_original_invoice(): void
+    {
+        $this->actingAs($this->owner);
+        $line = [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 100, 'tax_rate' => 15]];
+        $individual = Customer::create(['name' => 'فرد', 'status' => 'active']);
+        $business = Customer::create(['name' => 'شركة', 'status' => 'active', 'tax_number' => '300000000000003']);
+
+        // No VAT number: a simplified invoice.
+        $invoice = app(InvoiceService::class)->create(['customer_id' => $individual->id, 'invoice_date' => now()->toDateString()], $line, ['issue_stock' => false]);
+        $this->assertSame('simplified', $invoice->invoice_type);
+
+        // VAT number without a national address: refused before anything is posted.
+        try {
+            app(InvoiceService::class)->create(['customer_id' => $business->id, 'invoice_date' => now()->toDateString()], $line, ['issue_stock' => false]);
+            $this->fail('Standard invoice issued without the buyer address');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('العنوان الوطني', $e->errors()['customer_id'][0]);
+        }
+        $business->update(['building_number' => '1234', 'street_name' => 'العليا', 'district' => 'الورود', 'city' => 'الرياض', 'postal_code' => '12345']);
+        $this->assertSame('standard', app(InvoiceService::class)->create(['customer_id' => $business->id, 'invoice_date' => now()->toDateString()], $line, ['issue_stock' => false])->invoice_type);
+
+        $this->post(route('sales.returns.store'), ['customer_id' => $individual->id, 'credit_note_date' => now()->toDateString(), 'subtotal' => 10, 'tax_amount' => 1.5, 'total' => 11.5,
+            'reason' => 'خصم', 'status' => 'approved'])->assertSessionHasErrors('invoice_id');
+    }
+
+    public function test_summary_reports_are_net_of_credit_notes_and_filtered_by_date(): void
+    {
+        $this->actingAs($this->owner);
+        $customer = Customer::create(['name' => 'فرد', 'status' => 'active']);
+        $invoice = app(InvoiceService::class)->create(['customer_id' => $customer->id, 'invoice_date' => now()->toDateString()],
+            [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 1000, 'tax_rate' => 15]], ['issue_stock' => false]);
+        $this->post(route('sales.returns.store'), ['customer_id' => $customer->id, 'invoice_id' => $invoice->id, 'credit_note_date' => now()->toDateString(), 'subtotal' => 200, 'tax_amount' => 30, 'total' => 230,
+            'reason' => 'خصم', 'status' => 'approved'])->assertSessionHasNoErrors();
+
+        $stats = $this->get(route('reports.sales'))->assertOk()->viewData('page')['props']['stats'];
+        $this->assertSame(800.0, (float) $stats['total_sales']);
+        $this->assertSame(120.0, (float) $stats['total_tax']);
+
+        $empty = $this->get(route('reports.sales', ['start_date' => now()->subYears(2)->startOfYear()->toDateString(), 'end_date' => now()->subYears(2)->endOfYear()->toDateString()]))->viewData('page')['props']['stats'];
+        $this->assertSame(0.0, (float) $empty['total_sales']);
+    }
+
+    public function test_the_invoice_prefix_setting_numbers_invoices(): void
+    {
+        $this->company->setSetting('sales_invoice_prefix', 'RYD-');
+        $this->actingAs($this->owner);
+        $customer = Customer::create(['name' => 'شركة', 'status' => 'active', 'tax_number' => '300000000000003', 'building_number' => '1', 'street_name' => 'س', 'district' => 'ح', 'city' => 'الرياض', 'postal_code' => '12345']);
+        $invoice = app(InvoiceService::class)->create(['customer_id' => $customer->id, 'invoice_date' => now()->toDateString()],
+            [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 10, 'tax_rate' => 15]], ['issue_stock' => false]);
+        $this->assertStringStartsWith('RYD-', $invoice->invoice_number);
     }
 }

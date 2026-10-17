@@ -1,4 +1,5 @@
 <script setup>
+import DateRangeFilter from '@/Components/UI/DateRangeFilter.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import {
@@ -13,6 +14,7 @@ import {
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
+    filters: { type: Object, default: () => ({}) },
     incomeStatement: Object,
 });
 
@@ -26,6 +28,7 @@ const printReport = () => {
 
     <AppLayout>
         <div class="space-y-6">
+            <DateRangeFilter route-name="reports.financial" :filters="filters" />
             <!-- Breadcrumbs & Header -->
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>

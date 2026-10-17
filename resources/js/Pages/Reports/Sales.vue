@@ -1,4 +1,5 @@
 <script setup>
+import DateRangeFilter from '@/Components/UI/DateRangeFilter.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
+    filters: { type: Object, default: () => ({}) },
     stats: Object,
 });
 
@@ -39,6 +41,8 @@ const formatCurrency = (val) => {
                     <span class="text-slate-900 font-semibold">المبيعات</span>
                 </nav>
             </div>
+
+            <DateRangeFilter route-name="reports.sales" :filters="filters" />
 
             <!-- Live KPI Overview Banner -->
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">

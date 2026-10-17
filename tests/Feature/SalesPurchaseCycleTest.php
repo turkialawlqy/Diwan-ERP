@@ -164,7 +164,7 @@ class SalesPurchaseCycleTest extends TestCase
         $first = app(InvoiceService::class)->create(['customer_id' => $this->customer->id, 'invoice_date' => '2026-06-10'], [$this->line($p, 1)]);
         $second = app(InvoiceService::class)->create(['customer_id' => $this->customer->id, 'invoice_date' => '2026-06-12'], [$this->line($p, 1)]);
 
-        $debit = $this->sales()->debitNote(['customer_id' => $this->customer->id, 'debit_note_date' => '2026-06-15', 'reason' => 'فرق سعر', 'subtotal' => 100]);
+        $debit = $this->sales()->debitNote(['customer_id' => $this->customer->id, 'invoice_id' => $first->id, 'debit_note_date' => '2026-06-15', 'reason' => 'فرق سعر', 'subtotal' => 100]);
         $this->assertSame(115.0, (float) $debit->total);
         $this->assertSame(345.0, (float) $this->customer->fresh()->current_balance);
 

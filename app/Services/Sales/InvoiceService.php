@@ -64,14 +64,15 @@ class InvoiceService
             }
 
             $date = Carbon::parse($data['invoice_date']);
-            $isSimplified = ($data['invoice_type'] ?? null) === 'simplified';
+            $requestedSimplified = ($data['invoice_type'] ?? null) === 'simplified';
+            $isSimplified = $requestedSimplified || $this->buyerNeedsSimplified($customer);
 
             $invoice = Invoice::create([
                 'branch_id' => $data['branch_id'] ?? auth()->user()?->branch_id ?? Branch::orderBy('id')->value('id'),
                 'customer_id' => $customer->id,
                 'user_id' => auth()->id(),
                 'salesperson_id' => $data['salesperson_id'] ?? $customer->salesperson_id ?? auth()->id(),
-                'invoice_number' => $this->numbers->next($data['number_type'] ?? ($isSimplified ? 'pos_invoice' : 'sales_invoice'), $date),
+                'invoice_number' => $this->numbers->next($data['number_type'] ?? ($requestedSimplified ? 'pos_invoice' : 'sales_invoice'), $date),
                 'invoice_type' => $isSimplified ? 'simplified' : 'standard',
                 'reference_number' => $data['reference_number'] ?? null,
                 'invoice_date' => $date->toDateString(),
@@ -136,6 +137,36 @@ class InvoiceService
     /**
      * Normalise lines and compute line / document totals (rounded per line).
      */
+    /**
+     * ZATCA: a standard (B2B) tax invoice is cleared with the buyer's VAT
+     * number and national address. A local buyer with no VAT number receives
+     * a simplified invoice; one with a VAT number must have a full address,
+     * otherwise clearance would reject the invoice after it was posted.
+     */
+    protected function buyerNeedsSimplified(Customer $customer): bool
+    {
+        $local = ! $customer->country || in_array(mb_strtolower((string) $customer->country), ['sa', 'ksa', 'المملكة العربية السعودية', 'السعودية', 'saudi arabia'], true);
+        if (! $local || $customer->code === 'WALK-IN') {
+            return $customer->code === 'WALK-IN';
+        }
+        if (! $customer->tax_number) {
+            return true;
+        }
+
+        $missing = collect([
+            'رقم المبنى' => $customer->building_number,
+            'الشارع' => $customer->street_name ?: $customer->address,
+            'الحي' => $customer->district,
+            'المدينة' => $customer->city,
+            'الرمز البريدي' => $customer->postal_code,
+        ])->filter(fn ($v) => blank($v))->keys();
+        if ($missing->isNotEmpty()) {
+            throw ValidationException::withMessages(['customer_id' => 'أكمل العنوان الوطني للعميل قبل إصدار فاتورة ضريبية: '.$missing->implode('، ').'.']);
+        }
+
+        return false;
+    }
+
     public function computeLines(array $lines): array
     {
         $items = [];

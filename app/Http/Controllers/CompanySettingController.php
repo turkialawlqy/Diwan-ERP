@@ -67,7 +67,7 @@ class CompanySettingController extends Controller
 
             // Custom settings
             'vat_rate' => 'nullable|numeric|min:0|max:100',
-            'invoice_prefix' => 'nullable|string|max:10',
+            'invoice_prefix' => ['nullable', 'string', 'max:10', 'regex:/^[A-Za-z0-9\-\/]*$/'],
             'invoice_terms' => 'nullable|string',
             'document_message' => 'nullable|string|max:3000',
             'show_hijri' => 'nullable|boolean',
@@ -132,8 +132,10 @@ class CompanySettingController extends Controller
 
         // Save key-value settings
         $settingsToSave = [
-            'vat_rate' => $validated['vat_rate'] ?? 15,
+            'vat_rate' => 15, // statutory rate; the field is informational
             'invoice_prefix' => $validated['invoice_prefix'] ?? 'INV',
+            // The numbering service reads the sales invoice series from this key.
+            'sales_invoice_prefix' => ($p = trim((string) ($validated['invoice_prefix'] ?? ''))) !== '' ? (preg_match('/[-\/]$/', $p) ? $p : $p.'-') : '',
             'invoice_terms' => $validated['invoice_terms'] ?? '',
             'document_message' => $validated['document_message'] ?? '',
             'show_hijri' => ($validated['show_hijri'] ?? true) ? '1' : '0',

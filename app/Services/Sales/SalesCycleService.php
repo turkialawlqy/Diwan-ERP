@@ -465,8 +465,11 @@ class SalesCycleService
             $subtotal = round((float) $data['subtotal'], 2);
             $taxRate = (float) ($data['tax_rate'] ?? 15);
             $tax = round($subtotal * $taxRate / 100, 2);
-            // A debit note on an invoice is in that invoice's currency and rate.
+            // A debit note on an invoice is in that invoice's currency and rate; ZATCA requires the reference.
             $source = ! empty($data['invoice_id']) ? Invoice::find($data['invoice_id']) : null;
+            if (! $source) {
+                throw ValidationException::withMessages(['invoice_id' => 'اختر الفاتورة الأصلية التي يعدّلها الإشعار المدين.']);
+            }
 
             $note = DebitNote::create([
                 'currency_code' => $source?->currency_code,
