@@ -1,3 +1,5 @@
 ﻿try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
-Unregister-ScheduledTask -TaskName 'Alostaz Auto Update' -Confirm:$false -ErrorAction SilentlyContinue
-Write-Host 'تم إيقاف التحديث التلقائي.' -ForegroundColor Green
+foreach ($task in @('Alostaz Auto Update', 'Alostaz Scheduler', 'Alostaz Queue')) {
+    Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
+}
+Write-Host 'تم إيقاف التحديث التلقائي والمُجدول والطوابير.' -ForegroundColor Green

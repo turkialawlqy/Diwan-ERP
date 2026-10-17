@@ -16,11 +16,14 @@
 .PARAMETER Auto
     Scheduled mode: quiet, and never touches a folder with local code edits.
 .PARAMETER Force
-    Prepare again even when there is nothing new to pull.
+    Prepare again even when there is nothing new to pull, and continue even
+    when the pre-update database backup fails.
+.PARAMETER Branch
+    Branch to follow. Default: UPDATE_BRANCH in .env, else the development branch.
 #>
 param(
     [string]$Path = '',
-    [string]$Branch = 'claude/vigilant-cerf-uwqevd',
+    [string]$Branch = '',
     [string]$Repository = 'https://github.com/turkialawlqy/AlOstaz.git',
     [switch]$Auto,
     [switch]$Force
@@ -50,6 +53,31 @@ function Write-Log([string]$Message, [string]$Color = 'Gray', [switch]$Always) {
     if (-not $Auto -or $Always) { Write-Host $Message -ForegroundColor $Color }
 }
 function Step([string]$Message) { Write-Log "==> $Message" 'Cyan' }
+
+# .env helpers: read a value; add a key only when it is missing (never overwrite).
+$envFile = Join-Path $Path '.env'
+function Get-EnvValue([string]$Key) {
+    if (-not (Test-Path $envFile)) { return '' }
+    $line = Get-Content $envFile -Encoding UTF8 | Where-Object { $_ -match ('^\s*' + [regex]::Escape($Key) + '\s*=') } | Select-Object -Last 1
+    if (-not $line) { return '' }
+    return (($line -replace ('^\s*' + [regex]::Escape($Key) + '\s*='), '').Trim().Trim('"').Trim("'"))
+}
+function Add-EnvValue([string]$Key, [string]$Value) {
+    if (-not (Test-Path $envFile) -or (Get-EnvValue $Key)) { return }
+    $raw = [IO.File]::ReadAllText($envFile)
+    if ($raw.Length -and -not $raw.EndsWith("`n")) { Add-Content -Path $envFile -Value '' -Encoding UTF8 }
+    # Single quotes: dotenv keeps Windows backslashes literally.
+    Add-Content -Path $envFile -Value ("{0}='{1}'" -f $Key, $Value) -Encoding UTF8
+    Write-Log "    أُضيف إلى .env: $Key" 'DarkGray'
+}
+
+if (-not $Branch) { $Branch = Get-EnvValue 'UPDATE_BRANCH' }
+if (-not $Branch) { $Branch = 'claude/vigilant-cerf-uwqevd' }
+
+# Keep update.log to its last 5000 lines.
+if ((Test-Path $logFile) -and ((Get-Item $logFile).Length -gt 2MB)) {
+    Get-Content $logFile -Tail 5000 -Encoding UTF8 | Set-Content $logFile -Encoding UTF8
+}
 
 # Runs a program, logs its output, throws on a non-zero exit code. stderr is
 # captured as text so git progress messages are not treated as errors.
@@ -130,6 +158,9 @@ function Test-Vendor {
 }
 
 $siteDown = $false
+$codeChanged = $false
+$previousHead = ''
+$backupFile = ''
 $php = $null
 try {
     Write-Log ("بدء التحديث — {0} — الفرع {1}{2}" -f $Path, $Branch, $(if ($Auto) { ' (تلقائي)' } else { '' })) 'White'
@@ -174,7 +205,18 @@ try {
         $composerArgs = @($phar)
     }
     $mysqldump = Get-ChildItem 'C:\MAMP\bin\mysql\bin\mysqldump.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($mysqldump) { $env:BACKUP_MYSQLDUMP = $mysqldump.FullName; $env:BACKUP_MYSQL = Join-Path $mysqldump.DirectoryName 'mysql.exe' }
+    if ($mysqldump) {
+        $env:BACKUP_MYSQLDUMP = $mysqldump.FullName; $env:BACKUP_MYSQL = Join-Path $mysqldump.DirectoryName 'mysql.exe'
+        # Written to .env too, so the scheduled nightly backup finds them.
+        Add-EnvValue 'BACKUP_MYSQLDUMP' $env:BACKUP_MYSQLDUMP
+        Add-EnvValue 'BACKUP_MYSQL' $env:BACKUP_MYSQL
+    }
+
+    # MAMP has no Redis: jobs (ZATCA reporting, e-mail) would never run.
+    $redisDrivers = @('QUEUE_CONNECTION', 'SESSION_DRIVER', 'CACHE_STORE') | Where-Object { (Get-EnvValue $_) -eq 'redis' }
+    if ($redisDrivers -and -not (@(& $php -m 2>$null) -contains 'redis')) {
+        Write-Log ('تنبيه: ملف .env يستخدم Redis في: ' + ($redisDrivers -join '، ') + ' بينما Redis غير متوفر. غيّرها إلى database (انظر .env.windows.example).') 'Red' -Always
+    }
 
     # ---------------------------------------------------------------- code
     # Linked = a git folder whose "origin" already points at this repository.
@@ -256,11 +298,22 @@ try {
     $siteDown = $true
     if (Test-Vendor) {
         Step 'نسخ احتياطي لقاعدة البيانات'
-        $backup = Invoke-Tool $php @('artisan', 'erp:backup') -AllowFail
-        if ($LASTEXITCODE -ne 0) { Write-Log '    تعذّر النسخ الاحتياطي لقاعدة البيانات (سيُكمل التحديث). راجع BACKUP_PASSWORD و BACKUP_MYSQLDUMP.' 'Yellow' }
+        $backup = Invoke-Tool $php @('artisan', 'erp:backup', '--tag=preupdate') -AllowFail
+        # The installed (older) version may not know --tag yet.
+        if ($LASTEXITCODE -ne 0 -and (($backup -join ' ') -match 'does not exist')) {
+            $backup = Invoke-Tool $php @('artisan', 'erp:backup') -AllowFail
+        }
+        if ($LASTEXITCODE -ne 0) {
+            # No update without a way back, unless explicitly forced.
+            if (-not $Force) { throw 'تعذّر النسخ الاحتياطي لقاعدة البيانات، فأُوقف التحديث ولم يتغير شيء. راجع BACKUP_PASSWORD و BACKUP_MYSQLDUMP في .env، أو شغّل update.ps1 -Force لتجاوز ذلك.' }
+            Write-Log '    تعذّر النسخ الاحتياطي (تجاوز بـ -Force).' 'Yellow'
+        }
+        $backupFile = (@($backup) | Where-Object { $_ -match 'alostaz-[a-z]+-[0-9-]+\.zip' } | ForEach-Object { $Matches[0] } | Select-Object -First 1)
     }
 
     Step 'تحديث ملفات الكود'
+    if ($isRepo) { $previousHead = "$(@(Invoke-Tool $git @('rev-parse', 'HEAD') -AllowFail)[0])".Trim() }
+    $codeChanged = $true
     if ($isRepo) {
         $merge = Invoke-Tool $git @('merge', '--ff-only', "origin/$Branch") -AllowFail
         if ($LASTEXITCODE -ne 0) {
@@ -273,7 +326,7 @@ try {
     Invoke-Tool $git @('branch', "--set-upstream-to=origin/$Branch", $Branch) -AllowFail | Out-Null
 
     Step 'تثبيت مكتبات PHP (composer)'
-    $composerInstall = $composerArgs + @('install', '--no-interaction', '--prefer-dist', '--optimize-autoloader')
+    $composerInstall = $composerArgs + @('install', '--no-interaction', '--prefer-dist', '--optimize-autoloader', '--no-dev')
     Invoke-Tool $composer $composerInstall -AllowFail | Out-Null
     if ($LASTEXITCODE -ne 0) {
         # Windows often fails here on a file briefly locked by antivirus or the web server.
@@ -291,6 +344,7 @@ try {
     Invoke-Tool $php @('artisan', 'erp:sync-permissions') | Out-Null
     Invoke-Tool $php @('artisan', 'erp:accounting', 'provision') | Out-Null
     Invoke-Tool $php @('artisan', 'optimize:clear') | Out-Null
+    Invoke-Tool $php @('artisan', 'optimize') -AllowFail | Out-Null
 
     Set-Content -Path $preparedFile -Value ((@(Invoke-Tool $git @('rev-parse', 'HEAD'))[0]).Trim()) -Encoding ASCII
     Exit-Maintenance
@@ -311,7 +365,12 @@ try {
 catch {
     Write-Log ("خطأ: " + $_.Exception.Message) 'Red' -Always
     if ($siteDown -and $php) {
-        if (Test-Vendor) {
+        if ($codeChanged) {
+            # New code may be running on a half-updated database: stay down until fixed.
+            Write-Log 'بقي النظام في وضع الصيانة لأن التحديث لم يكتمل (حمايةً للبيانات). الحلول:' 'Red' -Always
+            Write-Log '  1) أصلح السبب الظاهر أعلاه ثم شغّل update.bat مرة أخرى (يُكمل من حيث توقف).' 'Yellow' -Always
+            if ($previousHead) { Write-Log "  2) أو ارجع للإصدار السابق: git checkout -f $previousHead ثم php artisan erp:restore $backupFile --force ثم php artisan up" 'Yellow' -Always }
+        } elseif (Test-Vendor) {
             Exit-Maintenance
             Write-Log 'أُعيد النظام للعمل؛ راجع الخطأ أعلاه ثم أعد تشغيل التحديث.' 'Yellow' -Always
         } else {
