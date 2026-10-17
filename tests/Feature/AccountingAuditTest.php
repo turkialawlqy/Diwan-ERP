@@ -3,22 +3,46 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\AssetCategory;
+use App\Models\AssetDepreciation;
+use App\Models\BankAccount;
+use App\Models\Cheque;
 use App\Models\Company;
 use App\Models\Customer;
+use App\Models\Employee;
+use App\Models\EmployeeAdjustment;
 use App\Models\FiscalPeriod;
 use App\Models\FiscalYear;
+use App\Models\FixedAsset;
+use App\Models\Invoice;
+use App\Models\PosRegister;
+use App\Models\PosSession;
+use App\Models\Product;
+use App\Models\StockLayer;
+use App\Models\StockMovement;
+use App\Models\Supplier;
 use App\Models\User;
+use App\Models\Warehouse;
 use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
+use App\Services\Accounting\ChequeService;
+use App\Services\Accounting\DepreciationService;
+use App\Services\Accounting\DocumentBackfill;
 use App\Services\Accounting\PostingService;
 use App\Services\Accounting\YearEndClosing;
+use App\Services\HR\PayrollService;
+use App\Services\Inventory\StockService;
+use App\Services\Purchases\PurchaseCycleService;
+use App\Services\Sales\CustomerStatement;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\SalesCycleService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Testing\TestResponse;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 /**
@@ -152,18 +176,18 @@ class AccountingAuditTest extends TestCase
 
     public function test_pos_lines_carry_their_net_so_a_return_credits_real_value(): void
     {
-        $warehouse = \App\Models\Warehouse::create(['name_ar' => 'رئيسي', 'code' => 'W1', 'is_main' => true, 'is_active' => true]);
-        $register = \App\Models\PosRegister::create(['name' => 'كاشير 1', 'warehouse_id' => $warehouse->id, 'is_active' => true]);
-        $session = \App\Models\PosSession::create(['user_id' => $this->owner->id, 'pos_register_id' => $register->id, 'opening_cash' => 0, 'status' => 'opened', 'opened_at' => now()]);
-        $a = \App\Models\Product::create(['name_ar' => 'صنف أ', 'sku' => 'A1', 'selling_price' => 500, 'track_inventory' => false, 'is_active' => true]);
-        $b = \App\Models\Product::create(['name_ar' => 'صنف ب', 'sku' => 'B1', 'selling_price' => 1000, 'track_inventory' => false, 'is_active' => true]);
+        $warehouse = Warehouse::create(['name_ar' => 'رئيسي', 'code' => 'W1', 'is_main' => true, 'is_active' => true]);
+        $register = PosRegister::create(['name' => 'كاشير 1', 'warehouse_id' => $warehouse->id, 'is_active' => true]);
+        $session = PosSession::create(['user_id' => $this->owner->id, 'pos_register_id' => $register->id, 'opening_cash' => 0, 'status' => 'opened', 'opened_at' => now()]);
+        $a = Product::create(['name_ar' => 'صنف أ', 'sku' => 'A1', 'selling_price' => 500, 'track_inventory' => false, 'is_active' => true]);
+        $b = Product::create(['name_ar' => 'صنف ب', 'sku' => 'B1', 'selling_price' => 1000, 'track_inventory' => false, 'is_active' => true]);
 
         $this->post(route('pos.order.process'), ['session_id' => $session->id, 'payment_method' => 'cash', 'paid_amount' => 2185, 'discount' => 100, 'items' => [
             ['product_id' => $a->id, 'item_name' => 'صنف أ', 'quantity' => 2, 'unit_price' => 500, 'tax_rate' => 7], // a free-typed rate is not kept
             ['product_id' => $b->id, 'item_name' => 'صنف ب', 'quantity' => 1, 'unit_price' => 1000],
         ]])->assertSessionHasNoErrors();
 
-        $invoice = \App\Models\Invoice::with('items')->latest('id')->first();
+        $invoice = Invoice::with('items')->latest('id')->first();
         $this->assertSame(1900.0, (float) $invoice->subtotal);
         $this->assertSame(285.0, (float) $invoice->tax_amount);
         $this->assertSame(1900.0, round($invoice->items->sum(fn ($i) => (float) $i->subtotal), 2)); // lines add up to the header
@@ -212,7 +236,7 @@ class AccountingAuditTest extends TestCase
         $this->post(route('sales.payments.store'), ['customer_id' => $this->customer->id, 'payment_date' => '2026-06-12', 'amount' => 500,
             'payment_method' => 'cash'])->assertSessionHasNoErrors(); // auto-allocated to the oldest invoice
 
-        $statement = app(\App\Services\Sales\CustomerStatement::class)->build($this->customer->fresh());
+        $statement = app(CustomerStatement::class)->build($this->customer->fresh());
 
         $this->assertSame(650.0, round((float) $statement['closing'], 2)); // was 150: the receipt showed twice
         $this->assertSame((float) $this->customer->fresh()->current_balance, round((float) $statement['closing'], 2));
@@ -229,10 +253,10 @@ class AccountingAuditTest extends TestCase
 
         $this->assertSame($bankBefore, $this->balance('default_bank')); // was debited immediately
         $this->assertSame(1150.0, $this->balance('cheques_under_collection'));
-        $cheque = \App\Models\Cheque::firstOrFail();
+        $cheque = Cheque::firstOrFail();
         $this->assertSame(['incoming', 'pending', 'CHQ-889'], [$cheque->direction, $cheque->status, $cheque->cheque_number]);
 
-        app(\App\Services\Accounting\ChequeService::class)->transition($cheque, 'cleared', Carbon::parse('2026-06-20'));
+        app(ChequeService::class)->transition($cheque, 'cleared', Carbon::parse('2026-06-20'));
         $this->assertSame(0.0, $this->balance('cheques_under_collection'));
         $this->assertSame(round($bankBefore + 1150, 2), $this->balance('default_bank'));
         $this->assertLedgerBalanced();
@@ -242,9 +266,9 @@ class AccountingAuditTest extends TestCase
 
     protected function purchaseSetup(): array
     {
-        $warehouse = \App\Models\Warehouse::create(['name_ar' => 'رئيسي', 'code' => 'W1', 'is_main' => true, 'is_active' => true]);
-        $supplier = \App\Models\Supplier::create(['name' => 'مورد', 'status' => 'active']);
-        $item = \App\Models\Product::create(['name_ar' => 'صنف مخزني', 'sku' => 'S1', 'track_inventory' => true, 'is_active' => true]);
+        $warehouse = Warehouse::create(['name_ar' => 'رئيسي', 'code' => 'W1', 'is_main' => true, 'is_active' => true]);
+        $supplier = Supplier::create(['name' => 'مورد', 'status' => 'active']);
+        $item = Product::create(['name_ar' => 'صنف مخزني', 'sku' => 'S1', 'track_inventory' => true, 'is_active' => true]);
 
         return [$warehouse, $supplier, $item];
     }
@@ -252,7 +276,7 @@ class AccountingAuditTest extends TestCase
     public function test_supplier_payment_after_a_return_closes_the_invoice(): void
     {
         [$warehouse, $supplier, $item] = $this->purchaseSetup();
-        $cycle = app(\App\Services\Purchases\PurchaseCycleService::class);
+        $cycle = app(PurchaseCycleService::class);
         $receipt = $cycle->receive(null, ['supplier_id' => $supplier->id, 'warehouse_id' => $warehouse->id, 'receipt_date' => '2026-06-01'],
             [['product_id' => $item->id, 'item_name' => 'صنف مخزني', 'quantity' => 10, 'unit_cost' => 100]]);
         $invoice = $cycle->invoiceReceipts(['supplier_id' => $supplier->id, 'invoice_date' => '2026-06-02', 'payment_method' => 'credit'],
@@ -272,14 +296,14 @@ class AccountingAuditTest extends TestCase
     public function test_service_lines_skip_grni_and_price_variance_follows_the_stock(): void
     {
         [$warehouse, $supplier, $item] = $this->purchaseSetup();
-        $service = \App\Models\Product::create(['name_ar' => 'شحن', 'sku' => 'SV1', 'track_inventory' => false, 'type' => 'service', 'is_active' => true]);
-        $cycle = app(\App\Services\Purchases\PurchaseCycleService::class);
+        $service = Product::create(['name_ar' => 'شحن', 'sku' => 'SV1', 'track_inventory' => false, 'type' => 'service', 'is_active' => true]);
+        $cycle = app(PurchaseCycleService::class);
         $receipt = $cycle->receive(null, ['supplier_id' => $supplier->id, 'warehouse_id' => $warehouse->id, 'receipt_date' => '2026-06-01'], [
             ['product_id' => $item->id, 'item_name' => 'صنف مخزني', 'quantity' => 10, 'unit_cost' => 100],
             ['product_id' => $service->id, 'item_name' => 'شحن', 'quantity' => 1, 'unit_cost' => 50],
         ]);
         // 4 of the 10 units are sold before the supplier's invoice arrives at 110 instead of 100.
-        app(\App\Services\Inventory\StockService::class)->issue(['product_id' => $item->id, 'warehouse_id' => $warehouse->id, 'quantity' => 4, 'type' => 'sale']);
+        app(StockService::class)->issue(['product_id' => $item->id, 'warehouse_id' => $warehouse->id, 'quantity' => 4, 'type' => 'sale']);
 
         $cycle->invoiceReceipts(['supplier_id' => $supplier->id, 'invoice_date' => '2026-06-05', 'payment_method' => 'credit'], [
             ['goods_receipt_item_id' => $receipt->items->firstWhere('product_id', $item->id)->id, 'quantity' => 10, 'unit_price' => 110, 'tax_rate' => 15],
@@ -291,7 +315,7 @@ class AccountingAuditTest extends TestCase
         // 1,000 received + 60 variance on the 6 units held (the test's direct stock issue posts no COGS entry).
         $this->assertSame(1060.0, $this->balance('inventory'));
         $this->assertSame(110.0, round((float) $item->fresh()->average_cost, 2));
-        $valuation = (float) \App\Models\StockMovement::where('product_id', $item->id)->sum('total_cost');
+        $valuation = (float) StockMovement::where('product_id', $item->id)->sum('total_cost');
         $this->assertSame(660.0, round($valuation, 2)); // the stock report matches the ledger
         $this->assertLedgerBalanced();
     }
@@ -302,7 +326,7 @@ class AccountingAuditTest extends TestCase
         $this->company->setSetting('costing_method', 'fifo');
         $this->company->setSetting('allow_negative_stock', '1');
         $item->update(['purchase_price' => 20]);
-        $stock = app(\App\Services\Inventory\StockService::class);
+        $stock = app(StockService::class);
 
         $early = $stock->issue(['product_id' => $item->id, 'warehouse_id' => $warehouse->id, 'quantity' => 5, 'type' => 'sale']);
         $this->assertSame(100.0, $early); // costed at the purchase price, not zero
@@ -310,7 +334,7 @@ class AccountingAuditTest extends TestCase
         $later = $stock->issue(['product_id' => $item->id, 'warehouse_id' => $warehouse->id, 'quantity' => 5, 'type' => 'sale']);
 
         $this->assertSame(100.0, $later);
-        $this->assertSame(0.0, (float) \App\Models\StockLayer::where('product_id', $item->id)->sum('remaining')); // no phantom layer left
+        $this->assertSame(0.0, (float) StockLayer::where('product_id', $item->id)->sum('remaining')); // no phantom layer left
         $this->assertSame(0.0, $stock->onHand($item->id, $warehouse->id));
     }
 
@@ -329,7 +353,7 @@ class AccountingAuditTest extends TestCase
 
     // ------------------------------------------------------------ D. ledger, assets, equipment, payroll
 
-    protected function journal(array $lines): \Illuminate\Testing\TestResponse
+    protected function journal(array $lines): TestResponse
     {
         return $this->post(route('accounting.journals.store'), ['date' => '2026-06-10', 'description' => 'قيد يدوي', 'save_as' => 'posted', 'lines' => $lines]);
     }
@@ -345,9 +369,9 @@ class AccountingAuditTest extends TestCase
 
         // An accountant without "manage journals" cannot touch inventory by hand.
         $accountant = $this->userWithRole($this->company, 'accountant');
-        app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
+        app(PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
         $accountant->roles->first()->revokePermissionTo('accounting.journals.manage');
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
         $this->actingAs($accountant->fresh());
         $this->journal([$line('inventory', 100, 0), $line('capital', 0, 100)])->assertSessionHasErrors('lines.0.account_id');
     }
@@ -364,9 +388,9 @@ class AccountingAuditTest extends TestCase
         $this->put(route('accounting.mappings.update'), ['mapping' => ['sales_revenue' => $this->role('default_cash')]])->assertSessionHasErrors('mapping.sales_revenue');
     }
 
-    protected function assetCategory(): \App\Models\AssetCategory
+    protected function assetCategory(): AssetCategory
     {
-        return \App\Models\AssetCategory::create(['name_ar' => 'معدات', 'useful_life_months' => 60, 'depreciation_method' => 'straight_line',
+        return AssetCategory::create(['name_ar' => 'معدات', 'useful_life_months' => 60, 'depreciation_method' => 'straight_line',
             'asset_account_id' => $this->role('fixed_assets'), 'accumulated_account_id' => $this->role('accumulated_depreciation'), 'expense_account_id' => $this->role('depreciation_expense')]);
     }
 
@@ -376,16 +400,16 @@ class AccountingAuditTest extends TestCase
         $this->post(route('accounting.fixed-assets.store'), ['asset_category_id' => $category->id, 'code' => 'FA-OLD', 'name_ar' => 'رافعة',
             'acquisition_date' => '2022-01-01', 'depreciation_start_date' => '2026-04-01', 'cost' => 60000, 'useful_life_months' => 60,
             'paid_from' => 'opening', 'opening_accumulated' => 50000])->assertSessionHasNoErrors();
-        $asset = \App\Models\FixedAsset::where('code', 'FA-OLD')->first();
+        $asset = FixedAsset::where('code', 'FA-OLD')->first();
 
         $this->assertSame(50000.0, (float) $asset->accumulated_depreciation);
         $this->assertSame(50000.0, $this->balance('accumulated_depreciation')); // credit-nature contra account
         $this->assertSame(10000.0, $this->balance('opening_balance_equity'));
 
         // Nobody ran April and May: running June posts all three months.
-        $result = app(\App\Services\Accounting\DepreciationService::class)->run(Carbon::parse('2026-06-30'));
+        $result = app(DepreciationService::class)->run(Carbon::parse('2026-06-30'));
         $this->assertSame(3000.0, $result['amount']);
-        $this->assertSame(3, \App\Models\AssetDepreciation::where('fixed_asset_id', $asset->id)->count());
+        $this->assertSame(3, AssetDepreciation::where('fixed_asset_id', $asset->id)->count());
         $this->assertSame(53000.0, (float) $asset->fresh()->accumulated_depreciation);
         $this->assertLedgerBalanced();
     }
@@ -399,7 +423,7 @@ class AccountingAuditTest extends TestCase
             'acquisition_date' => '2026-06-01', 'cost' => 1000, 'acquisition_vat' => 99, 'paid_from' => 'bank_transfer'])->assertSessionHasErrors('acquisition_vat');
         $this->assertSame(15000.0, $this->balance('vat_input'));
 
-        $asset = \App\Models\FixedAsset::where('code', 'FA-1')->first();
+        $asset = FixedAsset::where('code', 'FA-1')->first();
         $this->post(route('accounting.fixed-assets.dispose', $asset), ['date' => '2026-06-20', 'proceeds' => 90000, 'vat_amount' => 13500, 'method' => 'bank_transfer'])
             ->assertSessionHasNoErrors();
         $this->assertSame(13500.0, $this->balance('vat_output'));
@@ -425,8 +449,8 @@ class AccountingAuditTest extends TestCase
 
     public function test_cash_box_balance_and_transfer_check_follow_the_ledger(): void
     {
-        $cash = \App\Models\BankAccount::create(['name' => 'الصندوق', 'type' => 'cash', 'currency' => 'SAR', 'account_id' => $this->role('default_cash'), 'current_balance' => 0, 'is_active' => true]);
-        $bank = \App\Models\BankAccount::create(['name' => 'البنك', 'type' => 'bank', 'currency' => 'SAR', 'account_id' => $this->role('default_bank'), 'current_balance' => 0, 'is_active' => true]);
+        $cash = BankAccount::create(['name' => 'الصندوق', 'type' => 'cash', 'currency' => 'SAR', 'account_id' => $this->role('default_cash'), 'current_balance' => 0, 'is_active' => true]);
+        $bank = BankAccount::create(['name' => 'البنك', 'type' => 'bank', 'currency' => 'SAR', 'account_id' => $this->role('default_bank'), 'current_balance' => 0, 'is_active' => true]);
         app(InvoiceService::class)->create(['customer_id' => $this->customer->id, 'invoice_date' => '2026-06-10', 'payment_method' => 'cash', 'payment_status' => 'paid', 'bank_account_id' => $cash->id],
             [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 1000, 'tax_rate' => 15]], ['issue_stock' => false]);
 
@@ -446,7 +470,7 @@ class AccountingAuditTest extends TestCase
             'payment_date' => '2026-06-05', 'payment_method' => 'cash'])->assertSessionHasNoErrors();
         $this->assertSame(1150.0, (float) $invoice->fresh()->paid_amount);
 
-        app(\App\Services\Accounting\DocumentBackfill::class)->run($this->company);
+        app(DocumentBackfill::class)->run($this->company);
 
         $this->assertSame(0.0, $this->balance('receivables'));
         $this->assertSame(1150.0, $this->balance('default_cash')); // was 2,300: invoice "paid part" + the receipt
@@ -456,13 +480,13 @@ class AccountingAuditTest extends TestCase
 
     public function test_payroll_fines_are_held_for_the_workers_fund(): void
     {
-        $employee = \App\Models\Employee::create(['name' => 'أحمد', 'job_title' => 'فني', 'department' => 'التشغيل', 'hire_date' => '2020-01-01', 'nationality' => 'IN',
+        $employee = Employee::create(['name' => 'أحمد', 'job_title' => 'فني', 'department' => 'التشغيل', 'hire_date' => '2020-01-01', 'nationality' => 'IN',
             'basic_salary' => 3000, 'housing_allowance' => 0, 'transport_allowance' => 0, 'other_allowances' => 0, 'total_salary' => 3000,
             'status' => 'active', 'gosi_registered' => false, 'employee_number' => 'E100']);
-        \App\Models\EmployeeAdjustment::create(['employee_id' => $employee->id, 'year' => 2026, 'month' => 5, 'type' => 'penalty', 'amount' => 200]);
+        EmployeeAdjustment::create(['employee_id' => $employee->id, 'year' => 2026, 'month' => 5, 'type' => 'penalty', 'amount' => 200]);
 
-        $payroll = app(\App\Services\HR\PayrollService::class)->generate(2026, 5);
-        app(\App\Services\HR\PayrollService::class)->approve($payroll);
+        $payroll = app(PayrollService::class)->generate(2026, 5);
+        app(PayrollService::class)->approve($payroll);
 
         $this->assertSame(200.0, $this->balance('workers_fund'));
         $this->assertSame((float) $payroll->items()->first()->gross_salary, $this->balance('salaries_expense')); // not reduced by the fine

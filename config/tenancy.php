@@ -38,6 +38,16 @@ return [
     'allow_dev_override' => (bool) env('TENANCY_ALLOW_DEV_OVERRIDE', true),
 
     /*
+    | Reject requests whose Host is neither the central domain, a company
+    | subdomain, a verified custom domain nor listed in allowed_hosts. On by
+    | default in production: password-reset links are built from the Host.
+    | Turn off for a LAN install reached by IP / machine name.
+    */
+    'reject_unknown_hosts' => (bool) env('TENANCY_REJECT_UNKNOWN_HOSTS', env('APP_ENV') === 'production'),
+
+    'allowed_hosts' => array_values(array_filter(array_map('trim', explode(',', strtolower((string) env('TENANCY_ALLOWED_HOSTS', '')))))),
+
+    /*
     | Request rate limits for company routes (requests per minute).
     */
     /*

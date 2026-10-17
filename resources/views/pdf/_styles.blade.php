@@ -1,3 +1,8 @@
+@php
+    // Colours reach CSS: only #rrggbb values pass (no CSS injection from template settings).
+    $safe = fn ($c, $d) => \App\Services\Documents\FreeformLayout::color($c) ?? $d;
+    $color = $safe($color ?? null, '#0f172a');
+@endphp
 <style>
     body { font-size: 10pt; color: #0f172a; }
     .muted { color: #64748b; }
@@ -11,7 +16,7 @@
     .box { border: 0.6pt solid #cbd5e1; padding: 6pt 8pt; }
     .box-title { font-weight: bold; color: {{ $color }}; padding-bottom: 3pt; }
     .meta td { padding: 2pt 4pt; }
-    .lines th { background: {{ $layout['table']['header_bg'] ?? '#f1f5f9' }}; color: {{ $layout['table']['header_text_color'] ?? '#0f172a' }}; padding: 5pt 4pt; font-size: 9pt; border-bottom: 1pt solid {{ $color }}; }
+    .lines th { background: {{ $safe($layout['table']['header_bg'] ?? null, '#f1f5f9') }}; color: {{ $safe($layout['table']['header_text_color'] ?? null, '#0f172a') }}; padding: 5pt 4pt; font-size: 9pt; border-bottom: 1pt solid {{ $color }}; }
     .lines td { padding: 5pt 4pt; border-bottom: 0.5pt solid #e2e8f0; vertical-align: top; }
     .totals td { padding: 3.5pt 6pt; }
     .totals .grand td { background: {{ $color }}; color: #ffffff; font-weight: bold; font-size: 11pt; }

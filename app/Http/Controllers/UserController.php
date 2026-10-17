@@ -79,7 +79,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             // Emails are globally unique: login is by email and must map to one company.
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users', 'email')],
-            'password' => ['required', 'string', Password::min(8)],
+            'password' => ['required', 'string', Password::defaults()],
             'phone' => 'nullable|string|max:20',
             'branch_id' => 'nullable|tenant_exists:branches,id',
             'role' => ['required', 'string', $this->companyRoleRule()],
@@ -99,6 +99,8 @@ class UserController extends Controller
                 'branch_id' => $validated['branch_id'] ?? null,
                 'status' => $validated['status'],
                 'is_super_admin' => false,
+                // Added by the company's administrator, who vouches for the address.
+                'email_verified_at' => now(),
             ]);
             $user->save();
 
@@ -121,7 +123,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'password' => ['nullable', 'string', Password::min(8)],
+            'password' => ['nullable', 'string', Password::defaults()],
             'phone' => 'nullable|string|max:20',
             'branch_id' => 'nullable|tenant_exists:branches,id',
             'role' => ['required', 'string', $this->companyRoleRule()],
@@ -157,6 +159,11 @@ class UserController extends Controller
             }
 
             $user->syncRoles([$validated['role']]);
+
+            // A new password or a deactivation ends the user's other sessions and API tokens.
+            if (! empty($validated['password']) || $validated['status'] !== 'active') {
+                $user->revokeAccess();
+            }
         });
 
         AuditLog::record('user_updated', $user, ['role' => $oldRole], ['role' => $validated['role'], 'status' => $validated['status']]);
@@ -212,7 +219,19 @@ class UserController extends Controller
             return back()->withErrors(['user' => 'لا يمكن حذف مدير المنشأة الوحيد.']);
         }
 
+        // Users who issued documents are kept (deactivated) so history still names them.
+        if ($user->hasActivity()) {
+            $user->update(['status' => 'inactive']);
+            $user->revokeAccess();
+            AuditLog::record('user_deactivated', $user, ['email' => $user->email]);
+            $this->flushCache();
+
+            return redirect()->route('users.index')
+                ->with('success', 'للمستخدم حركات مسجلة، لذلك تم إيقافه بدلاً من حذفه.');
+        }
+
         AuditLog::record('user_deleted', $user, ['email' => $user->email]);
+        $user->revokeAccess();
         $user->delete();
         $this->flushCache();
 
@@ -249,12 +268,18 @@ class UserController extends Controller
     }
 
     /**
-     * Only an owner may manage another owner's account.
+     * Only an owner may manage another owner's account, and a non-owner may
+     * only manage users whose permissions they hold themselves (otherwise
+     * resetting their password would hand over the higher access).
      */
     protected function assertMayManageUser(Request $request, User $user): void
     {
         if ($user->hasRole($this->registry->ownerRole()) && ! $this->isPrivileged($request)) {
             abort(403, 'فقط مدير المنشأة يمكنه تعديل حساب مدير آخر.');
+        }
+
+        if (! $this->isPrivileged($request) && $user->getAllPermissions()->pluck('name')->diff($this->grantablePermissions($request))->isNotEmpty()) {
+            abort(403, 'لا يمكنك إدارة حساب مستخدم يملك صلاحيات أعلى من صلاحياتك.');
         }
     }
 

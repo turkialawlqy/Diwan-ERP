@@ -12,11 +12,12 @@ use App\Models\PosRegister;
 use App\Models\PosSession;
 use App\Models\Product;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Accounting\PostingService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\TenantManager;
 use App\Services\Zatca\EInvoiceManager;
-use Carbon\Carbon;
 use App\Services\Zatca\VatClassifier;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -422,9 +423,9 @@ class PosController extends Controller
         ]);
     }
 
-    protected function posting(): \App\Services\Accounting\PostingService
+    protected function posting(): PostingService
     {
-        return app(\App\Services\Accounting\PostingService::class);
+        return app(PostingService::class);
     }
 
     /** The register's own cash box (needed to move a float or a deposit). */

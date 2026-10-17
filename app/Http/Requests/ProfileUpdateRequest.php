@@ -26,6 +26,8 @@ class ProfileUpdateRequest extends FormRequest
                 'max:255',
                 Rule::unique(User::class)->ignore($this->user()->id),
             ],
+            // Changing the login email needs the current password (a stolen session cannot take the account over).
+            'current_password' => [Rule::requiredIf(fn () => strtolower((string) $this->input('email')) !== strtolower((string) $this->user()->email)), 'nullable', 'current_password'],
         ];
     }
 }

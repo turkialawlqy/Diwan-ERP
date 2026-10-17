@@ -11,7 +11,6 @@ use App\Models\EquipmentRental;
 use App\Models\Invoice;
 use App\Models\MaintenanceOrder;
 use App\Models\Product;
-use App\Models\Project;
 use App\Models\ProjectCost;
 use App\Models\Supplier;
 use App\Models\Warehouse;

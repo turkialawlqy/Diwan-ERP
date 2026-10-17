@@ -8,14 +8,20 @@ use App\Models\Cheque;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
+use App\Models\JournalEntry;
 use App\Models\Product;
+use App\Models\PurchaseInvoice;
+use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Models\Warehouse;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
+use App\Services\Accounting\DocumentPoster;
+use App\Services\Accounting\PostingService;
 use App\Services\Inventory\StockService;
 use App\Services\Purchases\PurchaseCycleService;
+use App\Services\Sales\CustomerStatement;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\SalesCycleService;
 use App\Services\TenantManager;
@@ -96,15 +102,15 @@ class DocumentCancellationTest extends TestCase
 
         // Twice is refused, and the statement no longer shows the receipt.
         $this->post(route('sales.payments.cancel', $payment), ['reason' => 'x'])->assertSessionHasErrors();
-        $this->assertSame(1150.0, app(\App\Services\Sales\CustomerStatement::class)->build($this->customer->fresh())['closing']);
+        $this->assertSame(1150.0, app(CustomerStatement::class)->build($this->customer->fresh())['closing']);
     }
 
     public function test_cancelling_a_supplier_payment_restores_what_is_owed(): void
     {
         [, , $supplier] = $this->stockSetup();
-        $bill = \App\Models\PurchaseInvoice::create(['supplier_id' => $supplier->id, 'invoice_number' => 'PI-1', 'invoice_date' => '2026-06-01',
+        $bill = PurchaseInvoice::create(['supplier_id' => $supplier->id, 'invoice_number' => 'PI-1', 'invoice_date' => '2026-06-01',
             'subtotal' => 1000, 'tax_amount' => 150, 'total' => 1150, 'paid_amount' => 0, 'remaining_amount' => 1150, 'payment_status' => 'unpaid', 'status' => 'approved']);
-        app(\App\Services\Accounting\DocumentPoster::class)->purchaseInvoice($bill);
+        app(DocumentPoster::class)->purchaseInvoice($bill);
         $this->post(route('purchases.payments.store'), ['supplier_id' => $supplier->id, 'purchase_invoice_id' => $bill->id, 'amount' => 500,
             'payment_date' => '2026-06-05', 'payment_method' => 'bank_transfer'])->assertSessionHasNoErrors();
         $this->assertSame(650.0, $this->balance('payables'));
@@ -127,7 +133,7 @@ class DocumentCancellationTest extends TestCase
         $this->assertSame(10.0, app(StockService::class)->onHand($item->id, $warehouse->id));
         $this->assertSame('cancelled', $note->fresh()->status);
         $this->assertSame(0.0, $this->balance('cogs'));
-        $this->assertSame(400.0, round((float) \App\Models\StockMovement::where('product_id', $item->id)->sum('total_cost'), 2));
+        $this->assertSame(400.0, round((float) StockMovement::where('product_id', $item->id)->sum('total_cost'), 2));
         $this->assertLedgerBalanced();
     }
 
@@ -148,10 +154,10 @@ class DocumentCancellationTest extends TestCase
     {
         $cash = BankAccount::create(['name' => 'الصندوق', 'type' => 'cash', 'currency' => 'SAR', 'account_id' => app(AccountMap::class)->id('default_cash'), 'current_balance' => 0, 'is_active' => true]);
         $bank = BankAccount::create(['name' => 'البنك', 'type' => 'bank', 'currency' => 'SAR', 'account_id' => app(AccountMap::class)->id('default_bank'), 'current_balance' => 0, 'is_active' => true]);
-        app(\App\Services\Accounting\PostingService::class)->post(['date' => '2026-06-01', 'description' => 'رصيد', 'entry_type' => 'opening', 'lines' => [
+        app(PostingService::class)->post(['date' => '2026-06-01', 'description' => 'رصيد', 'entry_type' => 'opening', 'lines' => [
             ['role' => 'default_cash', 'debit' => 5000], ['role' => 'capital', 'credit' => 5000]]]);
         $this->post(route('finance.transfers.store'), ['from_account_id' => $cash->id, 'to_account_id' => $bank->id, 'amount' => 2000, 'transfer_date' => '2026-06-02'])->assertSessionHasNoErrors();
-        $entry = \App\Models\JournalEntry::where('source_type', 'transfer')->first();
+        $entry = JournalEntry::where('source_type', 'transfer')->first();
 
         $this->post(route('finance.transfers.cancel', $entry), ['reason' => 'خطأ'])->assertSessionHasNoErrors();
         $this->assertSame([5000.0, 0.0], [$this->balance('default_cash'), $this->balance('default_bank')]);

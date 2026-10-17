@@ -2,16 +2,19 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasRoles, Notifiable;
@@ -99,5 +102,34 @@ class User extends Authenticatable
     {
         return $this->company_id !== null
             && $this->hasRole(config('erp_permissions.owner_role', 'admin'));
+    }
+
+    /**
+     * End every way back in: API tokens, stored sessions and the remember-me
+     * cookie. Sessions on other drivers are cut by the status check and
+     * AuthenticateSession (password hash) on their next request.
+     */
+    public function revokeAccess(): void
+    {
+        $this->tokens()->delete();
+        if (config('session.driver') === 'database') {
+            DB::table(config('session.table', 'sessions'))->where('user_id', $this->id)->delete();
+        }
+        $this->forceFill(['remember_token' => Str::random(60)])->saveQuietly();
+    }
+
+    /**
+     * Has the user recorded business activity? Such users are deactivated,
+     * never deleted, so documents keep who issued them.
+     */
+    public function hasActivity(): bool
+    {
+        foreach ([['pos_orders', 'user_id'], ['pos_sessions', 'user_id'], ['invoices', 'user_id'], ['journal_entries', 'created_by']] as [$table, $column]) {
+            if (Schema::hasColumn($table, $column) && DB::table($table)->where($column, $this->id)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

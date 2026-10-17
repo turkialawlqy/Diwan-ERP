@@ -37,6 +37,16 @@ class ResolveTenant
         $company = null;
         $fromHost = false;
 
+        // A deactivated account loses access on its next request (session, remember-me cookie or API token).
+        if ($user && $user->status !== null && $user->status !== 'active') {
+            if ($request->hasSession()) {
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
+            abort($request->expectsJson() ? 401 : 403, 'هذا الحساب موقوف. تواصل مع مدير المنشأة.');
+        }
+
         // Impersonation is time limited.
         if ($this->tenantManager->isImpersonating() && (int) session('impersonate_expires_at', 0) < now()->timestamp) {
             $this->tenantManager->stopImpersonation();
@@ -58,6 +68,12 @@ class ResolveTenant
 
             if (! $company && $this->isTenantHost($request->getHost())) {
                 abort(404, 'هذه المنشأة غير موجودة.');
+            }
+
+            // Links in emails (password reset, invitations) are built from the request host:
+            // a forged Host header must never be served.
+            if (! $company && ! $this->isKnownHost(strtolower($request->getHost()))) {
+                abort(404);
             }
         }
 
@@ -186,6 +202,20 @@ class ResolveTenant
         }
 
         return false;
+    }
+
+    /**
+     * Hosts served without a tenant: the central domain (and its reserved
+     * subdomains), extra hosts allowed in config, and — unless unknown hosts
+     * are rejected (production default) — anything else such as a LAN IP.
+     */
+    protected function isKnownHost(string $host): bool
+    {
+        if (! config('tenancy.reject_unknown_hosts')) {
+            return true;
+        }
+
+        return $this->isCentralHost($host) || in_array($host, config('tenancy.allowed_hosts', []), true);
     }
 
     protected function isIpAddress(string $host): bool

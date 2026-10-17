@@ -44,8 +44,10 @@ class GoogleAuthController extends Controller
                 ->where(function ($q) use ($googleUser) {
                     $q->where('google_id', $googleUser->getId());
 
+                    // Linked by email only to an account whose address was itself verified:
+                    // otherwise anyone who registered the address first would receive the owner's Google login.
                     if (($googleUser->user['email_verified'] ?? $googleUser->user['verified_email'] ?? false) && $googleUser->getEmail()) {
-                        $q->orWhere('email', strtolower($googleUser->getEmail()));
+                        $q->orWhere(fn ($q) => $q->where('email', strtolower($googleUser->getEmail()))->whereNotNull('email_verified_at'));
                     }
                 })
                 ->when($tenantId, fn ($q) => $q->where('company_id', $tenantId))

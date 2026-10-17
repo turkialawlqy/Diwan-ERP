@@ -23,20 +23,18 @@ const verificationLinkSent = computed(
 
 <template>
     <GuestLayout>
-        <Head title="Email Verification" />
+        <Head title="تأكيد البريد الإلكتروني" />
 
         <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-            Thanks for signing up! Before getting started, could you verify your
-            email address by clicking on the link we just emailed to you? If you
-            didn't receive the email, we will gladly send you another.
+            شكراً لتسجيلك. قبل البدء، أكّد بريدك الإلكتروني بالضغط على الرابط الذي أرسلناه إليك.
+            إن لم تصلك الرسالة (راجع مجلد البريد غير المرغوب) يمكنك طلب رسالة جديدة.
         </div>
 
         <div
             class="mb-4 text-sm font-medium text-green-600 dark:text-green-400"
             v-if="verificationLinkSent"
         >
-            A new verification link has been sent to the email address you
-            provided during registration.
+            أُرسل رابط تأكيد جديد إلى البريد الذي سجّلت به.
         </div>
 
         <form @submit.prevent="submit">
@@ -45,7 +43,7 @@ const verificationLinkSent = computed(
                     :class="{ 'opacity-25': form.processing }"
                     :disabled="form.processing"
                 >
-                    Resend Verification Email
+                    إعادة إرسال رسالة التأكيد
                 </PrimaryButton>
 
                 <Link
@@ -53,7 +51,7 @@ const verificationLinkSent = computed(
                     method="post"
                     as="button"
                     class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:text-gray-400 dark:hover:text-gray-100 dark:focus:ring-offset-gray-800"
-                    >Log Out</Link
+                    >تسجيل الخروج</Link
                 >
             </div>
         </form>

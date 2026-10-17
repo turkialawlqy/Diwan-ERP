@@ -6,6 +6,7 @@ use App\Models\Equipment;
 use App\Models\EquipmentMaintenanceSchedule;
 use App\Models\User;
 use App\Notifications\ErpAlert;
+use App\Services\TenantManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -100,7 +101,7 @@ class MaintenanceTracker
 
     public function notify(string $kind, string $title, string $body, ?string $url, string $level): void
     {
-        $users = User::where('company_id', app(\App\Services\TenantManager::class)->getTenantId())->where('status', 'active')->get()
+        $users = User::where('company_id', app(TenantManager::class)->getTenantId())->where('status', 'active')->get()
             ->filter(fn (User $u) => $u->can('equipment.maintenance.view'));
         foreach ($users as $user) {
             $user->notify(new ErpAlert($kind, $title, $body, $url, $level));

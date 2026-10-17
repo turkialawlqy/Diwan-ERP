@@ -49,7 +49,7 @@ class EquipmentReportController extends Controller
                 fputcsv($out, array_map(function ($key) use ($row) {
                     $v = $row[$key] ?? '';
 
-                    return is_string($v) && preg_match('/^[=+\-@]/', $v) ? "'".$v : $v;
+                    return is_string($v) && preg_match('/^[=+\-@\t\r|]/', $v) ? "'".$v : $v;
                 }, array_keys($columns)));
             }
             fclose($out);

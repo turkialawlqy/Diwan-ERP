@@ -4,7 +4,9 @@ namespace App\Services\Accounting;
 
 use App\Models\Account;
 use App\Models\BankAccount;
+use App\Models\Customer;
 use App\Models\JournalEntry;
+use App\Models\Supplier;
 use App\Services\TenantManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -437,8 +439,8 @@ class AccountingReports
     {
         $payables = $kind === 'payables';
         [$role, $partyType, $docTable, $partyColumn, $partyModel] = $payables
-            ? ['payables', 'supplier', 'purchase_invoices', 'supplier_id', \App\Models\Supplier::class]
-            : ['receivables', 'customer', 'invoices', 'customer_id', \App\Models\Customer::class];
+            ? ['payables', 'supplier', 'purchase_invoices', 'supplier_id', Supplier::class]
+            : ['receivables', 'customer', 'invoices', 'customer_id', Customer::class];
         $accountId = $this->map->id($role);
         $sign = $payables ? -1 : 1;
 
@@ -477,7 +479,9 @@ class AccountingReports
                     }
                     $open = min($left, round((float) $doc->total * (float) ($doc->exchange_rate ?: 1), 2));
                     $days = (int) Carbon::parse($doc->due_date ?: $doc->invoice_date)->startOfDay()->diffInDays($asOf->copy()->startOfDay(), false);
-                    $buckets[match (true) { $days <= 0 => 'current', $days <= 30 => 'd30', $days <= 60 => 'd60', $days <= 90 => 'd90', default => 'd90plus' }] += $open;
+                    $buckets[match (true) {
+                        $days <= 0 => 'current', $days <= 30 => 'd30', $days <= 60 => 'd60', $days <= 90 => 'd90', default => 'd90plus'
+                    }] += $open;
                     $left = round($left - $open, 2);
                 }
                 $buckets['d90plus'] += max(0, $left);

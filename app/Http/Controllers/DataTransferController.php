@@ -93,7 +93,7 @@ class DataTransferController extends Controller
                 fputcsv($out, array_map(function ($c) use ($row) {
                     $v = $row->getRawOriginal($c);
 
-                    return is_string($v) && preg_match('/^[=+\-@]/', $v) ? "'".$v : $v;
+                    return is_string($v) && preg_match('/^[=+\-@\t\r|]/', $v) ? "'".$v : $v;
                 }, $columns));
             });
             fclose($out);

@@ -4,7 +4,11 @@ namespace App\Services\Accounting;
 
 use App\Models\Cheque;
 use App\Models\Customer;
+use App\Models\CustomerPayment;
+use App\Models\Invoice;
+use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -84,10 +88,10 @@ class ChequeService
         // A cheque received / issued with a voucher: bouncing or cancelling it undoes the voucher
         // (its entry, invoice allocations and party balance), so nothing is posted twice.
         if (in_array($status, ['bounced', 'cancelled'], true) && $cheque->source_type && $cheque->source_id) {
-            $voucher = \Illuminate\Database\Eloquent\Relations\Relation::getMorphedModel($cheque->source_type) ?? $cheque->source_type;
+            $voucher = Relation::getMorphedModel($cheque->source_type) ?? $cheque->source_type;
             $document = $voucher::find($cheque->source_id);
             if ($document) {
-                $method = $document instanceof \App\Models\CustomerPayment ? 'customerPayment' : 'supplierPayment';
+                $method = $document instanceof CustomerPayment ? 'customerPayment' : 'supplierPayment';
                 app(DocumentCancellation::class)->{$method}($document, ($status === 'bounced' ? 'ارتداد الشيك ' : 'إلغاء الشيك ').$cheque->cheque_number, $status === 'bounced' ? 'bounced' : null);
 
                 return $cheque->fresh();
@@ -143,8 +147,8 @@ class ChequeService
     protected function settleLinkedInvoice(Cheque $cheque, int $sign): void
     {
         [$model, $id, $partyKey] = $cheque->direction === 'incoming'
-            ? [\App\Models\Invoice::class, $cheque->invoice_id, 'customer_id']
-            : [\App\Models\PurchaseInvoice::class, $cheque->purchase_invoice_id, 'supplier_id'];
+            ? [Invoice::class, $cheque->invoice_id, 'customer_id']
+            : [PurchaseInvoice::class, $cheque->purchase_invoice_id, 'supplier_id'];
         if (! $id) {
             return;
         }

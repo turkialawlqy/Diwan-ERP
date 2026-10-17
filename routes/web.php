@@ -20,14 +20,16 @@ use App\Http\Controllers\CurrencyController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerPaymentController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\DocumentCancellationController;
 use App\Http\Controllers\DataTransferController;
+use App\Http\Controllers\DocumentCancellationController;
 use App\Http\Controllers\DocumentShareController;
+use App\Http\Controllers\Equipment as EQ;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\Finance\BankAccountController;
 use App\Http\Controllers\Finance\ExpenseController;
 use App\Http\Controllers\Finance\RevenueController;
 use App\Http\Controllers\Finance\TransferController;
+use App\Http\Controllers\FreeformTemplateController;
 use App\Http\Controllers\HR\EmployeeController;
 use App\Http\Controllers\HR\HrOperationsController;
 use App\Http\Controllers\HR\HrSettingsController;
@@ -43,7 +45,6 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\Equipment as EQ;
 use App\Http\Controllers\Projects as PR;
 use App\Http\Controllers\PurchaseInvoiceController;
 use App\Http\Controllers\PurchaseOrderController;
@@ -61,7 +62,6 @@ use App\Http\Controllers\SuperAdmin\PlatformController;
 use App\Http\Controllers\SuperAdmin\SuperAdminDashboardController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierPaymentController;
-use App\Http\Controllers\FreeformTemplateController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
@@ -138,7 +138,7 @@ Route::middleware(['auth'])->group(function () {
 });
 
 // Company (tenant) ERP routes: authenticated user + resolved tenant required.
-Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'throttle:tenant-web'])->group(function () {
+Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'throttle:tenant-web'])->group(function () {
     // 1. Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 

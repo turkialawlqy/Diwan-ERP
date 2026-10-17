@@ -34,13 +34,17 @@ class DeliverWebhook implements ShouldQueue
             return;
         }
 
-        WebhookDispatcher::assertSafeUrl($endpoint->url);
+        $ip = WebhookDispatcher::assertSafeUrl($endpoint->url);
+        $parts = parse_url($endpoint->url);
+        $port = $parts['port'] ?? (($parts['scheme'] ?? 'https') === 'https' ? 443 : 80);
+        // Connect to the address that was vetted, not to a fresh DNS answer.
+        $pin = $ip ? ['curl' => [CURLOPT_RESOLVE => [trim($parts['host'], '[]').':'.$port.':'.(str_contains($ip, ':') ? '['.$ip.']' : $ip)]]] : [];
 
         $body = json_encode(['id' => $this->deliveryId, 'event' => $this->event, 'created_at' => now()->toIso8601String(), 'data' => $this->payload], JSON_UNESCAPED_UNICODE);
         $timestamp = (string) time();
         $signature = hash_hmac('sha256', $timestamp.'.'.$body, $endpoint->secret);
 
-        $response = Http::timeout(10)->withoutRedirecting()->withHeaders([
+        $response = Http::timeout(10)->withoutRedirecting()->withOptions($pin)->withHeaders([
             'Content-Type' => 'application/json',
             'X-Alostaz-Event' => $this->event,
             'X-Alostaz-Delivery' => $this->deliveryId,

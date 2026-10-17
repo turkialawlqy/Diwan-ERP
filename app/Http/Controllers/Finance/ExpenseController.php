@@ -9,6 +9,7 @@ use App\Models\Expense;
 use App\Services\Accounting\DocumentPoster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -76,7 +77,7 @@ class ExpenseController extends Controller
         // unregistered vendors carry none).
         $tax = ($validated['taxable'] ?? false) ? (float) ($validated['tax_amount'] ?? round($validated['amount'] * 0.15, 2)) : 0.0;
         if ($tax > 0 && empty($validated['vendor_tax_number'])) {
-            throw \Illuminate\Validation\ValidationException::withMessages(['vendor_tax_number' => 'ضريبة المدخلات تُسترد فقط بفاتورة ضريبية من مورد مسجل: أدخل الرقم الضريبي للمورد (15 رقماً).']);
+            throw ValidationException::withMessages(['vendor_tax_number' => 'ضريبة المدخلات تُسترد فقط بفاتورة ضريبية من مورد مسجل: أدخل الرقم الضريبي للمورد (15 رقماً).']);
         }
         $total = $validated['amount'] + $tax;
 

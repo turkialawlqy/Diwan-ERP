@@ -27,7 +27,7 @@ class ExportCompanyData implements ShouldQueue
 
     /** Columns never exported. */
     protected const SECRET_COLUMNS = ['password', 'remember_token', 'two_factor_secret', 'private_key', 'compliance_token', 'compliance_secret',
-        'production_token', 'production_secret', 'secret', 'csr', 'custom_domain_token'];
+        'production_token', 'production_secret', 'secret', 'csr', 'custom_domain_token', 'two_factor_recovery_codes', 'google_id'];
 
     protected const SKIP_TABLES = ['sessions', 'cache', 'cache_locks', 'jobs', 'job_batches', 'failed_jobs', 'password_reset_tokens', 'personal_access_tokens',
         'migrations', 'data_exports', 'notifications', 'platform_audit_logs'];
@@ -62,7 +62,7 @@ class ExportCompanyData implements ShouldQueue
                 $stream = fopen('php://temp', 'r+');
                 fputcsv($stream, $columns);
                 DB::table($table)->where('company_id', $company->id)->select($columns)->orderBy($columns[0])->lazy(1000)
-                    ->each(fn ($row) => fputcsv($stream, array_map(fn ($v) => is_string($v) && preg_match('/^[=+\-@]/', $v) ? "'".$v : $v, (array) $row)));
+                    ->each(fn ($row) => fputcsv($stream, array_map(fn ($v) => is_string($v) && preg_match('/^[=+\-@\t\r|]/', $v) ? "'".$v : $v, (array) $row)));
                 rewind($stream);
                 $zip->addFromString("{$table}.csv", "\xEF\xBB\xBF".stream_get_contents($stream));
                 fclose($stream);

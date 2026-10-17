@@ -112,7 +112,8 @@ class DocumentShareController extends Controller
                 'customer' => $customer,
                 'statement' => $statement,
                 'invoices' => $invoices,
-                'statementPdf' => $request->fullUrlWithQuery(['pdf' => 1]),
+                // Signed on its own: adding ?pdf=1 to the page URL would break its signature.
+                'statementPdf' => $this->sharing->portalLink($customer, true),
             ])->header('X-Robots-Tag', 'noindex, nofollow');
         });
     }

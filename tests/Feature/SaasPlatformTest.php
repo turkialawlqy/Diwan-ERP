@@ -157,6 +157,10 @@ class SaasPlatformTest extends TestCase
         $this->actingAs($admin);
 
         $this->post(route('super-admin.impersonate.enter', $this->company), [])->assertSessionHasErrors('reason');
+        // Without a recent password confirmation the admin is asked for it first.
+        $this->post(route('super-admin.impersonate.enter', $this->company), ['reason' => 'دعم فني للعميل'])->assertRedirect(route('password.confirm'));
+        $this->assertFalse(PlatformAuditLog::where('action', 'impersonation_started')->exists());
+        session(['auth.password_confirmed_at' => time()]);
         $this->post(route('super-admin.impersonate.enter', $this->company), ['reason' => 'دعم فني للعميل'])->assertRedirect();
         $this->assertTrue(PlatformAuditLog::where('action', 'impersonation_started')->where('company_id', $this->company->id)->exists());
 

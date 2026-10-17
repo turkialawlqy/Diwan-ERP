@@ -18,6 +18,10 @@ class TwoFactorController extends Controller
     public function enable(Request $request): JsonResponse
     {
         $request->validate(['current_password' => 'required|current_password'], [], ['current_password' => 'كلمة المرور الحالية']);
+        // Starting over would silently switch protection off: an active setup is disabled explicitly first.
+        if ($request->user()->hasTwoFactorEnabled()) {
+            throw ValidationException::withMessages(['current_password' => 'التحقق الثنائي مفعّل. عطّله أولاً ثم أعد ربط التطبيق.']);
+        }
 
         return response()->json($this->twoFactor->begin($request->user()));
     }

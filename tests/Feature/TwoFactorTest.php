@@ -129,11 +129,13 @@ class TwoFactorTest extends TestCase
 
         $this->actingAs($accountant)->get(route('dashboard'))->assertRedirect(route('profile.edit', ['two_factor' => 'required']));
         $this->get(route('profile.edit'))->assertOk();
+        $this->flushSession(); // another person's login starts its own session
         $this->actingAs($sales)->get(route('dashboard'))->assertOk();
 
         [$user] = [$accountant];
         app(TwoFactor::class)->begin($user);
         app(TwoFactor::class)->confirm($user, app(Totp::class)->code($user->fresh()->two_factor_secret));
+        $this->flushSession();
         $this->actingAs($user->fresh())->get(route('dashboard'))->assertOk();
         $this->deleteJson(route('two-factor.disable'), ['current_password' => 'secret-pass'])->assertStatus(422);
     }

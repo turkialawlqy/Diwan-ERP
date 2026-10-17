@@ -224,7 +224,7 @@ class PayrollService
         fwrite($out, "\xEF\xBB\xBF");
         foreach ($rows as $row) {
             // Neutralise spreadsheet formulas in text cells.
-            fputcsv($out, array_map(fn ($v) => is_string($v) && preg_match('/^[=+\-@]/', $v) ? "'".$v : $v, $row));
+            fputcsv($out, array_map(fn ($v) => is_string($v) && preg_match('/^[=+\-@\t\r|]/', $v) ? "'".$v : $v, $row));
         }
         rewind($out);
 

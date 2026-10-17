@@ -8,6 +8,7 @@ use App\Models\EquipmentBilling;
 use App\Models\EquipmentReading;
 use App\Models\MaintenanceOrder;
 use App\Models\MaintenanceOrderItem;
+use App\Services\TenantManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -101,7 +102,7 @@ class EquipmentReports
     {
         $done = DB::table('maintenance_order_schedules')
             ->join('maintenance_orders', 'maintenance_orders.id', '=', 'maintenance_order_schedules.maintenance_order_id')
-            ->where('maintenance_orders.company_id', app(\App\Services\TenantManager::class)->getTenantId())
+            ->where('maintenance_orders.company_id', app(TenantManager::class)->getTenantId())
             ->where('maintenance_orders.status', 'completed')
             ->whereBetween(DB::raw('DATE(maintenance_orders.completed_at)'), [$from->toDateString(), $to->toDateString()])
             ->groupBy('maintenance_orders.equipment_id')

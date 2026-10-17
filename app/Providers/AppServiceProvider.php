@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -60,9 +61,14 @@ class AppServiceProvider extends ServiceProvider
         $this->registerSecurityEventLogging();
         $this->registerAuthorization();
 
-        if ($this->app->environment('production')) {
+        if (config('security.force_https')) {
             URL::forceScheme('https');
         }
+
+        // Production passwords: 10+ characters and not in known breach lists.
+        Password::defaults(fn () => $this->app->environment('production')
+            ? Password::min(10)->uncompromised()
+            : Password::min(8));
     }
 
     /**

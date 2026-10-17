@@ -8,12 +8,12 @@ use App\Models\CreditNote;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\DebitNote;
-use App\Models\SalesOrder;
-use App\Models\SupplierPayment;
 use App\Models\DocumentDispatch;
 use App\Models\Invoice;
 use App\Models\ProgressBilling;
 use App\Models\Quotation;
+use App\Models\SalesOrder;
+use App\Models\SupplierPayment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\URL;
 
@@ -89,11 +89,11 @@ class DocumentSharing
     }
 
     /** Signed, expiring link to the customer's statement page. */
-    public function portalLink(Customer $customer): string
+    public function portalLink(Customer $customer, bool $pdf = false): string
     {
-        return URL::temporarySignedRoute('share.statement', now()->addDays(config('documents.share_link_days')), [
-            'company' => $customer->company_id, 'customer' => $customer->id,
-        ]);
+        return URL::temporarySignedRoute('share.statement', now()->addDays(config('documents.share_link_days')), array_filter([
+            'company' => $customer->company_id, 'customer' => $customer->id, 'pdf' => $pdf ? 1 : null,
+        ]));
     }
 
     public function message(Model $document, ?string $template = null): string

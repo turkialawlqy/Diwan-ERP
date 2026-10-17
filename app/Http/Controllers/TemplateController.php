@@ -138,7 +138,7 @@ class TemplateController extends Controller
             'name' => 'required|string|max:100',
             'mode' => 'nullable|in:quick,freeform',
             'template_type' => 'required|string|max:50',
-            'primary_color' => 'nullable|string|max:20',
+            'primary_color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
         ]);
 
         // Free-form: elements placed anywhere, starting from the kind's layout.
@@ -188,7 +188,7 @@ class TemplateController extends Controller
     {
         $validated = $request->validate([
             'name' => 'sometimes|string|max:100',
-            'primary_color' => 'nullable|string|max:20',
+            'primary_color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'show_logo' => 'nullable|boolean',
             'show_qr' => 'nullable|boolean',
             'show_stamp' => 'nullable|boolean',

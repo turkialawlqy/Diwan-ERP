@@ -11,9 +11,10 @@ use App\Models\Warehouse;
 use App\Services\Equipment\EquipmentReports;
 use App\Services\Equipment\MaintenanceService;
 use App\Services\Equipment\MaintenanceTracker;
+use App\Services\TenantManager;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class EquipmentController extends Controller
@@ -138,7 +139,7 @@ class EquipmentController extends Controller
     protected function validated(Request $request, ?Equipment $equipment = null): array
     {
         $data = $request->validate([
-            'code' => ['required', 'string', 'max:30', Rule::unique('equipment', 'code')->where('company_id', app(\App\Services\TenantManager::class)->getTenantId())->ignore($equipment?->id)->whereNull('deleted_at')],
+            'code' => ['required', 'string', 'max:30', Rule::unique('equipment', 'code')->where('company_id', app(TenantManager::class)->getTenantId())->ignore($equipment?->id)->whereNull('deleted_at')],
             'name' => 'required|string|max:191',
             'category' => 'nullable|string|max:60',
             'model' => 'nullable|string|max:100',
@@ -201,7 +202,7 @@ class EquipmentController extends Controller
         ], [], ['name' => 'اسم البند', 'interval_hours' => 'كل (ساعة)', 'interval_km' => 'كل (كم)', 'interval_days' => 'كل (يوم)']);
 
         if (empty($data['interval_hours']) && empty($data['interval_km']) && empty($data['interval_days'])) {
-            throw \Illuminate\Validation\ValidationException::withMessages(['interval_hours' => 'حدد فترة واحدة على الأقل: بالساعات أو الكيلومترات أو الأيام.']);
+            throw ValidationException::withMessages(['interval_hours' => 'حدد فترة واحدة على الأقل: بالساعات أو الكيلومترات أو الأيام.']);
         }
         foreach (['interval_hours', 'interval_km', 'interval_days', 'warn_hours', 'warn_km', 'warn_days', 'last_done_date', 'last_done_hours', 'last_done_km', 'product_id'] as $key) {
             if (array_key_exists($key, $data) && $data[$key] === '') {

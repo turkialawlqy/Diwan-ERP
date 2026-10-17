@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Accounting;
 
 use App\Http\Controllers\Controller;
 use App\Models\CostCenter;
+use App\Models\Employee;
 use App\Services\Accounting\AccountingReports;
+use App\Services\HR\EmployeeFinanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -36,7 +38,7 @@ class FinancialReportController extends Controller
         return Inertia::render('Accounting/Reports/BalanceSheet', [
             'report' => $this->reports->balanceSheet($asOf),
             // Part of the end-of-service provision falling due within a year (current liability).
-            'eosCurrent' => \App\Models\Employee::exists() ? app(\App\Services\HR\EmployeeFinanceService::class)->eosCurrentPortion($asOf) : 0,
+            'eosCurrent' => Employee::exists() ? app(EmployeeFinanceService::class)->eosCurrentPortion($asOf) : 0,
             'filters' => ['as_of' => $asOf->toDateString()],
         ]);
     }

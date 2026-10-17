@@ -28,6 +28,14 @@ class ImpersonationController extends Controller
         }
 
         $validated = $request->validate(['reason' => 'required|string|min:5|max:500']);
+
+        // Entering a customer's data needs a recently confirmed password (a hijacked admin session alone is not enough).
+        if (now()->timestamp - (int) $request->session()->get('auth.password_confirmed_at', 0) > (int) config('auth.password_timeout', 10800)) {
+            $request->session()->put('url.intended', url()->previous());
+
+            return redirect()->route('password.confirm')->with('status', 'أكّد كلمة المرور ثم أعد طلب الدخول إلى المنشأة.');
+        }
+
         $this->tenantManager->startImpersonation($company, $request->user());
         session(['impersonate_expires_at' => now()->addMinutes((int) config('tenancy.impersonation_minutes', 60))->timestamp]);
         app(SubscriptionService::class)->audit('impersonation_started', $company, ['reason' => $validated['reason']]);

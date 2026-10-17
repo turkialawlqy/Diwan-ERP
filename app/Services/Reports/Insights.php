@@ -183,7 +183,7 @@ class Insights
             ->groupBy('account_id')->selectRaw('account_id, SUM(amount) as amount')->pluck('amount', 'account_id');
         $accounts = Account::whereIn('id', $planned->keys())->get(['id', 'code', 'name_ar', 'type']);
         // Actuals exclude the year-end closing entry (it zeroes revenue and expenses).
-        $actual = collect(app(\App\Services\Accounting\AccountingReports::class)->totalsBetween(
+        $actual = collect(app(AccountingReports::class)->totalsBetween(
             Carbon::parse($year->start_date)->startOfDay(), $asOf->copy()->endOfMonth(), $accounts->pluck('id')->all() ?: [0], null, true,
         ))->map(fn ($t) => (object) ['d' => $t['debit'], 'c' => $t['credit']]);
 

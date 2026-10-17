@@ -15,8 +15,10 @@ use App\Models\PosSession;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
+use App\Services\Accounting\PeriodEndService;
 use App\Services\Accounting\PostingService;
 use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
@@ -129,7 +131,7 @@ class PosAndPeriodEndTest extends TestCase
         $this->assertSame(4312.5, $this->balance('receivables'));
 
         // June's balance sheet shows the receivable at the closing rate.
-        $june = app(\App\Services\Accounting\AccountingReports::class)->totalsBetween(null, Carbon::parse('2026-06-30'), [$this->role('receivables')]);
+        $june = app(AccountingReports::class)->totalsBetween(null, Carbon::parse('2026-06-30'), [$this->role('receivables')]);
         $this->assertSame(4370.0, round($june[$this->role('receivables')]['debit'] - $june[$this->role('receivables')]['credit'], 2));
 
         $this->post(route('accounting.period-end.revalue'), ['month' => '2026-06'])->assertSessionHasErrors('month');
@@ -145,17 +147,17 @@ class PosAndPeriodEndTest extends TestCase
         $posting->post(['date' => '2026-04-01', 'description' => 'قرض', 'lines' => [['role' => 'default_bank', 'debit' => 10000], ['role' => 'long_term_loans', 'credit' => 10000]]]);
         $year = FiscalYear::whereYear('start_date', 2026)->firstOrFail();
 
-        $zakat = app(\App\Services\Accounting\PeriodEndService::class)->zakatPreview($year);
+        $zakat = app(PeriodEndService::class)->zakatPreview($year);
         // 100,000 equity + 20,000 profit + 10,000 long-term loan - 30,000 fixed assets.
         $this->assertSame([100000.0, 20000.0, 10000.0, 30000.0, 100000.0], [$zakat['equity'], $zakat['adjusted_profit'], $zakat['long_term_liabilities'], $zakat['fixed_assets'], $zakat['base']]);
         $this->assertSame(2577.6, $zakat['amount']); // Gregorian year 2.5776%
-        $this->assertSame(1250.0, app(\App\Services\Accounting\PeriodEndService::class)->zakatPreview($year, ['calendar' => 'hijri', 'saudi_share' => 50])['amount']);
+        $this->assertSame(1250.0, app(PeriodEndService::class)->zakatPreview($year, ['calendar' => 'hijri', 'saudi_share' => 50])['amount']);
 
         $this->post(route('accounting.period-end.zakat'), ['fiscal_year_id' => $year->id])->assertSessionHasNoErrors();
         $this->assertSame(2577.6, $this->balance('zakat_payable'));
         $this->post(route('accounting.period-end.zakat'), ['fiscal_year_id' => $year->id])->assertSessionHasErrors('year');
 
         // Zakat booked as an expense is added back, so the base does not shrink.
-        $this->assertSame(100000.0, app(\App\Services\Accounting\PeriodEndService::class)->zakatPreview($year)['base']);
+        $this->assertSame(100000.0, app(PeriodEndService::class)->zakatPreview($year)['base']);
     }
 }

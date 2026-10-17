@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\Auth\TwoFactor;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -44,13 +46,22 @@ class TwoFactorChallengeController extends Controller
 
         $request->validate(['code' => 'nullable|string|max:10', 'recovery_code' => 'nullable|string|max:20'], [], ['code' => 'رمز التحقق', 'recovery_code' => 'رمز الاسترداد']);
 
+        // Failed codes lock the account out; each further lockout the same day doubles
+        // its length (5 tries / 15 min, then 30, 60...), so guessing the 6 digits is impractical.
         $key = 'two-factor:'.$user->id;
-        if (RateLimiter::tooManyAttempts($key, 5)) {
-            throw ValidationException::withMessages(['code' => 'محاولات كثيرة، حاول بعد '.RateLimiter::availableIn($key).' ثانية.']);
+        $lockouts = 'two-factor-lockouts:'.$user->id.':'.now()->toDateString();
+        $max = max(1, (int) config('security.two_factor_max_attempts', 5));
+        if (RateLimiter::tooManyAttempts($key, $max)) {
+            throw ValidationException::withMessages(['code' => 'محاولات كثيرة، حاول بعد '.(int) ceil(RateLimiter::availableIn($key) / 60).' دقيقة.']);
         }
 
         if (! $twoFactor->verifyLogin($user, $request->input('code'), $request->input('recovery_code'))) {
-            RateLimiter::hit($key, 60);
+            $count = (int) Cache::get($lockouts, 0);
+            RateLimiter::hit($key, (int) config('security.two_factor_lockout_minutes', 15) * 60 * (2 ** min($count, 6)));
+            if (RateLimiter::attempts($key) >= $max) {
+                Cache::put($lockouts, $count + 1, now()->endOfDay());
+                AuditLog::record('two_factor_lockout', $user, [], ['ip' => $request->ip(), 'lockouts_today' => $count + 1], $user->company_id, $user->id);
+            }
             throw ValidationException::withMessages([$request->filled('recovery_code') ? 'recovery_code' : 'code' => 'الرمز غير صحيح.']);
         }
 
