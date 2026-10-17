@@ -11,7 +11,7 @@ import { PlusIcon, TrashIcon } from '@heroicons/vue/24/outline';
 const props = defineProps({ templates: Array, accounts: Array, costCenters: Array });
 const open = ref(false);
 const blank = () => ({ account_id: '', cost_center_id: '', debit: 0, credit: 0, description: '' });
-const form = useForm({ name: '', description: '', frequency: 'monthly', next_run_date: new Date().toISOString().substring(0, 10), end_date: '', lines: [blank(), blank()] });
+const form = useForm({ name: '', description: '', frequency: 'monthly', next_run_date: new Date().toISOString().substring(0, 10), end_date: '', auto_reverse: false, lines: [blank(), blank()] });
 const totals = computed(() => form.lines.reduce((t, l) => ({ d: t.d + Number(l.debit || 0), c: t.c + Number(l.credit || 0) }), { d: 0, c: 0 }));
 const balanced = computed(() => Math.abs(totals.value.d - totals.value.c) < 0.01 && totals.value.d > 0);
 const save = () => form.post(route('accounting.recurring.store'), { preserveScroll: true, onSuccess: () => { open.value = false; form.reset(); } });
@@ -32,7 +32,7 @@ const freq = { monthly: 'شهري', quarterly: 'ربع سنوي', yearly: 'سن�
                 <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-4 py-2">{{ $t('ui.name') }}</th><th class="px-4 py-2">التكرار</th><th class="px-4 py-2">التشغيل القادم</th><th class="text-end px-4 py-2">{{ $t('ui.amount') }}</th><th class="px-4 py-2">{{ $t('ui.status') }}</th><th></th></tr></thead>
                 <tbody>
                     <tr v-for="t in templates" :key="t.id" class="border-t border-slate-100">
-                        <td class="px-4 py-2 font-semibold">{{ t.name }}<p class="text-slate-400 font-normal">{{ t.description }}</p></td>
+                        <td class="px-4 py-2 font-semibold">{{ t.name }} <span v-if="t.auto_reverse" class="text-3xs text-indigo-600 font-bold">(يُعكس تلقائياً)</span><p class="text-slate-400 font-normal">{{ t.description }}</p><p v-if="t.last_error" class="text-rose-600 font-normal text-3xs">تعذّر الترحيل: {{ t.last_error }}</p></td>
                         <td class="px-4 py-2 text-center">{{ freq[t.frequency] }}</td>
                         <td class="px-4 py-2 text-center font-mono">{{ date(t.next_run_date) }}</td>
                         <td class="px-4 py-2 text-end font-mono">{{ money(t.lines.reduce((s, l) => s + Number(l.debit || 0), 0)) }}</td>
@@ -47,6 +47,7 @@ const freq = { monthly: 'شهري', quarterly: 'ربع سنوي', yearly: 'سن�
         <Dialog :show="open" title="قيد متكرر جديد" size="lg" @close="open = false">
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-3">
                 <Field label="الاسم" :error="form.errors.name"><input v-model="form.name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <label class="flex items-center gap-2 text-xs col-span-full"><input v-model="form.auto_reverse" type="checkbox" class="rounded" /> قيد استحقاق: يُعكس تلقائياً في اليوم التالي</label>
                 <Field label="التكرار"><select v-model="form.frequency" class="w-full rounded-xl border-slate-200 text-xs"><option v-for="(l, k) in freq" :key="k" :value="k">{{ l }}</option></select></Field>
                 <Field label="أول تشغيل"><input v-model="form.next_run_date" type="date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="ينتهي في (اختياري)"><input v-model="form.end_date" type="date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>

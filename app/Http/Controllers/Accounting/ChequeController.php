@@ -60,6 +60,8 @@ class ChequeController extends Controller
             'amount' => 'required|numeric|min:0.01',
             'issue_date' => 'required|date',
             'due_date' => 'required|date',
+            'invoice_id' => 'nullable|tenant_exists:invoices,id',
+            'purchase_invoice_id' => 'nullable|tenant_exists:purchase_invoices,id',
             'notes' => 'nullable|string',
         ]);
 

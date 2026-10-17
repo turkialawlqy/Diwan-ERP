@@ -242,8 +242,9 @@ class HrOperationsController extends Controller
     {
         $validated = $request->validate(['date' => 'required|date']);
         $difference = $finance->accrueProvision(Carbon::parse($validated['date']));
+        $leave = $finance->accrueLeaveProvision(Carbon::parse($validated['date']));
 
-        return back()->with('success', 'تم تحديث مخصص نهاية الخدمة بفرق '.number_format($difference, 2));
+        return back()->with('success', 'تم تحديث مخصص نهاية الخدمة بفرق '.number_format($difference, 2).' ومخصص الإجازات بفرق '.number_format($leave, 2));
     }
 
     public function ensureLeaveTypes(): void

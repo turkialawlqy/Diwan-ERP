@@ -36,6 +36,7 @@ class RecurringJournalController extends Controller
             'lines.*.debit' => 'required|numeric|min:0',
             'lines.*.credit' => 'required|numeric|min:0',
             'lines.*.description' => 'nullable|string|max:255',
+            'auto_reverse' => 'boolean',
         ]);
 
         $debit = round(collect($validated['lines'])->sum('debit'), 2);

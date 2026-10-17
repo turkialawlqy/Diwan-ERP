@@ -54,6 +54,7 @@ class ChequeService
 
             // The party owes (or is owed) less once the cheque is handed over.
             $this->syncPartyBalance($cheque, -1);
+            $this->settleLinkedInvoice($cheque, 1);
 
             return $cheque;
         });
@@ -80,6 +81,19 @@ class ChequeService
             throw new AccountingException('لا يمكن تغيير حالة الشيك من «'.$cheque->status.'» إلى «'.$status.'».');
         }
 
+        // A cheque received / issued with a voucher: bouncing or cancelling it undoes the voucher
+        // (its entry, invoice allocations and party balance), so nothing is posted twice.
+        if (in_array($status, ['bounced', 'cancelled'], true) && $cheque->source_type && $cheque->source_id) {
+            $voucher = \Illuminate\Database\Eloquent\Relations\Relation::getMorphedModel($cheque->source_type) ?? $cheque->source_type;
+            $document = $voucher::find($cheque->source_id);
+            if ($document) {
+                $method = $document instanceof \App\Models\CustomerPayment ? 'customerPayment' : 'supplierPayment';
+                app(DocumentCancellation::class)->{$method}($document, ($status === 'bounced' ? 'ارتداد الشيك ' : 'إلغاء الشيك ').$cheque->cheque_number, $status === 'bounced' ? 'bounced' : null);
+
+                return $cheque->fresh();
+            }
+        }
+
         return DB::transaction(function () use ($cheque, $status, $date, $bankAccountId) {
             $amount = (float) $cheque->amount;
             $bank = $bankAccountId ?? $cheque->bank_account_id;
@@ -100,6 +114,7 @@ class ChequeService
                     : [['role' => 'cheques_payable', 'debit' => $amount], array_merge($party, ['credit' => $amount])];
                 $description = ($status === 'bounced' ? 'ارتجاع الشيك رقم ' : 'إلغاء الشيك رقم ').$cheque->cheque_number;
                 $this->syncPartyBalance($cheque, 1);
+                $this->settleLinkedInvoice($cheque, -1);
             }
 
             if ($lines) {
@@ -119,6 +134,36 @@ class ChequeService
 
             return $cheque;
         });
+    }
+
+    /**
+     * A cheque registered against an invoice pays it ($sign 1) or, when it
+     * bounces / is cancelled, reopens it ($sign -1).
+     */
+    protected function settleLinkedInvoice(Cheque $cheque, int $sign): void
+    {
+        [$model, $id, $partyKey] = $cheque->direction === 'incoming'
+            ? [\App\Models\Invoice::class, $cheque->invoice_id, 'customer_id']
+            : [\App\Models\PurchaseInvoice::class, $cheque->purchase_invoice_id, 'supplier_id'];
+        if (! $id) {
+            return;
+        }
+
+        $invoice = $model::whereKey($id)->lockForUpdate()->firstOrFail();
+        $amount = (float) $cheque->amount;
+        if ($sign > 0) {
+            if ((int) $invoice->{$partyKey} !== (int) $cheque->party_id || ! app(ExchangeRates::class)->isBase($invoice->currency_code)) {
+                throw new AccountingException('الفاتورة المحددة لا تخص صاحب الشيك أو ليست بالعملة الأساسية.');
+            }
+            if ($amount > (float) $invoice->remaining_amount + 0.01) {
+                throw new AccountingException("مبلغ الشيك أكبر من المتبقي على الفاتورة ({$invoice->remaining_amount}).");
+            }
+        }
+
+        $paid = max(0, round((float) $invoice->paid_amount + $sign * $amount, 2));
+        $remaining = max(0, round((float) $invoice->remaining_amount - $sign * $amount, 2));
+        $invoice->update(['paid_amount' => $paid, 'remaining_amount' => $remaining,
+            'payment_status' => $remaining <= 0.004 ? 'paid' : ($paid > 0 ? 'partially_paid' : 'unpaid')]);
     }
 
     protected function partyLine(Cheque $cheque): array

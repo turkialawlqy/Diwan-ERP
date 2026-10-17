@@ -30,7 +30,7 @@ const columns = [['current', 'غير مستحق'], ['d30', '1-30 يوم'], ['d60
                     <tr><th class="text-start px-3 py-2">{{ $t('ui.name') }}</th><th v-for="c in columns" :key="c[0]" class="text-end px-3 py-2">{{ c[1] }}</th></tr>
                 </thead>
                 <tbody>
-                    <tr v-for="row in report.rows" :key="row.id" class="border-t border-slate-100">
+                    <tr v-for="row in report.rows" :key="row.id ?? `none`" class="border-t border-slate-100">
                         <td class="px-3 py-2 font-semibold text-slate-700">{{ row.name }}</td>
                         <td v-for="c in columns" :key="c[0]" :class="['px-3 py-2 text-end font-mono', c[0] === 'd90plus' && row[c[0]] ? 'text-rose-600 font-bold' : '']">{{ row[c[0]] ? money(row[c[0]]) : '' }}</td>
                     </tr>

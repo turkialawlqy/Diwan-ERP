@@ -6,7 +6,7 @@ import DateRangeFilter from '@/Components/UI/DateRangeFilter.vue';
 import StatementSection from '@/Components/UI/StatementSection.vue';
 import { amount } from '@/utils/format';
 
-const props = defineProps({ report: Object, filters: Object });
+const props = defineProps({ report: Object, filters: Object, eosCurrent: { type: Number, default: 0 } });
 const ledgerQuery = { end_date: props.filters.as_of };
 const printPage = () => window.print();
 </script>
@@ -30,6 +30,7 @@ const printPage = () => window.print();
             </div>
             <div class="bg-white border border-slate-200 rounded-2xl p-5">
                 <StatementSection title="الخصوم" :rows="report.liabilities.rows" :total="report.total_liabilities" :ledger-query="ledgerQuery" />
+                <p v-if="eosCurrent > 0" class="text-3xs text-slate-500 px-1">منها جزء متداول من مخصص نهاية الخدمة (مستحق خلال 12 شهراً): <span class="font-mono font-bold">{{ amount(eosCurrent) }}</span></p>
                 <StatementSection title="حقوق الملكية" :rows="[...report.equity.rows, { name: 'صافي ربح/خسارة الفترة غير المقفلة', amount: report.unclosed_profit }]" :total="report.total_equity" :ledger-query="ledgerQuery" />
                 <div class="flex justify-between px-4 py-2 rounded-xl bg-slate-100 font-black text-xs">
                     <span>إجمالي الخصوم وحقوق الملكية</span>

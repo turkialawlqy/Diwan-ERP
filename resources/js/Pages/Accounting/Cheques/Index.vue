@@ -15,7 +15,20 @@ const props = defineProps({ cheques: Object, summary: Object, bankAccounts: Arra
 
 const today = new Date().toISOString().substring(0, 10);
 const open = ref(false);
-const form = useForm({ direction: 'incoming', cheque_number: '', bank_name: '', bank_account_id: '', party_type: 'customer', party_id: '', amount: '', issue_date: today, due_date: today, notes: '' });
+const form = useForm({ direction: 'incoming', cheque_number: '', bank_name: '', bank_account_id: '', party_type: 'customer', party_id: '', invoice_id: '', amount: '', issue_date: today, due_date: today, notes: '' });
+// Open invoices of the chosen customer: a cheque against one of them pays it.
+const openInvoices = ref([]);
+const loadInvoices = async () => {
+    openInvoices.value = [];
+    form.invoice_id = '';
+    if (form.party_type !== 'customer' || !form.party_id) return;
+    try {
+        const { data } = await axios.get(route('sales.payments.open-invoices'), { params: { customer_id: form.party_id } });
+        openInvoices.value = (data.data || []).filter((i) => !i.currency_code || i.currency_code === 'SAR');
+    } catch (e) {
+        openInvoices.value = [];
+    }
+};
 
 // Party search (customers / suppliers) through the bounded lookup endpoints.
 const partyQuery = ref('');
@@ -25,7 +38,7 @@ const searchParty = async () => {
     const { data } = await axios.get(route(form.party_type === 'customer' ? 'lookup.customers' : 'lookup.suppliers'), { params: { q: partyQuery.value } });
     partyResults.value = data.data;
 };
-const pickParty = (p) => { form.party_id = p.id; partyQuery.value = p.name; partyResults.value = []; };
+const pickParty = (p) => { form.party_id = p.id; partyQuery.value = p.name; partyResults.value = []; loadInvoices(); };
 const setDirection = (d) => { form.direction = d; form.party_type = d === 'incoming' ? 'customer' : 'supplier'; form.party_id = ''; partyQuery.value = ''; };
 
 const save = () => form.post(route('accounting.cheques.store'), { preserveScroll: true, onSuccess: () => { open.value = false; form.reset(); partyQuery.value = ''; } });
@@ -106,6 +119,12 @@ const move = (cheque, status) => {
                         <button v-for="p in partyResults" :key="p.id" type="button" @mousedown.prevent="pickParty(p)" @keydown.enter.prevent="pickParty(p)" class="block w-full text-start px-3 py-2 hover:bg-indigo-50">{{ p.name }}</button>
                     </div>
                 </div>
+                <Field v-if="openInvoices.length" label="عن فاتورة (اختياري)" :error="form.errors.invoice_id">
+                    <select v-model="form.invoice_id" class="w-full rounded-xl border-slate-200 text-xs">
+                        <option value="">على الحساب</option>
+                        <option v-for="i in openInvoices" :key="i.id" :value="i.id">{{ i.invoice_number }} — متبقي {{ i.remaining_amount }}</option>
+                    </select>
+                </Field>
                 <Field label="رقم الشيك" :error="form.errors.cheque_number"><input v-model="form.cheque_number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="المبلغ" :error="form.errors.amount"><input v-model="form.amount" type="number" step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="تاريخ الإصدار"><input v-model="form.issue_date" type="date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>

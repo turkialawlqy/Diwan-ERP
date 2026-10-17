@@ -13,7 +13,7 @@ class Cheque extends Model
 
     protected $fillable = [
         'company_id', 'direction', 'cheque_number', 'bank_name', 'bank_account_id', 'party_type', 'party_id', 'party_name',
-        'amount', 'issue_date', 'due_date', 'status', 'notes', 'history', 'created_by', 'source_type', 'source_id',
+        'amount', 'issue_date', 'due_date', 'status', 'notes', 'history', 'created_by', 'source_type', 'source_id', 'invoice_id', 'purchase_invoice_id',
     ];
 
     protected $casts = ['issue_date' => 'date', 'due_date' => 'date', 'amount' => 'decimal:2', 'history' => 'array'];

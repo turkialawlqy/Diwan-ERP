@@ -16,7 +16,7 @@ class HrProvision extends Command
 {
     protected $signature = 'erp:hr-provision {--date= : Provision date (default: end of last month)}';
 
-    protected $description = 'Post the end-of-service provision adjustment for each company';
+    protected $description = 'Post the end-of-service and annual leave provision adjustments for each company';
 
     public function handle(TenantManager $tenantManager, EmployeeFinanceService $finance): int
     {
@@ -24,8 +24,8 @@ class HrProvision extends Command
 
         Company::query()->where('status', '!=', 'suspended')->each(function (Company $company) use ($tenantManager, $finance, $date) {
             try {
-                $difference = $tenantManager->runAs($company, fn () => Employee::exists() ? $finance->accrueProvision($date) : 0);
-                $this->line("{$company->name}: ".number_format($difference, 2));
+                [$difference, $leave] = $tenantManager->runAs($company, fn () => Employee::exists() ? [$finance->accrueProvision($date), $finance->accrueLeaveProvision($date)] : [0, 0]);
+                $this->line("{$company->name}: ".number_format($difference, 2).' / '.number_format($leave, 2));
             } catch (\Throwable $e) {
                 $this->error("{$company->name}: {$e->getMessage()}");
             }

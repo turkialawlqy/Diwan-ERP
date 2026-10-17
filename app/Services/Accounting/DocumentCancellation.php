@@ -43,12 +43,13 @@ class DocumentCancellation
         protected StockService $stock,
     ) {}
 
-    public function customerPayment(CustomerPayment $payment, string $reason): void
+    /** $chequeStatus: set when the voucher is undone because its cheque bounced. */
+    public function customerPayment(CustomerPayment $payment, string $reason, ?string $chequeStatus = null): void
     {
-        DB::transaction(function () use ($payment, $reason) {
+        DB::transaction(function () use ($payment, $reason, $chequeStatus) {
             $payment = CustomerPayment::whereKey($payment->id)->lockForUpdate()->firstOrFail();
             $this->assertActive($payment, 'سند القبض');
-            $this->releaseCheque($payment);
+            $this->releaseCheque($payment, $chequeStatus);
 
             $allocations = PaymentAllocation::where('customer_payment_id', $payment->id)->get();
             $parts = $allocations->isNotEmpty()
@@ -71,15 +72,15 @@ class DocumentCancellation
         });
     }
 
-    public function supplierPayment(SupplierPayment $payment, string $reason): void
+    public function supplierPayment(SupplierPayment $payment, string $reason, ?string $chequeStatus = null): void
     {
-        DB::transaction(function () use ($payment, $reason) {
+        DB::transaction(function () use ($payment, $reason, $chequeStatus) {
             $payment = SupplierPayment::whereKey($payment->id)->lockForUpdate()->firstOrFail();
             $this->assertActive($payment, 'سند الصرف');
             if (str_starts_with((string) $payment->notes, self::BILL_PAYMENT_NOTE)) {
                 throw ValidationException::withMessages(['payment' => 'هذا السداد سُجّل مع فاتورة الشراء نفسها وقيده جزء من قيد الفاتورة؛ يُعالَج بمرتجع أو تسوية على الفاتورة.']);
             }
-            $this->releaseCheque($payment);
+            $this->releaseCheque($payment, $chequeStatus);
 
             $difference = 0.0;
             if ($payment->purchase_invoice_id && ($invoice = PurchaseInvoice::whereKey($payment->purchase_invoice_id)->lockForUpdate()->first())) {
@@ -201,8 +202,12 @@ class DocumentCancellation
         }
     }
 
-    /** A cheque still in hand is cancelled with its voucher; one already deposited or cleared must be bounced first. */
-    protected function releaseCheque(Model $payment): void
+    /**
+     * A cheque still in hand is cancelled with its voucher; one already
+     * deposited or cleared must be bounced first (a bounce of a deposited
+     * cheque arrives here with $status = bounced).
+     */
+    protected function releaseCheque(Model $payment, ?string $status = null): void
     {
         if ($payment->payment_method !== 'cheque') {
             return;
@@ -212,13 +217,15 @@ class DocumentCancellation
         if (! $cheque) {
             return;
         }
-        if ($cheque->status !== 'pending') {
+        $allowed = $status === 'bounced' ? ['pending', 'deposited'] : ['pending'];
+        if (! in_array($cheque->status, $allowed, true)) {
             throw ValidationException::withMessages(['payment' => "الشيك رقم {$cheque->cheque_number} حالته «{$cheque->status}»؛ لا يُلغى السند إلا والشيك ما زال لدينا. سجّل ارتداد الشيك من وحدة الشيكات."]);
         }
 
+        $status ??= 'cancelled';
         $cheque->update([
-            'status' => 'cancelled',
-            'history' => array_merge((array) $cheque->history, [['status' => 'cancelled', 'date' => now()->toDateString(), 'by' => auth()->id(), 'note' => 'إلغاء السند']]),
+            'status' => $status,
+            'history' => array_merge((array) $cheque->history, [['status' => $status, 'date' => now()->toDateString(), 'by' => auth()->id(), 'note' => $status === 'bounced' ? 'ارتداد الشيك وإلغاء سنده' : 'إلغاء السند']]),
         ]);
     }
 

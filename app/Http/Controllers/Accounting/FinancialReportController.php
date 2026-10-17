@@ -35,6 +35,8 @@ class FinancialReportController extends Controller
 
         return Inertia::render('Accounting/Reports/BalanceSheet', [
             'report' => $this->reports->balanceSheet($asOf),
+            // Part of the end-of-service provision falling due within a year (current liability).
+            'eosCurrent' => \App\Models\Employee::exists() ? app(\App\Services\HR\EmployeeFinanceService::class)->eosCurrentPortion($asOf) : 0,
             'filters' => ['as_of' => $asOf->toDateString()],
         ]);
     }

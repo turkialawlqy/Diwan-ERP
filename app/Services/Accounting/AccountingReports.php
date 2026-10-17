@@ -425,50 +425,78 @@ class AccountingReports
     /**
      * Receivable / payable aging from open documents.
      */
+    /**
+     * Aging as of a date, equal to the ledger: each party's balance on the
+     * receivables / payables account at that date (journal lines carry the
+     * party) is spread over its most recent invoices (older ones are taken as
+     * paid first) and aged by their due date. A balance larger than the
+     * invoices (opening balances) is shown as over 90 days, a credit balance
+     * (advance) as current; lines without a party form their own row.
+     */
     public function aging(string $kind, Carbon $asOf): array
     {
-        [$table, $partyColumn, $partyTable, $dateColumn] = $kind === 'payables'
-            ? ['purchase_invoices', 'supplier_id', 'suppliers', 'invoice_date']
-            : ['invoices', 'customer_id', 'customers', 'invoice_date'];
+        $payables = $kind === 'payables';
+        [$role, $partyType, $docTable, $partyColumn, $partyModel] = $payables
+            ? ['payables', 'supplier', 'purchase_invoices', 'supplier_id', \App\Models\Supplier::class]
+            : ['receivables', 'customer', 'invoices', 'customer_id', \App\Models\Customer::class];
+        $accountId = $this->map->id($role);
+        $sign = $payables ? -1 : 1;
 
-        $asOfStr = $asOf->toDateString();
-        $driver = DB::getDriverName();
-        $daysExpr = $driver === 'sqlite'
-            ? "CAST(julianday('{$asOfStr}') - julianday(COALESCE(d.due_date, d.{$dateColumn})) AS INTEGER)"
-            : "DATEDIFF('{$asOfStr}', COALESCE(d.due_date, d.{$dateColumn}))";
+        $balances = DB::table('journal_entry_lines as l')
+            ->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
+            ->where('e.company_id', $this->companyId())
+            ->whereIn('e.status', [JournalEntry::STATUS_POSTED, JournalEntry::STATUS_REVERSED])
+            ->where('e.date', '<=', $asOf->toDateString().' 23:59:59')
+            ->where('l.account_id', $accountId)
+            ->groupBy('l.party_type', 'l.party_id')
+            ->selectRaw('l.party_type, l.party_id, SUM(l.debit - l.credit) as balance')
+            ->get();
 
-        $rows = DB::table("{$table} as d")
-            ->join("{$partyTable} as p", 'p.id', '=', "d.{$partyColumn}")
-            ->where('d.company_id', $this->companyId())
-            ->where('d.remaining_amount', '>', 0)
-            ->where("d.{$dateColumn}", '<=', $asOfStr.' 23:59:59')
-            ->groupBy('p.id', 'p.name')
-            ->selectRaw("p.id, p.name,
-                SUM(CASE WHEN {$daysExpr} <= 0 THEN d.remaining_amount * d.exchange_rate ELSE 0 END) as current_amount,
-                SUM(CASE WHEN {$daysExpr} BETWEEN 1 AND 30 THEN d.remaining_amount * d.exchange_rate ELSE 0 END) as d30,
-                SUM(CASE WHEN {$daysExpr} BETWEEN 31 AND 60 THEN d.remaining_amount * d.exchange_rate ELSE 0 END) as d60,
-                SUM(CASE WHEN {$daysExpr} BETWEEN 61 AND 90 THEN d.remaining_amount * d.exchange_rate ELSE 0 END) as d90,
-                SUM(CASE WHEN {$daysExpr} > 90 THEN d.remaining_amount * d.exchange_rate ELSE 0 END) as d90plus,
-                SUM(d.remaining_amount * d.exchange_rate) as total")
-            ->orderByDesc('total')
-            ->get()
-            ->map(fn ($r) => [
-                'id' => $r->id,
-                'name' => $r->name,
-                'current' => round((float) $r->current_amount, 2),
-                'd30' => round((float) $r->d30, 2),
-                'd60' => round((float) $r->d60, 2),
-                'd90' => round((float) $r->d90, 2),
-                'd90plus' => round((float) $r->d90plus, 2),
-                'total' => round((float) $r->total, 2),
-            ]);
+        $names = $partyModel::whereIn('id', $balances->where('party_type', $partyType)->pluck('party_id')->filter())->pluck('name', 'id');
+        $empty = ['current' => 0.0, 'd30' => 0.0, 'd60' => 0.0, 'd90' => 0.0, 'd90plus' => 0.0];
+        $rows = collect();
 
+        foreach ($balances as $b) {
+            $balance = round($sign * (float) $b->balance, 2);
+            if (abs($balance) < 0.005) {
+                continue;
+            }
+            $buckets = $empty;
+            $isParty = $b->party_type === $partyType && $b->party_id;
+
+            if ($balance < 0 || ! $isParty) {
+                $buckets[$balance < 0 ? 'current' : 'd90plus'] = $balance;
+            } else {
+                $left = $balance;
+                $documents = DB::table($docTable)->where('company_id', $this->companyId())->where($partyColumn, $b->party_id)
+                    ->where('invoice_date', '<=', $asOf->toDateString().' 23:59:59')
+                    ->orderByDesc('invoice_date')->orderByDesc('id')->get(['total', 'exchange_rate', 'invoice_date', 'due_date']);
+                foreach ($documents as $doc) {
+                    if ($left <= 0.004) {
+                        break;
+                    }
+                    $open = min($left, round((float) $doc->total * (float) ($doc->exchange_rate ?: 1), 2));
+                    $days = (int) Carbon::parse($doc->due_date ?: $doc->invoice_date)->startOfDay()->diffInDays($asOf->copy()->startOfDay(), false);
+                    $buckets[match (true) { $days <= 0 => 'current', $days <= 30 => 'd30', $days <= 60 => 'd60', $days <= 90 => 'd90', default => 'd90plus' }] += $open;
+                    $left = round($left - $open, 2);
+                }
+                $buckets['d90plus'] += max(0, $left);
+            }
+
+            $rows->push(array_merge(
+                ['id' => $isParty ? (int) $b->party_id : null, 'name' => $isParty ? ($names[$b->party_id] ?? '#'.$b->party_id) : 'قيود بدون تحديد طرف'],
+                array_map(fn ($v) => round($v, 2), $buckets),
+                ['total' => $balance],
+            ));
+        }
+
+        $rows = $rows->sortByDesc('total')->values();
         $totals = [];
         foreach (['current', 'd30', 'd60', 'd90', 'd90plus', 'total'] as $key) {
             $totals[$key] = round($rows->sum($key), 2);
         }
 
-        return ['rows' => $rows->values(), 'totals' => $totals];
+        return ['rows' => $rows, 'totals' => $totals];
     }
 
     /** Zero-rated supplies that are exports (ZATCA exemption codes). */

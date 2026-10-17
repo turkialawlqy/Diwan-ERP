@@ -129,6 +129,49 @@ class EmployeeFinanceService
     }
 
     /**
+     * Post the change in the accrued annual leave liability: unused leave
+     * days of every active employee at the daily wage.
+     */
+    public function accrueLeaveProvision(Carbon $asOf): float
+    {
+        return DB::transaction(function () use ($asOf) {
+            $days = CompanyPolicy::get('hr.month_days', 30);
+            $liability = round(Employee::where('status', '!=', 'terminated')->whereNotNull('hire_date')->get()
+                ->sum(fn ($e) => max(0, $this->leaves->balance($e, $asOf)['balance']) * $this->gratuity($e, $asOf, 'termination')['wage'] / $days), 2);
+            $current = (float) Account::whereKey($this->accounts->id('leave_provision'))->value('balance');
+            $difference = round($liability - $current, 2);
+
+            if (abs($difference) >= 0.01) {
+                $this->posting->post([
+                    'date' => $asOf->toDateString(),
+                    'description' => 'مخصص الإجازات السنوية حتى '.$asOf->toDateString(),
+                    'source_type' => 'leave_provision',
+                    'lines' => $difference > 0
+                        ? [['role' => 'leave_expense', 'debit' => $difference], ['role' => 'leave_provision', 'credit' => $difference]]
+                        : [['role' => 'leave_provision', 'debit' => -$difference], ['role' => 'leave_expense', 'credit' => -$difference]],
+                ]);
+            }
+
+            return $difference;
+        });
+    }
+
+    /**
+     * End-of-service due within twelve months (limited contracts ending, or
+     * reaching retirement age, in the next year): the current portion of the
+     * provision on the balance sheet.
+     */
+    public function eosCurrentPortion(Carbon $asOf): float
+    {
+        $horizon = $asOf->copy()->addYear();
+
+        return round(Employee::where('status', '!=', 'terminated')->whereNotNull('hire_date')->get()
+            ->filter(fn ($e) => ($e->contract_type === 'limited' && $e->contract_end && $e->contract_end->lte($horizon))
+                || ($e->birth_date && $e->birth_date->copy()->addYears(60)->lte($horizon)))
+            ->sum(fn ($e) => $this->gratuity($e, $asOf, 'termination')['full']), 2);
+    }
+
+    /**
      * Draft final settlement: gratuity, leave encashment, unpaid salary days,
      * less outstanding loans.
      */
@@ -180,7 +223,10 @@ class EmployeeFinanceService
             $eos = (float) $settlement->eos_amount;
             $provision = max(0, (float) Account::whereKey($this->accounts->id('end_of_service_provision'))->value('balance'));
             $fromProvision = round(min($eos, $provision), 2);
-            $dues = round((float) $settlement->leave_encashment + (float) $settlement->salary_due + (float) $settlement->other_dues - (float) $settlement->other_deductions, 2);
+            // Leave pay comes out of the leave provision first.
+            $leaveProvision = $this->accounts->find('leave_provision') ? max(0, (float) Account::whereKey($this->accounts->id('leave_provision'))->value('balance')) : 0;
+            $fromLeaveProvision = round(min((float) $settlement->leave_encashment, $leaveProvision), 2);
+            $dues = round((float) $settlement->leave_encashment - $fromLeaveProvision + (float) $settlement->salary_due + (float) $settlement->other_dues - (float) $settlement->other_deductions, 2);
             $cc = $settlement->employee->cost_center_id;
             $party = ['party_type' => 'employee', 'party_id' => $settlement->employee_id];
 
@@ -192,6 +238,7 @@ class EmployeeFinanceService
                 'lines' => array_values(array_filter([
                     $fromProvision > 0 ? ['role' => 'end_of_service_provision', 'debit' => $fromProvision] : null,
                     $eos - $fromProvision > 0 ? ['role' => 'end_of_service_expense', 'debit' => round($eos - $fromProvision, 2), 'cost_center_id' => $cc] : null,
+                    $fromLeaveProvision > 0 ? ['role' => 'leave_provision', 'debit' => $fromLeaveProvision] : null,
                     $dues > 0 ? ['role' => 'salaries_expense', 'debit' => $dues, 'cost_center_id' => $cc] : null,
                     $dues < 0 ? ['role' => 'salaries_expense', 'credit' => -$dues, 'cost_center_id' => $cc] : null,
                     (float) $settlement->loan_deduction > 0 ? ['role' => 'employee_advances', 'credit' => (float) $settlement->loan_deduction] + $party : null,
