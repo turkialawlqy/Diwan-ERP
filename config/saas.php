@@ -32,6 +32,21 @@ return [
 
     'vat_rate' => 0.15,
 
+    // The platform as the seller on subscription invoices, and where customers pay.
+    'platform' => [
+        'name' => env('PLATFORM_LEGAL_NAME', env('APP_NAME', 'Alostaz')),
+        'tax_number' => env('PLATFORM_TAX_NUMBER'),
+        'commercial_registration' => env('PLATFORM_CR'),
+        'address' => env('PLATFORM_ADDRESS'),
+        'email' => env('PLATFORM_BILLING_EMAIL'),
+        'bank_name' => env('PLATFORM_BANK_NAME'),
+        'account_name' => env('PLATFORM_BANK_ACCOUNT_NAME'),
+        'iban' => env('PLATFORM_IBAN'),
+    ],
+
+    // Days before the trial / subscription end on which owners are emailed (0 = the day itself).
+    'reminder_days' => [7, 3, 0],
+
     // Outgoing webhooks
     'webhook_events' => [
         'invoice.created' => 'إصدار فاتورة مبيعات',

@@ -6,7 +6,7 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import StatusBadge from '@/Components/Documents/StatusBadge.vue';
 import { money, date } from '@/utils/format';
 
-const props = defineProps({ company: Object, plan: Object, state: String, usage: Object, plans: Array, modules: Object, invoices: Array, exports: Array, centralDomain: String });
+const props = defineProps({ company: Object, plan: Object, state: String, usage: Object, plans: Array, modules: Object, invoices: Array, exports: Array, centralDomain: String, payment: { type: Object, default: () => ({}) } });
 const cycle = ref(props.company.billing_cycle || 'monthly');
 const choose = (p) => { if (confirm(`طلب الاشتراك في باقة ${p.name_ar}؟`)) router.post(route('billing.plan'), { plan_id: p.id, billing_cycle: cycle.value }, { preserveScroll: true }); };
 const domainForm = useForm({ custom_domain: props.company.custom_domain || '' });
@@ -77,11 +77,17 @@ const pct = (u) => (u.max && u.max > 0 ? Math.min(100, Math.round((u.used / u.ma
             <table class="w-full">
                 <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الفاتورة</th><th class="px-3 py-2">الباقة</th><th class="px-3 py-2">الفترة</th><th class="px-3 py-2 text-end">الإجمالي</th><th class="px-3 py-2">الحالة</th></tr></thead>
                 <tbody>
-                    <tr v-for="i in invoices" :key="i.id" class="border-t border-slate-100"><td class="px-3 py-2 font-mono">{{ i.number }}</td><td class="px-3 py-2 text-center">{{ i.plan?.name_ar }}</td><td class="px-3 py-2 text-center font-mono">{{ date(i.period_start) }} → {{ date(i.period_end) }}</td><td class="px-3 py-2 text-end font-mono">{{ money(i.total) }}</td><td class="px-3 py-2 text-center"><StatusBadge :status="i.status" /></td></tr>
+                    <tr v-for="i in invoices" :key="i.id" class="border-t border-slate-100"><td class="px-3 py-2 font-mono"><a :href="route('billing.invoices.show', i.id)" target="_blank" class="text-indigo-600 hover:underline">{{ i.number }}</a></td><td class="px-3 py-2 text-center">{{ i.plan?.name_ar }}</td><td class="px-3 py-2 text-center font-mono">{{ date(i.period_start) }} → {{ date(i.period_end) }}</td><td class="px-3 py-2 text-end font-mono">{{ money(i.total) }}</td><td class="px-3 py-2 text-center"><StatusBadge :status="i.status" /></td></tr>
                     <tr v-if="!invoices.length"><td colspan="5" class="py-6 text-center text-slate-400">لا توجد فواتير اشتراك</td></tr>
                 </tbody>
             </table>
-            <p class="p-3 text-slate-500">السداد بالتحويل البنكي إلى حساب المنصة مع ذكر رقم الفاتورة؛ يُفعّل الاشتراك فور تأكيد الإدارة للسداد.</p>
+            <div class="p-3 text-slate-600 space-y-1">
+                <p>السداد بالتحويل البنكي مع ذكر رقم الفاتورة في بيان التحويل. يُفعّل الاشتراك فور تأكيد الإدارة للسداد.</p>
+                <p v-if="payment?.iban" class="font-bold">
+                    {{ payment.bank_name }} — {{ payment.account_name || payment.name }} — IBAN: <span class="font-mono" dir="ltr">{{ payment.iban }}</span>
+                </p>
+                <p v-if="payment?.email">لإرسال إشعار التحويل: <a :href="`mailto:${payment.email}`" class="text-indigo-600">{{ payment.email }}</a></p>
+            </div>
         </div>
     </AppLayout>
 </template>

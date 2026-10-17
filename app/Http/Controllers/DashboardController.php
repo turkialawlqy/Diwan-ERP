@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Services\Reports\Insights;
+use App\Services\Saas\OnboardingChecklist;
 use App\Services\TenantManager;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -136,6 +137,9 @@ class DashboardController extends Controller
         ];
 
         return Inertia::render('Dashboard', [
+            // Setup steps of a new company, for its owner only.
+            'onboarding' => fn () => $request->user()?->isCompanyOwner() && ($company = app(TenantManager::class)->getCompany())
+                ? app(OnboardingChecklist::class)->forDashboard($company) : null,
             'kpis' => $kpis,
             'recentInvoices' => $recentInvoices,
             'topProducts' => $topProducts,

@@ -7,8 +7,10 @@ use App\Models\AuditLog;
 use App\Models\BackupRun;
 use App\Models\Company;
 use App\Models\Customer;
+use App\Models\SubscriptionPlan;
 use App\Models\User;
 use App\Models\ZatcaDevice;
+use App\Notifications\ErpAlert;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\PostingService;
@@ -16,12 +18,17 @@ use App\Services\Auth\Totp;
 use App\Services\Auth\TwoFactor;
 use App\Services\Platform\BackupService;
 use App\Services\Saas\AlertService;
+use App\Services\Saas\SubscriptionReminders;
+use App\Services\Saas\SubscriptionService;
 use App\Services\Saas\WebhookDispatcher;
 use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
+use App\Services\Zatca\Tlv;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
@@ -313,5 +320,56 @@ class ProductionReadinessTest extends TestCase
         $this->assertTrue($admin->isSuperAdmin());
         $this->assertNull($admin->company_id);
         $this->assertTrue(\Hash::check('Very-Secret-2026', $admin->password));
+    }
+
+    // ------------------------------------------------------------ platform billing & compliance
+
+    public function test_subscription_invoices_are_sequential_tax_invoices_with_the_platform_details(): void
+    {
+        config(['saas.platform.tax_number' => '311111111100003', 'saas.platform.name' => 'شركة الأستاذ', 'saas.platform.iban' => 'SA0380000000608010167519']);
+        $plan = SubscriptionPlan::create(['name_ar' => 'متقدمة', 'name_en' => 'Pro', 'slug' => 'pro-x', 'price_monthly' => 100, 'price_yearly' => 1000, 'is_active' => true]);
+        $other = Company::factory()->create();
+        $service = app(SubscriptionService::class);
+
+        $first = $service->request($this->company, $plan, 'monthly');
+        $second = $service->request($other, $plan, 'monthly');
+        $this->assertSame('SUB-'.now()->format('y').'-000001', $first->number);
+        $this->assertSame('SUB-'.now()->format('y').'-000002', $second->number);
+        $tags = Tlv::decode($first->qr);
+        $this->assertSame(['شركة الأستاذ', '311111111100003', '115.00', '15.00'], [$tags[1], $tags[2], $tags[4], $tags[5]]);
+
+        $this->actingAs($this->owner);
+        $this->get(route('billing.invoices.show', $first))->assertOk()->assertSee('SA0380000000608010167519')->assertSee('311111111100003');
+        $this->get(route('billing.invoices.show', $second))->assertNotFound(); // another company's invoice
+    }
+
+    public function test_signup_requires_accepting_the_terms_and_legal_pages_are_public(): void
+    {
+        $payload = ['company_name' => 'منشأة', 'subdomain' => 'new-co', 'name' => 'مالك', 'email' => 'owner@new.co', 'phone' => '0500000000',
+            'currency' => 'SAR', 'password' => 'password', 'password_confirmation' => 'password'];
+        Auth::logout();
+        $this->post('/register', $payload)->assertSessionHasErrors('terms');
+        $this->post('/register', $payload + ['terms' => '1'])->assertSessionHasNoErrors();
+        $this->assertNotNull(User::where('email', 'owner@new.co')->value('terms_accepted_at'));
+
+        $this->get(route('legal.show', 'privacy'))->assertOk()->assertSee('حماية البيانات');
+        $this->get('/legal/unknown')->assertNotFound();
+    }
+
+    public function test_owners_are_reminded_before_the_trial_ends_once(): void
+    {
+        Notification::fake();
+        $this->company->forceFill(['status' => 'trial', 'trial_ends_at' => now()->addDays(7)])->save();
+
+        $this->assertSame(1, app(SubscriptionReminders::class)->send($this->company->fresh()));
+        $this->assertSame(0, app(SubscriptionReminders::class)->send($this->company->fresh()), 'sent once');
+        Notification::assertSentTo($this->owner, ErpAlert::class, fn ($n) => $n->kind === 'subscription_before_7');
+    }
+
+    public function test_a_new_companys_owner_sees_the_setup_checklist(): void
+    {
+        $onboarding = $this->actingAs($this->owner)->get(route('dashboard'))->assertOk()->viewData('page')['props']['onboarding'];
+        $this->assertSame(6, $onboarding['total']);
+        $this->assertFalse(collect($onboarding['steps'])->firstWhere('key', 'zatca')['done']);
     }
 }

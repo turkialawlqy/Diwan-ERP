@@ -67,10 +67,18 @@ use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\ZatcaController;
+use App\Models\PlatformPage;
 use App\Services\TenantManager;
 use Illuminate\Support\Facades\Route;
 
 // Home redirect
+// Terms of service and privacy policy (public).
+Route::get('/legal/{slug}', function (string $slug) {
+    $page = PlatformPage::content($slug);
+
+    return response()->view('legal.page', ['page' => $page, 'html' => PlatformPage::html($page['body'])]);
+})->whereIn('slug', array_keys(PlatformPage::PAGES))->name('legal.show');
+
 // Uptime monitoring (database, queue, scheduler heartbeat, backup age).
 Route::get('/health', HealthController::class)->middleware('throttle:60,1')->name('health');
 
@@ -131,6 +139,9 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/plans', [PlatformController::class, 'savePlan'])->name('plans.store');
             Route::put('/plans/{plan}', [PlatformController::class, 'savePlan'])->name('plans.update');
             Route::get('/invoices', [PlatformController::class, 'invoices'])->name('invoices');
+            Route::get('/invoices/{invoice}', [PlatformController::class, 'showInvoice'])->name('invoices.show');
+            Route::get('/legal', [PlatformController::class, 'legal'])->name('legal');
+            Route::put('/legal/{slug}', [PlatformController::class, 'updateLegal'])->name('legal.update');
             Route::post('/invoices/{invoice}/confirm', [PlatformController::class, 'confirmInvoice'])->name('invoices.confirm');
             Route::post('/invoices/{invoice}/void', [PlatformController::class, 'voidInvoice'])->name('invoices.void');
             Route::get('/audit', [PlatformController::class, 'audit'])->name('audit');
@@ -646,6 +657,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'erp.auth
 
     // Subscription, integrations, notifications, data transfer
     Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
+    Route::get('/billing/invoices/{invoice}', [BillingController::class, 'invoice'])->name('billing.invoices.show');
     Route::post('/billing/plan', [BillingController::class, 'requestPlan'])->name('billing.plan');
     Route::put('/billing/domain', [BillingController::class, 'updateDomain'])->name('billing.domain');
     Route::post('/billing/domain/verify', [BillingController::class, 'verifyDomain'])->name('billing.domain.verify');

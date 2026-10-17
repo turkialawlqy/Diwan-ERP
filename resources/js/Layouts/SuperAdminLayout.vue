@@ -42,6 +42,7 @@ const logout = () => {
                     <Link :href="route('super-admin.invoices')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">فواتير الاشتراكات</Link>
                     <Link :href="route('super-admin.audit')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">سجل تدقيق المنصة</Link>
                     <Link :href="route('super-admin.backups')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">النسخ الاحتياطي</Link>
+                    <Link :href="route('super-admin.legal')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">الشروط والخصوصية</Link>
                 </nav>
             </div>
 

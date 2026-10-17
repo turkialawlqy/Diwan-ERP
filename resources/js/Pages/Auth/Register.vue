@@ -23,6 +23,7 @@ const form = useForm({
     phone: '',
     password: '',
     password_confirmation: '',
+    terms: false,
 });
 
 // Auto-generate subdomain from company name (transliterated / cleaned)
@@ -250,6 +251,15 @@ const submit = () => {
                     </div>
                     <InputError class="mt-1.5" :message="form.errors.password_confirmation" />
                 </div>
+            </div>
+
+            <!-- Consent (PDPL) -->
+            <div>
+                <label class="flex items-start gap-2 text-xs text-slate-600">
+                    <input v-model="form.terms" type="checkbox" class="mt-0.5 rounded border-slate-300 text-indigo-600" />
+                    <span>أوافق على <a :href="route('legal.show', 'terms')" target="_blank" class="text-indigo-600 underline">الشروط والأحكام</a> و<a :href="route('legal.show', 'privacy')" target="_blank" class="text-indigo-600 underline">سياسة الخصوصية وحماية البيانات</a>.</span>
+                </label>
+                <InputError class="mt-1.5" :message="form.errors.terms" />
             </div>
 
             <!-- Submit Button -->

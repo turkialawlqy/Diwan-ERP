@@ -19,7 +19,7 @@ const voidIt = (i) => { if (confirm('إلغاء الفاتورة؟')) router.pos
                     <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الفاتورة</th><th class="px-3 py-2">المنشأة</th><th class="px-3 py-2">الباقة</th><th class="px-3 py-2">الفترة</th><th class="px-3 py-2 text-end">الإجمالي</th><th class="px-3 py-2">الحالة</th><th></th></tr></thead>
                     <tbody>
                         <tr v-for="i in invoices.data" :key="i.id" class="border-t">
-                            <td class="px-3 py-2 font-mono">{{ i.number }}</td><td class="px-3 py-2 text-center"><Link :href="route('super-admin.companies.show', i.company_id)" class="text-indigo-600">{{ i.company?.name }}</Link></td>
+                            <td class="px-3 py-2 font-mono"><a :href="route('super-admin.invoices.show', i.id)" target="_blank" class="text-indigo-600 hover:underline">{{ i.number }}</a></td><td class="px-3 py-2 text-center"><Link :href="route('super-admin.companies.show', i.company_id)" class="text-indigo-600">{{ i.company?.name }}</Link></td>
                             <td class="px-3 py-2 text-center">{{ i.plan?.name_ar }} ({{ i.billing_cycle }})</td><td class="px-3 py-2 text-center font-mono">{{ date(i.period_start) }} → {{ date(i.period_end) }}</td>
                             <td class="px-3 py-2 text-end font-mono">{{ money(i.total) }}</td><td class="px-3 py-2 text-center">{{ i.status }}</td>
                             <td class="px-3 py-2 text-end whitespace-nowrap"><template v-if="i.status === 'unpaid'"><button @click="confirmPay(i)" class="text-emerald-600 font-bold me-2">تأكيد السداد</button><button @click="voidIt(i)" class="text-rose-600 font-bold">إلغاء</button></template></td>

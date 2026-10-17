@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\SuperAdmin;
 
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\Controller;
 use App\Models\BackupRun;
 use App\Models\Company;
 use App\Models\PlatformAuditLog;
+use App\Models\PlatformPage;
 use App\Models\SubscriptionInvoice;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
@@ -110,6 +112,28 @@ class PlatformController extends Controller
                 ->latest('id')->paginate(30)->withQueryString(),
             'status' => $request->input('status', 'unpaid'),
         ]);
+    }
+
+    public function legal()
+    {
+        return Inertia::render('SuperAdmin/Legal', [
+            'pages' => collect(array_keys(PlatformPage::PAGES))->map(fn ($slug) => PlatformPage::content($slug))->values(),
+        ]);
+    }
+
+    public function updateLegal(Request $request, string $slug)
+    {
+        abort_unless(isset(PlatformPage::PAGES[$slug]), 404);
+        $validated = $request->validate(['title' => 'required|string|max:255', 'body' => 'required|string|max:100000']);
+        PlatformPage::updateOrCreate(['slug' => $slug], $validated + ['updated_by' => auth()->id()]);
+        app(SubscriptionService::class)->audit('legal_page_updated', null, ['slug' => $slug]);
+
+        return back()->with('success', 'تم حفظ الصفحة');
+    }
+
+    public function showInvoice(SubscriptionInvoice $invoice)
+    {
+        return BillingController::renderInvoice($invoice);
     }
 
     public function confirmInvoice(Request $request, SubscriptionInvoice $invoice)

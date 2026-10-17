@@ -6,8 +6,9 @@ use App\Models\Company;
 use App\Models\PlatformAuditLog;
 use App\Models\SubscriptionInvoice;
 use App\Models\SubscriptionPlan;
+use App\Services\ZatcaService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -31,18 +32,40 @@ class SubscriptionService
             : now()->startOfDay();
         $vat = round($amount * config('saas.vat_rate', 0.15), 2);
 
-        return SubscriptionInvoice::create([
+        $issuedAt = now();
+        $total = round($amount + $vat, 2);
+
+        // The number is taken and the invoice saved under one lock (no duplicates under concurrency).
+        return Cache::lock('subscription-invoice-number', 10)->block(5, fn () => SubscriptionInvoice::create([
             'company_id' => $company->id,
             'subscription_plan_id' => $plan->id,
-            'number' => 'SUB-'.now()->format('ym').'-'.strtoupper(Str::random(6)),
+            // A tax invoice: sequential number and the platform's ZATCA QR.
+            'number' => $this->nextNumber(),
+            'issued_at' => $issuedAt,
+            'qr' => config('saas.platform.tax_number')
+                ? ZatcaService::generateQrCode((string) config('saas.platform.name'), (string) config('saas.platform.tax_number'), $issuedAt->toIso8601String(), $total, $vat)
+                : null,
             'billing_cycle' => $cycle,
             'period_start' => $start->toDateString(),
             'period_end' => ($cycle === 'yearly' ? $start->copy()->addYear() : $start->copy()->addMonth())->subDay()->toDateString(),
             'amount' => $amount,
             'vat_amount' => $vat,
-            'total' => round($amount + $vat, 2),
+            'total' => $total,
             'status' => $amount > 0 ? 'unpaid' : 'paid',
-        ]);
+        ]));
+    }
+
+    /**
+     * SUB-{yy}-000001, sequential per year across the platform. Called under
+     * the subscription-invoice-number lock.
+     */
+    protected function nextNumber(): string
+    {
+        $prefix = 'SUB-'.now()->format('y').'-';
+        $last = SubscriptionInvoice::where('number', 'like', $prefix.'%')->orderByDesc('number')->value('number');
+        $next = $last && preg_match('/(\d+)$/', $last, $m) ? (int) $m[1] + 1 : 1;
+
+        return $prefix.str_pad((string) $next, 6, '0', STR_PAD_LEFT);
     }
 
     public function confirmPayment(SubscriptionInvoice $invoice, ?string $reference = null, string $method = 'bank_transfer'): void

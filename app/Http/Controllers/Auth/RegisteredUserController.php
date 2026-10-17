@@ -58,7 +58,9 @@ class RegisteredUserController extends Controller
             'phone' => 'required|string|max:20',
             'currency' => ['nullable', 'string', Rule::in(['SAR', 'AED', 'USD', 'EUR', 'EGP', 'KWD', 'BHD', 'OMR', 'QAR'])],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'terms' => 'accepted',
         ], [
+            'terms.accepted' => 'يجب الموافقة على الشروط والأحكام وسياسة الخصوصية.',
             'subdomain.regex' => 'النطاق الفرعي يجب أن يحتوي على أحرف إنجليزية وأرقام وعلامة (-) فقط ولا يبدأ أو ينتهي بشرطة.',
             'subdomain.not_in' => 'هذا النطاق الفرعي محجوز من قبل إدارة النظام.',
             'subdomain.unique' => 'هذا النطاق الفرعي مسجل بالفعل، يرجى اختيار نطاق آخر.',
@@ -141,6 +143,7 @@ class RegisteredUserController extends Controller
                 'branch_id' => $branch->id,
                 'password' => Hash::make($request->password),
                 'status' => 'active',
+                'terms_accepted_at' => now(), // PDPL: consent to terms and privacy policy
             ]);
             $user->save();
 

@@ -195,6 +195,10 @@ const fillDemo = (account) => {
             <Link :href="route('register')" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition">
                 سجل منشأتك الآن واحصل على تجربة مجانية
             </Link>
+            <div class="mt-3 text-3xs text-slate-400">
+                <a :href="route('legal.show', 'terms')" class="hover:text-indigo-600">الشروط والأحكام</a> ·
+                <a :href="route('legal.show', 'privacy')" class="hover:text-indigo-600">سياسة الخصوصية</a>
+            </div>
         </div>
     </AuthLayout>
 </template>

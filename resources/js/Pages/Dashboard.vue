@@ -25,6 +25,7 @@ const props = defineProps({
     topProducts: Array,
     salesChart: Object,
     cashOutlook: { type: Object, default: null },
+    onboarding: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -89,6 +90,22 @@ const chartOptions = computed(() => ({
 <template>
     <AppLayout>
         <Head title="لوحة التحكم الرئيسية" />
+
+        <!-- First-run setup checklist (owner) -->
+        <div v-if="onboarding" class="mb-6 bg-white border border-indigo-100 rounded-2xl p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="font-black text-slate-800 text-sm">إعداد منشأتك للبدء ({{ onboarding.done }} من {{ onboarding.total }})</h2>
+                <div class="w-40 h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-indigo-600" :style="{ width: (onboarding.done / onboarding.total * 100) + '%' }"></div></div>
+            </div>
+            <ul class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+                <li v-for="s in onboarding.steps" :key="s.key">
+                    <Link :href="s.url" class="flex items-center gap-2 p-2 rounded-xl border" :class="s.done ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : 'border-slate-200 hover:border-indigo-300 text-slate-700'">
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-3xs font-black" :class="s.done ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500'">{{ s.done ? '✓' : '' }}</span>
+                        <span :class="s.done ? 'line-through' : 'font-bold'">{{ s.label }}</span>
+                    </Link>
+                </li>
+            </ul>
+        </div>
 
         <!-- Welcome Banner & Top Header -->
         <div class="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

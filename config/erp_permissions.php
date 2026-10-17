@@ -382,6 +382,7 @@ return [
         'equipment.reports.index' => 'equipment.reports.view',
         'equipment.reports.export' => 'equipment.reports.export',
         'billing.index' => 'admin.billing.view',
+        'billing.invoices.show' => 'admin.billing.view',
         'billing.plan' => 'admin.billing.manage',
         'billing.domain' => 'admin.billing.manage',
         'billing.domain.verify' => 'admin.billing.manage',

@@ -13,6 +13,8 @@ use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use Mpdf\QrCode\Output\Png;
+use Mpdf\QrCode\QrCode;
 
 /**
  * Company subscription: plan, usage, invoices, plan changes, custom domain
@@ -38,7 +40,27 @@ class BillingController extends Controller
             'invoices' => SubscriptionInvoice::where('company_id', $company->id)->with('plan:id,name_ar')->latest('id')->limit(24)->get(),
             'exports' => DataExport::latest('id')->limit(5)->get(),
             'centralDomain' => config('tenancy.central_domain'),
+            // Where to pay (bank transfer), shown with the unpaid invoice.
+            'payment' => collect(config('saas.platform'))->only(['name', 'bank_name', 'account_name', 'iban', 'email'])->all(),
         ]);
+    }
+
+    /** Printable tax invoice of the platform subscription (own company only). */
+    public function invoice(SubscriptionInvoice $invoice)
+    {
+        abort_unless((int) $invoice->company_id === (int) $this->tenantManager->getTenantId(), 404);
+
+        return self::renderInvoice($invoice);
+    }
+
+    public static function renderInvoice(SubscriptionInvoice $invoice)
+    {
+        $invoice->loadMissing('company', 'plan');
+        $qr = $invoice->qr
+            ? 'data:image/png;base64,'.base64_encode((new Png)->output(new QrCode($invoice->qr, QrCode::ERROR_CORRECTION_MEDIUM), 240))
+            : null;
+
+        return response()->view('billing.invoice', ['invoice' => $invoice, 'platform' => config('saas.platform'), 'qr' => $qr]);
     }
 
     public function requestPlan(Request $request, SubscriptionService $subscriptions)
