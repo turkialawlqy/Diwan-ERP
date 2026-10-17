@@ -35,7 +35,7 @@ class DebitNoteController extends Controller
             'debit_note_date' => 'required|date',
             'reason' => 'required|string|max:500',
             'subtotal' => 'required|numeric|gt:0',
-            'tax_rate' => 'nullable|numeric|min:0|max:100',
+            'tax_rate' => 'nullable|numeric|in:0,15', // standard rate or zero-rated/exempt only
         ]);
 
         if (! empty($validated['invoice_id']) && (int) Invoice::find($validated['invoice_id'])->customer_id !== (int) $validated['customer_id']) {

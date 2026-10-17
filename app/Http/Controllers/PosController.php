@@ -15,6 +15,7 @@ use App\Services\Inventory\DocumentStock;
 use App\Services\TenantManager;
 use App\Services\Zatca\EInvoiceManager;
 use Carbon\Carbon;
+use App\Services\Zatca\VatClassifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -183,41 +184,48 @@ class PosController extends Controller
             $taxAmount = 0;
             $totalDiscount = (float) ($validated['discount'] ?? 0);
 
-            $orderItems = [];
+            // Lines: net after line discount, the order discount spread over the
+            // lines by value, VAT per line on its net (rounded per line), so the
+            // invoice lines add up to the header and a return credits real value.
+            $classifier = app(VatClassifier::class);
+            $lines = [];
             foreach ($validated['items'] as $item) {
                 $qty = (float) $item['quantity'];
                 $price = (float) $item['unit_price'];
-                $disc = (float) ($item['discount'] ?? 0);
-                $taxRate = (float) ($item['tax_rate'] ?? 15.00);
-
-                $lineSubtotal = ($qty * $price) - $disc;
-                $lineTax = $lineSubtotal * ($taxRate / 100);
-                $lineTotal = $lineSubtotal + $lineTax;
-
-                $subtotal += $lineSubtotal;
-                $taxAmount += $lineTax;
-
-                $orderItems[] = [
-                    'product_id' => $item['product_id'],
-                    'item_name' => $item['item_name'],
-                    'quantity' => $qty,
-                    'unit_price' => $price,
-                    'discount' => $disc,
-                    'tax_rate' => $taxRate,
-                    'tax_amount' => $lineTax,
-                    'total' => $lineTotal,
-                ];
+                $disc = round((float) ($item['discount'] ?? 0), 2);
+                if ($disc > round($qty * $price, 2)) {
+                    throw ValidationException::withMessages(['items' => "خصم «{$item['item_name']}» أكبر من قيمته."]);
+                }
+                [$category, $code] = $classifier->classify(Product::find($item['product_id']), (float) ($item['tax_rate'] ?? VatClassifier::standardRate()));
+                $lines[] = ['item' => $item, 'qty' => $qty, 'price' => $price, 'disc' => $disc, 'net' => round($qty * $price - $disc, 2),
+                    'rate' => $category === 'S' ? VatClassifier::standardRate() : 0.0, 'category' => $category, 'code' => $code];
             }
 
-            // The order discount reduces the taxable amount (VAT is charged after discount).
-            if ($totalDiscount > $subtotal) {
+            $gross = round(array_sum(array_column($lines, 'net')), 2);
+            if ($totalDiscount > $gross) {
                 throw ValidationException::withMessages(['discount' => 'الخصم لا يمكن أن يتجاوز قيمة الطلب.']);
             }
-            if ($subtotal > 0 && $totalDiscount > 0) {
-                $taxAmount = round($taxAmount * (($subtotal - $totalDiscount) / $subtotal), 2);
+            $left = $totalDiscount;
+            foreach ($lines as $i => &$line) {
+                $share = $i === array_key_last($lines) ? $left : ($gross > 0 ? round($totalDiscount * $line['net'] / $gross, 2) : 0);
+                $share = min($share, $line['net']);
+                $left = round($left - $share, 2);
+                $line['disc'] = round($line['disc'] + $share, 2);
+                $line['net'] = round($line['net'] - $share, 2);
+                $line['tax'] = round($line['net'] * $line['rate'] / 100, 2);
             }
-            $subtotal = round($subtotal - $totalDiscount, 2);
-            $taxAmount = round($taxAmount, 2);
+            unset($line);
+
+            $orderItems = [];
+            $invoiceItems = [];
+            foreach ($lines as $line) {
+                $base = ['product_id' => $line['item']['product_id'], 'item_name' => $line['item']['item_name'], 'quantity' => $line['qty'], 'unit_price' => $line['price'],
+                    'discount' => $line['disc'], 'tax_rate' => $line['rate'], 'tax_amount' => $line['tax'], 'total' => round($line['net'] + $line['tax'], 2)];
+                $orderItems[] = $base;
+                $invoiceItems[] = $base + ['subtotal' => $line['net'], 'vat_category' => $line['category'], 'vat_exemption_code' => $line['code']];
+            }
+            $subtotal = round(array_sum(array_column($lines, 'net')), 2);
+            $taxAmount = round(array_sum(array_column($lines, 'tax')), 2);
             $total = round($subtotal + $taxAmount, 2);
 
             $paidAmount = (float) $validated['paid_amount'];
@@ -245,7 +253,7 @@ class PosController extends Controller
                 'subtotal' => $subtotal,
                 'discount_type' => 'fixed',
                 'discount_value' => $totalDiscount,
-                'discount_amount' => $totalDiscount,
+                'discount_amount' => round(array_sum(array_column($lines, 'disc')), 2),
                 'tax_rate' => 15.00,
                 'tax_amount' => $taxAmount,
                 'total' => $total,
@@ -277,9 +285,9 @@ class PosController extends Controller
                 'status' => 'completed',
             ]);
 
-            foreach ($orderItems as $oItem) {
+            foreach ($orderItems as $i => $oItem) {
                 $posOrder->items()->create($oItem);
-                $invoice->items()->create($oItem);
+                $invoice->items()->create($invoiceItems[$i]);
             }
 
             if ($remaining > 0) {

@@ -6,6 +6,7 @@ use App\Models\BankAccount;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\Invoice;
+use App\Services\Accounting\ChequeService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\Saas\WebhookDispatcher;
@@ -126,6 +127,14 @@ class CustomerPaymentController extends Controller
             Customer::where('id', $validated['customer_id'])->decrement('current_balance', ExchangeRates::toBase((float) $validated['amount'], $payment->exchange_rate));
 
             app(DocumentPoster::class)->customerPayment($payment);
+            if ($payment->payment_method === 'cheque') {
+                app(ChequeService::class)->track([
+                    'direction' => 'incoming', 'cheque_number' => $payment->reference_number ?: $payment->payment_number, 'bank_account_id' => $payment->bank_account_id,
+                    'party_type' => 'customer', 'party_id' => $payment->customer_id, 'party_name' => $payment->customer?->name ?? '',
+                    'amount' => round((float) $payment->amount * (float) ($payment->exchange_rate ?: 1), 2),
+                    'issue_date' => $payment->payment_date, 'due_date' => $payment->payment_date, 'notes' => 'سند قبض '.$payment->payment_number,
+                ]);
+            }
 
             app(WebhookDispatcher::class)->dispatch('payment.received', [
                 'id' => $payment->id, 'number' => $payment->payment_number, 'customer_id' => $payment->customer_id,

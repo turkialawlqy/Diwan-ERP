@@ -59,6 +59,20 @@ class ChequeService
         });
     }
 
+    /**
+     * Records a cheque whose entry the receipt / payment voucher already
+     * posted (to cheques under collection / payable), so it can be cleared,
+     * bounced or cancelled from the cheques register.
+     */
+    public function track(array $data): Cheque
+    {
+        return Cheque::create(array_merge($data, [
+            'status' => 'pending',
+            'history' => [['status' => 'pending', 'date' => now()->toDateString(), 'by' => auth()->id()]],
+            'created_by' => auth()->id(),
+        ]));
+    }
+
     public function transition(Cheque $cheque, string $status, Carbon $date, ?int $bankAccountId = null): Cheque
     {
         $allowed = self::TRANSITIONS[$cheque->direction][$cheque->status] ?? [];

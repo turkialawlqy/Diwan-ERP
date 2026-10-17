@@ -36,13 +36,19 @@ class CustomerStatement
         $base = fn ($doc, $amount) => ExchangeRates::toBase((float) $amount, $doc->exchange_rate);
         $note = fn ($doc, $amount, $text) => $doc->currency_code ? $text.' ('.number_format((float) $amount, 2).' '.$doc->currency_code.')' : $text;
 
+        // What receipts paid on each invoice: their allocations, plus older
+        // receipts linked to the invoice without allocation rows.
+        $allocated = PaymentAllocation::whereIn('customer_payment_id', $customer->payments->pluck('id'))->get(['customer_payment_id', 'invoice_id', 'amount']);
+        $withAllocations = $allocated->pluck('customer_payment_id')->unique();
+        $paidByReceipts = fn ($invoiceId) => (float) $allocated->where('invoice_id', $invoiceId)->sum('amount')
+            + (float) $customer->payments->where('invoice_id', $invoiceId)->whereNotIn('id', $withAllocations)->sum('amount');
+
         foreach ($customer->invoices as $inv) {
             $date = $day($inv->invoice_date, $inv->created_at);
             $rows->push($this->row($date, 1, 'invoice', 'فاتورة ضريبية', $inv->invoice_number, $base($inv, $inv->total), 0, $note($inv, $inv->total, $inv->notes ?: "فاتورة مبيعات {$inv->invoice_number}"), ['invoice_id' => $inv->id]));
 
             // Amounts paid at checkout are not in customer_payments.
-            $linked = (float) $customer->payments->where('invoice_id', $inv->id)->sum('amount');
-            $immediate = max(0, (float) $inv->paid_amount - $linked);
+            $immediate = max(0, round((float) $inv->paid_amount - $paidByReceipts($inv->id), 2));
             if ($immediate > 0) {
                 $rows->push($this->row($date, 2, 'payment', 'سداد فوري للفاتورة', "سداد {$inv->invoice_number}", 0, $base($inv, $immediate), 'سداد عند إصدار الفاتورة ('.$this->method($inv->payment_method).')'));
             }

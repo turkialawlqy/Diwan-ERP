@@ -314,7 +314,9 @@ class SalesCycleService
                     throw ValidationException::withMessages(['lines' => "كمية المرتجع من «{$item->item_name}» أكبر من المتبقي القابل للإرجاع (".((float) $item->quantity - $returned).').']);
                 }
 
-                $unitNet = (float) $item->quantity > 0 ? (float) $item->subtotal / (float) $item->quantity : (float) $item->unit_price;
+                // POS lines saved before line nets were stored have no subtotal.
+                $lineValue = (float) $item->subtotal > 0 ? (float) $item->subtotal : max(0, (float) $item->quantity * (float) $item->unit_price - (float) $item->discount);
+                $unitNet = (float) $item->quantity > 0 ? $lineValue / (float) $item->quantity : (float) $item->unit_price;
                 $lineNet = round($unitNet * $quantity, 2);
                 $lineTax = round($lineNet * (float) $item->tax_rate / 100, 2);
 
@@ -332,6 +334,7 @@ class SalesCycleService
             $tax = round(array_sum(array_column($noteLines, 'lineTax')), 2);
             $total = round($subtotal + $tax, 2);
             $refundMethod = $data['refund_method'] ?? 'credit';
+            $this->guardCredit($invoice, $total, $refundMethod);
 
             $note = CreditNote::create([
                 'invoice_id' => $invoice->id,
@@ -397,10 +400,30 @@ class SalesCycleService
     }
 
     /**
+     * A credit note can never credit more than the invoice, and cash can be
+     * refunded only up to what the customer actually paid on it (an unpaid
+     * part is credited to the customer's account instead).
+     */
+    public function guardCredit(Invoice $invoice, float $total, string $refundMethod): void
+    {
+        $credited = (float) CreditNote::where('invoice_id', $invoice->id)->whereIn('status', ['approved', 'refunded'])->sum('total');
+        if ($total > round((float) $invoice->total - $credited, 2) + 0.01) {
+            throw ValidationException::withMessages(['total' => 'قيمة الإشعار تتجاوز المتبقي من قيمة الفاتورة الأصلية (المتاح: '.number_format(max(0, (float) $invoice->total - $credited), 2).').']);
+        }
+        if ($refundMethod !== 'credit') {
+            $refunded = (float) CreditNote::where('invoice_id', $invoice->id)->where('status', 'refunded')->where('refund_method', '!=', 'credit')->sum('total');
+            $refundable = round((float) $invoice->paid_amount - $refunded, 2);
+            if ($total > $refundable + 0.01) {
+                throw ValidationException::withMessages(['refund_method' => 'لا يمكن رد مبلغ نقدي أكبر مما دفعه العميل على الفاتورة (المتاح للرد: '.number_format(max(0, $refundable), 2).'). اختر «خصم من رصيد العميل» للجزء غير المدفوع.']);
+            }
+        }
+    }
+
+    /**
      * A credit note reduces what the customer owes: first on the invoice
      * itself, the rest stays as credit on the customer's account (or is refunded).
      */
-    protected function settleInvoice(Invoice $invoice, float $amount, string $refundMethod): void
+    public function settleInvoice(Invoice $invoice, float $amount, string $refundMethod): void
     {
         if ($refundMethod !== 'credit') {
             return;

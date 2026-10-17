@@ -12,6 +12,7 @@ use App\Services\Sales\InvoiceService;
 use App\Services\Sales\SalesCycleService;
 use App\Services\TenantManager;
 use App\Services\Zatca\EInvoiceManager;
+use App\Services\Zatca\VatClassifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -153,14 +154,19 @@ class CreditNoteController extends Controller
             if ((int) $invoice->customer_id !== (int) $validated['customer_id']) {
                 throw ValidationException::withMessages(['invoice_id' => 'الفاتورة المحددة لا تخص هذا العميل.']);
             }
-            $alreadyReturned = (float) CreditNote::where('invoice_id', $invoice->id)->whereIn('status', ['approved', 'refunded'])->sum('total');
-            if ((float) $validated['total'] > round((float) $invoice->total - $alreadyReturned, 2)) {
-                throw ValidationException::withMessages(['total' => 'قيمة المرتجع تتجاوز المتبقي من قيمة الفاتورة الأصلية.']);
+            if ($validated['status'] !== 'draft') {
+                app(SalesCycleService::class)->guardCredit($invoice, (float) $validated['total'],
+                    $validated['status'] === 'refunded' ? ($validated['refund_method'] ?? 'cash') : 'credit');
             }
         }
 
         if (abs(((float) $validated['subtotal'] + (float) $validated['tax_amount']) - (float) $validated['total']) > 0.01) {
             throw ValidationException::withMessages(['total' => 'الإجمالي يجب أن يساوي المبلغ قبل الضريبة + الضريبة.']);
+        }
+        // VAT is reversed at the standard rate, or not at all for zero-rated / exempt supplies.
+        $expectedVat = round((float) $validated['subtotal'] * VatClassifier::standardRate() / 100, 2);
+        if ((float) $validated['tax_amount'] > 0 && abs((float) $validated['tax_amount'] - $expectedVat) > 0.011) {
+            throw ValidationException::withMessages(['tax_amount' => 'ضريبة الإشعار يجب أن تكون '.number_format($expectedVat, 2).' (15% من المبلغ) أو صفراً للتوريدات الصفرية والمعفاة.']);
         }
 
         $tenantManager = app(TenantManager::class);
@@ -193,7 +199,12 @@ class CreditNoteController extends Controller
             $creditsAccount = $creditNote->status === 'approved'
                 || ($creditNote->status === 'refunded' && $creditNote->refund_method === 'credit');
             if ($creditsAccount) {
-                Customer::where('id', $validated['customer_id'])->decrement('current_balance', ExchangeRates::toBase((float) $validated['total'], $creditNote->exchange_rate));
+                // On an invoice the credit first closes what is still due on it.
+                if ($source) {
+                    app(SalesCycleService::class)->settleInvoice($source, (float) $validated['total'], 'credit');
+                } else {
+                    Customer::where('id', $validated['customer_id'])->decrement('current_balance', ExchangeRates::toBase((float) $validated['total'], $creditNote->exchange_rate));
+                }
             }
 
             app(DocumentPoster::class)->creditNote($creditNote);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
+use App\Services\Accounting\ChequeService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\TenantManager;
@@ -145,6 +146,14 @@ class SupplierPaymentController extends Controller
             }
 
             app(DocumentPoster::class)->supplierPayment($payment);
+            if ($payment->payment_method === 'cheque') {
+                app(ChequeService::class)->track([
+                    'direction' => 'outgoing', 'cheque_number' => $payment->reference_number ?: $payment->payment_number, 'bank_account_id' => $payment->bank_account_id,
+                    'party_type' => 'supplier', 'party_id' => $payment->supplier_id, 'party_name' => $payment->supplier?->name ?? '',
+                    'amount' => round((float) $payment->amount * (float) ($payment->exchange_rate ?: 1), 2),
+                    'issue_date' => $payment->payment_date, 'due_date' => $payment->payment_date, 'notes' => 'سند صرف '.$payment->payment_number,
+                ]);
+            }
 
             // Paid at the payment rate, booked at the bill rate: for a supplier
             // a higher payment rate is a loss.

@@ -136,7 +136,7 @@ class RentalController extends Controller
             'period_from' => 'required|date',
             'period_to' => 'required|date|after_or_equal:period_from',
             'quantity' => 'nullable|numeric|min:0',
-            'tax_rate' => 'nullable|numeric|min:0|max:100',
+            'tax_rate' => 'nullable|numeric|in:0,15',
             'reference' => 'nullable|string|max:60',
             'date' => 'nullable|date',
         ]);
@@ -156,7 +156,7 @@ class RentalController extends Controller
             'rate' => 'required|numeric|min:0',
             'min_hours_per_day' => 'nullable|numeric|min:0|max:24',
             'with_operator' => 'boolean',
-            'tax_rate' => 'nullable|numeric|min:0|max:100',
+            'tax_rate' => 'nullable|numeric|in:0,15',
             'start_date' => 'required|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'site' => 'nullable|string|max:191',

@@ -142,7 +142,10 @@ class DocumentPoster
             'description' => "سند قبض رقم {$payment->payment_number}",
             'source' => $payment,
             'lines' => [
-                ['account_id' => $this->cashAccount($payment->bank_account_id, $payment->payment_method), 'debit' => (float) $payment->amount, 'description' => "سند قبض {$payment->payment_number}"],
+                // A cheque is not cash yet: it waits under collection until it clears.
+                $payment->payment_method === 'cheque'
+                    ? ['role' => 'cheques_under_collection', 'debit' => (float) $payment->amount, 'description' => "شيك مستلم - سند قبض {$payment->payment_number}"]
+                    : ['account_id' => $this->cashAccount($payment->bank_account_id, $payment->payment_method), 'debit' => (float) $payment->amount, 'description' => "سند قبض {$payment->payment_number}"],
                 ['role' => 'receivables', 'credit' => (float) $payment->amount, 'description' => "تحصيل من العميل - {$payment->payment_number}", 'party_type' => 'customer', 'party_id' => $payment->customer_id],
             ],
         ]);
@@ -216,7 +219,9 @@ class DocumentPoster
             'source' => $payment,
             'lines' => [
                 ['role' => 'payables', 'debit' => (float) $payment->amount, 'description' => "سداد للمورد - {$payment->payment_number}", 'party_type' => 'supplier', 'party_id' => $payment->supplier_id],
-                ['account_id' => $this->cashAccount($payment->bank_account_id, $payment->payment_method), 'credit' => (float) $payment->amount, 'description' => "سند صرف {$payment->payment_number}"],
+                $payment->payment_method === 'cheque'
+                    ? ['role' => 'cheques_payable', 'credit' => (float) $payment->amount, 'description' => "شيك صادر - سند صرف {$payment->payment_number}"]
+                    : ['account_id' => $this->cashAccount($payment->bank_account_id, $payment->payment_method), 'credit' => (float) $payment->amount, 'description' => "سند صرف {$payment->payment_number}"],
             ],
         ]);
     }

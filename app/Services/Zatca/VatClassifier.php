@@ -37,6 +37,12 @@ class VatClassifier
         return [$category, $code];
     }
 
+    /** The Kingdom's standard rate (%): standard-rated lines always use it. */
+    public static function standardRate(): float
+    {
+        return round((float) config('saas.vat_rate', 0.15) * 100, 2);
+    }
+
     public function defaultCode(string $category): ?string
     {
         return $this->company()?->setting('zatca_default_exemption_'.$category) ?: null;

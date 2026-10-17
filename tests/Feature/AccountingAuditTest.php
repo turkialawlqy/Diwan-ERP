@@ -147,4 +147,94 @@ class AccountingAuditTest extends TestCase
         $this->assertSame(180.0, $vat['output_vat']);
         $this->assertTrue($vat['ledger_matches']);
     }
+
+    // ------------------------------------------------------------ B. sales & customers
+
+    public function test_pos_lines_carry_their_net_so_a_return_credits_real_value(): void
+    {
+        $warehouse = \App\Models\Warehouse::create(['name_ar' => 'رئيسي', 'code' => 'W1', 'is_main' => true, 'is_active' => true]);
+        $register = \App\Models\PosRegister::create(['name' => 'كاشير 1', 'warehouse_id' => $warehouse->id, 'is_active' => true]);
+        $session = \App\Models\PosSession::create(['user_id' => $this->owner->id, 'pos_register_id' => $register->id, 'opening_cash' => 0, 'status' => 'opened', 'opened_at' => now()]);
+        $a = \App\Models\Product::create(['name_ar' => 'صنف أ', 'sku' => 'A1', 'selling_price' => 500, 'track_inventory' => false, 'is_active' => true]);
+        $b = \App\Models\Product::create(['name_ar' => 'صنف ب', 'sku' => 'B1', 'selling_price' => 1000, 'track_inventory' => false, 'is_active' => true]);
+
+        $this->post(route('pos.order.process'), ['session_id' => $session->id, 'payment_method' => 'cash', 'paid_amount' => 2185, 'discount' => 100, 'items' => [
+            ['product_id' => $a->id, 'item_name' => 'صنف أ', 'quantity' => 2, 'unit_price' => 500, 'tax_rate' => 7], // a free-typed rate is not kept
+            ['product_id' => $b->id, 'item_name' => 'صنف ب', 'quantity' => 1, 'unit_price' => 1000],
+        ]])->assertSessionHasNoErrors();
+
+        $invoice = \App\Models\Invoice::with('items')->latest('id')->first();
+        $this->assertSame(1900.0, (float) $invoice->subtotal);
+        $this->assertSame(285.0, (float) $invoice->tax_amount);
+        $this->assertSame(1900.0, round($invoice->items->sum(fn ($i) => (float) $i->subtotal), 2)); // lines add up to the header
+        $this->assertSame([15.0, 15.0], $invoice->items->map(fn ($i) => (float) $i->tax_rate)->all());
+
+        $itemA = $invoice->items->firstWhere('product_id', $a->id);
+        $note = app(SalesCycleService::class)->returnInvoice($invoice, ['credit_note_date' => '2026-06-15', 'reason' => 'مرتجع', 'refund_method' => 'cash'],
+            [['invoice_item_id' => $itemA->id, 'quantity' => 2, 'return_to_stock' => false]]);
+
+        $this->assertSame(950.0, (float) $note->subtotal); // was 0: POS lines had no subtotal
+        $this->assertSame(142.5, (float) $note->tax_amount);
+        $this->assertLedgerBalanced();
+    }
+
+    public function test_amount_credit_note_settles_the_invoice_and_cash_refunds_are_capped_at_payments(): void
+    {
+        $invoice = app(InvoiceService::class)->create(['customer_id' => $this->customer->id, 'invoice_date' => '2026-06-10', 'payment_method' => 'credit'],
+            [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 1000, 'tax_rate' => 15]], ['issue_stock' => false]);
+
+        // Cash back on an unpaid invoice is refused.
+        $this->post(route('sales.returns.store'), ['customer_id' => $this->customer->id, 'invoice_id' => $invoice->id, 'credit_note_date' => '2026-06-12',
+            'subtotal' => 100, 'tax_amount' => 15, 'total' => 115, 'reason' => 'خصم', 'status' => 'refunded', 'refund_method' => 'cash'])
+            ->assertSessionHasErrors('refund_method');
+        // VAT must be 15% (or zero).
+        $this->post(route('sales.returns.store'), ['customer_id' => $this->customer->id, 'invoice_id' => $invoice->id, 'credit_note_date' => '2026-06-12',
+            'subtotal' => 100, 'tax_amount' => 40, 'total' => 140, 'reason' => 'خصم', 'status' => 'approved'])
+            ->assertSessionHasErrors('tax_amount');
+
+        $this->post(route('sales.returns.store'), ['customer_id' => $this->customer->id, 'invoice_id' => $invoice->id, 'credit_note_date' => '2026-06-12',
+            'subtotal' => 100, 'tax_amount' => 15, 'total' => 115, 'reason' => 'خصم', 'status' => 'approved'])->assertSessionHasNoErrors();
+
+        $this->assertSame(1035.0, (float) $invoice->fresh()->remaining_amount); // was still 1,150
+        $this->assertSame(1035.0, (float) $this->customer->fresh()->current_balance);
+        $this->assertSame(1035.0, $this->balance('receivables'));
+
+        // More credit than the invoice is refused.
+        $this->post(route('sales.returns.store'), ['customer_id' => $this->customer->id, 'invoice_id' => $invoice->id, 'credit_note_date' => '2026-06-13',
+            'subtotal' => 1000, 'tax_amount' => 150, 'total' => 1150, 'reason' => 'خصم', 'status' => 'approved'])
+            ->assertSessionHasErrors('total');
+    }
+
+    public function test_statement_does_not_count_allocated_receipts_twice(): void
+    {
+        $invoice = app(InvoiceService::class)->create(['customer_id' => $this->customer->id, 'invoice_date' => '2026-06-10', 'payment_method' => 'credit'],
+            [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 1000, 'tax_rate' => 15]], ['issue_stock' => false]);
+        $this->post(route('sales.payments.store'), ['customer_id' => $this->customer->id, 'payment_date' => '2026-06-12', 'amount' => 500,
+            'payment_method' => 'cash'])->assertSessionHasNoErrors(); // auto-allocated to the oldest invoice
+
+        $statement = app(\App\Services\Sales\CustomerStatement::class)->build($this->customer->fresh());
+
+        $this->assertSame(650.0, round((float) $statement['closing'], 2)); // was 150: the receipt showed twice
+        $this->assertSame((float) $this->customer->fresh()->current_balance, round((float) $statement['closing'], 2));
+    }
+
+    public function test_cheque_receipt_waits_under_collection_and_is_tracked(): void
+    {
+        app(InvoiceService::class)->create(['customer_id' => $this->customer->id, 'invoice_date' => '2026-06-10', 'payment_method' => 'credit'],
+            [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 1000, 'tax_rate' => 15]], ['issue_stock' => false]);
+        $bankBefore = $this->balance('default_bank');
+
+        $this->post(route('sales.payments.store'), ['customer_id' => $this->customer->id, 'payment_date' => '2026-06-12', 'amount' => 1150,
+            'payment_method' => 'cheque', 'reference_number' => 'CHQ-889'])->assertSessionHasNoErrors();
+
+        $this->assertSame($bankBefore, $this->balance('default_bank')); // was debited immediately
+        $this->assertSame(1150.0, $this->balance('cheques_under_collection'));
+        $cheque = \App\Models\Cheque::firstOrFail();
+        $this->assertSame(['incoming', 'pending', 'CHQ-889'], [$cheque->direction, $cheque->status, $cheque->cheque_number]);
+
+        app(\App\Services\Accounting\ChequeService::class)->transition($cheque, 'cleared', Carbon::parse('2026-06-20'));
+        $this->assertSame(0.0, $this->balance('cheques_under_collection'));
+        $this->assertSame(round($bankBefore + 1150, 2), $this->balance('default_bank'));
+        $this->assertLedgerBalanced();
+    }
 }

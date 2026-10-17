@@ -163,9 +163,8 @@ class InvoiceService
                 ! empty($line['product_id']) ? Product::find($line['product_id']) : null,
                 $taxRate, $line['vat_category'] ?? null, $line['vat_exemption_code'] ?? null,
             );
-            if ($vatCategory !== 'S') {
-                $taxRate = 0.0;
-            }
+            // Standard-rated lines always use the Kingdom's rate; others carry none.
+            $taxRate = $vatCategory === 'S' ? VatClassifier::standardRate() : 0.0;
 
             $lineTax = round($lineSubtotal * $taxRate / 100, 2);
 
