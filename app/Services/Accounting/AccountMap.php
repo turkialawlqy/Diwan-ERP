@@ -70,6 +70,7 @@ class AccountMap
         'bank_charges' => ['عمولات بنكية', 'expense'],
         'asset_disposal_loss' => ['خسائر بيع أصول', 'expense'],
         'rounding' => ['فروقات التقريب', 'expense'],
+        'cash_over_short' => ['عجز وزيادة الصندوق', 'expense'],
         'fx_difference' => ['أرباح وخسائر فروق العملة', 'expense'],
         'zakat_expense' => ['مصروف الزكاة', 'expense'],
         'equipment_recovery' => ['تكاليف معدات محمّلة على المشاريع', 'expense'],

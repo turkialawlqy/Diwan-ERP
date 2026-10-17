@@ -13,6 +13,8 @@ class PosOrder extends Model
     use BelongsToCompany, HasFactory;
 
     protected $fillable = [
+        'cash_amount',
+        'card_amount',
         'company_id',
         'pos_session_id',
         'customer_id',

@@ -480,6 +480,9 @@ Route::middleware(['auth', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'thr
         Route::put('/mappings', [A\AccountMappingController::class, 'update'])->name('mappings.update');
 
         // Fixed assets
+        Route::get('/period-end', [A\PeriodEndController::class, 'index'])->name('period-end.index');
+        Route::post('/period-end/revalue', [A\PeriodEndController::class, 'revalue'])->name('period-end.revalue');
+        Route::post('/period-end/zakat', [A\PeriodEndController::class, 'zakat'])->name('period-end.zakat');
         Route::get('/fixed-assets', [A\FixedAssetController::class, 'index'])->name('fixed-assets.index');
         Route::post('/fixed-assets', [A\FixedAssetController::class, 'store'])->name('fixed-assets.store');
         Route::post('/fixed-assets/categories', [A\FixedAssetController::class, 'storeCategory'])->name('fixed-assets.categories.store');

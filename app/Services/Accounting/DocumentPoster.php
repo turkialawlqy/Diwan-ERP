@@ -42,7 +42,11 @@ class DocumentPoster
      *   Cr Sales (net of discount)  Cr VAT output
      *   Dr COGS  Cr Inventory (stock items)
      */
-    public function salesInvoice(Invoice $invoice, ?int $warehouseId = null, ?float $cost = null, string $revenueRole = 'sales_revenue'): JournalEntry
+    /**
+     * $collections splits the paid part between boxes (POS split tender):
+     * [[account_id, amount], ...]; by default it all goes to the invoice's box.
+     */
+    public function salesInvoice(Invoice $invoice, ?int $warehouseId = null, ?float $cost = null, string $revenueRole = 'sales_revenue', ?array $collections = null): JournalEntry
     {
         $invoice->loadMissing('items', 'customer');
 
@@ -53,7 +57,13 @@ class DocumentPoster
 
         $lines = [];
 
-        if ($paid > 0) {
+        if ($collections) {
+            foreach ($collections as [$accountId, $amount]) {
+                if (round($amount, 2) > 0) {
+                    $lines[] = ['account_id' => $accountId, 'debit' => round($amount, 2), 'description' => "تحصيل فاتورة {$invoice->invoice_number}"];
+                }
+            }
+        } elseif ($paid > 0) {
             $lines[] = ['account_id' => $this->cashAccount($invoice->bank_account_id, $invoice->payment_method), 'debit' => $paid, 'description' => "تحصيل فاتورة {$invoice->invoice_number}"];
         }
 

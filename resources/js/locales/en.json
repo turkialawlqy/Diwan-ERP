@@ -63,6 +63,7 @@
         "recurring_journals": "Recurring Journals",
         "cost_centers": "Cost Centers",
         "fixed_assets": "Fixed Assets",
+        "period_end": "Period End (FX & Zakat)",
         "cheques": "Cheques",
         "reconciliations": "Bank Reconciliation",
         "budgets": "Budgets",

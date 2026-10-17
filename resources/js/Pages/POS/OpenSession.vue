@@ -4,11 +4,13 @@ import AlOstazLogo from '../../Components/AlOstazLogo.vue';
 
 const props = defineProps({
     registers: Array,
+    boxes: { type: Array, default: () => [] },
 });
 
 const form = useForm({
     pos_register_id: props.registers?.[0]?.id || '',
     opening_cash: 0,
+    float_bank_account_id: '',
     notes: '',
 });
 
@@ -49,6 +51,19 @@ const submit = () => {
                             {{ reg.name }}
                         </option>
                     </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5 text-center">العهدة الافتتاحية في الدرج (ر.س)</label>
+                    <input v-model.number="form.opening_cash" type="number" step="0.01" min="0" class="w-full text-center text-sm rounded-xl border border-slate-200 px-4 py-2.5 font-mono" />
+                </div>
+                <div v-if="form.opening_cash > 0">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5 text-center">صُرفت العهدة من (اختياري)</label>
+                    <select v-model="form.float_bank_account_id" class="w-full text-xs rounded-xl border border-slate-200 px-4 py-2.5 text-center">
+                        <option value="">لم تُصرف الآن (موجودة بالدرج)</option>
+                        <option v-for="b in boxes" :key="b.id" :value="b.id">{{ b.name }}</option>
+                    </select>
+                    <p v-if="form.errors.float_bank_account_id" class="text-xs text-rose-600 mt-1 text-center">{{ form.errors.float_bank_account_id }}</p>
                 </div>
 
                 <!-- Action Buttons (Matching live screenshot: Purple Open, Red Cancel) -->

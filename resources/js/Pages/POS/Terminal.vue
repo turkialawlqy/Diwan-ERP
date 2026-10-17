@@ -24,6 +24,7 @@ import {
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
+    boxes: { type: Array, default: () => [] },
     session: Object,
     products: Array,
     categories: Array,
@@ -163,7 +164,19 @@ const openCashCheckout = () => {
     isCashModalOpen.value = true;
 };
 
-const submitOrder = (paymentMethod, paid) => {
+// Split tender: part cash, part card.
+const isSplitModalOpen = ref(false);
+const splitCard = ref(0);
+const splitCash = ref(0);
+const openSplitCheckout = () => {
+    if (cart.value.length === 0) return;
+    splitCard.value = 0;
+    splitCash.value = Math.ceil(cartTotal.value);
+    isSplitModalOpen.value = true;
+};
+const submitSplit = () => submitOrder('multiple', (Number(splitCash.value) || 0) + (Number(splitCard.value) || 0), { cash_amount: Number(splitCash.value) || 0, card_amount: Number(splitCard.value) || 0 });
+
+const submitOrder = (paymentMethod, paid, tender = {}) => {
     if (cart.value.length === 0) return;
 
     router.post(route('pos.order.process'), {
@@ -171,12 +184,14 @@ const submitOrder = (paymentMethod, paid) => {
         customer_id: selectedCustomerId.value,
         payment_method: paymentMethod,
         paid_amount: paid,
+        ...tender,
         discount: 0,
         items: cart.value,
     }, {
         preserveScroll: true,
         onSuccess: (page) => {
             isCashModalOpen.value = false;
+            isSplitModalOpen.value = false;
             const ord = page.props.flash?.latest_order;
             if (ord) {
                 latestOrder.value = ord;
@@ -208,6 +223,7 @@ const printReceipt = () => {
 // Close Session Form
 const closeSessionForm = useForm({
     closing_cash: 0,
+    deposit_bank_account_id: '',
     notes: '',
 });
 
@@ -482,6 +498,13 @@ onMounted(() => {
                             <CreditCardIcon class="w-4 h-4 stroke-2" />
                             <span>مدى / بطاقة</span>
                         </button>
+                        <button
+                            @click="openSplitCheckout"
+                            :disabled="cart.length === 0"
+                            class="col-span-2 py-2 px-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs disabled:opacity-40"
+                        >
+                            دفع مجزأ (نقد + بطاقة)
+                        </button>
                     </div>
                 </div>
             </div>
@@ -589,7 +612,7 @@ onMounted(() => {
                     <div class="border-t border-slate-200 pt-2 text-3xs text-start space-y-0.5">
                         <p>رقم الفاتورة: <strong>{{ latestOrder.order_number }}</strong></p>
                         <p>التاريخ: {{ new Date(latestOrder.created_at).toLocaleString('ar-SA') }}</p>
-                        <p>طريقة الدفع: {{ latestOrder.payment_method === 'cash' ? 'نقداً' : 'بطاقة مدى' }}</p>
+                        <p>طريقة الدفع: {{ ({ cash: 'نقداً', card: 'بطاقة مدى', multiple: 'مجزأ (نقد + بطاقة)' })[latestOrder.payment_method] || latestOrder.payment_method }}</p>
                     </div>
 
                     <!-- Items Table -->
@@ -654,6 +677,22 @@ onMounted(() => {
             </div>
         </div>
 
+        <!-- Split tender modal -->
+        <div v-if="isSplitModalOpen" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-100 text-xs">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="text-sm font-black text-slate-800">دفع مجزأ — الإجمالي {{ formatCurrency(cartTotal) }} ﷼</h3>
+                    <button @click="isSplitModalOpen = false" class="text-slate-400 hover:text-slate-600"><XMarkIcon class="w-4 h-4" /></button>
+                </div>
+                <label class="block font-bold text-slate-700">بطاقة / مدى</label>
+                <input v-model.number="splitCard" type="number" step="0.01" min="0" :max="cartTotal" @input="splitCash = Math.max(0, Math.round((cartTotal - (Number(splitCard) || 0)) * 100) / 100)" class="w-full text-center text-lg font-mono font-bold rounded-xl border border-slate-200 py-2" />
+                <label class="block font-bold text-slate-700">نقداً</label>
+                <input v-model.number="splitCash" type="number" step="0.01" min="0" class="w-full text-center text-lg font-mono font-bold rounded-xl border border-slate-200 py-2" />
+                <p class="text-slate-500">الباقي للعميل: <strong class="font-mono">{{ formatCurrency(Math.max(0, (Number(splitCash) || 0) + (Number(splitCard) || 0) - cartTotal)) }}</strong> ﷼</p>
+                <button @click="submitSplit" :disabled="(Number(splitCash) || 0) + (Number(splitCard) || 0) < cartTotal - 0.001 || (Number(splitCard) || 0) > cartTotal" class="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-40">إتمام الدفع</button>
+            </div>
+        </div>
+
         <!-- 5. Close Session Modal -->
         <div 
             v-if="isCloseSessionModalOpen"
@@ -677,6 +716,16 @@ onMounted(() => {
                             required
                             class="w-full text-center text-lg font-mono font-bold rounded-xl border border-slate-200 py-2.5 focus:border-indigo-500"
                         />
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">توريد النقدية إلى (اختياري)</label>
+                        <select v-model="closeSessionForm.deposit_bank_account_id" class="w-full rounded-xl border border-slate-200 p-2 text-xs">
+                            <option value="">تبقى في درج نقطة البيع</option>
+                            <option v-for="b in boxes" :key="b.id" :value="b.id">{{ b.name }}</option>
+                        </select>
+                        <p v-if="closeSessionForm.errors.deposit_bank_account_id" class="text-rose-600 mt-1">{{ closeSessionForm.errors.deposit_bank_account_id }}</p>
+                        <p class="text-3xs text-slate-500 mt-1">أي عجز أو زيادة عن المتوقع يُقيَّد تلقائياً في حساب «عجز وزيادة الصندوق».</p>
                     </div>
 
                     <div>

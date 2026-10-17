@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Customer;
@@ -45,6 +46,7 @@ class PosController extends Controller
 
             return Inertia::render('POS/OpenSession', [
                 'registers' => $registers,
+                'boxes' => BankAccount::where('is_active', true)->where('type', 'cash')->get(['id', 'name']),
             ]);
         }
 
@@ -70,6 +72,7 @@ class PosController extends Controller
             'categories' => $categories,
             'customers' => $customers,
             'company' => $company,
+            'boxes' => BankAccount::where('is_active', true)->get(['id', 'name', 'type']),
         ]);
     }
 
@@ -125,6 +128,7 @@ class PosController extends Controller
         $validated = $request->validate([
             'pos_register_id' => 'required|tenant_exists:pos_registers,id',
             'opening_cash' => 'nullable|numeric|min:0',
+            'float_bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
             'notes' => 'nullable|string',
         ]);
 
@@ -134,15 +138,23 @@ class PosController extends Controller
         }
         $companyId = $company->id;
 
-        $session = PosSession::create([
-            'company_id' => $companyId,
-            'user_id' => auth()->id(),
-            'pos_register_id' => $validated['pos_register_id'],
-            'opening_cash' => $validated['opening_cash'] ?? 0,
-            'status' => 'opened',
-            'opened_at' => Carbon::now(),
-            'notes' => $validated['notes'] ?? null,
-        ]);
+        DB::transaction(function () use ($validated, $companyId) {
+            $session = PosSession::create([
+                'company_id' => $companyId,
+                'user_id' => auth()->id(),
+                'pos_register_id' => $validated['pos_register_id'],
+                'opening_cash' => $validated['opening_cash'] ?? 0,
+                'status' => 'opened',
+                'opened_at' => Carbon::now(),
+                'notes' => $validated['notes'] ?? null,
+            ]);
+
+            // The opening float handed to the cashier moves from the treasury into the drawer.
+            if (! empty($validated['float_bank_account_id']) && (float) $session->opening_cash > 0) {
+                $this->moveCash(BankAccount::findOrFail($validated['float_bank_account_id']), $this->drawer($session, 'float_bank_account_id'),
+                    (float) $session->opening_cash, "عهدة افتتاح وردية #{$session->id}");
+            }
+        });
 
         return redirect()->route('pos.index')->with('success', 'تم فتح جلسة نقاط البيع بنجاح');
     }
@@ -157,6 +169,8 @@ class PosController extends Controller
             'customer_id' => 'nullable|tenant_exists:customers,id',
             'payment_method' => 'required|string|in:cash,card,multiple',
             'paid_amount' => 'required|numeric|min:0',
+            'cash_amount' => 'nullable|required_if:payment_method,multiple|numeric|min:0',
+            'card_amount' => 'nullable|required_if:payment_method,multiple|numeric|min:0',
             'discount' => 'nullable|numeric|min:0',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|tenant_exists:products,id',
@@ -228,7 +242,16 @@ class PosController extends Controller
             $taxAmount = round(array_sum(array_column($lines, 'tax')), 2);
             $total = round($subtotal + $taxAmount, 2);
 
-            $paidAmount = (float) $validated['paid_amount'];
+            // Tender: change is only given from cash, a card never pays more than the total.
+            [$cashTender, $cardTender] = match ($validated['payment_method']) {
+                'multiple' => [(float) ($validated['cash_amount'] ?? 0), (float) ($validated['card_amount'] ?? 0)],
+                'card' => [0.0, min((float) $validated['paid_amount'], $total)],
+                default => [(float) $validated['paid_amount'], 0.0],
+            };
+            if ($cardTender > $total + 0.001) {
+                throw ValidationException::withMessages(['card_amount' => 'مبلغ البطاقة أكبر من إجمالي الفاتورة.']);
+            }
+            $paidAmount = round($cashTender + $cardTender, 2);
             $changeAmount = max(0, round($paidAmount - $total, 2));
             $collected = min($paidAmount, $total);
             $remaining = round($total - $collected, 2);
@@ -260,8 +283,8 @@ class PosController extends Controller
                 'paid_amount' => $collected,
                 'remaining_amount' => $remaining,
                 'payment_status' => $remaining > 0 ? ($collected > 0 ? 'partially_paid' : 'unpaid') : 'paid',
-                'payment_method' => $validated['payment_method'] === 'cash' ? 'cash' : 'card',
-                'bank_account_id' => $validated['payment_method'] === 'cash' ? $session->register?->bank_account_id : null,
+                'payment_method' => $validated['payment_method'],
+                'bank_account_id' => $validated['payment_method'] === 'card' ? null : $session->register?->bank_account_id,
                 'notes' => 'فاتورة ضريبية مبسطة - نقطة بيع',
                 'invoice_type' => 'simplified',
                 'zatca_uuid' => (string) Str::uuid(),
@@ -281,6 +304,8 @@ class PosController extends Controller
                 'total' => $total,
                 'paid_amount' => $paidAmount,
                 'change_amount' => $changeAmount,
+                'cash_amount' => round($cashTender, 2),
+                'card_amount' => round($cardTender, 2),
                 'payment_method' => $validated['payment_method'],
                 'status' => 'completed',
             ]);
@@ -300,7 +325,13 @@ class PosController extends Controller
             $invoice->forceFill(['warehouse_id' => $warehouseId])->saveQuietly();
             $cost = $documentStock->issue($orderItems, $warehouseId, 'sale', $invoice, $invoice->invoice_date, $orderNumber);
 
-            app(DocumentPoster::class)->salesInvoice($invoice, $warehouseId, $cost);
+            // Split tender: the cash part goes to the drawer, the card part to the bank.
+            $poster = app(DocumentPoster::class);
+            $cardPart = min($cardTender, $collected);
+            $poster->salesInvoice($invoice, $warehouseId, $cost, 'sales_revenue', $validated['payment_method'] === 'multiple' ? [
+                [$poster->cashAccount($session->register?->bank_account_id, 'cash'), round($collected - $cardPart, 2)],
+                [$poster->cashAccount(null, 'card'), round($cardPart, 2)],
+            ] : null);
 
             // Simplified tax invoice: QR now, reported to ZATCA within 24h (phase 2).
             app(EInvoiceManager::class)->stamp($invoice);
@@ -324,6 +355,7 @@ class PosController extends Controller
     {
         $validated = $request->validate([
             'closing_cash' => 'required|numeric|min:0',
+            'deposit_bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
             'notes' => 'nullable|string',
         ]);
 
@@ -333,24 +365,45 @@ class PosController extends Controller
             abort(403, 'لا يمكنك إغلاق هذه الجلسة.');
         }
 
-        // Cash actually kept in the drawer: cash received minus change given.
-        $cashOrdersTotal = (float) $session->orders()
-            ->where('payment_method', 'cash')
-            ->where('status', 'completed')
-            ->sum(DB::raw('paid_amount - change_amount'));
+        // Cash actually kept in the drawer: cash received (the cash part of split tenders) minus change given.
+        $cashOrdersTotal = $session->orders()->where('status', 'completed')->whereIn('payment_method', ['cash', 'multiple'])
+            ->get(['payment_method', 'paid_amount', 'change_amount', 'cash_amount'])
+            ->sum(fn ($o) => ($o->payment_method === 'cash' ? (float) $o->paid_amount : (float) $o->cash_amount) - (float) $o->change_amount);
 
-        $expectedCash = $session->opening_cash + $cashOrdersTotal;
+        $expectedCash = round((float) $session->opening_cash + $cashOrdersTotal, 2);
         $closingCash = (float) $validated['closing_cash'];
-        $difference = $closingCash - $expectedCash;
+        $difference = round($closingCash - $expectedCash, 2);
 
-        $session->update([
-            'closing_cash' => $closingCash,
-            'expected_cash' => $expectedCash,
-            'difference' => $difference,
-            'status' => 'closed',
-            'closed_at' => Carbon::now(),
-            'notes' => $validated['notes'] ?? $session->notes,
-        ]);
+        DB::transaction(function () use ($session, $validated, $closingCash, $expectedCash, $difference) {
+            $session->update([
+                'closing_cash' => $closingCash,
+                'expected_cash' => $expectedCash,
+                'difference' => $difference,
+                'status' => 'closed',
+                'closed_at' => Carbon::now(),
+                'notes' => $validated['notes'] ?? $session->notes,
+            ]);
+
+            // Shortage is an expense, overage a gain, against the drawer's box.
+            if ($difference != 0.0) {
+                $drawer = app(DocumentPoster::class)->cashAccount($session->register?->bank_account_id, 'cash');
+                $this->posting()->post([
+                    'date' => now(),
+                    'reference' => 'POS-'.$session->id,
+                    'description' => ($difference < 0 ? 'عجز' : 'زيادة')." صندوق وردية #{$session->id}",
+                    'source' => $session,
+                    'lines' => $difference < 0
+                        ? [['role' => 'cash_over_short', 'debit' => -$difference], ['account_id' => $drawer, 'credit' => -$difference]]
+                        : [['account_id' => $drawer, 'debit' => $difference], ['role' => 'cash_over_short', 'credit' => $difference]],
+                ]);
+            }
+
+            // Counted cash handed back to the treasury.
+            if (! empty($validated['deposit_bank_account_id']) && $closingCash > 0) {
+                $this->moveCash($this->drawer($session, 'deposit_bank_account_id'), BankAccount::findOrFail($validated['deposit_bank_account_id']),
+                    $closingCash, "توريد نقدية وردية #{$session->id}");
+            }
+        });
 
         return redirect()->route('pos.index')->with('success', 'تم إغلاق جلسة نقطة البيع وتسوية الصندوق بنجاح');
     }
@@ -367,5 +420,31 @@ class PosController extends Controller
         return Inertia::render('POS/History', [
             'orders' => $orders,
         ]);
+    }
+
+    protected function posting(): \App\Services\Accounting\PostingService
+    {
+        return app(\App\Services\Accounting\PostingService::class);
+    }
+
+    /** The register's own cash box (needed to move a float or a deposit). */
+    protected function drawer(PosSession $session, string $field): BankAccount
+    {
+        $box = $session->register?->bank_account_id ? BankAccount::find($session->register->bank_account_id) : null;
+        if (! $box) {
+            throw ValidationException::withMessages([$field => 'اربط نقطة البيع بصندوق نقدية خاص بها أولاً (من إعدادات نقاط البيع).']);
+        }
+
+        return $box;
+    }
+
+    protected function moveCash(BankAccount $from, BankAccount $to, float $amount, string $description): void
+    {
+        if ((int) $from->id === (int) $to->id) {
+            return;
+        }
+        app(DocumentPoster::class)->transfer($from, $to, round($amount, 2), now()->toDateString(), $this->nextNumber('transfer', now()->toDateString()), $description);
+        $from->decrement('current_balance', $amount);
+        $to->increment('current_balance', $amount);
     }
 }

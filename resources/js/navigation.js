@@ -116,6 +116,7 @@ export default [
             { label: 'nav.cheques', route: 'accounting.cheques.index', path: '/accounting/cheques' },
             { label: 'nav.reconciliations', route: 'accounting.reconciliations.index', path: '/accounting/reconciliations' },
             { label: 'nav.budgets', route: 'accounting.budgets.index', path: '/accounting/budgets' },
+            { label: 'nav.period_end', route: 'accounting.period-end.index', path: '/accounting/period-end' },
             { label: 'nav.fiscal_years', route: 'accounting.fiscal-years.index', path: '/accounting/fiscal-years' },
             { label: 'nav.account_mappings', route: 'accounting.mappings.index', path: '/accounting/mappings' },
         ],
