@@ -2,6 +2,7 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -24,3 +25,6 @@ Schedule::command('erp:alerts')->dailyAt('06:50')->withoutOverlapping()->onOneSe
 // Encrypted backups: daily at 02:40, restore test every Sunday.
 Schedule::command('erp:backup')->dailyAt('02:40')->withoutOverlapping()->onOneServer();
 Schedule::command('erp:backup --verify')->weeklyOn(0, '04:20')->withoutOverlapping()->onOneServer();
+
+// Heartbeat read by /health and erp:preflight: proves the scheduler is running.
+Schedule::call(fn () => Cache::put('scheduler:heartbeat', now()->timestamp, 3600))->everyMinute()->name('scheduler-heartbeat')->onOneServer();

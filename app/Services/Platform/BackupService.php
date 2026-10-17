@@ -24,12 +24,21 @@ class BackupService
 {
     public const PREFIX = 'alostaz-backup-';
 
-    public function create(): BackupRun
+    /**
+     * $tag names a backup kept outside the daily rotation (e.g. "preupdate"),
+     * so the 02:40 backup of the same day cannot prune it.
+     */
+    public function create(?string $tag = null): BackupRun
     {
         $started = microtime(true);
         $work = $this->workDir();
 
         try {
+            // Production archives hold every company's data: never unencrypted.
+            if (app()->environment('production') && ! config('backup.password')) {
+                throw new RuntimeException('BACKUP_PASSWORD غير مضبوط: لا تُنشأ نسخ احتياطية غير مشفرة في بيئة الإنتاج.');
+            }
+
             $connection = DB::connection();
             $driver = $connection->getDriverName();
             $dumpName = $driver === 'sqlite' ? 'database.sqlite' : 'database.sql';
@@ -44,18 +53,26 @@ class BackupService
             ];
             $this->dumpDatabase($driver, "{$work}/{$dumpName}");
 
-            $name = self::PREFIX.now()->format('Y-m-d-His').'.zip';
+            $name = ($tag ? 'alostaz-'.preg_replace('/[^a-z0-9]/', '', strtolower($tag)).'-' : self::PREFIX).now()->format('Y-m-d-His').'.zip';
             $zipPath = "{$work}/{$name}";
             $this->zip($zipPath, $work, $dumpName, $manifest);
 
-            $disk = Storage::disk(config('backup.disk'));
-            $stream = fopen($zipPath, 'rb');
-            $disk->writeStream($name, $stream);
-            is_resource($stream) && fclose($stream);
+            $disks = array_values(array_unique(array_filter([config('backup.disk'), config('backup.offsite_disk')])));
+            foreach ($disks as $diskName) {
+                $stream = fopen($zipPath, 'rb');
+                Storage::disk($diskName)->writeStream($name, $stream);
+                is_resource($stream) && fclose($stream);
+            }
+
+            $pruned = 0;
+            foreach ($disks as $diskName) {
+                $pruned += $this->prune($diskName);
+            }
 
             $run = BackupRun::create([
                 'type' => 'backup', 'file' => $name, 'size' => filesize($zipPath), 'status' => 'ok',
-                'details' => ['tables' => count($manifest['tables']), 'rows' => array_sum($manifest['tables']), 'encrypted' => (bool) config('backup.password'), 'pruned' => $this->prune()],
+                'details' => ['tables' => count($manifest['tables']), 'rows' => array_sum($manifest['tables']), 'encrypted' => (bool) config('backup.password'), 'pruned' => $pruned,
+                    'offsite' => (bool) config('backup.offsite_disk'), 'tag' => $tag],
                 'duration_ms' => (int) ((microtime(true) - $started) * 1000),
             ]);
         } catch (Throwable $e) {
@@ -115,10 +132,78 @@ class BackupService
         return $run;
     }
 
-    /** Keeps the newest daily / weekly (Sunday) / monthly (1st) archives. */
-    public function prune(): int
+    /**
+     * Restores a backup over the current database and uploaded files. Returns
+     * the APP_KEY stored in the archive (when it differs from the current one,
+     * it must be put back into .env so encrypted data can be read).
+     */
+    public function restore(string $file, ?string $diskName = null): array
     {
-        $disk = Storage::disk(config('backup.disk'));
+        $work = $this->workDir();
+
+        try {
+            $disk = Storage::disk($diskName ?? config('backup.disk'));
+            if (! $disk->exists($file)) {
+                throw new RuntimeException("النسخة {$file} غير موجودة.");
+            }
+            $local = "{$work}/".basename($file);
+            $in = $disk->readStream($file);
+            $out = fopen($local, 'wb');
+            stream_copy_to_stream($in, $out);
+            fclose($out);
+            is_resource($in) && fclose($in);
+
+            $zip = new ZipArchive;
+            if ($zip->open($local) !== true) {
+                throw new RuntimeException('تعذّر فتح الأرشيف.');
+            }
+            if ($password = config('backup.password')) {
+                $zip->setPassword($password);
+            }
+            if (! $zip->extractTo("{$work}/x")) {
+                throw new RuntimeException('تعذّر فك الأرشيف (كلمة مرور النسخ الاحتياطي غير صحيحة؟).');
+            }
+            $zip->close();
+
+            $manifest = json_decode(file_get_contents("{$work}/x/manifest.json"), true);
+            $dump = "{$work}/x/{$manifest['database']}";
+            $driver = DB::connection()->getDriverName();
+            if ($manifest['driver'] !== $driver) {
+                throw new RuntimeException("النسخة من قاعدة {$manifest['driver']} والقاعدة الحالية {$driver}.");
+            }
+
+            if ($driver === 'sqlite') {
+                $target = DB::connection()->getConfig('database');
+                DB::disconnect();
+                File::copy($dump, $target);
+            } else {
+                $config = DB::connection()->getConfig();
+                $env = ['MYSQL_PWD' => (string) ($config['password'] ?? '')];
+                $base = [config('backup.mysql'), '--host='.($config['host'] ?? '127.0.0.1'), '--port='.($config['port'] ?? 3306), '--user='.($config['username'] ?? 'root')];
+                Process::timeout(7200)->env($env)->input(fopen($dump, 'rb'))->run([...$base, $config['database']])->throw();
+            }
+
+            foreach (['public' => storage_path('app/public'), 'private' => storage_path('app/private')] as $label => $root) {
+                if (is_dir("{$work}/x/files/{$label}")) {
+                    File::copyDirectory("{$work}/x/files/{$label}", $root);
+                }
+            }
+
+            $key = is_file("{$work}/x/app-key.txt") ? trim(file_get_contents("{$work}/x/app-key.txt")) : null;
+
+            return ['created_at' => $manifest['created_at'], 'tables' => count($manifest['tables']), 'app_key' => $key, 'key_matches' => $key === null || $key === config('app.key')];
+        } finally {
+            File::deleteDirectory($work);
+        }
+    }
+
+    /** Keeps the newest daily / weekly (Sunday) / monthly (1st) archives, and the last few tagged ones. */
+    public function prune(?string $diskName = null): int
+    {
+        $disk = Storage::disk($diskName ?? config('backup.disk'));
+        $tagged = collect($disk->files())->filter(fn ($f) => str_starts_with($f, 'alostaz-') && ! str_starts_with($f, self::PREFIX) && str_ends_with($f, '.zip'))->sortDesc()->values();
+        $tagged->slice(max(0, (int) config('backup.keep_tagged', 5)))->each(fn ($f) => $disk->delete($f));
+
         $files = collect($disk->files())->filter(fn ($f) => str_starts_with($f, self::PREFIX))->sortDesc()->values();
         $dated = $files->mapWithKeys(fn ($f) => [$f => $this->dateOf($f)])->filter();
 
@@ -197,6 +282,12 @@ class BackupService
 
         $entries = ['manifest.json' => null, $dumpName => "{$work}/{$dumpName}"];
         $zip->addFromString('manifest.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        // ZATCA keys and other encrypted columns need this APP_KEY to be read after a
+        // restore; it is only stored inside an encrypted archive.
+        if ($password) {
+            $zip->addFromString('app-key.txt', (string) config('app.key'));
+            $entries['app-key.txt'] = true;
+        }
         $zip->addFile("{$work}/{$dumpName}", $dumpName);
 
         foreach (['public' => storage_path('app/public'), 'private' => storage_path('app/private')] as $label => $root) {

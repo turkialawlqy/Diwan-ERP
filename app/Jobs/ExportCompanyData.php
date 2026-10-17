@@ -35,6 +35,9 @@ class ExportCompanyData implements ShouldQueue
     public function __construct(public int $exportId, public int $companyId)
     {
         $this->onQueue('exports');
+        if (config('queue.default') === 'redis') {
+            $this->onConnection('redis-long');
+        }
     }
 
     public function handle(TenantManager $tenantManager): void

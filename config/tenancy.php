@@ -43,7 +43,7 @@ return [
     | default in production: password-reset links are built from the Host.
     | Turn off for a LAN install reached by IP / machine name.
     */
-    'reject_unknown_hosts' => (bool) env('TENANCY_REJECT_UNKNOWN_HOSTS', env('APP_ENV') === 'production'),
+    'reject_unknown_hosts' => in_array(env('TENANCY_REJECT_UNKNOWN_HOSTS'), [null, ''], true) ? env('APP_ENV') === 'production' : (bool) env('TENANCY_REJECT_UNKNOWN_HOSTS'),
 
     'allowed_hosts' => array_values(array_filter(array_map('trim', explode(',', strtolower((string) env('TENANCY_ALLOWED_HOSTS', '')))))),
 

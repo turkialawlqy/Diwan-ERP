@@ -4,19 +4,25 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\AuditLog;
+use App\Models\BackupRun;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\User;
+use App\Models\ZatcaDevice;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\PostingService;
 use App\Services\Auth\Totp;
 use App\Services\Auth\TwoFactor;
+use App\Services\Platform\BackupService;
+use App\Services\Saas\AlertService;
 use App\Services\Saas\WebhookDispatcher;
 use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -239,5 +245,73 @@ class ProductionReadinessTest extends TestCase
         $invoice = app(InvoiceService::class)->create(['customer_id' => $customer->id, 'invoice_date' => now()->toDateString()],
             [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 10, 'tax_rate' => 15]], ['issue_stock' => false]);
         $this->assertStringStartsWith('RYD-', $invoice->invoice_number);
+    }
+
+    // ------------------------------------------------------------ server operations
+
+    public function test_preflight_fails_on_an_unsafe_configuration(): void
+    {
+        config(['app.debug' => true]);
+        $this->artisan('erp:preflight')->assertFailed();
+    }
+
+    public function test_health_reports_a_missing_backup_and_stopped_scheduler(): void
+    {
+        $this->get(route('health'))->assertOk()->assertJsonPath('checks.database.ok', true);
+
+        config(['health.check_operations' => true]);
+        $this->get(route('health'))->assertStatus(503)->assertJsonPath('checks.scheduler.ok', false)->assertJsonPath('checks.backup.ok', false);
+
+        Cache::put('scheduler:heartbeat', now()->timestamp, 600);
+        BackupRun::create(['type' => 'backup', 'file' => 'x.zip', 'status' => 'ok', 'size' => 1, 'details' => [], 'duration_ms' => 1]);
+        $this->get(route('health'))->assertOk();
+    }
+
+    public function test_production_backups_require_encryption_and_tagged_backups_survive_rotation(): void
+    {
+        Storage::fake('backups');
+        $this->app->detectEnvironment(fn () => 'production');
+        config(['backup.password' => null]);
+        $run = app(BackupService::class)->create();
+        $this->assertSame('failed', $run->status);
+        $this->assertStringContainsString('BACKUP_PASSWORD', $run->error);
+        $this->app->detectEnvironment(fn () => 'testing');
+
+        $disk = Storage::disk('backups');
+        foreach (range(1, 9) as $d) {
+            $disk->put(sprintf('alostaz-backup-2026-06-%02d-024000.zip', $d), 'x');
+        }
+        foreach (range(1, 7) as $d) {
+            $disk->put(sprintf('alostaz-preupdate-2026-06-%02d-120000.zip', $d), 'x');
+        }
+        config(['backup.keep.daily' => 7, 'backup.keep.weekly' => 0, 'backup.keep.monthly' => 0, 'backup.keep_tagged' => 5]);
+        app(BackupService::class)->prune();
+
+        $this->assertCount(7, collect($disk->files())->filter(fn ($f) => str_starts_with($f, 'alostaz-backup-')));
+        $this->assertCount(5, collect($disk->files())->filter(fn ($f) => str_starts_with($f, 'alostaz-preupdate-')));
+        $this->assertTrue($disk->exists('alostaz-preupdate-2026-06-07-120000.zip'));
+    }
+
+    public function test_zatca_certificate_expiry_and_overdue_reporting_raise_alerts(): void
+    {
+        ZatcaDevice::create(['name' => 'جهاز الفرع', 'serial_number' => '1-A|2-B|3-C', 'environment' => 'simulation', 'status' => 'active', 'certificate_expires_at' => now()->addDays(5)]);
+
+        $kinds = collect(app(AlertService::class)->collect())->pluck('level', 'kind');
+        $certificate = $kinds->filter(fn ($l, $k) => str_starts_with($k, 'zatca_certificate_'));
+        $this->assertCount(1, $certificate);
+        $this->assertSame('danger', $certificate->first());
+    }
+
+    public function test_the_platform_admin_is_created_by_command_with_a_secret_password(): void
+    {
+        $this->artisan('erp:create-super-admin', ['email' => 'ops@example.com'])
+            ->expectsQuestion('كلمة المرور (10 أحرف على الأقل)', 'Very-Secret-2026')
+            ->expectsQuestion('أعد كتابة كلمة المرور', 'Very-Secret-2026')
+            ->assertSuccessful();
+
+        $admin = User::where('email', 'ops@example.com')->first();
+        $this->assertTrue($admin->isSuperAdmin());
+        $this->assertNull($admin->company_id);
+        $this->assertTrue(\Hash::check('Very-Secret-2026', $admin->password));
     }
 }

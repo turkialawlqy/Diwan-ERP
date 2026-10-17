@@ -6,7 +6,37 @@
 - MySQL 8.0+ (أو MariaDB 10.6+)، وRedis 6+.
 - Node 20 للبناء فقط، وNginx، وSupervisor.
 
+## أول تشغيل إنتاجي (خطوة بخطوة)
+
+1. **الخادم:** أنشئ قاعدة MySQL ومستخدماً لها، وثبّت Redis وNginx وSupervisor (انظر المتطلبات).
+2. **الكود:**
+   ```bash
+   git clone <repo> /var/www/alostaz && cd /var/www/alostaz
+   git checkout stable        # فرع/وسم الإصدارات المستقرة، لا فرع التطوير
+   composer install --no-dev --optimize-autoloader
+   npm ci && npm run build
+   ```
+3. **الإعدادات:**
+   - انسخ القالب: `cp .env.production.example .env`.
+   - املأ كل قيمة فارغة: قاعدة البيانات، البريد، `BACKUP_PASSWORD`، حساب التخزين الخارجي.
+   - ثم: `php artisan key:generate`.
+   - احفظ `APP_KEY` و`BACKUP_PASSWORD` في مخزن أسرار خارج الخادم.
+4. **قاعدة البيانات:** `php artisan migrate --force --seed`. في الإنتاج يُنشئ المُبذِر الباقات فقط، بلا شركة تجريبية ولا كلمات مرور.
+5. **مدير المنصة:** `php artisan erp:create-super-admin you@example.com`. تُطلب كلمة المرور سرّاً، ويُفرض التحقق الثنائي عند أول دخول.
+6. **العمليات الخلفية:** انسخ `deploy/supervisor.conf` إلى `/etc/supervisor/conf.d/`، ثم `supervisorctl reread && supervisorctl update`. الملف يشمل:
+   - عمّال الطوابير.
+   - **المُجدول** (`schedule:work`).
+7. **التخزين المؤقت:** `php artisan optimize`.
+8. **الفحص:** `php artisan erp:preflight`. يجب ألا يظهر أي «خطأ».
+9. **المراقبة:** اربط مراقب جاهزية (UptimeRobot أو غيره) بـ `https://alostaz.io/health`. يرد 503 عند:
+   - تعطل قاعدة البيانات.
+   - توقف عامل الطوابير.
+   - توقف المُجدول.
+   - تقادم النسخة الاحتياطية.
+
 ## الإعدادات الأساسية (`.env`)
+
+القالب الكامل في [`.env.production.example`](../.env.production.example). أهم القيم:
 
 ```dotenv
 APP_ENV=production
@@ -24,6 +54,10 @@ SESSION_DRIVER=redis
 QUEUE_CONNECTION=redis
 TRUSTED_PROXIES=10.0.0.0/8            # عند وجود موازن أحمال
 MAIL_MAILER=smtp
+APP_TIMEZONE=Asia/Riyadh              # تواريخ المستندات والترقيم والتقارير
+TENANCY_REJECT_UNKNOWN_HOSTS=true     # يرفض Host مزوّراً (روابط إعادة كلمة المرور)
+BACKUP_PASSWORD=...                   # إلزامي: لا تُنشأ نسخ غير مشفرة في الإنتاج
+BACKUP_OFFSITE_DISK=offsite           # نسخة من كل نسخة احتياطية في S3 خارج الخادم
 ```
 
 > **تنبيه:** `APP_KEY` يُشفّر مفاتيح أجهزة الفوترة الإلكترونية وأسرار الـ Webhooks. احفظه في مخزن أسرار، ولا تغيّره بعد التشغيل.
@@ -52,11 +86,13 @@ MAIL_MAILER=smtp
 | `exports` | نسخ بيانات المنشآت |
 | `default` | الإشعارات والبريد |
 
-أضف كذلك سطر cron للمجدول:
+المُجدول يعمل كبرنامج `alostaz-scheduler` في الملف نفسه (`schedule:work`). أو بدلاً منه سطر cron:
 
 ```cron
 * * * * * cd /var/www/alostaz && php artisan schedule:run >> /dev/null 2>&1
 ```
+
+بدون المُجدول لا تعمل أي من المهام في الجدول التالي، ومنها النسخ الاحتياطي والإبلاغ لهيئة الزكاة. يكتب المُجدول نبضاً كل دقيقة يقرؤه `/health`.
 
 | المهمة | الموعد | الوظيفة |
 |---|---|---|
@@ -64,7 +100,9 @@ MAIL_MAILER=smtp
 | `erp:alerts` | يومياً 06:50 | ملخص التنبيهات |
 | `erp:accounting-schedules recurring` | يومياً | القيود المتكررة |
 | `erp:accounting-schedules depreciation` | شهرياً | الإهلاك |
-| `erp:hr-provision` | شهرياً | مخصص نهاية الخدمة |
+| `erp:hr-provision` | شهرياً | مخصص نهاية الخدمة والإجازات |
+| `erp:backup` | يومياً 02:40 | نسخة مشفرة (ونسخة خارج الخادم إن ضُبط `BACKUP_OFFSITE_DISK`) |
+| `erp:backup --verify` | الأحد 04:20 | اختبار استعادة |
 
 ## ملاحظات بيئة التشغيل
 
@@ -77,13 +115,18 @@ MAIL_MAILER=smtp
 ## خطوات النشر
 
 ```bash
-git pull
+php artisan erp:backup --tag=preupdate     # نسخة قبل التحديث خارج التدوير اليومي
+php artisan down --retry=60
+git pull                                   # من فرع/وسم stable
 composer install --no-dev --optimize-autoloader
 npm ci && npm run build
-php artisan migrate --force
-php artisan erp:sync-permissions          # بعد أي تحديث للصلاحيات
-php artisan config:cache && php artisan route:cache && php artisan view:cache
+php artisan migrate --force                # إن فشل: ابقَ في الصيانة واستعد النسخة (انظر الاستعادة)
+php artisan erp:sync-permissions
+php artisan erp:accounting provision       # الحسابات الجديدة للمنشآت القائمة
+php artisan optimize
 php artisan queue:restart
+php artisan up
+php artisan erp:preflight
 ```
 
 ## النسخ الاحتياطي
@@ -102,7 +145,8 @@ php artisan queue:restart
 | المتغير | الوصف |
 |---|---|
 | `BACKUP_PASSWORD` | كلمة مرور التشفير (إلزامية عملياً). |
-| `BACKUP_DISK` | قرص التخزين. الافتراضي `backups` (`storage/app/backups`). اربطه بقرص S3 لحفظ النسخ خارج الخادم. |
+| `BACKUP_DISK` | القرص الأساسي. الافتراضي `backups` (`storage/app/backups`). |
+| `BACKUP_OFFSITE_DISK` | `offsite` لنسخ كل نسخة إلى تخزين S3 متوافق: AWS أو Wasabi أو Backblaze أو MinIO. الإعدادات في `BACKUP_S3_*`. |
 | `BACKUP_KEEP_DAILY` / `_WEEKLY` / `_MONTHLY` | الاحتفاظ. الافتراضي 7 يومية و4 أسبوعية و6 شهرية. |
 | `BACKUP_VERIFY_DATABASE` | قاعدة MySQL فارغة مخصصة لاختبار الاستعادة الكامل (تُحذف وتُنشأ في كل اختبار). بدونها يكتفي الاختبار بفحص بنية الملف. |
 | `BACKUP_NOTIFY_EMAIL` | بريد يُنبَّه عند فشل النسخ أو الاختبار. |
@@ -114,20 +158,25 @@ php artisan queue:restart
 
 ### الاستعادة
 
-1. **فك الأرشيف** (يتطلب `7z` أو `unzip` بنسخة تدعم AES):
+```bash
+php artisan erp:backup --tag=prerestore    # احتياطاً، نسخة من الوضع الحالي
+php artisan erp:restore alostaz-backup-YYYY-MM-DD-HHMMSS.zip            # من القرص الأساسي
+php artisan erp:restore alostaz-backup-YYYY-MM-DD-HHMMSS.zip --disk=offsite   # من النسخة الخارجية
+```
 
-   ```bash
-   7z x alostaz-backup-YYYY-MM-DD-HHMMSS.zip -p"$BACKUP_PASSWORD" -o/tmp/restore
-   ```
+**ما يفعله الأمر:**
+- يضع الموقع في الصيانة.
+- يفك الأرشيف بـ `BACKUP_PASSWORD`.
+- يستعيد قاعدة البيانات والملفات المرفوعة.
+- يشغّل الترحيل، ثم يعيد الموقع.
 
-2. **قاعدة البيانات:**
+**على خادم جديد:** الأرشيف يحتوي `APP_KEY` الأصلي، وبدونه لا تُقرأ مفاتيح أجهزة ZATCA. إن اختلف عن الحالي يطبعه الأمر لتضعه في `.env`.
 
-   ```bash
-   mysql alostaz < /tmp/restore/database.sql
-   ```
-
-3. **الملفات:** انسخ `files/public` إلى `storage/app/public`، و`files/private` إلى `storage/app/private`.
-4. **إنهاء الاستعادة:** شغّل `php artisan optimize:clear`، ثم أعد تشغيل الطوابير.
+**يدوياً بدون الأمر:**
+1. `7z x <file> -p"$BACKUP_PASSWORD"`.
+2. `mysql alostaz < database.sql`.
+3. انسخ `files/public` و`files/private` إلى `storage/app/`.
+4. `php artisan optimize:clear`.
 
 ### نسخة منشأة واحدة
 

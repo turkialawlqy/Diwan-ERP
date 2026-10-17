@@ -30,6 +30,7 @@ use App\Http\Controllers\Finance\ExpenseController;
 use App\Http\Controllers\Finance\RevenueController;
 use App\Http\Controllers\Finance\TransferController;
 use App\Http\Controllers\FreeformTemplateController;
+use App\Http\Controllers\HealthController;
 use App\Http\Controllers\HR\EmployeeController;
 use App\Http\Controllers\HR\HrOperationsController;
 use App\Http\Controllers\HR\HrSettingsController;
@@ -70,6 +71,9 @@ use App\Services\TenantManager;
 use Illuminate\Support\Facades\Route;
 
 // Home redirect
+// Uptime monitoring (database, queue, scheduler heartbeat, backup age).
+Route::get('/health', HealthController::class)->middleware('throttle:60,1')->name('health');
+
 Route::get('/', function () {
     if (auth()->check()) {
         if (auth()->user()->isSuperAdmin() && ! app(TenantManager::class)->isImpersonating()) {

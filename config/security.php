@@ -12,7 +12,7 @@ return [
     | Redirect HTTP to HTTPS and generate https URLs. On by default in
     | production; turn off for a LAN install served over plain HTTP.
     */
-    'force_https' => (bool) env('FORCE_HTTPS', env('APP_ENV') === 'production'),
+    'force_https' => in_array(env('FORCE_HTTPS'), [null, ''], true) ? env('APP_ENV') === 'production' : (bool) env('FORCE_HTTPS'),
 
     /*
     | Two-factor challenge: failed codes before a lockout, and its minutes

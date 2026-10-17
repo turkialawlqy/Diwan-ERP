@@ -22,6 +22,12 @@ return [
     // Address alerted when a backup or verification fails.
     'notify' => env('BACKUP_NOTIFY_EMAIL'),
 
+    // Second disk every backup is copied to (off the server). Empty = none.
+    'offsite_disk' => env('BACKUP_OFFSITE_DISK'),
+
+    // Pre-update backups (erp:backup --tag=preupdate) kept apart from rotation.
+    'keep_tagged' => (int) env('BACKUP_KEEP_TAGGED', 5),
+
     'mysqldump' => env('BACKUP_MYSQLDUMP', 'mysqldump'),
     'mysql' => env('BACKUP_MYSQL', 'mysql'),
 ];

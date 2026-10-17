@@ -27,69 +27,15 @@ class DatabaseSeeder extends Seeder
         $registry = app(PermissionRegistry::class);
         $registry->syncPermissions();
 
-        // 2. Create Default Subscription Plans
-        $basicPlan = SubscriptionPlan::create([
-            'name_ar' => 'الباقة الأساسية',
-            'name_en' => 'Basic Plan',
-            'slug' => 'basic',
-            'description_ar' => 'مناسبة للمؤسسات الصغيرة والناشئة',
-            'description_en' => 'Ideal for small and starting businesses',
-            'price_monthly' => 99.00,
-            'price_yearly' => 990.00,
-            'max_users' => 3,
-            'max_branches' => 1,
-            'max_invoices_per_month' => 300,
-            'features' => ['sales', 'inventory', 'pos', 'reports_basic'],
-            'modules' => ['sales', 'pos', 'inventory', 'purchases', 'accounting'],
-            'max_warehouses' => 1,
-            'max_employees' => 5,
-            'trial_days' => 14,
-            'sort' => 1,
-            'is_active' => true,
-            'is_popular' => false,
-        ]);
+        // 2. Subscription plans
+        [$basicPlan, $proPlan, $enterprisePlan] = array_values($this->seedPlans());
 
-        $proPlan = SubscriptionPlan::create([
-            'name_ar' => 'الباقة المتقدمة',
-            'name_en' => 'Pro Plan',
-            'slug' => 'pro',
-            'description_ar' => 'الأكثر طلباً للشركات والمؤسسات المتوسطة',
-            'description_en' => 'Most popular for growing companies',
-            'price_monthly' => 199.00,
-            'price_yearly' => 1990.00,
-            'max_users' => 10,
-            'max_branches' => 3,
-            'max_invoices_per_month' => 2000,
-            'features' => ['sales', 'inventory', 'pos', 'purchases', 'finance', 'reports_advanced'],
-            'modules' => ['sales', 'pos', 'inventory', 'purchases', 'accounting', 'hr', 'crm', 'zatca'],
-            'max_warehouses' => 5,
-            'max_employees' => 50,
-            'trial_days' => 14,
-            'sort' => 2,
-            'is_active' => true,
-            'is_popular' => true,
-        ]);
+        // Production: plans only. No demo company and no default password.
+        if (app()->isProduction()) {
+            $this->command?->info('Production database: plans seeded. Create the platform administrator with: php artisan erp:create-super-admin');
 
-        $enterprisePlan = SubscriptionPlan::create([
-            'name_ar' => 'باقة الشركات',
-            'name_en' => 'Enterprise Plan',
-            'slug' => 'enterprise',
-            'description_ar' => 'حل شامل للشركات الكبيرة والمتعددة الفروع',
-            'description_en' => 'Comprehensive solution for large enterprises',
-            'price_monthly' => 399.00,
-            'price_yearly' => 3990.00,
-            'max_users' => 50,
-            'max_branches' => 10,
-            'max_invoices_per_month' => 10000,
-            'features' => ['all_features', 'api_access', 'priority_support', 'dedicated_account_manager'],
-            'modules' => null, // every module, including contracting and the API
-            'max_warehouses' => -1,
-            'max_employees' => -1,
-            'trial_days' => 30,
-            'sort' => 3,
-            'is_active' => true,
-            'is_popular' => false,
-        ]);
+            return;
+        }
 
         // 3. Create Super Admin User
         $superAdmin = User::create([
@@ -100,6 +46,8 @@ class DatabaseSeeder extends Seeder
             'status' => 'active',
             'email_verified_at' => now(),
         ]);
+        // is_super_admin is guarded against mass assignment.
+        $superAdmin->forceFill(['is_super_admin' => true])->save();
 
         // 4. Create Demo Company (mimicking https://anas.alostaz.io)
         $existingLogos = glob(storage_path('app/public/logos/*.{png,jpg,jpeg,svg,webp}'), GLOB_BRACE);
@@ -198,5 +146,78 @@ class DatabaseSeeder extends Seeder
         Artisan::call('erp:inventory-sync', ['--company' => $company->id]);
         app(DocumentBackfill::class)->run($company);
         app(PostingService::class)->rebuildBalances($company->id);
+    }
+
+    /**
+     * Subscription plans (idempotent: matched by slug). The only data a
+     * production database is seeded with.
+     */
+    protected function seedPlans(): array
+    {
+        $plans = [];
+        $plans['basicPlan'] = SubscriptionPlan::updateOrCreate(['slug' => 'basic'], [
+            'name_ar' => 'الباقة الأساسية',
+            'name_en' => 'Basic Plan',
+            'slug' => 'basic',
+            'description_ar' => 'مناسبة للمؤسسات الصغيرة والناشئة',
+            'description_en' => 'Ideal for small and starting businesses',
+            'price_monthly' => 99.00,
+            'price_yearly' => 990.00,
+            'max_users' => 3,
+            'max_branches' => 1,
+            'max_invoices_per_month' => 300,
+            'features' => ['sales', 'inventory', 'pos', 'reports_basic'],
+            'modules' => ['sales', 'pos', 'inventory', 'purchases', 'accounting'],
+            'max_warehouses' => 1,
+            'max_employees' => 5,
+            'trial_days' => 14,
+            'sort' => 1,
+            'is_active' => true,
+            'is_popular' => false,
+        ]);
+
+        $plans['proPlan'] = SubscriptionPlan::updateOrCreate(['slug' => 'pro'], [
+            'name_ar' => 'الباقة المتقدمة',
+            'name_en' => 'Pro Plan',
+            'slug' => 'pro',
+            'description_ar' => 'الأكثر طلباً للشركات والمؤسسات المتوسطة',
+            'description_en' => 'Most popular for growing companies',
+            'price_monthly' => 199.00,
+            'price_yearly' => 1990.00,
+            'max_users' => 10,
+            'max_branches' => 3,
+            'max_invoices_per_month' => 2000,
+            'features' => ['sales', 'inventory', 'pos', 'purchases', 'finance', 'reports_advanced'],
+            'modules' => ['sales', 'pos', 'inventory', 'purchases', 'accounting', 'hr', 'crm', 'zatca'],
+            'max_warehouses' => 5,
+            'max_employees' => 50,
+            'trial_days' => 14,
+            'sort' => 2,
+            'is_active' => true,
+            'is_popular' => true,
+        ]);
+
+        $plans['enterprisePlan'] = SubscriptionPlan::updateOrCreate(['slug' => 'enterprise'], [
+            'name_ar' => 'باقة الشركات',
+            'name_en' => 'Enterprise Plan',
+            'slug' => 'enterprise',
+            'description_ar' => 'حل شامل للشركات الكبيرة والمتعددة الفروع',
+            'description_en' => 'Comprehensive solution for large enterprises',
+            'price_monthly' => 399.00,
+            'price_yearly' => 3990.00,
+            'max_users' => 50,
+            'max_branches' => 10,
+            'max_invoices_per_month' => 10000,
+            'features' => ['all_features', 'api_access', 'priority_support', 'dedicated_account_manager'],
+            'modules' => null, // every module, including contracting and the API
+            'max_warehouses' => -1,
+            'max_employees' => -1,
+            'trial_days' => 30,
+            'sort' => 3,
+            'is_active' => true,
+            'is_popular' => false,
+        ]);
+
+        return $plans;
     }
 }

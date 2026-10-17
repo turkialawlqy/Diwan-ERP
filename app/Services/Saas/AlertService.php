@@ -18,9 +18,11 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
 use App\Models\SalesOrder;
 use App\Models\User;
+use App\Models\ZatcaDevice;
 use App\Models\ZatcaDocument;
 use App\Notifications\ErpAlert;
 use App\Services\Equipment\MaintenanceTracker;
+use App\Services\Zatca\EInvoiceManager;
 
 /**
  * Daily digest of what needs attention in a company, sent to the users who
@@ -88,6 +90,25 @@ class AlertService
         $zatca = ZatcaDocument::whereIn('status', ['rejected', 'failed'])->count();
         if ($zatca) {
             $alerts[] = $this->alert('zatca', 'admin.zatca.view', 'فواتير إلكترونية تحتاج متابعة', "{$zatca} مستند مرفوض أو تعذر إرساله لهيئة الزكاة", route('zatca.index', [], false), 'danger');
+        }
+
+        // Simplified invoices must be reported within 24 hours.
+        $overdue = ZatcaDocument::where('submission', 'reporting')->whereIn('status', ['pending', 'failed'])->where('created_at', '<', EInvoiceManager::reportingDeadline())->count();
+        if ($overdue) {
+            $alerts[] = $this->alert('zatca_overdue', 'admin.zatca.view', 'فواتير مبسطة تجاوزت مهلة الإبلاغ', "{$overdue} فاتورة مبسطة لم تُبلَّغ للهيئة خلال 24 ساعة", route('zatca.index', [], false), 'danger');
+        }
+
+        // Automatic resubmission gives up after 20 attempts: someone must look.
+        $stuck = ZatcaDocument::whereIn('status', ['pending', 'failed'])->where('attempts', '>=', 20)->count();
+        if ($stuck) {
+            $alerts[] = $this->alert('zatca_stuck', 'admin.zatca.view', 'مستندات توقف إرسالها للهيئة', "{$stuck} مستند استنفد محاولات الإرسال التلقائي", route('zatca.index', [], false), 'danger');
+        }
+
+        // A device whose certificate expires stops signing invoices.
+        foreach (ZatcaDevice::where('status', 'active')->whereNotNull('certificate_expires_at')->where('certificate_expires_at', '<=', now()->addDays(30))->get() as $device) {
+            $days = (int) max(0, now()->startOfDay()->diffInDays($device->certificate_expires_at->copy()->startOfDay(), false));
+            $alerts[] = $this->alert('zatca_certificate_'.$device->id, 'admin.zatca.view', 'شهادة ZATCA تقترب من الانتهاء',
+                "شهادة جهاز «{$device->name}» تنتهي خلال {$days} يوم. جدّدها من شاشة الفوترة الإلكترونية قبل توقف الإصدار.", route('zatca.index', [], false), $days <= 7 ? 'danger' : 'warning');
         }
 
         $followUps = Lead::whereNotIn('status', ['won', 'lost'])->whereDate('next_follow_up', '<=', $today)->count();
