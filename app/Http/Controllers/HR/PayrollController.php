@@ -9,6 +9,7 @@ use App\Models\EmployeeAdjustment;
 use App\Models\Payroll;
 use App\Models\PayrollItem;
 use App\Services\HR\PayrollService;
+use App\Services\Settings\CompanyPolicy;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -80,12 +81,22 @@ class PayrollController extends Controller
         if ($payroll->status !== 'draft') {
             throw ValidationException::withMessages(['payroll' => 'المسير معتمد؛ سجّل التعديل في الشهر التالي.']);
         }
-        EmployeeAdjustment::create($request->validate([
+        $validated = $request->validate([
             'employee_id' => 'required|tenant_exists:employees,id',
             'type' => 'required|in:bonus,commission,overtime_hours,penalty,deduction',
             'amount' => 'required|numeric|gt:0',
             'description' => 'nullable|string|max:500',
-        ]) + ['year' => $payroll->year, 'month' => $payroll->month, 'created_by' => auth()->id()]);
+        ]);
+        // Art. 66: a fine for one violation may not exceed five days' wage.
+        if ($validated['type'] === 'penalty') {
+            $employee = Employee::findOrFail($validated['employee_id']);
+            $daily = ((float) $employee->basic_salary + (float) $employee->housing_allowance + (float) $employee->transport_allowance + (float) $employee->other_allowances)
+                / (int) CompanyPolicy::get('hr.month_days', 30);
+            if ((float) $validated['amount'] > round($daily * 5, 2) + 0.005) {
+                throw ValidationException::withMessages(['amount' => 'الجزاء عن المخالفة الواحدة لا يتجاوز أجر خمسة أيام ('.number_format($daily * 5, 2).') وفق المادة 66.']);
+            }
+        }
+        EmployeeAdjustment::create($validated + ['year' => $payroll->year, 'month' => $payroll->month, 'created_by' => auth()->id()]);
         $this->payrolls->recalculate($payroll);
 
         return back()->with('success', 'تم تسجيل التعديل وإعادة الاحتساب');

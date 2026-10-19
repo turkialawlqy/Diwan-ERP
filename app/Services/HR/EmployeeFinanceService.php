@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Employee;
 use App\Models\EmployeeLoan;
 use App\Models\EndOfServiceSettlement;
+use App\Models\PayrollItem;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\PostingService;
@@ -42,12 +43,21 @@ class EmployeeFinanceService
         protected LeaveService $leaves,
     ) {}
 
+    /** Nobody approves their own leave or loan. */
+    public static function assertNotOwnRequest(?Employee $employee): void
+    {
+        if ($employee?->user_id && (int) $employee->user_id === (int) auth()->id()) {
+            throw ValidationException::withMessages(['approval' => 'لا يمكنك البت في طلبك الشخصي؛ يعتمده مسؤول آخر.']);
+        }
+    }
+
     // ----- Loans -----
 
     public function approveLoan(EmployeeLoan $loan, ?int $bankAccountId): void
     {
         DB::transaction(function () use ($loan, $bankAccountId) {
             $loan = EmployeeLoan::whereKey($loan->id)->lockForUpdate()->firstOrFail();
+            self::assertNotOwnRequest($loan->employee);
             if ($loan->status !== 'pending') {
                 throw ValidationException::withMessages(['loan' => 'السلفة ليست قيد الانتظار.']);
             }
@@ -77,6 +87,11 @@ class EmployeeFinanceService
         $rules = CompanyPolicy::get('hr.end_of_service');
         // Calendar years of service (leap-year safe), fractions pro rata.
         $years = $employee->hire_date ? max(0, (float) $employee->hire_date->diffInYears($date)) : 0;
+        // Unpaid leave is not service when it exceeds twenty days.
+        $unpaid = $employee->hire_date ? $this->leaves->daysInPeriod($employee, 'unpaid', $employee->hire_date->copy(), $date->copy()) : 0;
+        if ($unpaid > 20) {
+            $years = max(0, $years - $unpaid / 365);
+        }
         $wage = (float) $employee->basic_salary + (float) $employee->housing_allowance + (float) $employee->transport_allowance + (float) $employee->other_allowances;
 
         $full = $wage * $rules['first_rate'] * min($years, $rules['first_years'])
@@ -182,6 +197,10 @@ class EmployeeFinanceService
         }
 
         $date = Carbon::parse($data['termination_date']);
+        if ((float) ($data['salary_days'] ?? 0) > 0 && PayrollItem::where('employee_id', $employee->id)
+            ->whereHas('payroll', fn ($q) => $q->where('year', $date->year)->where('month', $date->month)->whereIn('status', ['approved', 'paid']))->exists()) {
+            throw ValidationException::withMessages(['salary_days' => 'راتب شهر الإنهاء مدفوع في مسير معتمد؛ اترك أيام الراتب صفراً حتى لا تُصرف مرتين.']);
+        }
         $gratuity = $this->gratuity($employee, $date, $data['reason']);
         $daily = $gratuity['wage'] / CompanyPolicy::get('hr.month_days', 30);
         $leaveDays = max(0, $this->leaves->balance($employee, $date)['balance']);
@@ -249,6 +268,11 @@ class EmployeeFinanceService
 
             EmployeeLoan::where('employee_id', $settlement->employee_id)->where('status', 'active')->update(['repaid' => DB::raw('amount'), 'status' => 'settled']);
             $settlement->employee->update(['status' => 'terminated', 'termination_date' => $settlement->termination_date, 'termination_reason' => $settlement->reason]);
+            // A former employee keeps no access to the company's system.
+            if ($user = $settlement->employee->user) {
+                $user->forceFill(['status' => 'inactive'])->save();
+                $user->revokeAccess();
+            }
             $settlement->update(['status' => 'approved', 'approved_by' => auth()->id()]);
         });
     }

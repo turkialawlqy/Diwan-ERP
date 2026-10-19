@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAdjustment;
 use App\Models\EmployeeLoan;
 use App\Models\EmployeePayItem;
+use App\Models\LeaveRequest;
 use App\Services\Settings\CompanyPolicy;
 use Illuminate\Support\Carbon;
 
@@ -50,9 +51,14 @@ class PayrollCalculator
         $monthlyWage = $basic + $housing + $transport + $other;
         $dailyWage = $monthlyWage / $monthDays;
 
-        // Absence (attendance) and unpaid leave.
+        // Absence (attendance) and unpaid leave. A day marked absent inside
+        // approved leave is already settled by the leave's pay rule.
+        $leaveRanges = LeaveRequest::where('employee_id', $employee->id)->where('status', 'approved')
+            ->whereDate('start_date', '<=', $to)->whereDate('end_date', '>=', $from)->get(['start_date', 'end_date']);
         $absentDays = AttendanceRecord::where('employee_id', $employee->id)->where('status', 'absent')
-            ->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->count();
+            ->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->pluck('date')
+            ->reject(fn ($date) => $leaveRanges->contains(fn ($l) => Carbon::parse($date)->betweenIncluded($l->start_date->copy()->startOfDay(), $l->end_date->copy()->startOfDay())))
+            ->count();
         $unpaidLeave = $this->leaves->daysInPeriod($employee, 'unpaid', $from, $to);
         $sickDeductionDays = $this->sickDeductionDays($employee, $from, $to);
         $absence = round($dailyWage * ($absentDays + $unpaidLeave + $sickDeductionDays), 2);
@@ -72,6 +78,8 @@ class PayrollCalculator
         $earnedHousing = round($housing * $ratio, 2);
         $earnedTransport = round($transport * $ratio, 2);
         $earnedOther = round($other * $ratio, 2);
+        // Absence can take the month's wage to nil, never below.
+        $absence = min($absence, round($earnedBasic + $earnedHousing + $earnedTransport + $earnedOther, 2));
         $gross = round($earnedBasic + $earnedHousing + $earnedTransport + $earnedOther + $overtime + $bonuses - $absence, 2);
 
         [$gosiEmployee, $gosiEmployer, $gosiBase] = $this->gosi($employee, $basic + $housing + (float) $payItems->where('kind', 'allowance')->where('gosi_applicable', true)->sum('amount'), $ratio, $to);

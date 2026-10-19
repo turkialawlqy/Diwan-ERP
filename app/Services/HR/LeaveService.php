@@ -103,6 +103,14 @@ class LeaveService
             if ($request->status !== 'pending') {
                 throw ValidationException::withMessages(['leave' => 'الطلب ليس قيد الانتظار.']);
             }
+            EmployeeFinanceService::assertNotOwnRequest($request->employee);
+            // Another request may have used the balance since this one was filed.
+            if ($approve && $request->type?->deducts_balance) {
+                $available = $this->balance($request->employee, Carbon::parse($request->start_date))['balance'];
+                if ((float) $request->days > $available + 0.001) {
+                    throw ValidationException::withMessages(['leave' => "رصيد الإجازات السنوية لا يكفي لهذا الطلب (المتاح {$available} يوم)."]);
+                }
+            }
             $request->update(['status' => $approve ? 'approved' : 'rejected', 'approved_by' => auth()->id(), 'approved_at' => now()]);
         });
     }

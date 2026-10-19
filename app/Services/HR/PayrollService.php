@@ -5,6 +5,7 @@ namespace App\Services\HR;
 use App\Models\Employee;
 use App\Models\EmployeeAdjustment;
 use App\Models\EmployeeLoan;
+use App\Models\EndOfServiceSettlement;
 use App\Models\JournalEntry;
 use App\Models\Payroll;
 use App\Models\PayrollItem;
@@ -74,9 +75,15 @@ class PayrollService
         $from = Carbon::create($payroll->year, $payroll->month, 1);
         $to = $from->copy()->endOfMonth();
 
+        // Leavers whose final settlement already pays this month's days are left out,
+        // so the last days are never paid twice.
+        $settled = EndOfServiceSettlement::whereIn('status', ['approved', 'paid'])->where('salary_due', '>', 0)
+            ->whereDate('termination_date', '>=', $from)->whereDate('termination_date', '<=', $to)->pluck('employee_id');
+
         $employees = Employee::with('departmentRef:id,cost_center_id')
             ->where(fn ($q) => $q->whereNull('hire_date')->orWhereDate('hire_date', '<=', $to))
             ->where(fn ($q) => $q->where('status', '!=', 'terminated')->orWhereDate('termination_date', '>=', $from))
+            ->whereNotIn('id', $settled)
             ->orderBy('id')->get();
 
         if ($employees->isEmpty()) {

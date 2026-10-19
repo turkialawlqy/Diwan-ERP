@@ -190,6 +190,7 @@ class HrOperationsController extends Controller
             return back()->with('success', 'تم اعتماد وصرف السلفة');
         }
         abort_unless($loan->status === 'pending', 422);
+        EmployeeFinanceService::assertNotOwnRequest($loan->employee);
         $loan->update(['status' => 'rejected']);
 
         return back()->with('success', 'تم رفض السلفة');
