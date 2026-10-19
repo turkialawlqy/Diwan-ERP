@@ -15,7 +15,7 @@ return [
         'production' => 'ZATCA-Code-Signing',
     ],
 
-    'solution_name' => env('ZATCA_SOLUTION_NAME', 'Alostaz'),
+    'solution_name' => env('ZATCA_SOLUTION_NAME', 'Diwan'),
     'solution_version' => env('ZATCA_SOLUTION_VERSION', 'ERP1'),
 
     'timeout' => (int) env('ZATCA_TIMEOUT', 30),

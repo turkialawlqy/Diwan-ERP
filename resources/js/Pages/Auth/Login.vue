@@ -48,7 +48,7 @@ const fillDemo = (account) => {
 
 <template>
     <AuthLayout>
-        <Head title="تسجيل الدخول - برنامج الأستاذ" />
+        <Head title="تسجيل الدخول" />
 
         <div class="text-center mb-6">
             <h2 class="text-xl font-black text-slate-900 tracking-tight">تسجيل الدخول</h2>
@@ -92,7 +92,7 @@ const fillDemo = (account) => {
                         required
                         autofocus
                         autocomplete="username"
-                        placeholder="example@alostaz.io"
+                        :placeholder="`example@${$page.props.brand?.domain || 'company.sa'}`"
                         dir="ltr"
                         class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs sm:text-sm rounded-xl ps-9 pe-4 py-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-sans"
                     />

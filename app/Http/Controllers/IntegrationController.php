@@ -80,7 +80,7 @@ class IntegrationController extends Controller
 
     public function testWebhook(WebhookEndpoint $webhook)
     {
-        DeliverWebhook::dispatch($webhook->id, 'ping', ['message' => 'Alostaz webhook test'], (string) Str::uuid());
+        DeliverWebhook::dispatch($webhook->id, 'ping', ['message' => config('app.brand.name_en').' webhook test'], (string) Str::uuid());
 
         return back()->with('success', 'تم إرسال حدث تجريبي');
     }

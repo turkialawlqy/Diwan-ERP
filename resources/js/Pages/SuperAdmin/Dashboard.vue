@@ -161,7 +161,7 @@ const impersonate = async (companyId) => {
                             <!-- Subdomain -->
                             <td class="px-6 py-4">
                                 <span class="inline-flex items-center gap-1 font-mono text-xs font-bold text-indigo-600 bg-indigo-50/70 px-2.5 py-1 rounded-lg border border-indigo-100" dir="ltr">
-                                    {{ company.subdomain }}.alostaz.io
+                                    {{ company.subdomain }}.{{ $page.props.brand?.domain }}
                                 </span>
                             </td>
 

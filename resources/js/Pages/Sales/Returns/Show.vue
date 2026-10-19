@@ -3,7 +3,7 @@ import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref, onMounted } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
-import AlOstazLogo from '../../../Components/AlOstazLogo.vue';
+import BrandLogo from '../../../Components/BrandLogo.vue';
 import QRCode from 'qrcode';
 import {
     PrinterIcon,
@@ -117,12 +117,12 @@ const formatDateArabic = (dateStr) => {
                 <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 border-b-2 border-slate-800 pb-8">
                     <div class="space-y-3 max-w-md">
                         <div class="flex items-center gap-3">
-                            <AlOstazLogo size="lg" />
+                            <BrandLogo size="lg" />
                             <div>
                                 <h2 class="text-xl font-black text-slate-900 leading-tight">
-                                    {{ company?.name || 'شركة الأستاذ للتجارة والحلول البرمجية' }}
+                                    {{ company?.name || $page.props.brand?.name }}
                                 </h2>
-                                <p class="text-xs text-slate-500 font-medium">نظام الأستاذ المحاسبي الشامل - المملكة العربية السعودية</p>
+                                <p class="text-xs text-slate-500 font-medium">{{ $page.props.brand?.name }} — نظام محاسبي متكامل - المملكة العربية السعودية</p>
                             </div>
                         </div>
 

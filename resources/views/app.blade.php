@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <title inertia>{{ config('app.name', 'الأستاذ') }}</title>
+        <title inertia>{{ config('app.name', 'الديوان') }}</title>
 
         <!-- Google Fonts: Cairo & IBM Plex Sans Arabic -->
         <link rel="preconnect" href="https://fonts.googleapis.com">

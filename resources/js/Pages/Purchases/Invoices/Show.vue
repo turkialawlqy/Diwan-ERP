@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
-import AlOstazLogo from '../../../Components/AlOstazLogo.vue';
+import BrandLogo from '../../../Components/BrandLogo.vue';
 import {
     PrinterIcon,
     ArrowLeftOnRectangleIcon,
@@ -35,7 +35,7 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head :title="'فاتورة شراء ' + invoice.invoice_number + ' - الأستاذ'" />
+        <Head :title="'فاتورة شراء ' + invoice.invoice_number" />
 
         <div class="space-y-6 max-w-4xl mx-auto">
             <!-- Header Ribbon & Actions (Hidden on Print) -->
@@ -72,7 +72,7 @@ const formatCurrency = (val) => {
                 <!-- Header: Company & Invoice Info -->
                 <div class="flex flex-col sm:flex-row justify-between items-start gap-6 border-b border-slate-200 pb-8">
                     <div>
-                        <AlOstazLogo size="md" :showSubtitle="true" />
+                        <BrandLogo size="md" :showSubtitle="true" />
                         <div class="mt-4 text-xs space-y-1 text-slate-600">
                             <h2 class="text-sm font-black text-slate-900">{{ company?.name || 'مؤسسة أنس التجارية' }}</h2>
                             <p>الرقم الضريبي: <strong class="font-mono">{{ company?.tax_number || '300000000000003' }}</strong></p>

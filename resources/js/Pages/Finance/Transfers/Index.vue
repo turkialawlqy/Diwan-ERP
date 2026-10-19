@@ -58,7 +58,7 @@ const submitTransfer = () => {
 
 <template>
     <AppLayout>
-        <Head title="التحويلات المالية - الأستاذ" />
+        <Head title="التحويلات المالية" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->

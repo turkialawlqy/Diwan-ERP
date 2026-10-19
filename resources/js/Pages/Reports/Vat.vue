@@ -30,7 +30,7 @@ const printReport = () => {
 
 <template>
     <AppLayout>
-        <Head title="إقرار ضريبة القيمة المضافة ZATCA - الأستاذ" />
+        <Head title="إقرار ضريبة القيمة المضافة ZATCA" />
 
         <div class="space-y-5">
             <DateRangeFilter route-name="reports.vat" :filters="filters" />

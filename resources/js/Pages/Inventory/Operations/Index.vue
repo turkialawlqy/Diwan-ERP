@@ -80,7 +80,7 @@ const submitAdjust = () => {
 
 <template>
     <AppLayout>
-        <Head title="عمليات وحركات المخزون - الأستاذ" />
+        <Head title="عمليات وحركات المخزون" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->

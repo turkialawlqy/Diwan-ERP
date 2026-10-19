@@ -304,7 +304,7 @@ const typeBadgeColors = {
 
 <template>
     <AppLayout>
-        <Head title="دليل الحسابات - الأستاذ" />
+        <Head title="دليل الحسابات" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->

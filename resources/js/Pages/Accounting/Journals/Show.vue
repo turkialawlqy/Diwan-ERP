@@ -40,7 +40,7 @@ const deleteDraft = () => {
 
 <template>
     <AppLayout>
-        <Head :title="`سند قيد يومية ${entry.entry_number} - الأستاذ`" />
+        <Head :title="`سند قيد يومية ${entry.entry_number}`" />
 
         <div class="max-w-4xl mx-auto space-y-4">
             <!-- Action Bar (Hidden when printing) -->
@@ -76,7 +76,7 @@ const deleteDraft = () => {
                             <BookOpenIcon class="w-6 h-6 text-indigo-600" />
                             <h1 class="text-lg font-black text-slate-900">سند قيد يومية عامة (JOURNAL VOUCHER)</h1>
                         </div>
-                        <p class="text-xs text-slate-500">نظام الأستاذ لإدارة الأعمال والمحاسبة المالية</p>
+                        <p class="text-xs text-slate-500">{{ $page.props.brand?.name }} لإدارة الأعمال والمحاسبة المالية</p>
                     </div>
 
                     <div class="text-end font-mono">

@@ -29,7 +29,7 @@ const printReport = () => {
 
 <template>
     <AppLayout>
-        <Head title="تقرير تقييم المخزون - الأستاذ" />
+        <Head title="تقرير تقييم المخزون" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
@@ -97,7 +97,7 @@ const printReport = () => {
             <div class="bg-white rounded-2xl border border-slate-100 shadow-2xs overflow-hidden print:border-none print:shadow-none">
                 <div class="p-4 border-b border-slate-100 hidden print:block">
                     <h2 class="text-base font-black text-slate-900">تقرير تقييم المخزون الشامل (INVENTORY VALUATION REPORT)</h2>
-                    <p class="text-3xs text-slate-500">نظام الأستاذ لإدارة الأعمال والمخازن</p>
+                    <p class="text-3xs text-slate-500">{{ $page.props.brand?.name }} لإدارة الأعمال والمخازن</p>
                 </div>
 
                 <div class="overflow-x-auto">

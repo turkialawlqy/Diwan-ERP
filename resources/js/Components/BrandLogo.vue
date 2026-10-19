@@ -1,4 +1,10 @@
 <script setup>
+import { computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
+
+// Product name and tagline come from config (APP_NAME), shared as page.props.brand.
+const brand = computed(() => usePage().props.brand || {});
+
 defineProps({
     size: {
         type: String,
@@ -41,7 +47,7 @@ defineProps({
                     'tracking-tight font-sans'
                 ]"
             >
-                الأستـاذ
+                {{ brand.name || 'الديوان' }}
             </span>
             <span 
                 v-if="showSubtitle" 
@@ -51,7 +57,7 @@ defineProps({
                     'font-medium tracking-wide'
                 ]"
             >
-                نظام إدارة الأعمال المتكامل
+                {{ brand.subtitle || 'نظام إدارة الأعمال المتكامل' }}
             </span>
         </div>
     </div>

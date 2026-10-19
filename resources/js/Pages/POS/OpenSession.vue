@@ -1,6 +1,6 @@
 <script setup>
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import AlOstazLogo from '../../Components/AlOstazLogo.vue';
+import BrandLogo from '../../Components/BrandLogo.vue';
 
 const props = defineProps({
     registers: Array,
@@ -30,7 +30,7 @@ const submit = () => {
         <div class="w-full max-w-md bg-white rounded-3xl p-8 sm:p-10 shadow-xl border border-slate-100/80 space-y-6 text-center relative z-10 animate-in fade-in zoom-in-95 duration-200">
             <!-- Al-Ostaz Logo & Title (Matching pos_ui_page_1789920504881.png) -->
             <div class="flex flex-col items-center justify-center space-y-3">
-                <AlOstazLogo size="xl" />
+                <BrandLogo size="xl" />
                 <h1 class="text-xl font-black text-slate-800 tracking-tight pt-1">
                     فتح جلسة نقاط بيع
                 </h1>

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import AlOstazLogo from './AlOstazLogo.vue';
+import BrandLogo from './BrandLogo.vue';
 import { ChevronDownIcon, XMarkIcon, ShieldCheckIcon } from '@heroicons/vue/24/outline';
 import navigation from '@/navigation';
 import { canRoute } from '@/permissions';
@@ -63,7 +63,7 @@ const toggleMenu = (menuKey) => {
         <!-- Sidebar Brand Header -->
         <div class="h-16 flex items-center justify-between px-5 border-b border-slate-100 flex-shrink-0">
             <Link :href="route('dashboard')" class="flex items-center">
-                <AlOstazLogo size="sm" :showSubtitle="true" />
+                <BrandLogo size="sm" :showSubtitle="true" />
             </Link>
 
             <button 
@@ -139,7 +139,7 @@ const toggleMenu = (menuKey) => {
 
         <!-- Sidebar Footer Info -->
         <div class="p-3 border-t border-slate-100 text-center text-[10px] text-slate-400 flex-shrink-0">
-            <span>نظام الأستاذ v1.0.0 © 2026</span>
+            <span>{{ $page.props.brand?.name }} v1.0.0 © {{ new Date().getFullYear() }}</span>
         </div>
     </aside>
 </template>

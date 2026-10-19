@@ -55,7 +55,7 @@ const deleteBranch = (id, name) => {
 
 <template>
     <AppLayout>
-        <Head title="الفروع - الأستاذ" />
+        <Head title="الفروع" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->

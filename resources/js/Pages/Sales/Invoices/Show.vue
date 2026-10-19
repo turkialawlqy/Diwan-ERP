@@ -3,7 +3,7 @@ import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
-import AlOstazLogo from '../../../Components/AlOstazLogo.vue';
+import BrandLogo from '../../../Components/BrandLogo.vue';
 import QRCode from 'qrcode';
 import {
     PrinterIcon,
@@ -547,7 +547,7 @@ const resolveTag = (tag) => {
                             />
                         </div>
                         <h2 class="text-sm font-black tracking-tight leading-tight">
-                            {{ company?.name || 'مؤسسة الأستاذ' }}
+                            {{ company?.name || $page.props.brand?.name }}
                         </h2>
                         
                         <!-- Simplified Tax Invoice Badge -->
@@ -699,7 +699,7 @@ const resolveTag = (tag) => {
                             {{ currentTemplate.terms_and_conditions || invoice.terms }}
                         </p>
                         <p class="text-3xs text-slate-400 pt-1">
-                            نظام الأستاذ المحاسبي
+                            {{ $page.props.brand?.name }}
                         </p>
                     </div>
                 </div>
@@ -874,7 +874,7 @@ const resolveTag = (tag) => {
                             <span class="text-3xs text-slate-500 font-normal">المورد / البائع</span>
                         </div>
                         <div v-if="layout.company.show_name" class="font-bold text-slate-900 text-xs">
-                            {{ company?.name || 'شركة الأستاذ للتجارة والحلول البرمجية' }}
+                            {{ company?.name || $page.props.brand?.name }}
                         </div>
                         <div v-if="layout.company.show_vat" class="text-slate-600 text-3xs font-mono">
                             <span>الرقم الضريبي (VAT):</span>

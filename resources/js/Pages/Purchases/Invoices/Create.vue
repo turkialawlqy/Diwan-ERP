@@ -417,7 +417,7 @@ onUnmounted(() => {
 
 <template>
     <AppLayout>
-        <Head title="إنشاء فاتورة شراء جديدة - الأستاذ" />
+        <Head title="إنشاء فاتورة شراء جديدة" />
 
         <!-- Notification Toast -->
         <Transition

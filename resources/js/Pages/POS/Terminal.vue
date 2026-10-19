@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import axios from 'axios';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import AlOstazLogo from '../../Components/AlOstazLogo.vue';
+import BrandLogo from '../../Components/BrandLogo.vue';
 import QRCode from 'qrcode';
 import {
     MagnifyingGlassIcon,
@@ -247,7 +247,7 @@ onMounted(() => {
 
 <template>
     <div class="h-screen flex flex-col bg-slate-100 text-slate-800 font-sans select-none overflow-hidden">
-        <Head title="نقطة البيع - AlOstaz POS" />
+        <Head title="نقطة البيع" />
 
         <!-- 1. Top Navbar Header -->
         <header class="bg-indigo-700 text-white px-4 py-2.5 flex items-center justify-between shadow-md z-20 flex-shrink-0">
@@ -259,7 +259,7 @@ onMounted(() => {
                     </span>
                     <div>
                         <h1 class="text-sm font-black leading-tight">نقطة البيع (POS)</h1>
-                        <p class="text-3xs text-indigo-200">نظام الأستاذ - {{ props.session.register?.name || 'جهاز افتراضي' }}</p>
+                        <p class="text-3xs text-indigo-200">{{ $page.props.brand?.name }} - {{ props.session.register?.name || 'جهاز افتراضي' }}</p>
                     </div>
                 </div>
                 <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-2xs font-bold border border-emerald-400/30">
@@ -604,7 +604,7 @@ onMounted(() => {
                 <div id="thermal-receipt" class="p-4 border border-dashed border-slate-300 rounded-xl text-center text-xs space-y-3 bg-white text-slate-900 font-mono">
                     <!-- Company Logo & Name -->
                     <div class="space-y-1">
-                        <h2 class="font-black text-sm text-slate-900">{{ company?.name || 'الأستاذ' }}</h2>
+                        <h2 class="font-black text-sm text-slate-900">{{ company?.name || $page.props.brand?.name }}</h2>
                         <p class="text-3xs text-slate-500">فاتورة ضريبية مبسطة | SIMPLIFIED TAX INVOICE</p>
                         <p class="text-3xs text-slate-600 font-bold">الرقم الضريبي: {{ company?.tax_number || '300000000000003' }}</p>
                     </div>

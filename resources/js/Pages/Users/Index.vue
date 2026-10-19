@@ -119,7 +119,7 @@ const getRoleBadge = (roleName) => {
 
 <template>
     <AppLayout>
-        <Head title="إدارة المستخدمين - الأستاذ" />
+        <Head title="إدارة المستخدمين" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->

@@ -34,7 +34,7 @@ return [
 
     // The platform as the seller on subscription invoices, and where customers pay.
     'platform' => [
-        'name' => env('PLATFORM_LEGAL_NAME', env('APP_NAME', 'Alostaz')),
+        'name' => env('PLATFORM_LEGAL_NAME', env('APP_NAME', 'الديوان')),
         'tax_number' => env('PLATFORM_TAX_NUMBER'),
         'commercial_registration' => env('PLATFORM_CR'),
         'address' => env('PLATFORM_ADDRESS'),

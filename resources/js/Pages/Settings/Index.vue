@@ -200,7 +200,7 @@ const removeLogo = async () => {
 
 <template>
     <AppLayout>
-        <Head title="إعدادات المنشأة والزكاة - الأستاذ" />
+        <Head title="إعدادات المنشأة والزكاة" />
 
         <div class="space-y-5 w-full pb-12">
             <!-- Top Breadcrumbs & Action Bar -->

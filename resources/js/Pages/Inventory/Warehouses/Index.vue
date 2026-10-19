@@ -82,7 +82,7 @@ const deleteWarehouse = (id, name) => {
 
 <template>
     <AppLayout>
-        <Head title="المستودعات - الأستاذ" />
+        <Head title="المستودعات" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->

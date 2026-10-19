@@ -785,7 +785,7 @@ const setAsDefault = () => {
                                     {{ template.terms_and_conditions }}
                                 </p>
                                 <p class="text-3xs text-slate-400 pt-0.5">
-                                    نظام الأستاذ المحاسبي
+                                    {{ $page.props.brand?.name }}
                                 </p>
                             </div>
                         </div>

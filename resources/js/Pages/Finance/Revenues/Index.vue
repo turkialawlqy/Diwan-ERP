@@ -91,7 +91,7 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="سندات الإيرادات الإضافية - الأستاذ" />
+        <Head title="سندات الإيرادات الإضافية" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->

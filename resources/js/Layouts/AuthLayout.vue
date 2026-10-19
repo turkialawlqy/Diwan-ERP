@@ -1,5 +1,5 @@
 <script setup>
-import AlOstazLogo from '../Components/AlOstazLogo.vue';
+import BrandLogo from '../Components/BrandLogo.vue';
 import LanguageSwitcher from '../Components/LanguageSwitcher.vue';
 </script>
 
@@ -7,7 +7,7 @@ import LanguageSwitcher from '../Components/LanguageSwitcher.vue';
     <div class="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/40 to-slate-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative selection:bg-indigo-500 selection:text-white font-sans">
         <!-- Top Navigation with Language Switcher -->
         <div class="absolute top-6 start-6 end-6 flex items-center justify-between">
-            <AlOstazLogo size="sm" :showSubtitle="false" />
+            <BrandLogo size="sm" :showSubtitle="false" />
             <LanguageSwitcher />
         </div>
 
@@ -15,7 +15,7 @@ import LanguageSwitcher from '../Components/LanguageSwitcher.vue';
         <div class="sm:mx-auto sm:w-full sm:max-w-md px-4 mt-8 sm:mt-0">
             <div class="text-center mb-6">
                 <div class="flex justify-center mb-3">
-                    <AlOstazLogo size="lg" :showSubtitle="true" />
+                    <BrandLogo size="lg" :showSubtitle="true" />
                 </div>
             </div>
 
@@ -26,7 +26,7 @@ import LanguageSwitcher from '../Components/LanguageSwitcher.vue';
 
             <!-- Footer Copyright -->
             <div class="mt-8 text-center text-xs text-slate-400">
-                <span>برنامج الأستاذ لإدارة الأعمال والمبيعات © {{ new Date().getFullYear() }}</span>
+                <span>{{ $page.props.brand?.name }} — {{ $page.props.brand?.tagline }} © {{ new Date().getFullYear() }}</span>
             </div>
         </div>
     </div>

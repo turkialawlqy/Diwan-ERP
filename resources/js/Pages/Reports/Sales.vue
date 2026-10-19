@@ -26,7 +26,7 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="تقارير المبيعات - الأستاذ" />
+        <Head title="تقارير المبيعات" />
 
         <div class="space-y-6">
             <!-- Breadcrumb Navigation -->

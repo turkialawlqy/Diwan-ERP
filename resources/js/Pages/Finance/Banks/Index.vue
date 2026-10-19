@@ -65,7 +65,7 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="الخزائن والحسابات البنكية - الأستاذ" />
+        <Head title="الخزائن والحسابات البنكية" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->

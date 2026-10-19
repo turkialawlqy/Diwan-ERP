@@ -77,7 +77,7 @@ const getTypeName = (type) => {
 
 <template>
     <AppLayout>
-        <Head title="تصاميم قوالب الفواتير والطباعة - الأستاذ" />
+        <Head title="تصاميم قوالب الفواتير والطباعة" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->

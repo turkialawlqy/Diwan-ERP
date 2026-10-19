@@ -63,7 +63,7 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="فواتير المشتريات - الأستاذ" />
+        <Head title="فواتير المشتريات" />
 
         <div class="space-y-5" @click="activeMenu = null">
             <!-- Header Ribbon -->

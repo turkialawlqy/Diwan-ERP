@@ -10,7 +10,8 @@ import VueApexCharts from 'vue3-apexcharts';
 import { PermissionsPlugin } from './permissions';
 import PromptDialog from './Components/UI/PromptDialog.vue';
 
-const appName = import.meta.env.VITE_APP_NAME || 'الأستاذ';
+// Replaced at boot by the server's configured product name (page.props.brand).
+let appName = import.meta.env.VITE_APP_NAME || 'الديوان';
 
 createInertiaApp({
     title: (title) => title ? `${title} - ${appName}` : appName,
@@ -20,6 +21,8 @@ createInertiaApp({
             import.meta.glob('./Pages/**/*.vue'),
         ),
     setup({ el, App, props, plugin }) {
+        appName = props.initialPage?.props?.brand?.name || appName;
+
         // PromptDialog is the single host for ask() / confirmAction() / notify().
         const app = createApp({ render: () => [h(App, props), h(PromptDialog)] });
         

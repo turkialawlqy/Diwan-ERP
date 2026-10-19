@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import AuthLayout from '@/Layouts/AuthLayout.vue';
 import InputError from '@/Components/InputError.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { 
     BuildingOfficeIcon, 
     GlobeAltIcon, 
@@ -39,7 +39,7 @@ const updateSubdomainSuggestion = () => {
 
 const fullDomainPreview = computed(() => {
     const sub = form.subdomain ? form.subdomain.toLowerCase() : 'your-company';
-    return `${sub}.alostaz.io`;
+    return `${sub}.${usePage().props.brand?.domain}`;
 });
 
 const submit = () => {
@@ -51,11 +51,11 @@ const submit = () => {
 
 <template>
     <AuthLayout>
-        <Head title="تسجيل منشأة جديدة - برنامج الأستاذ" />
+        <Head title="تسجيل منشأة جديدة" />
 
         <div class="text-center mb-6">
             <h2 class="text-xl font-black text-slate-900 tracking-tight">تسجيل منشأة جديدة</h2>
-            <p class="text-xs text-slate-500 mt-1">ابدأ تجربتك المجانية لمدة 14 يوماً مع نظام الأستاذ المتكامل</p>
+            <p class="text-xs text-slate-500 mt-1">ابدأ تجربتك المجانية لمدة 14 يوماً مع {{ $page.props.brand?.name }}</p>
         </div>
 
         <form @submit.prevent="submit" class="space-y-4">
@@ -89,7 +89,7 @@ const submit = () => {
                 </label>
                 <div class="relative flex rounded-xl shadow-xs">
                     <span class="inline-flex items-center px-3 rounded-s-xl border border-e-0 border-slate-200 bg-slate-100 text-slate-500 text-xs font-mono select-none" dir="ltr">
-                        .alostaz.io
+                        .{{ $page.props.brand?.domain }}
                     </span>
                     <input
                         id="subdomain"

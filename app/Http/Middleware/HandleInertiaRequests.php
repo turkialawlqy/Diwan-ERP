@@ -78,6 +78,13 @@ class HandleInertiaRequests extends Middleware
             // Route name => permission map (same one the server enforces) so the UI
             // can hide links the user cannot open.
             'routePermissions' => fn () => $user && $currentTenant ? config('erp_permissions.routes') : [],
+            'brand' => [
+                'name' => config('app.name'),
+                'name_en' => config('app.brand.name_en'),
+                'subtitle' => config('app.brand.subtitle'),
+                'tagline' => config('app.brand.tagline'),
+                'domain' => config('tenancy.central_domain'),
+            ],
             'locale' => app()->getLocale(),
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
