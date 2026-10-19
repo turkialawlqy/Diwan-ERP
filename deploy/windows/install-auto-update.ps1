@@ -1,11 +1,11 @@
 ﻿<#
 .SYNOPSIS
     Registers the Windows scheduled tasks of the system:
-      - "Alostaz Auto Update": update.ps1 -Auto every hour (while you are
+      - "Diwan Auto Update": update.ps1 -Auto every hour (while you are
         logged in, so GitHub sign-in from Git Credential Manager is available).
-      - "Alostaz Scheduler": php artisan schedule:run every minute (backups,
+      - "Diwan Scheduler": php artisan schedule:run every minute (backups,
         ZATCA reporting, recurring entries, depreciation, alerts).
-      - "Alostaz Queue": processes queued jobs every minute (ZATCA submission,
+      - "Diwan Queue": processes queued jobs every minute (ZATCA submission,
         e-mails, webhooks, exports).
     Run as administrator so the scheduler and queue keep running when nobody
     is logged in; otherwise they run while you are logged in.
@@ -16,14 +16,19 @@ $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 $script = Join-Path $PSScriptRoot 'update.ps1'
-$name = 'Alostaz Auto Update'
+
+# Tasks registered under the product's former name would run twice beside the new ones.
+foreach ($old in @('Alostaz Auto Update', 'Alostaz Scheduler', 'Alostaz Queue')) {
+    Unregister-ScheduledTask -TaskName $old -Confirm:$false -ErrorAction SilentlyContinue
+}
+$name = 'Diwan Auto Update'
 
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Auto' -f $script)
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(2) -RepetitionInterval (New-TimeSpan -Minutes $EveryMinutes)
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
 $principal = New-ScheduledTaskPrincipal -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
 
-Register-ScheduledTask -TaskName $name -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description 'Pulls new Alostaz updates from GitHub and prepares them (deploy/windows/update.ps1).' -Force | Out-Null
+Register-ScheduledTask -TaskName $name -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description 'Pulls new Diwan updates from GitHub and prepares them (deploy/windows/update.ps1).' -Force | Out-Null
 
 Write-Host "تم تفعيل التحديث التلقائي: كل $EveryMinutes دقيقة (أثناء تسجيل دخولك إلى ويندوز)." -ForegroundColor Green
 
@@ -47,13 +52,13 @@ if (-not $php) {
     $minuteSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
 
     $jobs = @{
-        'Alostaz Scheduler' = @('schedule:run')
-        'Alostaz Queue' = @('queue:work', '--stop-when-empty', '--queue=zatca,default,webhooks,exports', '--tries=5', '--max-time=50')
+        'Diwan Scheduler' = @('schedule:run')
+        'Diwan Queue' = @('queue:work', '--stop-when-empty', '--queue=zatca,default,webhooks,exports', '--tries=5', '--max-time=50')
     }
     foreach ($task in $jobs.Keys) {
         $arguments = ('"{0}" "{1}" "{2}" {3}' -f $hidden, $php, $artisan, ($jobs[$task] -join ' '))
         $taskAction = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument $arguments -WorkingDirectory $root
-        Register-ScheduledTask -TaskName $task -Action $taskAction -Trigger $everyMinute -Settings $minuteSettings -Principal $runAs -Description "Alostaz: php artisan $($jobs[$task] -join ' ')" -Force | Out-Null
+        Register-ScheduledTask -TaskName $task -Action $taskAction -Trigger $everyMinute -Settings $minuteSettings -Principal $runAs -Description "Diwan: php artisan $($jobs[$task] -join ' ')" -Force | Out-Null
     }
     $mode = if ($isAdmin) { 'تعمل دائماً حتى بدون تسجيل دخول' } else { 'تعمل أثناء تسجيل دخولك (شغّل كمسؤول لتعمل دائماً)' }
     Write-Host "تم تفعيل المُجدول والطوابير كل دقيقة ($mode)." -ForegroundColor Green

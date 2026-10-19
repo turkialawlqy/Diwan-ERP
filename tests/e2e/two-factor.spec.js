@@ -8,7 +8,7 @@ test('platform admin is forced to enrol, then signs in with a code', async ({ pa
     const errors = watchErrors(page);
     const login = async () => {
         await page.goto('/login');
-        await page.locator('input[type=email]').fill('admin@alostaz.io');
+        await page.locator('input[type=email]').fill('admin@diwan.io');
         await page.locator('input[type=password]').fill('admin123456');
         await page.locator('button[type=submit]').click();
     };

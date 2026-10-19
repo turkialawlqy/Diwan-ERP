@@ -8,7 +8,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Custom domains are only served after DNS proof of ownership:
- * a TXT record "_alostaz-verify.{domain}" holding the company's token.
+ * a TXT record "_diwan-verify.{domain}" holding the company's token.
  */
 class DomainVerifier
 {
@@ -38,7 +38,7 @@ class DomainVerifier
             return false;
         }
 
-        $records = $this->txtRecords('_alostaz-verify.'.$company->custom_domain);
+        $records = $this->txtRecords('_diwan-verify.'.$company->custom_domain);
         if (! in_array($company->custom_domain_token, $records, true)) {
             return false;
         }

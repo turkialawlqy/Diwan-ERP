@@ -46,10 +46,10 @@ class DeliverWebhook implements ShouldQueue
 
         $response = Http::timeout(10)->withoutRedirecting()->withOptions($pin)->withHeaders([
             'Content-Type' => 'application/json',
-            'X-Alostaz-Event' => $this->event,
-            'X-Alostaz-Delivery' => $this->deliveryId,
-            'X-Alostaz-Timestamp' => $timestamp,
-            'X-Alostaz-Signature' => 'sha256='.$signature,
+            'X-Diwan-Event' => $this->event,
+            'X-Diwan-Delivery' => $this->deliveryId,
+            'X-Diwan-Timestamp' => $timestamp,
+            'X-Diwan-Signature' => 'sha256='.$signature,
         ])->withBody($body, 'application/json')->post($endpoint->url);
 
         $endpoint->forceFill([

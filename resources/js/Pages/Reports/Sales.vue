@@ -95,7 +95,7 @@ const formatCurrency = (val) => {
                 </div>
             </div>
 
-            <!-- 3 Main Report Blocks (Exact Match to anas.alostaz.io) -->
+            <!-- 3 Main Report Blocks (Exact Match to anas.diwan.io) -->
             <div class="space-y-4">
                 <!-- 1. تقارير المبيعات -->
                 <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:shadow-md transition">

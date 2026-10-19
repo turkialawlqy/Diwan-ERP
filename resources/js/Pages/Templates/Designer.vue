@@ -328,7 +328,7 @@ const setHeaderPreset = (preset) => {
 // Generate QR Code dynamically
 const generateQR = async () => {
     try {
-        const qrPayload = currentInvoice.value?.zatca_qr || 'ZATCA-QR-SAMPLE-ALOSTAZ-ERP';
+        const qrPayload = currentInvoice.value?.zatca_qr || 'ZATCA-QR-SAMPLE-DIWAN-ERP';
         const qrPx = (Number(layout.qr?.size) || 95) * 2;
         qrDataUrl.value = await QRCode.toDataURL(qrPayload, {
             width: qrPx,

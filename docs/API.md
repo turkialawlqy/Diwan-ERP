@@ -3,10 +3,10 @@
 - **المصادقة:** Bearer token يُنشأ من **الإعدادات ← الربط البرمجي**.
 - **النطاق:** الرمز مقيد بمنشأة صاحبه وبالصلاحيات المختارة له.
 - **حد الطلبات:** 120 طلباً في الدقيقة لكل مستخدم.
-- **العنوان الأساسي:** `https://{subdomain}.alostaz.io/api/v1`.
+- **العنوان الأساسي:** `https://{subdomain}.diwan.io/api/v1`.
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" https://anas.alostaz.io/api/v1/customers?search=أحمد
+curl -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" https://anas.diwan.io/api/v1/customers?search=أحمد
 ```
 
 | الطريقة | المسار | الصلاحية | الوصف |
@@ -55,10 +55,10 @@ POST /api/v1/invoices
 
 ```
 POST <your url>
-X-Alostaz-Event: invoice.created
-X-Alostaz-Delivery: <uuid>
-X-Alostaz-Timestamp: 1791234567
-X-Alostaz-Signature: sha256=<hex>
+X-Diwan-Event: invoice.created
+X-Diwan-Delivery: <uuid>
+X-Diwan-Timestamp: 1791234567
+X-Diwan-Signature: sha256=<hex>
 
 {"id":"<uuid>","event":"invoice.created","created_at":"...","data":{...}}
 ```

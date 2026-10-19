@@ -106,6 +106,6 @@ class BillingController extends Controller
     {
         abort_unless($export->status === 'ready' && $export->path && Storage::disk('local')->exists($export->path), 404);
 
-        return Storage::disk('local')->download($export->path, 'alostaz-data-'.$export->created_at->format('Ymd-His').'.zip');
+        return Storage::disk('local')->download($export->path, 'diwan-data-'.$export->created_at->format('Ymd-His').'.zip');
     }
 }

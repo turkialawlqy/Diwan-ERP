@@ -22,7 +22,7 @@ use ZipArchive;
  */
 class BackupService
 {
-    public const PREFIX = 'alostaz-backup-';
+    public const PREFIX = 'diwan-backup-';
 
     /**
      * $tag names a backup kept outside the daily rotation (e.g. "preupdate"),
@@ -53,7 +53,7 @@ class BackupService
             ];
             $this->dumpDatabase($driver, "{$work}/{$dumpName}");
 
-            $name = ($tag ? 'alostaz-'.preg_replace('/[^a-z0-9]/', '', strtolower($tag)).'-' : self::PREFIX).now()->format('Y-m-d-His').'.zip';
+            $name = ($tag ? 'diwan-'.preg_replace('/[^a-z0-9]/', '', strtolower($tag)).'-' : self::PREFIX).now()->format('Y-m-d-His').'.zip';
             $zipPath = "{$work}/{$name}";
             $this->zip($zipPath, $work, $dumpName, $manifest);
 
@@ -201,7 +201,7 @@ class BackupService
     public function prune(?string $diskName = null): int
     {
         $disk = Storage::disk($diskName ?? config('backup.disk'));
-        $tagged = collect($disk->files())->filter(fn ($f) => str_starts_with($f, 'alostaz-') && ! str_starts_with($f, self::PREFIX) && str_ends_with($f, '.zip'))->sortDesc()->values();
+        $tagged = collect($disk->files())->filter(fn ($f) => str_starts_with($f, 'diwan-') && ! str_starts_with($f, self::PREFIX) && str_ends_with($f, '.zip'))->sortDesc()->values();
         $tagged->slice(max(0, (int) config('backup.keep_tagged', 5)))->each(fn ($f) => $disk->delete($f));
 
         $files = collect($disk->files())->filter(fn ($f) => str_starts_with($f, self::PREFIX))->sortDesc()->values();

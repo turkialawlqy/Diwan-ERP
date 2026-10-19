@@ -40,7 +40,7 @@ class DatabaseSeeder extends Seeder
         // 3. Create Super Admin User
         $superAdmin = User::create([
             'name' => 'مدير النظام العام',
-            'email' => 'admin@alostaz.io',
+            'email' => 'admin@diwan.io',
             'password' => Hash::make('admin123456'),
             'is_super_admin' => true,
             'status' => 'active',
@@ -49,14 +49,14 @@ class DatabaseSeeder extends Seeder
         // is_super_admin is guarded against mass assignment.
         $superAdmin->forceFill(['is_super_admin' => true])->save();
 
-        // 4. Create Demo Company (mimicking https://anas.alostaz.io)
+        // 4. Create Demo Company (mimicking https://anas.diwan.io)
         $existingLogos = glob(storage_path('app/public/logos/*.{png,jpg,jpeg,svg,webp}'), GLOB_BRACE);
         $demoLogo = ! empty($existingLogos) ? '/storage/logos/'.basename($existingLogos[0]) : null;
 
         $company = Company::create([
             'name' => 'مؤسسة أنس التجارية',
             'subdomain' => 'anas',
-            'email' => 'anas@alostaz.io',
+            'email' => 'anas@diwan.io',
             'phone' => '0555555555',
             'tax_number' => '300000000000003',
             'commercial_registration' => '1010000000',
@@ -110,7 +110,7 @@ class DatabaseSeeder extends Seeder
         $companyAdmin = User::create([
             'company_id' => $company->id,
             'name' => 'تركي العولقي',
-            'email' => 'anas@alostaz.io',
+            'email' => 'anas@diwan.io',
             'password' => Hash::make('password'),
             'phone' => '0555555555',
             'branch_id' => $mainBranch->id,

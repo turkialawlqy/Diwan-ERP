@@ -120,11 +120,11 @@ class SaasPlatformTest extends TestCase
             [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 100, 'tax_rate' => 15]], ['issue_stock' => false]);
 
         Http::assertSent(function (HttpRequest $request) use ($endpoint) {
-            $expected = 'sha256='.hash_hmac('sha256', $request->header('X-Alostaz-Timestamp')[0].'.'.$request->body(), $endpoint->secret);
+            $expected = 'sha256='.hash_hmac('sha256', $request->header('X-Diwan-Timestamp')[0].'.'.$request->body(), $endpoint->secret);
 
             return $request->url() === 'https://hooks.example.com/erp'
-                && $request->header('X-Alostaz-Event')[0] === 'invoice.created'
-                && hash_equals($expected, $request->header('X-Alostaz-Signature')[0])
+                && $request->header('X-Diwan-Event')[0] === 'invoice.created'
+                && hash_equals($expected, $request->header('X-Diwan-Signature')[0])
                 && json_decode($request->body(), true)['data']['total'] === 115;
         });
         $this->assertSame(200, $endpoint->fresh()->last_status);

@@ -67,10 +67,10 @@ class ProductionReadinessTest extends TestCase
 
     public function test_forged_host_headers_are_not_served_in_production_mode(): void
     {
-        config(['tenancy.reject_unknown_hosts' => true, 'tenancy.central_domain' => 'alostaz.test']);
+        config(['tenancy.reject_unknown_hosts' => true, 'tenancy.central_domain' => 'diwan.test']);
 
         $this->post('http://evil.example/forgot-password', ['email' => $this->owner->email])->assertNotFound();
-        $this->get('http://alostaz.test/login')->assertOk();
+        $this->get('http://diwan.test/login')->assertOk();
         config(['tenancy.allowed_hosts' => ['erp.lan']]);
         $this->get('http://erp.lan/login')->assertOk();
     }
@@ -286,17 +286,17 @@ class ProductionReadinessTest extends TestCase
 
         $disk = Storage::disk('backups');
         foreach (range(1, 9) as $d) {
-            $disk->put(sprintf('alostaz-backup-2026-06-%02d-024000.zip', $d), 'x');
+            $disk->put(sprintf('diwan-backup-2026-06-%02d-024000.zip', $d), 'x');
         }
         foreach (range(1, 7) as $d) {
-            $disk->put(sprintf('alostaz-preupdate-2026-06-%02d-120000.zip', $d), 'x');
+            $disk->put(sprintf('diwan-preupdate-2026-06-%02d-120000.zip', $d), 'x');
         }
         config(['backup.keep.daily' => 7, 'backup.keep.weekly' => 0, 'backup.keep.monthly' => 0, 'backup.keep_tagged' => 5]);
         app(BackupService::class)->prune();
 
-        $this->assertCount(7, collect($disk->files())->filter(fn ($f) => str_starts_with($f, 'alostaz-backup-')));
-        $this->assertCount(5, collect($disk->files())->filter(fn ($f) => str_starts_with($f, 'alostaz-preupdate-')));
-        $this->assertTrue($disk->exists('alostaz-preupdate-2026-06-07-120000.zip'));
+        $this->assertCount(7, collect($disk->files())->filter(fn ($f) => str_starts_with($f, 'diwan-backup-')));
+        $this->assertCount(5, collect($disk->files())->filter(fn ($f) => str_starts_with($f, 'diwan-preupdate-')));
+        $this->assertTrue($disk->exists('diwan-preupdate-2026-06-07-120000.zip'));
     }
 
     public function test_zatca_certificate_expiry_and_overdue_reporting_raise_alerts(): void
@@ -326,7 +326,7 @@ class ProductionReadinessTest extends TestCase
 
     public function test_subscription_invoices_are_sequential_tax_invoices_with_the_platform_details(): void
     {
-        config(['saas.platform.tax_number' => '311111111100003', 'saas.platform.name' => 'شركة الأستاذ', 'saas.platform.iban' => 'SA0380000000608010167519']);
+        config(['saas.platform.tax_number' => '311111111100003', 'saas.platform.name' => 'شركة الديوان', 'saas.platform.iban' => 'SA0380000000608010167519']);
         $plan = SubscriptionPlan::create(['name_ar' => 'متقدمة', 'name_en' => 'Pro', 'slug' => 'pro-x', 'price_monthly' => 100, 'price_yearly' => 1000, 'is_active' => true]);
         $other = Company::factory()->create();
         $service = app(SubscriptionService::class);
@@ -336,7 +336,7 @@ class ProductionReadinessTest extends TestCase
         $this->assertSame('SUB-'.now()->format('y').'-000001', $first->number);
         $this->assertSame('SUB-'.now()->format('y').'-000002', $second->number);
         $tags = Tlv::decode($first->qr);
-        $this->assertSame(['شركة الأستاذ', '311111111100003', '115.00', '15.00'], [$tags[1], $tags[2], $tags[4], $tags[5]]);
+        $this->assertSame(['شركة الديوان', '311111111100003', '115.00', '15.00'], [$tags[1], $tags[2], $tags[4], $tags[5]]);
 
         $this->actingAs($this->owner);
         $this->get(route('billing.invoices.show', $first))->assertOk()->assertSee('SA0380000000608010167519')->assertSee('311111111100003');

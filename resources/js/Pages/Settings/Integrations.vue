@@ -36,7 +36,7 @@ const remove = async (url, message) => { if (await confirmAction(message, { dang
             </div>
             <div class="bg-white border border-slate-200 rounded-2xl p-4">
                 <h3 class="font-black text-slate-700">Webhooks</h3>
-                <p class="text-slate-500 mb-3">كل طلب موقّع بـ HMAC-SHA256 في الترويسة X-Alostaz-Signature على «timestamp.body».</p>
+                <p class="text-slate-500 mb-3">كل طلب موقّع بـ HMAC-SHA256 في الترويسة X-Diwan-Signature على «timestamp.body».</p>
                 <div v-for="w in webhooks" :key="w.id" class="py-1.5 border-b border-slate-50">
                     <div class="flex justify-between"><span class="font-mono break-all" dir="ltr">{{ w.url }}</span><span class="whitespace-nowrap"><button @click="router.post(route('webhooks.test', w.id), {}, opts)" class="text-indigo-600 font-bold me-2">اختبار</button><button @click="remove(route('webhooks.destroy', w.id), 'حذف هذا الـ Webhook؟')" class="text-rose-600 font-bold">حذف</button></span></div>
                     <div class="text-slate-400">{{ w.events.join('، ') }} · آخر حالة: {{ w.last_status || '—' }} {{ w.is_active ? '' : '(موقوف)' }}</div>

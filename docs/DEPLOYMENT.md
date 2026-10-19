@@ -11,7 +11,7 @@
 1. **الخادم:** أنشئ قاعدة MySQL ومستخدماً لها، وثبّت Redis وNginx وSupervisor (انظر المتطلبات).
 2. **الكود:**
    ```bash
-   git clone <repo> /var/www/alostaz && cd /var/www/alostaz
+   git clone <repo> /var/www/diwan && cd /var/www/diwan
    git checkout stable        # فرع/وسم الإصدارات المستقرة، لا فرع التطوير
    composer install --no-dev --optimize-autoloader
    npm ci && npm run build
@@ -28,7 +28,7 @@
    - **المُجدول** (`schedule:work`).
 7. **التخزين المؤقت:** `php artisan optimize`.
 8. **الفحص:** `php artisan erp:preflight`. يجب ألا يظهر أي «خطأ».
-9. **المراقبة:** اربط مراقب جاهزية (UptimeRobot أو غيره) بـ `https://alostaz.io/health`. يرد 503 عند:
+9. **المراقبة:** اربط مراقب جاهزية (UptimeRobot أو غيره) بـ `https://diwan.io/health`. يرد 503 عند:
    - تعطل قاعدة البيانات.
    - توقف عامل الطوابير.
    - توقف المُجدول.
@@ -41,11 +41,11 @@
 ```dotenv
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://alostaz.io
-APP_DOMAIN=alostaz.io                 # النطاق المركزي؛ المنشآت على {subdomain}.alostaz.io
+APP_URL=https://diwan.io
+APP_DOMAIN=diwan.io                 # النطاق المركزي؛ المنشآت على {subdomain}.diwan.io
 TENANCY_ENFORCE_SUBDOMAIN=true
 TENANCY_ALLOW_DEV_OVERRIDE=false      # لا تسمح بـ ?tenant= في الإنتاج
-SESSION_DOMAIN=null                   # كوكي مستقلة لكل نطاق فرعي (لا تجعلها .alostaz.io)
+SESSION_DOMAIN=null                   # كوكي مستقلة لكل نطاق فرعي (لا تجعلها .diwan.io)
 SESSION_SECURE_COOKIE=true
 SESSION_ENCRYPT=true
 DB_CONNECTION=mysql
@@ -65,11 +65,11 @@ BACKUP_OFFSITE_DISK=offsite           # نسخة من كل نسخة احتياط
 ## DNS وشهادات SSL
 
 - **السجلات:**
-  - `A alostaz.io → IP`
-  - `A *.alostaz.io → IP` (wildcard)
-  - `A admin.alostaz.io → IP`
-- **الشهادة:** شهادة wildcard عبر DNS-01، مثلاً: `certbot certonly --dns-<provider> -d alostaz.io -d '*.alostaz.io'`.
-- **النطاقات الخاصة للعملاء:** يضيف العميل سجل `CNAME` إلى `{subdomain}.alostaz.io` وسجل `TXT _alostaz-verify` من صفحة الاشتراك. لا يُخدم النطاق قبل التحقق. أصدر شهادته عبر HTTP-01 أو استخدم on-demand TLS في Caddy.
+  - `A diwan.io → IP`
+  - `A *.diwan.io → IP` (wildcard)
+  - `A admin.diwan.io → IP`
+- **الشهادة:** شهادة wildcard عبر DNS-01، مثلاً: `certbot certonly --dns-<provider> -d diwan.io -d '*.diwan.io'`.
+- **النطاقات الخاصة للعملاء:** يضيف العميل سجل `CNAME` إلى `{subdomain}.diwan.io` وسجل `TXT _diwan-verify` من صفحة الاشتراك. لا يُخدم النطاق قبل التحقق. أصدر شهادته عبر HTTP-01 أو استخدم on-demand TLS في Caddy.
 
 ## Nginx
 
@@ -86,10 +86,10 @@ BACKUP_OFFSITE_DISK=offsite           # نسخة من كل نسخة احتياط
 | `exports` | نسخ بيانات المنشآت |
 | `default` | الإشعارات والبريد |
 
-المُجدول يعمل كبرنامج `alostaz-scheduler` في الملف نفسه (`schedule:work`). أو بدلاً منه سطر cron:
+المُجدول يعمل كبرنامج `diwan-scheduler` في الملف نفسه (`schedule:work`). أو بدلاً منه سطر cron:
 
 ```cron
-* * * * * cd /var/www/alostaz && php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /var/www/diwan && php artisan schedule:run >> /dev/null 2>&1
 ```
 
 بدون المُجدول لا تعمل أي من المهام في الجدول التالي، ومنها النسخ الاحتياطي والإبلاغ لهيئة الزكاة. يكتب المُجدول نبضاً كل دقيقة يقرؤه `/health`.
@@ -160,8 +160,8 @@ php artisan erp:preflight
 
 ```bash
 php artisan erp:backup --tag=prerestore    # احتياطاً، نسخة من الوضع الحالي
-php artisan erp:restore alostaz-backup-YYYY-MM-DD-HHMMSS.zip            # من القرص الأساسي
-php artisan erp:restore alostaz-backup-YYYY-MM-DD-HHMMSS.zip --disk=offsite   # من النسخة الخارجية
+php artisan erp:restore diwan-backup-YYYY-MM-DD-HHMMSS.zip            # من القرص الأساسي
+php artisan erp:restore diwan-backup-YYYY-MM-DD-HHMMSS.zip --disk=offsite   # من النسخة الخارجية
 ```
 
 **ما يفعله الأمر:**
@@ -174,7 +174,7 @@ php artisan erp:restore alostaz-backup-YYYY-MM-DD-HHMMSS.zip --disk=offsite   # 
 
 **يدوياً بدون الأمر:**
 1. `7z x <file> -p"$BACKUP_PASSWORD"`.
-2. `mysql alostaz < database.sql`.
+2. `mysql diwan < database.sql`.
 3. انسخ `files/public` و`files/private` إلى `storage/app/`.
 4. `php artisan optimize:clear`.
 

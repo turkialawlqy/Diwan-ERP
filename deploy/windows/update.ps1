@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Updates the local Alostaz copy (Windows + MAMP) from GitHub and prepares it.
+    Updates the local Diwan copy (Windows + MAMP) from GitHub and prepares it.
 
 .DESCRIPTION
     - First run on a folder that is not a git clone: takes a full backup copy,
@@ -24,7 +24,7 @@
 param(
     [string]$Path = '',
     [string]$Branch = '',
-    [string]$Repository = 'https://github.com/turkialawlqy/AlOstaz.git',
+    [string]$Repository = 'https://github.com/turkialawlqy/Diwan.git',
     [switch]$Auto,
     [switch]$Force
 )
@@ -36,7 +36,7 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 if (-not $Path) {
     $candidate = Resolve-Path (Join-Path $PSScriptRoot '../..') -ErrorAction SilentlyContinue
     if ($candidate -and (Test-Path (Join-Path $candidate 'artisan'))) { $Path = $candidate.Path }
-    else { $Path = 'C:\MAMP\htdocs\alostaz' }
+    else { $Path = 'C:\MAMP\htdocs\diwan' }
 }
 if (-not (Test-Path (Join-Path $Path 'artisan'))) {
     Write-Host "لم يُعثر على النظام في: $Path" -ForegroundColor Red
@@ -118,7 +118,7 @@ function Copy-Backup([string]$Reason) {
 # keeps showing even while composer is half-way through replacing packages.
 $downFile = Join-Path $Path 'storage/framework/down'
 $maintenanceFile = Join-Path $Path 'storage/framework/maintenance.php'
-$preparedFile = Join-Path $Path 'storage/framework/alostaz-prepared'
+$preparedFile = Join-Path $Path 'storage/framework/diwan-prepared'
 function Enter-Maintenance {
     $html = '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta http-equiv="refresh" content="20"><title>جارٍ التحديث</title></head>' +
         '<body style="font-family:Tahoma,sans-serif;background:#f8fafc;color:#334155;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">' +
@@ -227,7 +227,7 @@ try {
     if ($isRepo -and (@(Invoke-Tool $git @('remote') -AllowFail) | ForEach-Object { "$_".Trim() }) -contains 'origin') {
         $origin = "$(@(Invoke-Tool $git @('remote', 'get-url', 'origin') -AllowFail)[0])".Trim()
     }
-    $linked = $isRepo -and ($origin -match 'turkialawlqy/AlOstaz' -or $origin -eq $Repository)
+    $linked = $isRepo -and ($origin -match 'turkialawlqy/(AlOstaz|Diwan)' -or $origin -eq $Repository)
     if (-not $linked) {
         if ($Auto) { Write-Log 'المجلد غير مرتبط بالمستودع بعد؛ شغّل update.bat يدوياً أول مرة.' 'Yellow' -Always; exit 3 }
         Copy-Backup 'أول ربط بالمستودع' | Out-Null
@@ -308,7 +308,7 @@ try {
             if (-not $Force) { throw 'تعذّر النسخ الاحتياطي لقاعدة البيانات، فأُوقف التحديث ولم يتغير شيء. راجع BACKUP_PASSWORD و BACKUP_MYSQLDUMP في .env، أو شغّل update.ps1 -Force لتجاوز ذلك.' }
             Write-Log '    تعذّر النسخ الاحتياطي (تجاوز بـ -Force).' 'Yellow'
         }
-        $backupFile = (@($backup) | Where-Object { $_ -match 'alostaz-[a-z]+-[0-9-]+\.zip' } | ForEach-Object { $Matches[0] } | Select-Object -First 1)
+        $backupFile = (@($backup) | Where-Object { $_ -match 'diwan-[a-z]+-[0-9-]+\.zip' } | ForEach-Object { $Matches[0] } | Select-Object -First 1)
     }
 
     Step 'تحديث ملفات الكود'

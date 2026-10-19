@@ -56,7 +56,7 @@ return [
             'bucket' => env('BACKUP_S3_BUCKET'),
             'endpoint' => env('BACKUP_S3_ENDPOINT'),
             'use_path_style_endpoint' => (bool) env('BACKUP_S3_PATH_STYLE', false),
-            'root' => env('BACKUP_S3_ROOT', 'alostaz-backups'),
+            'root' => env('BACKUP_S3_ROOT', 'diwan-backups'),
             'throw' => true,
         ],
 

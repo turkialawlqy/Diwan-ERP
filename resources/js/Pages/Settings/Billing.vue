@@ -41,7 +41,7 @@ const pct = (u) => (u.max && u.max > 0 ? Math.min(100, Math.round((u.used / u.ma
                     <p v-if="company.custom_domain_verified_at" class="mt-3 text-emerald-700 font-bold">✓ النطاق موثق ومفعل</p>
                     <div v-else class="mt-3 space-y-1">
                         <p>أضف السجلات التالية لدى مزود النطاق ثم اضغط تحقق:</p>
-                        <p class="font-mono bg-slate-50 p-2 rounded-lg break-all" dir="ltr">TXT _alostaz-verify.{{ company.custom_domain }} = {{ company.custom_domain_token }}</p>
+                        <p class="font-mono bg-slate-50 p-2 rounded-lg break-all" dir="ltr">TXT _diwan-verify.{{ company.custom_domain }} = {{ company.custom_domain_token }}</p>
                         <p class="font-mono bg-slate-50 p-2 rounded-lg" dir="ltr">CNAME {{ company.custom_domain }} → {{ company.subdomain }}.{{ centralDomain }}</p>
                         <button v-if="$can('admin.billing.manage')" @click="router.post(route('billing.domain.verify'), {}, { preserveScroll: true })" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold">تحقق</button>
                     </div>

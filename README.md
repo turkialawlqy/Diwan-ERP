@@ -83,7 +83,7 @@
 ```bash
 composer install && npm ci && npm run build
 cp .env.example .env && php artisan key:generate
-php artisan migrate --seed      # منشأة تجريبية: anas / مدير المنصة: admin@alostaz.io
+php artisan migrate --seed      # منشأة تجريبية: anas / مدير المنصة: admin@diwan.io
 php artisan serve               # افتح http://localhost:8000/?tenant=anas
 ```
 
@@ -91,7 +91,7 @@ php artisan serve               # افتح http://localhost:8000/?tenant=anas
 
 ```bash
 php artisan test                       # SQLite في الذاكرة
-php artisan test -c phpunit.mysql.xml  # MySQL 8 (قاعدة alostaz_test)
+php artisan test -c phpunit.mysql.xml  # MySQL 8 (قاعدة diwan_test)
 vendor/bin/pint --test
 ```
 

@@ -23,8 +23,8 @@ class AuthenticatedSessionController extends Controller
             'status' => session('status'),
             // Seeded demo logins, only when explicitly enabled outside production.
             'demoAccounts' => config('app.demo_login') && ! app()->isProduction() ? [
-                ['label' => 'مدير منشأة (أنس)', 'email' => 'anas@alostaz.io', 'password' => 'password'],
-                ['label' => 'مسؤول عام (Super Admin)', 'email' => 'admin@alostaz.io', 'password' => 'admin123456'],
+                ['label' => 'مدير منشأة (أنس)', 'email' => 'anas@diwan.io', 'password' => 'password'],
+                ['label' => 'مسؤول عام (Super Admin)', 'email' => 'admin@diwan.io', 'password' => 'admin123456'],
             ] : [],
         ]);
     }

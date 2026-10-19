@@ -27,7 +27,7 @@ class TenantSecurityTest extends TestCase
     {
         parent::setUp();
 
-        config(['tenancy.central_domain' => 'alostaz.test']);
+        config(['tenancy.central_domain' => 'diwan.test']);
 
         $this->companyA = Company::factory()->create(['subdomain' => 'alpha']);
         $this->companyB = Company::factory()->create(['subdomain' => 'beta']);
@@ -44,7 +44,7 @@ class TenantSecurityTest extends TestCase
     public function test_user_cannot_use_session_on_another_companys_subdomain(): void
     {
         $this->actingAs($this->userA)
-            ->get('http://beta.alostaz.test/dashboard')
+            ->get('http://beta.diwan.test/dashboard')
             ->assertForbidden();
 
         $this->assertGuest();
@@ -53,18 +53,18 @@ class TenantSecurityTest extends TestCase
     public function test_user_can_use_own_companys_subdomain(): void
     {
         $this->actingAs($this->userA)
-            ->get('http://alpha.alostaz.test/dashboard')
+            ->get('http://alpha.diwan.test/dashboard')
             ->assertOk();
     }
 
     public function test_unknown_subdomain_returns_404(): void
     {
-        $this->get('http://nobody.alostaz.test/login')->assertNotFound();
+        $this->get('http://nobody.diwan.test/login')->assertNotFound();
     }
 
     public function test_login_on_other_companys_subdomain_is_rejected(): void
     {
-        $this->post('http://beta.alostaz.test/login', [
+        $this->post('http://beta.diwan.test/login', [
             'email' => $this->userA->email,
             'password' => 'password',
         ])->assertSessionHasErrors('email');
@@ -74,7 +74,7 @@ class TenantSecurityTest extends TestCase
 
     public function test_login_on_own_subdomain_succeeds(): void
     {
-        $this->post('http://alpha.alostaz.test/login', [
+        $this->post('http://alpha.diwan.test/login', [
             'email' => $this->userA->email,
             'password' => 'password',
         ]);
