@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 trait BelongsToCompany
 {
+    use SerializesLocalDates;
+
     /**
      * Boot the BelongsToCompany trait.
      */
