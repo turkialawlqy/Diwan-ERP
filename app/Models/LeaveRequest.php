@@ -11,7 +11,7 @@ class LeaveRequest extends Model
 {
     use Auditable, BelongsToCompany;
 
-    protected $fillable = ['company_id', 'employee_id', 'leave_type_id', 'start_date', 'end_date', 'days', 'status', 'reason', 'approved_by', 'approved_at'];
+    protected $fillable = ['company_id', 'employee_id', 'leave_type_id', 'start_date', 'end_date', 'days', 'status', 'decision_note', 'reason', 'approved_by', 'approved_at'];
 
     protected $casts = ['start_date' => 'date', 'end_date' => 'date', 'approved_at' => 'datetime', 'days' => 'decimal:2'];
 

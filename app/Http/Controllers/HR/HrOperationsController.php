@@ -151,7 +151,8 @@ class HrOperationsController extends Controller
 
     public function decideLeave(Request $request, LeaveRequest $leave, LeaveService $leaves)
     {
-        $leaves->decide($leave, $request->boolean('approve'));
+        $note = $request->validate(['note' => 'nullable|string|max:500'])['note'] ?? null;
+        $leaves->decide($leave, $request->boolean('approve'), $note);
 
         return back()->with('success', $request->boolean('approve') ? 'تم اعتماد الإجازة' : 'تم رفض الإجازة');
     }
@@ -191,7 +192,7 @@ class HrOperationsController extends Controller
         }
         abort_unless($loan->status === 'pending', 422);
         EmployeeFinanceService::assertNotOwnRequest($loan->employee);
-        $loan->update(['status' => 'rejected']);
+        $loan->update(['status' => 'rejected', 'decision_note' => $request->validate(['note' => 'nullable|string|max:500'])['note'] ?? null, 'approved_by' => auth()->id()]);
 
         return back()->with('success', 'تم رفض السلفة');
     }

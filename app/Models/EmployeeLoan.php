@@ -11,7 +11,7 @@ class EmployeeLoan extends Model
 {
     use Auditable, BelongsToCompany;
 
-    protected $fillable = ['company_id', 'employee_id', 'date', 'amount', 'monthly_installment', 'repaid', 'first_deduction_month', 'status', 'bank_account_id', 'reason', 'approved_by'];
+    protected $fillable = ['company_id', 'employee_id', 'date', 'amount', 'monthly_installment', 'repaid', 'first_deduction_month', 'status', 'decision_note', 'bank_account_id', 'reason', 'approved_by'];
 
     protected $casts = ['date' => 'date', 'first_deduction_month' => 'date'];
 

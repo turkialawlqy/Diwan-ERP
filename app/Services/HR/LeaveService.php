@@ -96,9 +96,9 @@ class LeaveService
         ]);
     }
 
-    public function decide(LeaveRequest $request, bool $approve): void
+    public function decide(LeaveRequest $request, bool $approve, ?string $note = null): void
     {
-        DB::transaction(function () use ($request, $approve) {
+        DB::transaction(function () use ($request, $approve, $note) {
             $request = LeaveRequest::whereKey($request->id)->lockForUpdate()->firstOrFail();
             if ($request->status !== 'pending') {
                 throw ValidationException::withMessages(['leave' => 'الطلب ليس قيد الانتظار.']);
@@ -111,7 +111,7 @@ class LeaveService
                     throw ValidationException::withMessages(['leave' => "رصيد الإجازات السنوية لا يكفي لهذا الطلب (المتاح {$available} يوم)."]);
                 }
             }
-            $request->update(['status' => $approve ? 'approved' : 'rejected', 'approved_by' => auth()->id(), 'approved_at' => now()]);
+            $request->update(['status' => $approve ? 'approved' : 'rejected', 'decision_note' => $note, 'approved_by' => auth()->id(), 'approved_at' => now()]);
         });
     }
 

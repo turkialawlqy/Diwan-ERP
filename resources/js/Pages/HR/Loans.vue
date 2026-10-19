@@ -1,4 +1,5 @@
 <script setup>
+import { ask } from '@/composables/useDialog';
 import { ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -10,7 +11,14 @@ import { money, date } from '@/utils/format';
 defineProps({ loans: Object, employees: Array, bankAccounts: Array });
 const form = useForm({ employee_id: '', date: new Date().toISOString().substring(0, 10), amount: 0, monthly_installment: 0, first_deduction_month: '', reason: '' });
 const bank = ref('');
-const decide = (loan, approve) => router.post(route('hr.loans.decide', loan.id), { approve, bank_account_id: bank.value || null }, { preserveScroll: true });
+const decide = async (loan, approve) => {
+    let note = null;
+    if (!approve) {
+        note = await ask('سبب الرفض (يظهر للموظف):', { title: 'رفض طلب السلفة', type: 'textarea', confirmText: 'رفض', danger: true });
+        if (note === null) return;
+    }
+    router.post(route('hr.loans.decide', loan.id), { approve, note, bank_account_id: bank.value || null }, { preserveScroll: true });
+};
 </script>
 
 <template>

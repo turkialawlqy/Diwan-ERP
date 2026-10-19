@@ -10,11 +10,13 @@ use App\Models\CostCenter;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
+use App\Models\EmployeeLoan;
 use App\Models\EmployeePayItem;
 use App\Models\JobPosition;
 use App\Models\PayrollItem;
 use App\Models\User;
 use App\Models\WorkShift;
+use App\Services\HR\BankSalaryFormats;
 use App\Services\HR\EmployeeFinanceService;
 use App\Services\HR\LeaveService;
 use App\Services\TenantManager;
@@ -22,6 +24,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -77,14 +80,23 @@ class EmployeeController extends Controller
         return redirect()->route('hr.employees.show', $employee->id)->with('success', 'تم تسجيل الموظف');
     }
 
-    public function edit(Employee $employee): Response
+    public function edit(Request $request, Employee $employee): Response
     {
+        if (! $request->user()->can('hr.salaries.view')) {
+            $employee->makeHidden(self::SALARY_FIELDS);
+        }
+
         return Inertia::render('HR/Employees/Form', $this->formOptions() + ['employee' => $employee]);
     }
 
     public function update(Request $request, Employee $employee)
     {
-        $employee->update($this->validated($request, $employee));
+        $validated = $this->validated($request, $employee);
+        if (($validated['status'] ?? null) === 'terminated' && $employee->status !== 'terminated'
+            && EmployeeLoan::where('employee_id', $employee->id)->where('status', 'active')->exists()) {
+            throw ValidationException::withMessages(['status' => 'للموظف سلف قائمة؛ أنهِ خدمته من شاشة المخالصة لتُخصم السلف ويُقيَّد المستحق.']);
+        }
+        $employee->update($validated);
 
         return redirect()->route('hr.employees.show', $employee->id)->with('success', 'تم تحديث بيانات الموظف');
     }
@@ -96,7 +108,7 @@ class EmployeeController extends Controller
             'documents', 'payItems', 'leaveRequests.type:id,name', 'loans']);
         $employee->documents->each(fn ($d) => $d->url = $d->file_path ? route('files.show', ['token' => Crypt::encryptString($d->file_path)], false) : null);
         if (! $canSalaries) {
-            $employee->makeHidden(['basic_salary', 'housing_allowance', 'transport_allowance', 'other_allowances', 'total_salary', 'iban', 'payItems', 'loans']);
+            $employee->makeHidden(self::SALARY_FIELDS);
         }
 
         $month = Carbon::parse($request->input('month', now()->format('Y-m').'-01'));
@@ -151,6 +163,7 @@ class EmployeeController extends Controller
 
     public function storePayItem(Request $request, Employee $employee)
     {
+        abort_unless($request->user()->can('hr.salaries.view'), 403);
         $employee->payItems()->create($request->validate([
             'kind' => 'required|in:allowance,deduction',
             'name' => 'required|string|max:255',
@@ -163,18 +176,24 @@ class EmployeeController extends Controller
         return back()->with('success', 'تم حفظ البند');
     }
 
-    public function destroyPayItem(Employee $employee, EmployeePayItem $item)
+    public function destroyPayItem(Request $request, Employee $employee, EmployeePayItem $item)
     {
+        abort_unless($request->user()->can('hr.salaries.view'), 403);
         abort_unless((int) $item->employee_id === (int) $employee->id, 404);
         $item->delete();
 
         return back()->with('success', 'تم حذف البند');
     }
 
+    /** Pay and bank details only users with hr.salaries.view may see or change. */
+    public const SALARY_FIELDS = ['basic_salary', 'housing_allowance', 'transport_allowance', 'other_allowances', 'total_salary', 'iban', 'bank_name', 'bank_code', 'payItems', 'loans'];
+
     protected function validated(Request $request, ?Employee $employee = null): array
     {
         $companyId = app(TenantManager::class)->getTenantId();
-        $validated = $request->validate([
+        $canSalaries = $request->user()->can('hr.salaries.view');
+        $idPrefix = ['national_id' => '1', 'iqama' => '2', 'border_number' => '[34]'][$request->input('id_type')] ?? '\d';
+        $rules = [
             'employee_number' => ['nullable', 'string', 'max:30', Rule::unique('employees')->where('company_id', $companyId)->ignore($employee?->id)],
             'name' => 'required|string|max:255',
             'nationality' => 'required|string|size:2',
@@ -182,7 +201,7 @@ class EmployeeController extends Controller
             'birth_date' => 'nullable|date',
             'marital_status' => 'nullable|string|max:20',
             'id_type' => 'required|in:national_id,iqama,border_number',
-            'national_id' => 'nullable|string|max:20',
+            'national_id' => ['nullable', 'string', 'regex:/^'.$idPrefix.'\d{9}$/', Rule::unique('employees')->where('company_id', $companyId)->whereNull('deleted_at')->ignore($employee?->id)],
             'id_expiry' => 'nullable|date',
             'passport_number' => 'nullable|string|max:30',
             'passport_expiry' => 'nullable|date',
@@ -212,10 +231,35 @@ class EmployeeController extends Controller
             'leave_opening_balance' => 'nullable|numeric',
             'bank_name' => 'nullable|string|max:100',
             'bank_code' => 'nullable|string|max:10',
-            'iban' => ['nullable', 'regex:/^SA\d{22}$/'],
+            'iban' => ['nullable', function ($attribute, $value, $fail) {
+                if (! BankSalaryFormats::validIban($value)) {
+                    $fail('رقم الآيبان غير صحيح: 24 خانة تبدأ بـ SA، وتحقق من صحة الأرقام.');
+                }
+            }],
             'status' => 'required|in:active,on_leave,suspended,terminated',
             'notes' => 'nullable|string|max:5000',
-        ], ['iban.regex' => 'الآيبان السعودي يبدأ بـ SA ويتكون من 24 خانة.']);
+        ];
+        // Without salary access the pay fields are neither read nor overwritten.
+        if (! $canSalaries) {
+            $rules = array_diff_key($rules, array_flip(self::SALARY_FIELDS));
+        }
+        $validated = $request->validate($rules, [
+            'national_id.regex' => 'رقم الهوية 10 أرقام: يبدأ بـ 1 للمواطن، و2 للإقامة، و3 أو 4 لرقم الحدود.',
+            'national_id.unique' => 'رقم الهوية مسجل لموظف آخر.',
+        ]);
+        if (isset($validated['iban'])) {
+            $validated['iban'] = strtoupper(str_replace(' ', '', $validated['iban']));
+        }
+        if (! $canSalaries) {
+            $validated['department'] = ! empty($validated['department_id']) ? Department::find($validated['department_id'])->name : ($employee?->department ?? 'عام');
+            $validated['annual_leave_days'] ??= 21;
+            $validated['employee_number'] ??= $employee?->employee_number ?? $this->nextNumber('employee');
+            if (! $employee) {
+                $validated += ['basic_salary' => 0, 'housing_allowance' => 0, 'transport_allowance' => 0, 'other_allowances' => 0, 'total_salary' => 0];
+            }
+
+            return $validated;
+        }
 
         $validated['department'] = ! empty($validated['department_id']) ? Department::find($validated['department_id'])->name : ($employee?->department ?? 'عام');
         $validated['total_salary'] = round((float) $validated['basic_salary'] + (float) ($validated['housing_allowance'] ?? 0)

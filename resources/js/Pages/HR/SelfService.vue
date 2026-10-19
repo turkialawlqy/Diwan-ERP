@@ -1,5 +1,6 @@
 <script setup>
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { confirmAction } from '@/composables/useDialog';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import StatCard from '@/Components/UI/StatCard.vue';
@@ -7,6 +8,9 @@ import StatusBadge from '@/Components/Documents/StatusBadge.vue';
 import { money, date, hijri } from '@/utils/format';
 
 const props = defineProps({ employee: Object, leaveBalance: Object, leaveRequests: Array, loans: Array, payslips: Array, leaveTypes: Array });
+const withdraw = async (name, id, message) => {
+    if (await confirmAction(message, { confirmText: 'سحب الطلب', danger: true })) router.post(route(name, id), {}, { preserveScroll: true });
+};
 const leave = useForm({ leave_type_id: props.leaveTypes?.[0]?.id || '', start_date: '', end_date: '', reason: '' });
 const loan = useForm({ amount: 0, monthly_installment: 0, reason: '' });
 </script>
@@ -41,8 +45,16 @@ const loan = useForm({ amount: 0, monthly_installment: 0, reason: '' });
             </div>
             <div class="bg-white border border-slate-200 rounded-2xl p-4">
                 <h3 class="font-black text-slate-700 mb-2">طلباتي</h3>
-                <div v-for="r in leaveRequests" :key="r.id" class="flex justify-between py-1 border-b border-slate-50"><span>{{ r.type?.name }} <span class="font-mono text-slate-400">{{ date(r.start_date) }} → {{ date(r.end_date) }}</span></span><StatusBadge :status="r.status" /></div>
-                <div v-for="l in loans" :key="'l' + l.id" class="flex justify-between py-1 border-b border-slate-50"><span>سلفة {{ money(l.amount) }} <span class="text-slate-400">مسدد {{ money(l.repaid) }}</span></span><StatusBadge :status="l.status" /></div>
+                <div v-for="r in leaveRequests" :key="r.id" class="py-1 border-b border-slate-50">
+                    <div class="flex justify-between items-center gap-2"><span>{{ r.type?.name }} <span class="font-mono text-slate-400">{{ date(r.start_date) }} → {{ date(r.end_date) }}</span></span>
+                        <span class="flex items-center gap-2"><button v-if="r.status === 'pending'" @click="withdraw('hr.me.leaves.cancel', r.id, 'سحب طلب الإجازة؟')" class="text-rose-600 font-bold">سحب</button><StatusBadge :status="r.status" /></span></div>
+                    <p v-if="r.decision_note" class="text-slate-500 mt-0.5">ملاحظة المعتمد: {{ r.decision_note }}</p>
+                </div>
+                <div v-for="l in loans" :key="'l' + l.id" class="py-1 border-b border-slate-50">
+                    <div class="flex justify-between items-center gap-2"><span>سلفة {{ money(l.amount) }} <span class="text-slate-400">مسدد {{ money(l.repaid) }}</span></span>
+                        <span class="flex items-center gap-2"><button v-if="l.status === 'pending'" @click="withdraw('hr.me.loans.cancel', l.id, 'سحب طلب السلفة؟')" class="text-rose-600 font-bold">سحب</button><StatusBadge :status="l.status" /></span></div>
+                    <p v-if="l.decision_note" class="text-slate-500 mt-0.5">ملاحظة المعتمد: {{ l.decision_note }}</p>
+                </div>
             </div>
             <div class="bg-white border border-slate-200 rounded-2xl p-4">
                 <h3 class="font-black text-slate-700 mb-2">قسائم الراتب</h3>

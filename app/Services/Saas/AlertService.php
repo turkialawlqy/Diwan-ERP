@@ -63,6 +63,22 @@ class AlertService
             $alerts[] = $this->alert('expiring_documents', 'hr.employees.view', 'وثائق موظفين تنتهي قريباً', "{$expiringDocs} وثيقة (هوية/إقامة/جواز/عقد) تنتهي خلال 30 يوماً", route('hr.employees.index', [], false), 'warning');
         }
 
+        // Art. 55 notice before a fixed-term contract ends, and the probation decision (Art. 53).
+        $active = fn () => Employee::where('status', '!=', 'terminated');
+        $contracts = $active()->where('contract_type', 'limited')->whereNotNull('contract_end')
+            ->whereDate('contract_end', '>=', $today)->whereDate('contract_end', '<=', now()->addDays(60)->toDateString())->count();
+        if ($contracts) {
+            $alerts[] = $this->alert('contracts_ending', 'hr.employees.view', 'عقود محددة المدة تنتهي قريباً', "{$contracts} عقد ينتهي خلال 60 يوماً؛ قرّر التجديد أو أشعر الموظف", route('hr.employees.index', [], false), 'warning');
+        }
+        $probation = $active()->whereNotNull('probation_end')->whereDate('probation_end', '>=', $today)->whereDate('probation_end', '<=', now()->addDays(14)->toDateString())->count();
+        if ($probation) {
+            $alerts[] = $this->alert('probation_ending', 'hr.employees.view', 'فترات تجربة تنتهي قريباً', "{$probation} موظف تنتهي فترة تجربته خلال 14 يوماً", route('hr.employees.index', [], false));
+        }
+        $gosiMissing = $active()->where('nationality', 'SA')->where('gosi_registered', true)->where(fn ($q) => $q->whereNull('gosi_number')->orWhere('gosi_number', ''))->count();
+        if ($gosiMissing) {
+            $alerts[] = $this->alert('gosi_numbers', 'hr.employees.view', 'موظفون بلا رقم اشتراك في التأمينات', "{$gosiMissing} موظف سعودي مسجل في التأمينات دون رقم اشتراك", route('hr.employees.index', [], false));
+        }
+
         $guarantees = LetterOfGuarantee::where('status', 'active')->whereDate('expiry_date', '<=', $soon)->count();
         if ($guarantees) {
             $alerts[] = $this->alert('expiring_guarantees', 'projects.guarantees.view', 'خطابات ضمان تنتهي قريباً', "{$guarantees} خطاب ضمان ينتهي خلال 30 يوماً", route('projects.guarantees.index', [], false), 'warning');

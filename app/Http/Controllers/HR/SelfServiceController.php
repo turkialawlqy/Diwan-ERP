@@ -5,6 +5,7 @@ namespace App\Http\Controllers\HR;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeLoan;
+use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\PayrollItem;
 use App\Services\HR\LeaveService;
@@ -67,6 +68,25 @@ class SelfServiceController extends Controller
         EmployeeLoan::create($validated + ['employee_id' => $this->me()->id, 'date' => now()->toDateString(), 'first_deduction_month' => now()->addMonth()->startOfMonth()->toDateString(), 'status' => 'pending']);
 
         return back()->with('success', 'تم إرسال طلب السلفة');
+    }
+
+    /** An employee withdraws their own request while it is still pending. */
+    public function cancelLeave(LeaveRequest $leave)
+    {
+        abort_unless((int) $leave->employee_id === (int) $this->me()->id, 404);
+        abort_unless($leave->status === 'pending', 422, 'لا يمكن سحب طلب تم البت فيه.');
+        $leave->update(['status' => 'cancelled']);
+
+        return back()->with('success', 'تم سحب طلب الإجازة');
+    }
+
+    public function cancelLoan(EmployeeLoan $loan)
+    {
+        abort_unless((int) $loan->employee_id === (int) $this->me()->id, 404);
+        abort_unless($loan->status === 'pending', 422, 'لا يمكن سحب طلب تم البت فيه.');
+        $loan->update(['status' => 'cancelled']);
+
+        return back()->with('success', 'تم سحب طلب السلفة');
     }
 
     public function payslip(PayrollItem $item)

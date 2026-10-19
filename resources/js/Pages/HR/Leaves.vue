@@ -1,4 +1,5 @@
 <script setup>
+import { ask } from '@/composables/useDialog';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -8,7 +9,14 @@ import { date } from '@/utils/format';
 
 const props = defineProps({ requests: Object, types: Array, employees: Array, status: String });
 const form = useForm({ employee_id: '', leave_type_id: props.types[0]?.id || '', start_date: '', end_date: '', reason: '' });
-const decide = (r, approve) => router.post(route('hr.leaves.decide', r.id), { approve }, { preserveScroll: true });
+const decide = async (r, approve) => {
+    let note = null;
+    if (!approve) {
+        note = await ask('سبب الرفض (يظهر للموظف):', { title: 'رفض طلب الإجازة', type: 'textarea', confirmText: 'رفض', danger: true });
+        if (note === null) return;
+    }
+    router.post(route('hr.leaves.decide', r.id), { approve, note }, { preserveScroll: true });
+};
 const filter = (s) => router.get(route('hr.leaves.index'), { status: s }, { preserveState: true });
 const pay = { full: 'مدفوعة', sick_tiers: 'حسب شرائح المرضية', unpaid: 'بدون راتب' };
 </script>

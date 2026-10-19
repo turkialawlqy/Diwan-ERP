@@ -142,6 +142,47 @@ class PayrollService
     }
 
     /**
+     * Back to draft before the salaries are paid (e.g. an error found after
+     * approval): the accrual is reversed, the loan instalments it recovered
+     * are restored and the month's adjustments released for recalculation.
+     */
+    public function unapprove(Payroll $payroll): void
+    {
+        DB::transaction(function () use ($payroll) {
+            $payroll = Payroll::with('items')->whereKey($payroll->id)->lockForUpdate()->firstOrFail();
+            if ($payroll->status !== 'approved') {
+                throw ValidationException::withMessages(['payroll' => $payroll->status === 'paid'
+                    ? 'المسير مصروف؛ لا يمكن إلغاء اعتماده. سجّل التصحيح في مسير الشهر التالي.'
+                    : 'المسير غير معتمد.']);
+            }
+            $later = Payroll::whereIn('status', ['approved', 'paid'])
+                ->where(fn ($q) => $q->where('year', '>', $payroll->year)->orWhere(fn ($q) => $q->where('year', $payroll->year)->where('month', '>', $payroll->month)))->exists();
+            if ($later) {
+                throw ValidationException::withMessages(['payroll' => 'يوجد مسير معتمد لشهر لاحق؛ ألغِ اعتماده أولاً.']);
+            }
+
+            $this->posting->reverseSource($payroll, 'إلغاء اعتماد مسير '.$payroll->payroll_number);
+
+            // Instalments come back off the most recent loans first, mirroring approve().
+            foreach ($payroll->items->where('loan_deduction', '>', 0) as $item) {
+                $remaining = (float) $item->loan_deduction;
+                foreach (EmployeeLoan::where('employee_id', $item->employee_id)->whereIn('status', ['active', 'settled'])->where('repaid', '>', 0)
+                    ->orderByDesc('date')->orderByDesc('id')->lockForUpdate()->get() as $loan) {
+                    if ($remaining <= 0) {
+                        break;
+                    }
+                    $back = min($remaining, (float) $loan->repaid);
+                    $loan->update(['repaid' => round((float) $loan->repaid - $back, 2), 'status' => 'active']);
+                    $remaining = round($remaining - $back, 2);
+                }
+            }
+            EmployeeAdjustment::where('payroll_id', $payroll->id)->update(['payroll_id' => null]);
+
+            $payroll->update(['status' => 'draft', 'approved_by' => null, 'approved_at' => null]);
+        });
+    }
+
+    /**
      * Accrual entry of a payroll: salary expense per cost centre, GOSI, loan
      * repayments, fines held for the workers' fund and the net payable.
      */

@@ -13,6 +13,11 @@ const props = defineProps({ payroll: Object, adjustments: Array, employees: Arra
 const act = (name, message) => { if (!message || confirm(message)) router.post(route(name, props.payroll.id), {}, { preserveScroll: true }); };
 const adjForm = useForm({ employee_id: '', type: 'bonus', amount: 0, description: '' });
 const payOpen = ref(false);
+const unapprove = async () => {
+    if (await confirmAction('يُعكس قيد الاستحقاق وتُعاد أقساط السلف ويعود المسير مسودة قابلة للتعديل. متابعة؟', { title: 'إلغاء اعتماد المسير', danger: true, confirmText: 'إلغاء الاعتماد' })) {
+        router.post(route('hr.payroll.unapprove', props.payroll.id), {}, { preserveScroll: true });
+    }
+};
 const payForm = useForm({ date: new Date().toISOString().substring(0, 10), bank_account_id: '' });
 const typeLabel = { bonus: 'مكافأة', commission: 'عمولة', overtime_hours: 'ساعات إضافي', penalty: 'جزاء', deduction: 'استقطاع' };
 const sum = (key) => props.payroll.items.reduce((s, i) => s + Number(i[key] || 0), 0);
@@ -29,6 +34,7 @@ const remove = async (url, message) => { if (await confirmAction(message, { dang
                     <button v-if="$can('hr.payroll.create')" @click="act('hr.payroll.recalculate')" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold">إعادة احتساب</button>
                     <button v-if="$can('hr.payroll.approve')" @click="act('hr.payroll.approve', 'اعتماد المسير وقيده محاسبياً؟')" class="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">اعتماد</button>
                 </template>
+                <button v-if="payroll.status === 'approved' && $can('hr.payroll.approve')" @click="unapprove" class="px-3 py-2 rounded-xl border border-amber-300 text-amber-700 text-xs font-bold">إلغاء الاعتماد</button>
                 <button v-if="payroll.status === 'approved' && $can('hr.payroll.post')" @click="payOpen = true" class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">صرف الرواتب</button>
                 <template v-if="$can('hr.payroll.export')">
                     <a :href="route('hr.payroll.wps', { payroll: payroll.id, format: 'mudad' })" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold">ملف مُدد (WPS)</a>

@@ -616,6 +616,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'erp.auth
         Route::get('/payroll/{payroll}', [PayrollController::class, 'show'])->name('payroll.show');
         Route::post('/payroll/{payroll}/recalculate', [PayrollController::class, 'recalculate'])->name('payroll.recalculate');
         Route::post('/payroll/{payroll}/approve', [PayrollController::class, 'approve'])->name('payroll.approve');
+        Route::post('/payroll/{payroll}/unapprove', [PayrollController::class, 'unapprove'])->name('payroll.unapprove');
         Route::post('/payroll/{payroll}/pay', [PayrollController::class, 'pay'])->name('payroll.pay');
         Route::post('/payroll/{payroll}/adjustments', [PayrollController::class, 'storeAdjustment'])->name('payroll.adjustments.store');
         Route::delete('/payroll/{payroll}/adjustments/{adjustment}', [PayrollController::class, 'destroyAdjustment'])->name('payroll.adjustments.destroy');
@@ -627,6 +628,8 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'erp.auth
         Route::get('/me', [SelfServiceController::class, 'index'])->name('me');
         Route::post('/me/leaves', [SelfServiceController::class, 'requestLeave'])->name('me.leaves');
         Route::post('/me/loans', [SelfServiceController::class, 'requestLoan'])->name('me.loans');
+        Route::post('/me/leaves/{leave}/cancel', [SelfServiceController::class, 'cancelLeave'])->name('me.leaves.cancel');
+        Route::post('/me/loans/{loan}/cancel', [SelfServiceController::class, 'cancelLoan'])->name('me.loans.cancel');
         Route::get('/me/payslips/{item}', [SelfServiceController::class, 'payslip'])->name('me.payslip');
     });
 

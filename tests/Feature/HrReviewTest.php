@@ -16,10 +16,12 @@ use App\Services\HR\EmployeeFinanceService;
 use App\Services\HR\LeaveService;
 use App\Services\HR\PayrollCalculator;
 use App\Services\HR\PayrollService;
+use App\Services\Saas\AlertService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 /**
@@ -186,5 +188,126 @@ class HrReviewTest extends TestCase
 
         $this->leave($e, 'unpaid', '2025-03-01', '2025-03-26'); // total 36 days: excluded
         $this->assertEqualsWithDelta(5 - 36 / 365, $finance->gratuity($e, $date, 'termination')['years'], 0.001);
+    }
+
+    // ------------------------------------------------------------------ H2
+
+    public function test_unapproving_a_payroll_reverses_it_and_restores_loans(): void
+    {
+        $e = $this->employee();
+        $loan = EmployeeLoan::create(['employee_id' => $e->id, 'date' => '2026-05-01', 'amount' => 1000, 'monthly_installment' => 400, 'first_deduction_month' => '2026-06-01', 'status' => 'active', 'repaid' => 0]);
+        $service = app(PayrollService::class);
+        $payroll = $service->generate(2026, 6);
+        $service->approve($payroll);
+        $this->assertSame(400.0, (float) $loan->fresh()->repaid);
+        $this->assertGreaterThan(0, $this->balance('salaries_payable'));
+
+        $this->post(route('hr.payroll.unapprove', $payroll))->assertSessionHasNoErrors();
+        $this->assertSame('draft', $payroll->fresh()->status);
+        $this->assertSame(0.0, (float) $loan->fresh()->repaid);
+        $this->assertSame(0.0, $this->balance('salaries_payable'));
+
+        // Approve again: the same instalment is recovered once.
+        $service->approve($payroll->fresh());
+        $this->assertSame(400.0, (float) $loan->fresh()->repaid);
+    }
+
+    public function test_a_paid_or_superseded_payroll_cannot_be_unapproved(): void
+    {
+        $this->employee();
+        $service = app(PayrollService::class);
+        $june = $service->generate(2026, 6);
+        $service->approve($june);
+        $july = $service->generate(2026, 7);
+        $service->approve($july);
+
+        $this->post(route('hr.payroll.unapprove', $june))->assertSessionHasErrors('payroll');
+        $this->post(route('hr.payroll.unapprove', $july))->assertSessionHasNoErrors();
+    }
+
+    protected function employeeForm(array $overrides = []): array
+    {
+        return array_merge([
+            'name' => 'خالد', 'nationality' => 'SA', 'id_type' => 'national_id', 'national_id' => '1098765432', 'job_title' => 'فني',
+            'hire_date' => '2025-01-01', 'contract_type' => 'unlimited', 'basic_salary' => 5000, 'housing_allowance' => 1250, 'status' => 'active',
+        ], $overrides);
+    }
+
+    public function test_employee_identity_and_iban_are_validated(): void
+    {
+        $this->post(route('hr.employees.store'), $this->employeeForm(['national_id' => '2098765432']))->assertSessionHasErrors('national_id');
+        $this->post(route('hr.employees.store'), $this->employeeForm(['iban' => 'SA0480000000608010167519']))->assertSessionHasErrors('iban');
+        $this->post(route('hr.employees.store'), $this->employeeForm(['iban' => 'SA03 8000 0000 6080 1016 7519']))->assertSessionHasNoErrors();
+        $this->assertSame('SA0380000000608010167519', Employee::where('national_id', '1098765432')->value('iban'));
+        // The same ID cannot be registered twice.
+        $this->post(route('hr.employees.store'), $this->employeeForm(['name' => 'مكرر']))->assertSessionHasErrors('national_id');
+        $this->post(route('hr.employees.store'), $this->employeeForm(['name' => 'مقيم', 'nationality' => 'IN', 'id_type' => 'iqama', 'national_id' => '2098765432']))->assertSessionHasNoErrors();
+    }
+
+    public function test_users_without_salary_access_neither_see_nor_wipe_salaries(): void
+    {
+        $e = $this->employee(['national_id' => '1011111111', 'id_type' => 'national_id', 'contract_type' => 'unlimited', 'iban' => 'SA0380000000608010167519']);
+        $clerk = $this->userWithRole($this->company, 'employee');
+        $this->givePermissions($clerk, ['hr.employees.view', 'hr.employees.edit']);
+        $this->actingAs($clerk->fresh());
+
+        $props = $this->get(route('hr.employees.edit', $e))->assertOk()->viewData('page')['props']['employee'];
+        $this->assertArrayNotHasKey('basic_salary', $props);
+        $this->assertArrayNotHasKey('iban', $props);
+
+        $this->put(route('hr.employees.update', $e), $this->employeeForm(['name' => 'أحمد المحدث', 'national_id' => '1011111111', 'basic_salary' => 0, 'housing_allowance' => 0, 'iban' => '']))->assertSessionHasNoErrors();
+        $e->refresh();
+        $this->assertSame('أحمد المحدث', $e->name);
+        $this->assertSame(6000.0, (float) $e->basic_salary);
+        $this->assertSame('SA0380000000608010167519', $e->iban);
+
+        $this->post(route('hr.employees.pay-items.store', $e), ['kind' => 'allowance', 'name' => 'بدل', 'amount' => 500])->assertForbidden();
+    }
+
+    public function test_status_cannot_jump_to_terminated_with_open_loans(): void
+    {
+        $e = $this->employee(['national_id' => '1011111112', 'id_type' => 'national_id', 'contract_type' => 'unlimited']);
+        EmployeeLoan::create(['employee_id' => $e->id, 'date' => '2026-05-01', 'amount' => 1000, 'monthly_installment' => 400, 'first_deduction_month' => '2026-06-01', 'status' => 'active', 'repaid' => 0]);
+
+        $this->put(route('hr.employees.update', $e), $this->employeeForm(['national_id' => '1011111112', 'status' => 'terminated']))->assertSessionHasErrors('status');
+    }
+
+    public function test_hr_alerts_for_contracts_probation_and_gosi_numbers(): void
+    {
+        $this->employee(['contract_type' => 'limited', 'contract_end' => '2026-07-20']);
+        $this->employee(['probation_end' => '2026-06-20']);
+        $this->employee(['gosi_registered' => true, 'gosi_number' => null]);
+
+        $kinds = collect(app(AlertService::class)->collect())->pluck('kind')->all();
+        $this->assertContains('contracts_ending', $kinds);
+        $this->assertContains('probation_ending', $kinds);
+        $this->assertContains('gosi_numbers', $kinds);
+    }
+
+    public function test_employee_withdraws_a_pending_request_and_sees_the_rejection_note(): void
+    {
+        $user = $this->userWithRole($this->company, 'employee');
+        $me = $this->employee(['user_id' => $user->id]);
+        $pending = $this->leave($me, 'annual', '2026-07-01', '2026-07-02', 'pending');
+        $rejected = $this->leave($me, 'annual', '2026-08-01', '2026-08-02', 'pending');
+
+        $this->post(route('hr.leaves.decide', $rejected), ['approve' => false, 'note' => 'ضغط العمل في أغسطس'])->assertSessionHasNoErrors();
+
+        $this->actingAs($user);
+        $this->post(route('hr.me.leaves.cancel', $pending))->assertSessionHasNoErrors();
+        $this->assertSame('cancelled', $pending->fresh()->status);
+        $this->post(route('hr.me.leaves.cancel', $rejected))->assertStatus(422);
+
+        $requests = collect($this->get(route('hr.me'))->assertOk()->viewData('page')['props']['leaveRequests']);
+        $this->assertSame('ضغط العمل في أغسطس', $requests->firstWhere('id', $rejected->id)['decision_note']);
+
+        $other = $this->leave($this->employee(['name' => 'غيري']), 'annual', '2026-07-05', '2026-07-06', 'pending');
+        $this->post(route('hr.me.leaves.cancel', $other))->assertNotFound();
+    }
+
+    protected function givePermissions($user, array $permissions): void
+    {
+        app(PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
+        $user->givePermissionTo($permissions);
     }
 }

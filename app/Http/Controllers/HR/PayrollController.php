@@ -68,6 +68,13 @@ class PayrollController extends Controller
         return back()->with('success', 'تم اعتماد المسير وقيد الاستحقاق');
     }
 
+    public function unapprove(Payroll $payroll)
+    {
+        $this->payrolls->unapprove($payroll);
+
+        return back()->with('success', 'أُلغي اعتماد المسير وعُكس قيده؛ يمكنك تعديله وإعادة اعتماده.');
+    }
+
     public function pay(Request $request, Payroll $payroll)
     {
         $validated = $request->validate(['date' => 'required|date', 'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id']);
