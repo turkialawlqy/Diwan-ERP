@@ -1,0 +1,149 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Account;
+use App\Models\Company;
+use App\Models\Customer;
+use App\Models\InventoryStock;
+use App\Models\JournalEntry;
+use App\Models\Product;
+use App\Models\Supplier;
+use App\Models\Warehouse;
+use App\Services\Accounting\AccountingSetupService;
+use App\Services\Accounting\AccountMap;
+use App\Services\TenantManager;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
+use Spatie\Permission\PermissionRegistrar;
+use Tests\TestCase;
+
+/**
+ * Post-launch: opening balances import, payroll compliance files and
+ * reports, global search.
+ */
+class PhaseBTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected Company $company;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Carbon::setTestNow('2026-06-30 10:00:00');
+        $this->company = Company::factory()->create();
+        app(AccountingSetupService::class)->provision($this->company);
+        app(TenantManager::class)->setTenant($this->company);
+        $this->actingAs($this->userWithRole($this->company));
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        app(TenantManager::class)->forget();
+        parent::tearDown();
+    }
+
+    protected function account(string $role): Account
+    {
+        return Account::find(app(AccountMap::class)->id($role, $this->company->id));
+    }
+
+    protected function balance(string $role): float
+    {
+        return round((float) $this->account($role)->balance, 2);
+    }
+
+    protected function upload(string $type, string $csv, string $date = '2026-06-01')
+    {
+        return $this->post(route('data-transfer.import', $type), [
+            'file' => UploadedFile::fake()->createWithContent("{$type}.csv", $csv),
+            'opening_date' => $date,
+        ]);
+    }
+
+    // ------------------------------------------------------------------ B1 opening balances
+
+    public function test_customer_and_supplier_import_posts_opening_balances_once(): void
+    {
+        $this->upload('customers', "code,name,opening_balance\nC1,أحمد,1500\nC2,سارة,-200\nC3,خالد,\n")->assertSessionHasNoErrors();
+        $this->assertSame(3, Customer::count());
+        $this->assertSame(1300.0, $this->balance('receivables'));
+        $this->assertSame(1500.0, (float) Customer::where('code', 'C1')->value('current_balance'));
+        $entry = JournalEntry::where('entry_type', 'opening')->where('source_id', Customer::where('code', 'C1')->value('id'))->first();
+        $this->assertSame('2026-06-01', $entry->date->toDateString());
+
+        // Re-importing to update contacts never books the balance twice.
+        $this->upload('customers', "code,name,phone,opening_balance\nC1,أحمد,0500000000,1500\n")->assertSessionHasNoErrors();
+        $this->assertSame(1300.0, $this->balance('receivables'));
+        $this->assertSame('0500000000', Customer::where('code', 'C1')->value('phone'));
+
+        $this->upload('suppliers', "name,opening_balance\nمورد أ,2000\n")->assertSessionHasNoErrors();
+        $this->assertSame(2000.0, $this->balance('payables'));
+        $this->assertSame(2000.0, (float) Supplier::first()->current_balance);
+        // receivables 1300 Dr, payables 2000 Cr -> opening equity 700 Dr.
+        $this->assertSame(-700.0, $this->balance('opening_balance_equity'));
+    }
+
+    public function test_product_import_receives_opening_stock_into_the_warehouse(): void
+    {
+        $main = Warehouse::create(['name_ar' => 'رئيسي', 'code' => 'W1', 'is_main' => true, 'is_active' => true]);
+        $branch = Warehouse::create(['name_ar' => 'فرع', 'code' => 'W2', 'is_active' => true]);
+
+        $this->upload('products', "sku,name_ar,selling_price,purchase_price,opening_quantity,opening_cost,warehouse_code\nP1,صنف,20,10,5,12,W2\nP2,صنف 2,30,8,4,,\n")->assertSessionHasNoErrors();
+
+        $p1 = Product::where('sku', 'P1')->first();
+        $this->assertSame(5.0, (float) InventoryStock::where('product_id', $p1->id)->where('warehouse_id', $branch->id)->value('quantity'));
+        $p2 = Product::where('sku', 'P2')->first();
+        $this->assertSame(4.0, (float) InventoryStock::where('product_id', $p2->id)->where('warehouse_id', $main->id)->value('quantity'));
+        // 5 x 12 + 4 x 8 (purchase price when no opening cost).
+        $this->assertSame(92.0, $this->balance('inventory'));
+        $this->assertSame(92.0, $this->balance('opening_balance_equity'));
+    }
+
+    public function test_product_import_rejects_unknown_warehouse_and_service_stock(): void
+    {
+        Warehouse::create(['name_ar' => 'رئيسي', 'code' => 'W1', 'is_main' => true, 'is_active' => true]);
+
+        $this->upload('products', "sku,name_ar,selling_price,type,opening_quantity,opening_cost,warehouse_code\nP1,صنف,20,product,5,10,XX\nS1,خدمة,50,service,1,10,\n")
+            ->assertSessionHasErrors('file');
+        $this->assertSame(0, Product::count());
+        $this->assertSame(0.0, $this->balance('inventory'));
+    }
+
+    public function test_opening_trial_balance_is_validated_then_posted_once(): void
+    {
+        $bank = $this->account('default_bank')->code;
+        $capital = $this->account('capital')->code;
+        $loans = $this->account('long_term_loans')->code;
+        $receivables = $this->account('receivables')->code;
+
+        $this->upload('opening_balances', "account_code,debit,credit\n{$bank},100000,\n{$capital},,90000\n")->assertSessionHasErrors('file');
+        $this->upload('opening_balances', "account_code,debit,credit\n{$bank},100000,\n{$receivables},5000,\n{$capital},,105000\n")->assertSessionHasErrors('file');
+        $this->upload('opening_balances', "account_code,debit,credit\n9999999,100,\n{$capital},,100\n")->assertSessionHasErrors('file');
+        $this->assertSame(0, JournalEntry::count());
+
+        $this->upload('opening_balances', "account_code,debit,credit,description\n{$bank},100000,,رصيد البنك\n{$capital},,70000,\n{$loans},,30000,\n")->assertSessionHasNoErrors();
+        $entry = JournalEntry::where('source_type', 'opening_trial_balance')->firstOrFail();
+        $this->assertSame('opening', $entry->entry_type);
+        $this->assertSame(100000.0, (float) $entry->total_debit);
+        $this->assertSame(100000.0, $this->balance('default_bank'));
+        $this->assertSame(70000.0, $this->balance('capital'));
+
+        $this->upload('opening_balances', "account_code,debit,credit\n{$bank},1,\n{$capital},,1\n")->assertSessionHasErrors('file');
+        $this->assertSame(1, JournalEntry::where('source_type', 'opening_trial_balance')->count());
+    }
+
+    public function test_opening_trial_balance_requires_journal_permission(): void
+    {
+        $user = $this->userWithRole($this->company, 'sales');
+        app(PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
+        $user->givePermissionTo('admin.data.use');
+        $this->actingAs($user->fresh());
+
+        $this->get(route('data-transfer.index'))->assertOk();
+        $this->upload('opening_balances', "account_code,debit,credit\n1,1,\n")->assertForbidden();
+    }
+}
