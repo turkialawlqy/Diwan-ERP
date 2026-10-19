@@ -1,4 +1,5 @@
 <script setup>
+import { notify } from '@/composables/useDialog';
 import { ref, computed, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -250,11 +251,11 @@ const submitEditAccount = () => {
 // Delete Handler
 const deleteAccount = (acc) => {
     if (acc.children_count > 0) {
-        alert('لا يمكن حذف هذا الحساب لوجود حسابات فرعية تابعة له. يرجى حذفها أو نقلها أولاً.');
+        notify('لا يمكن حذف هذا الحساب لوجود حسابات فرعية تابعة له. يرجى حذفها أو نقلها أولاً.');
         return;
     }
     if (acc.journal_lines_count > 0) {
-        alert('لا يمكن حذف هذا الحساب لوجود قيود يومية وعمليات محاسبية مسجلة عليه.');
+        notify('لا يمكن حذف هذا الحساب لوجود قيود يومية وعمليات محاسبية مسجلة عليه.');
         return;
     }
 

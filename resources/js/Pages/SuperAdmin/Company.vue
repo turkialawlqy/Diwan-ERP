@@ -1,4 +1,5 @@
 <script setup>
+import { ask } from '@/composables/useDialog';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import { money, date } from '@/utils/format';
@@ -6,7 +7,10 @@ import { money, date } from '@/utils/format';
 const props = defineProps({ company: Object, state: String, usage: Object, users: Array, invoices: Array, audit: Array, plans: Array });
 const c = props.company;
 const form = useForm({ subscription_plan_id: c.subscription_plan_id || '', status: c.status, trial_ends_at: c.trial_ends_at?.substring(0, 10) || '', subscription_ends_at: c.subscription_ends_at?.substring(0, 10) || '', suspended_reason: c.suspended_reason || '' });
-const impersonate = () => { const reason = prompt('سبب الدخول (يُسجّل):'); if (reason && reason.length >= 5) router.post(route('super-admin.impersonate.enter', c.id), { reason }); };
+const impersonate = async () => {
+    const reason = await ask('سبب الدخول على بيانات المنشأة (يُسجّل في سجل التدقيق):', { title: 'الدخول كمدير المنشأة', type: 'textarea', required: true, minLength: 5 });
+    if (reason) router.post(route('super-admin.impersonate.enter', c.id), { reason });
+};
 const inp = 'w-full rounded-xl border-slate-200 text-xs';
 </script>
 

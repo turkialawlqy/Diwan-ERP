@@ -92,7 +92,7 @@ const receive = () => form.transform((d) => ({ ...d, lines: d.lines.map(({ name,
                 <Field label="المستودع"><select v-model="form.warehouse_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">الافتراضي</option><option v-for="w in warehouses" :key="w.id" :value="w.id">{{ w.name_ar }}</option></select></Field>
                 <Field label="رقم إشعار تسليم المورد"><input v-model="form.supplier_delivery_number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
             </div>
-            <table class="w-full text-xs">
+            <div class="overflow-x-auto"><table class="w-full text-xs">
                 <tr class="text-slate-500"><th class="text-start">الصنف</th><th>المتبقي</th><th class="w-28">المستلم</th><th class="w-32">رقم التشغيلة</th><th class="w-36">الانتهاء</th></tr>
                 <tr v-for="l in form.lines" :key="l.purchase_order_item_id" class="border-t border-slate-100">
                     <td class="py-1.5">{{ l.name }}</td>
@@ -101,7 +101,7 @@ const receive = () => form.transform((d) => ({ ...d, lines: d.lines.map(({ name,
                     <td><input v-model="l.batch_number" class="w-full rounded-lg border-slate-200 text-xs" /></td>
                     <td><input v-model="l.expiry_date" type="date" class="w-full rounded-lg border-slate-200 text-xs" /></td>
                 </tr>
-            </table>
+            </table></div>
             <p v-for="(msg, key) in form.errors" :key="key" class="text-xs text-rose-600 mt-1">{{ msg }}</p>
             <template #footer><button @click="receive" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold">تسجيل الاستلام</button></template>
         </Dialog>

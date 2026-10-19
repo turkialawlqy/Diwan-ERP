@@ -1,4 +1,5 @@
 <script setup>
+import { confirmAction } from '@/composables/useDialog';
 import { ref } from 'vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -15,7 +16,9 @@ const totalQty = props.stocks.reduce((s, x) => s + Number(x.quantity), 0);
 
 const unitForm = useForm({ unit_id: '', factor: '', barcode: '', selling_price: '', purchase_price: '' });
 const addUnit = () => unitForm.post(route('inventory.products.units.store', props.product.id), { preserveScroll: true, onSuccess: () => unitForm.reset() });
-const removeUnit = (u) => router.delete(route('inventory.products.units.destroy', [props.product.id, u.id]), { preserveScroll: true });
+const removeUnit = async (u) => {
+    if (await confirmAction('حذف وحدة القياس هذه من الصنف؟', { danger: true, confirmText: 'حذف' })) router.delete(route('inventory.products.units.destroy', [props.product.id, u.id]), { preserveScroll: true });
+};
 
 const kitForm = useForm({ is_kit: props.product.is_kit, items: props.product.kit_items.map((k) => ({ component_id: k.component_id, name: k.component?.name_ar, quantity: Number(k.quantity) })) });
 const lookup = ref('');
@@ -48,17 +51,17 @@ const trackingLabel = { none: 'بدون', batch: 'تشغيلات وتواريخ 
         </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl p-4 text-xs">
-            <table v-if="tab === 'stock'" class="w-full">
+            <div class="overflow-x-auto" v-if="tab === 'stock'"><table class="w-full">
                 <thead class="text-slate-500"><tr><th class="text-start py-2">المستودع</th><th class="text-start py-2">الموقع</th><th class="text-end py-2">الكمية</th></tr></thead>
                 <tbody><tr v-for="s in stocks" :key="s.id" class="border-t border-slate-100"><td class="py-2">{{ s.warehouse?.name_ar }}</td><td class="py-2">{{ s.bin_location || '—' }}</td><td class="py-2 text-end font-mono">{{ qty(s.quantity) }}</td></tr></tbody>
-            </table>
+            </table></div>
 
             <div v-else-if="tab === 'units'">
                 <p class="text-slate-500 mb-3">الوحدة الأساسية: <b>{{ product.unit?.name_ar || 'حبة' }}</b>. أضف وحدات بديلة (كرتون، علبة...) مع معامل التحويل.</p>
-                <table class="w-full mb-3">
+                <div class="overflow-x-auto"><table class="w-full mb-3">
                     <thead class="text-slate-500"><tr><th class="text-start py-2">الوحدة</th><th class="text-end py-2">المعامل</th><th class="text-start py-2">الباركود</th><th class="text-end py-2">سعر البيع</th><th></th></tr></thead>
                     <tbody><tr v-for="u in product.units" :key="u.id" class="border-t border-slate-100"><td class="py-2">{{ u.unit?.name_ar }}</td><td class="py-2 text-end font-mono">{{ qty(u.factor) }}</td><td class="py-2 font-mono">{{ u.barcode || '—' }}</td><td class="py-2 text-end font-mono">{{ u.selling_price ? money(u.selling_price) : '—' }}</td><td class="py-2 text-end"><button v-if="$can('inventory.products.edit')" @click="removeUnit(u)" class="text-slate-400 hover:text-rose-600"><TrashIcon class="w-4 h-4" /></button></td></tr></tbody>
-                </table>
+                </table></div>
                 <form v-if="$can('inventory.products.edit')" @submit.prevent="addUnit" class="grid grid-cols-2 md:grid-cols-6 gap-2 items-end">
                     <Field label="الوحدة" :error="unitForm.errors.unit_id"><select v-model="unitForm.unit_id" class="w-full rounded-xl border-slate-200 text-xs"><option v-for="u in units" :key="u.id" :value="u.id">{{ u.name_ar }}</option></select></Field>
                     <Field label="عدد الوحدات الأساسية" :error="unitForm.errors.factor"><input v-model="unitForm.factor" type="number" step="0.000001" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
@@ -80,10 +83,10 @@ const trackingLabel = { none: 'بدون', batch: 'تشغيلات وتواريخ 
                 <button v-if="$can('inventory.products.edit')" @click="saveKit" :disabled="kitForm.processing" class="mt-3 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold">{{ $t('ui.save') }}</button>
             </div>
 
-            <table v-else-if="tab === 'batches'" class="w-full">
+            <div class="overflow-x-auto" v-else-if="tab === 'batches'"><table class="w-full">
                 <thead class="text-slate-500"><tr><th class="text-start py-2">التشغيلة</th><th class="text-start py-2">المستودع</th><th class="py-2">الانتهاء</th><th class="text-end py-2">الكمية</th></tr></thead>
                 <tbody><tr v-for="b in batches" :key="b.id" class="border-t border-slate-100"><td class="py-2 font-mono">{{ b.batch_number }}</td><td class="py-2">{{ b.warehouse?.name_ar }}</td><td class="py-2 text-center font-mono">{{ date(b.expiry_date) }}</td><td class="py-2 text-end font-mono">{{ qty(b.quantity) }}</td></tr></tbody>
-            </table>
+            </table></div>
 
             <div v-else class="flex flex-wrap gap-2">
                 <span v-for="s in serials" :key="s.id" class="px-2 py-1 rounded-lg bg-slate-100 font-mono">{{ s.serial_number }}</span>

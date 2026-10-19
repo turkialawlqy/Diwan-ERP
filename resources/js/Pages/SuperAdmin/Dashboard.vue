@@ -1,4 +1,5 @@
 <script setup>
+import { ask } from '@/composables/useDialog';
 import { ref, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
@@ -30,9 +31,9 @@ const handleFilter = () => {
     }, { preserveState: true, replace: true });
 };
 
-const impersonate = (companyId) => {
-    const reason = prompt('سبب الدخول على بيانات المنشأة (يُسجّل في سجل التدقيق):');
-    if (!reason || reason.trim().length < 5) return;
+const impersonate = async (companyId) => {
+    const reason = await ask('سبب الدخول على بيانات المنشأة (يُسجّل في سجل التدقيق):', { title: 'الدخول كمدير المنشأة', type: 'textarea', required: true, minLength: 5 });
+    if (!reason) return;
     router.post(route('super-admin.impersonate.enter', companyId), { reason });
 };
 </script>

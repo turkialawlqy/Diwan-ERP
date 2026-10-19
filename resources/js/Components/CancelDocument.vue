@@ -1,4 +1,5 @@
 <script setup>
+import { ask } from '@/composables/useDialog';
 import { router } from '@inertiajs/vue3';
 
 // Cancels a posted document (reversal entry) after asking for the reason.
@@ -8,10 +9,10 @@ const props = defineProps({
     status: { type: String, default: null },
 });
 
-const cancel = () => {
-    const reason = prompt(`سبب إلغاء ${props.label} (سيُعكس القيد ويُعاد أثره):`);
-    if (!reason || !reason.trim()) return;
-    router.post(props.url, { reason: reason.trim() }, { preserveScroll: true });
+const cancel = async () => {
+    const reason = await ask('سيُعكس القيد ويُعاد أثر المستند. اكتب سبب الإلغاء:', { title: `إلغاء ${props.label}`, type: 'textarea', required: true, minLength: 3, confirmText: 'إلغاء المستند', cancelText: 'تراجع', danger: true });
+    if (!reason) return;
+    router.post(props.url, { reason }, { preserveScroll: true });
 };
 </script>
 

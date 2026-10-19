@@ -1,4 +1,5 @@
 <script setup>
+import { confirmAction } from '@/composables/useDialog';
 import HijriDate from '@/Components/UI/HijriDate.vue';
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -15,6 +16,7 @@ const payForm = useForm({ kind: 'allowance', name: '', amount: 0, gosi_applicabl
 const docLabel = { iqama: 'إقامة', passport: 'جواز', contract: 'عقد عمل', medical_insurance: 'تأمين طبي', driving_license: 'رخصة قيادة', certificate: 'شهادة', other: 'أخرى' };
 const changeMonth = (e) => router.get(route('hr.employees.show', props.employee.id), { month: e.target.value + '-01' }, { preserveState: true, preserveScroll: true });
 const minutes = (m) => (m ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` : '');
+const remove = async (url, message) => { if (await confirmAction(message, { danger: true, confirmText: 'حذف' })) router.delete(url, { preserveScroll: true }); };
 </script>
 
 <template>
@@ -63,7 +65,7 @@ const minutes = (m) => (m ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, 
                         <tr v-for="d in employee.documents" :key="d.id" class="border-t border-slate-100">
                             <td class="px-3 py-2">{{ docLabel[d.type] }}</td><td class="px-3 py-2 text-center font-mono">{{ d.number }}</td><td class="px-3 py-2 text-center"><HijriDate :value="d.expiry_date" /></td>
                             <td class="px-3 py-2 text-center"><a v-if="d.url" :href="d.url" target="_blank" class="text-indigo-600 font-bold">عرض</a></td>
-                            <td class="px-3 py-2 text-end"><button v-if="$can('hr.employees.edit')" @click="router.delete(route('hr.employees.documents.destroy', [employee.id, d.id]), { preserveScroll: true })" class="text-rose-600">حذف</button></td>
+                            <td class="px-3 py-2 text-end"><button v-if="$can('hr.employees.edit')" @click="remove(route('hr.employees.documents.destroy', [employee.id, d.id]), 'حذف هذه الوثيقة؟')" class="text-rose-600">حذف</button></td>
                         </tr>
                     </tbody>
                 </table>
@@ -90,7 +92,7 @@ const minutes = (m) => (m ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, 
                 <h3 class="font-black text-slate-700 mb-2">بدلات واستقطاعات ثابتة إضافية</h3>
                 <div v-for="p in employee.pay_items" :key="p.id" class="flex justify-between py-1 border-b border-slate-50">
                     <span>{{ p.kind === 'allowance' ? '+' : '−' }} {{ p.name }} <span class="text-slate-400">{{ p.gosi_applicable ? '(خاضع للتأمينات)' : '' }} {{ date(p.start_date) }} → {{ date(p.end_date) }}</span></span>
-                    <span><b class="font-mono">{{ money(p.amount) }}</b> <button v-if="$can('hr.employees.edit')" @click="router.delete(route('hr.employees.pay-items.destroy', [employee.id, p.id]), { preserveScroll: true })" class="text-rose-600 ms-2">✕</button></span>
+                    <span><b class="font-mono">{{ money(p.amount) }}</b> <button v-if="$can('hr.employees.edit')" @click="remove(route('hr.employees.pay-items.destroy', [employee.id, p.id]), 'حذف هذا البند من راتب الموظف؟ يُطبّق على المسيرات القادمة.')" class="text-rose-600 ms-2">✕</button></span>
                 </div>
                 <div v-if="$can('hr.employees.edit')" class="grid grid-cols-6 gap-2 mt-3 items-end">
                     <select v-model="payForm.kind" class="rounded-xl border-slate-200 text-xs"><option value="allowance">بدل</option><option value="deduction">استقطاع</option></select>

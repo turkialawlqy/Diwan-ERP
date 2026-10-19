@@ -137,7 +137,7 @@ const varianceClass = (v) => (v < 0 ? 'text-rose-700' : 'text-emerald-700');
                     </tbody>
                 </table>
                 <h4 class="px-4 pt-3 pb-1 font-bold text-slate-600">الأكثر تأخراً</h4>
-                <table class="w-full">
+                <div class="overflow-x-auto"><table class="w-full">
                     <tbody>
                         <tr v-for="r in aging[kind].top" :key="r.id ?? `none`" class="border-t border-slate-100">
                             <td class="px-4 py-2 font-bold">{{ r.name }}</td>
@@ -146,7 +146,7 @@ const varianceClass = (v) => (v < 0 ? 'text-rose-700' : 'text-emerald-700');
                         </tr>
                         <tr v-if="!aging[kind].top.length"><td class="px-4 py-4 text-center text-slate-400">لا توجد مبالغ متأخرة</td></tr>
                     </tbody>
-                </table>
+                </table></div>
             </div>
         </section>
 

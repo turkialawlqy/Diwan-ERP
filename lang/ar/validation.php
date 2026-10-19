@@ -164,6 +164,14 @@ return [
     'custom' => [],
 
     'attributes' => [
+        'account_code' => 'رمز الحساب',
+        'opening_quantity' => 'الكمية الافتتاحية',
+        'opening_cost' => 'تكلفة الرصيد الافتتاحي',
+        'warehouse_code' => 'رمز المستودع',
+        'opening_date' => 'تاريخ بدء التشغيل',
+        'company_iban' => 'آيبان حساب الرواتب',
+        'mol_establishment_id' => 'رقم المنشأة في الوزارة',
+        'gosi_establishment_id' => 'رقم المنشأة في التأمينات',
         'name' => 'الاسم',
         'name_ar' => 'الاسم بالعربية',
         'name_en' => 'الاسم بالإنجليزية',

@@ -21,6 +21,14 @@ const dismissFlash = () => {
 // are shown here even on pages whose forms do not render that field.
 const generalError = computed(() => page.props.errors?.accounting || page.props.errors?.plan || null);
 
+// Every other validation error, so a rejected save is never silent on a form
+// that has no slot for that field (nested lines, hidden fields...).
+const fieldErrors = computed(() => Object.entries(page.props.errors || {})
+    .filter(([key]) => !['accounting', 'plan'].includes(key))
+    .flatMap(([, message]) => String(message).split('\n'))
+    .filter((message, i, all) => message && all.indexOf(message) === i));
+const showAllErrors = ref(false);
+
 // Subscription notice: trial ending soon, grace period, or read-only.
 const subscriptionNotice = computed(() => {
     const sub = page.props.subscription;
@@ -33,8 +41,9 @@ const subscriptionNotice = computed(() => {
 });
 
 // A new flash message after a dismissed one must be visible again.
-watch(() => [flash.value?.success, flash.value?.error, generalError.value], () => {
+watch(() => [flash.value?.success, flash.value?.error, generalError.value, fieldErrors.value.join('|')], () => {
     showFlash.value = true;
+    showAllErrors.value = false;
 });
 </script>
 
@@ -61,9 +70,9 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value], () =
                 <AppTopBar class="print:hidden" @toggle-sidebar="isSidebarOpen = !isSidebarOpen" />
 
                 <!-- Flash Notification Banner -->
-                <div v-if="showFlash && (flash?.success || flash?.error || generalError)" class="px-4 sm:px-8 pt-4 print:hidden space-y-2">
+                <div v-if="showFlash && (flash?.success || flash?.error || generalError || fieldErrors.length)" class="px-4 sm:px-8 pt-4 print:hidden space-y-2">
                     <div 
-                        v-if="flash.success" 
+                        v-if="flash?.success" 
                         class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center justify-between text-xs sm:text-sm font-semibold shadow-xs"
                     >
                         <div class="flex items-center gap-2">
@@ -88,8 +97,24 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value], () =
                         </button>
                     </div>
 
+                    <div v-if="fieldErrors.length" role="alert" class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm shadow-xs" data-form-errors>
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex items-start gap-2 min-w-0">
+                                <ExclamationCircleIcon class="w-5 h-5 text-amber-600 flex-shrink-0" />
+                                <div class="min-w-0">
+                                    <p class="font-bold">لم يتم الحفظ. راجع {{ fieldErrors.length === 1 ? 'الملاحظة التالية' : `الملاحظات التالية (${fieldErrors.length})` }}:</p>
+                                    <ul class="list-disc ps-5 mt-1 space-y-0.5 break-words">
+                                        <li v-for="(message, i) in (showAllErrors ? fieldErrors : fieldErrors.slice(0, 5))" :key="i">{{ message }}</li>
+                                    </ul>
+                                    <button v-if="fieldErrors.length > 5 && !showAllErrors" @click="showAllErrors = true" class="mt-1 font-bold underline">عرض الكل</button>
+                                </div>
+                            </div>
+                            <button @click="dismissFlash" class="text-amber-600 hover:text-amber-900"><XMarkIcon class="w-4 h-4" /></button>
+                        </div>
+                    </div>
+
                     <div 
-                        v-if="flash.error" 
+                        v-if="flash?.error" 
                         class="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 flex items-center justify-between text-xs sm:text-sm font-semibold shadow-xs"
                     >
                         <div class="flex items-center gap-2">

@@ -35,7 +35,7 @@ const printPage = () => window.print();
                 <div><div class="text-slate-400">رقم العقد</div><b>{{ project.contract_number || '—' }}</b></div>
                 <div><div class="text-slate-400">الفترة</div><b class="font-mono">{{ date(billing.period_from) }} → {{ date(billing.period_to) }}</b></div>
             </div>
-            <table class="w-full">
+            <div class="overflow-x-auto"><table class="w-full">
                 <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-2 py-2">البند</th><th class="text-start px-2 py-2">الوصف</th><th class="px-2 py-2">الوحدة</th><th class="px-2 py-2">الكمية السابقة</th><th class="px-2 py-2">كمية الفترة</th><th class="px-2 py-2">التراكمية</th><th class="px-2 py-2 text-end">سعر الوحدة</th><th class="px-2 py-2 text-end">قيمة الفترة</th></tr></thead>
                 <tbody>
                     <tr v-for="i in billing.items" :key="i.id" class="border-t border-slate-100">
@@ -45,7 +45,7 @@ const printPage = () => window.print();
                         <td class="px-2 py-1.5 text-end font-mono">{{ money(i.unit_price) }}</td><td class="px-2 py-1.5 text-end font-mono">{{ money(i.amount) }}</td>
                     </tr>
                 </tbody>
-            </table>
+            </table></div>
             <div class="flex justify-end">
                 <dl class="w-80 space-y-1">
                     <div class="flex justify-between"><dt>إجمالي الأعمال التراكمية</dt><dd class="font-mono">{{ money(billing.cumulative_value) }}</dd></div>

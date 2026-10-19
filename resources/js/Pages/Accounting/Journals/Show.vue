@@ -1,4 +1,5 @@
 <script setup>
+import { ask } from '@/composables/useDialog';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import {
@@ -27,8 +28,8 @@ const statusClass = { draft: 'text-amber-600', posted: 'text-emerald-600', rever
 const manualTypes = ['manual', 'opening', 'adjustment', 'recurring'];
 
 const postEntry = () => router.post(route('accounting.journals.post', props.entry.id), {}, { preserveScroll: true });
-const reverseEntry = () => {
-    const reason = prompt('سبب عكس القيد (اختياري):');
+const reverseEntry = async () => {
+    const reason = await ask('يُنشأ قيد عكسي بنفس المبالغ. سبب العكس (اختياري):', { title: 'عكس القيد', type: 'textarea', confirmText: 'عكس القيد', danger: true });
     if (reason === null) return;
     router.post(route('accounting.journals.reverse', props.entry.id), { reason });
 };

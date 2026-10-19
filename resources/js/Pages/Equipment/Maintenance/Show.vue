@@ -64,7 +64,7 @@ const remove = () => confirm('حذف أمر الصيانة؟') && router.delete(
             <!-- Parts issued -->
             <section class="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
                 <div class="flex items-center justify-between"><h3 class="font-black text-slate-800">قطع الغيار المصروفة</h3><span class="font-mono font-bold">{{ money(o.parts_cost) }}</span></div>
-                <table class="w-full">
+                <div class="overflow-x-auto"><table class="w-full">
                     <thead class="text-slate-400"><tr><th class="py-1 text-start">الصنف</th><th class="py-1 text-start">الكمية</th><th class="py-1 text-start">التكلفة</th><th class="py-1 text-start">المستودع / أمين المستودع</th></tr></thead>
                     <tbody>
                         <tr v-for="i in o.items" :key="i.id" class="border-t border-slate-100">
@@ -75,7 +75,7 @@ const remove = () => confirm('حذف أمر الصيانة؟') && router.delete(
                         </tr>
                         <tr v-if="!o.items.length"><td colspan="4" class="py-4 text-center text-slate-400">لم تُصرف أصناف بعد.</td></tr>
                     </tbody>
-                </table>
+                </table></div>
 
                 <div v-if="isOpen && $can('equipment.maintenance.issue')" class="border-t border-dashed border-slate-200 pt-3 space-y-2">
                     <div class="flex flex-wrap items-end gap-2">

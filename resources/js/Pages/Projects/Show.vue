@@ -114,7 +114,7 @@ const editForm = useForm({ name: props.project.name, status: props.project.statu
                 <p v-for="(msg, key) in boqForm.errors" :key="key" class="text-xs text-rose-600">{{ msg }}</p>
                 <div class="flex justify-end mt-3"><button @click="saveBoq" :disabled="boqForm.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">حفظ جدول الكميات</button></div>
             </template>
-            <table v-else class="w-full text-xs">
+            <div class="overflow-x-auto" v-else><table class="w-full text-xs">
                 <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الرمز</th><th class="text-start px-3 py-2">الوصف</th><th class="px-3 py-2">الوحدة</th><th class="px-3 py-2">الكمية</th><th class="px-3 py-2">المنفذ</th><th class="px-3 py-2">%</th><th class="px-3 py-2 text-end">سعر الوحدة</th><th class="px-3 py-2 text-end">القيمة</th></tr></thead>
                 <tbody>
                     <tr v-for="b in boq" :key="b.id" class="border-t border-slate-100" :class="b.is_group ? 'bg-slate-50 font-bold' : ''">
@@ -127,7 +127,7 @@ const editForm = useForm({ name: props.project.name, status: props.project.statu
                         <td v-else colspan="6"></td>
                     </tr>
                 </tbody>
-            </table>
+            </table></div>
         </div>
 
         <!-- Billings -->
@@ -186,9 +186,9 @@ const editForm = useForm({ name: props.project.name, status: props.project.statu
                     <div>المحتجزات: <b class="font-mono">{{ money(s.retention_held) }}</b> ({{ s.retention_percent }}%)</div>
                     <div>المستخلصات: <b>{{ s.certificates.length }}</b></div>
                 </div>
-                <table v-if="s.certificates.length" class="w-full mt-3">
+                <div class="overflow-x-auto" v-if="s.certificates.length"><table class="w-full mt-3">
                     <tr v-for="c in s.certificates" :key="c.id" class="border-t border-slate-100"><td class="py-1 font-mono">{{ c.number }}</td><td class="font-mono">{{ date(c.date) }}</td><td class="text-end font-mono">{{ money(c.current_value) }}</td><td class="text-end font-mono">صافي {{ money(c.net_payable) }}</td></tr>
-                </table>
+                </table></div>
             </div>
             <p v-if="!subcontracts.length" class="text-xs text-slate-400 text-center py-8">لا توجد عقود باطن</p>
         </div>
@@ -200,7 +200,7 @@ const editForm = useForm({ name: props.project.name, status: props.project.statu
                 <button @click="materialForm.direction = 'return'; dialog = 'materials'" class="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold">مرتجع مواد</button>
                 <button @click="dialog = 'cost'" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold">تكلفة مباشرة</button>
             </div>
-            <table class="w-full text-xs">
+            <div class="overflow-x-auto"><table class="w-full text-xs">
                 <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2">التاريخ</th><th class="px-3 py-2">النوع</th><th class="text-start px-3 py-2">البيان</th><th class="px-3 py-2">الكمية</th><th class="px-3 py-2 text-end">المبلغ</th></tr></thead>
                 <tbody>
                     <tr v-for="c in costs" :key="c.id" class="border-t border-slate-100">
@@ -209,7 +209,7 @@ const editForm = useForm({ name: props.project.name, status: props.project.statu
                     </tr>
                     <tr v-if="!costs.length"><td colspan="5" class="py-8 text-center text-slate-400">لا توجد تكاليف</td></tr>
                 </tbody>
-            </table>
+            </table></div>
         </div>
 
         <!-- Guarantees -->

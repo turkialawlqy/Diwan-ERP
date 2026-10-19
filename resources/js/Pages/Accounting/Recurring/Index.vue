@@ -53,7 +53,7 @@ const freq = { monthly: 'شهري', quarterly: 'ربع سنوي', yearly: 'سن�
                 <Field label="ينتهي في (اختياري)"><input v-model="form.end_date" type="date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <div class="col-span-2 md:col-span-4"><Field label="بيان القيد" :error="form.errors.description"><input v-model="form.description" class="w-full rounded-xl border-slate-200 text-xs" /></Field></div>
             </div>
-            <table class="w-full text-xs">
+            <div class="overflow-x-auto"><table class="w-full text-xs">
                 <tr v-for="(l, i) in form.lines" :key="i">
                     <td class="p-1"><select v-model="l.account_id" class="w-full rounded-lg border-slate-200 text-xs"><option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.code }} - {{ a.name_ar }}</option></select></td>
                     <td class="p-1 w-36"><select v-model="l.cost_center_id" class="w-full rounded-lg border-slate-200 text-xs"><option value="">مركز تكلفة</option><option v-for="c in costCenters" :key="c.id" :value="c.id">{{ c.name_ar }}</option></select></td>
@@ -61,7 +61,7 @@ const freq = { monthly: 'شهري', quarterly: 'ربع سنوي', yearly: 'سن�
                     <td class="p-1 w-28"><input v-model="l.credit" @focus="l.debit = 0" type="number" step="0.01" placeholder="دائن" class="w-full rounded-lg border-slate-200 text-xs font-mono" /></td>
                     <td class="p-1 w-8"><button v-if="form.lines.length > 2" @click="form.lines.splice(i, 1)" class="text-slate-400 hover:text-rose-600"><TrashIcon class="w-4 h-4" /></button></td>
                 </tr>
-            </table>
+            </table></div>
             <div class="flex items-center justify-between mt-2 text-xs">
                 <button @click="form.lines.push(blank())" class="text-indigo-600 font-bold">+ سطر</button>
                 <span :class="balanced ? 'text-emerald-600' : 'text-rose-600'" class="font-mono font-bold">{{ money(totals.d) }} / {{ money(totals.c) }}</span>

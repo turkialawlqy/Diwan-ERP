@@ -8,6 +8,7 @@ import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 import i18n from './i18n';
 import VueApexCharts from 'vue3-apexcharts';
 import { PermissionsPlugin } from './permissions';
+import PromptDialog from './Components/UI/PromptDialog.vue';
 
 const appName = import.meta.env.VITE_APP_NAME || 'الأستاذ';
 
@@ -19,7 +20,8 @@ createInertiaApp({
             import.meta.glob('./Pages/**/*.vue'),
         ),
     setup({ el, App, props, plugin }) {
-        const app = createApp({ render: () => h(App, props) });
+        // PromptDialog is the single host for ask() / confirmAction() / notify().
+        const app = createApp({ render: () => [h(App, props), h(PromptDialog)] });
         
         // Sync locale with backend
         if (props.initialPage?.props?.locale) {

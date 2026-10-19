@@ -1,4 +1,5 @@
 <script setup>
+import { ask } from '@/composables/useDialog';
 import { reactive, ref, computed } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -13,8 +14,10 @@ const grid = reactive(Object.fromEntries(props.rows.map((r) => [r.id, { ...r.pla
 
 const rowTotal = (id) => props.months.reduce((s, p) => s + Number(grid[id][p] || 0), 0);
 const actualTotal = (row) => props.months.reduce((s, p) => s + Number(row.actual[p] || 0), 0);
-const spread = (id) => {
-    const total = Number(prompt('إجمالي السنة لتوزيعه بالتساوي على الأشهر:', rowTotal(id)) || 0);
+const spread = async (id) => {
+    const answer = await ask('إجمالي السنة لتوزيعه بالتساوي على الأشهر:', { title: 'توزيع الموازنة', type: 'number', default: rowTotal(id), required: true });
+    if (answer === null) return;
+    const total = Number(answer) || 0;
     const each = Math.round((total / props.months.length) * 100) / 100;
     props.months.forEach((p) => (grid[id][p] = each));
 };

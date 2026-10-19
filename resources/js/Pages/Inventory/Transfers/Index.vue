@@ -63,13 +63,13 @@ const statusLabel = { draft: ['مسودة', 'text-slate-500'], in_transit: ['ف�
                     <button type="button" v-for="p in results" :key="p.id" @mousedown.prevent="add(p)" @keydown.enter.prevent="add(p)" class="block w-full text-start px-3 py-2 text-xs hover:bg-indigo-50">{{ p.name_ar }} <span class="text-slate-400">{{ p.sku }}</span></button>
                 </div>
             </div>
-            <table class="w-full text-xs">
+            <div class="overflow-x-auto"><table class="w-full text-xs">
                 <tr v-for="(item, i) in form.items" :key="i" class="border-t border-slate-100">
                     <td class="py-1.5">{{ item.name }}</td>
                     <td class="py-1.5 w-32"><input v-model="item.quantity" type="number" step="0.0001" min="0" class="w-full rounded-lg border-slate-200 text-xs font-mono" /></td>
                     <td class="py-1.5 w-8 text-center"><button @click="form.items.splice(i, 1)" class="text-slate-400 hover:text-rose-600"><TrashIcon class="w-4 h-4" /></button></td>
                 </tr>
-            </table>
+            </table></div>
             <p v-for="(msg, key) in form.errors" :key="key" class="text-xs text-rose-600 mt-1">{{ msg }}</p>
             <template #footer><button @click="save" :disabled="form.processing || !form.items.length" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40">{{ $t('ui.save') }}</button></template>
         </Dialog>

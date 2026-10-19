@@ -22,7 +22,7 @@ const pay = { full: 'مدفوعة', sick_tiers: 'حسب شرائح المرضي�
                 <div class="flex gap-2 p-3 border-b border-slate-100 text-xs">
                     <button v-for="s in ['pending', 'approved', 'rejected', 'all']" :key="s" @click="filter(s)" :class="status === s ? 'bg-slate-800 text-white' : 'bg-slate-50'" class="px-3 py-1 rounded-lg font-bold">{{ { pending: 'قيد الانتظار', approved: 'معتمدة', rejected: 'مرفوضة', all: 'الكل' }[s] }}</button>
                 </div>
-                <table class="w-full text-xs">
+                <div class="overflow-x-auto"><table class="w-full text-xs">
                     <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الموظف</th><th class="px-3 py-2">النوع</th><th class="px-3 py-2">من</th><th class="px-3 py-2">إلى</th><th class="px-3 py-2">أيام</th><th class="px-3 py-2">الحالة</th><th></th></tr></thead>
                     <tbody>
                         <tr v-for="r in requests.data" :key="r.id" class="border-t border-slate-100">
@@ -32,7 +32,7 @@ const pay = { full: 'مدفوعة', sick_tiers: 'حسب شرائح المرضي�
                         </tr>
                         <tr v-if="!requests.data.length"><td colspan="7" class="py-8 text-center text-slate-400">{{ $t('ui.no_data') }}</td></tr>
                     </tbody>
-                </table>
+                </table></div>
                 <Pagination :paginator="requests" />
             </div>
             <div class="space-y-4 text-xs">

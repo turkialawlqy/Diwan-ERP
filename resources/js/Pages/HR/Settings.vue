@@ -138,7 +138,7 @@ const inp = 'w-full rounded-xl border-slate-200 text-xs font-mono';
             <!-- Leave types -->
             <div class="bg-white border border-slate-200 rounded-2xl p-4 lg:col-span-2">
                 <h3 class="font-black text-slate-700 mb-3">أنواع الإجازات</h3>
-                <table class="w-full">
+                <div class="overflow-x-auto"><table class="w-full">
                     <thead class="text-slate-500"><tr><th class="text-start">النوع</th><th>الأيام سنوياً (0 = حسب الحالة)</th><th>الأجر</th><th>تخصم من الرصيد السنوي</th><th>فعالة</th><th></th></tr></thead>
                     <tbody>
                         <tr v-for="t in types" :key="t.id" class="border-t border-slate-100">
@@ -150,7 +150,7 @@ const inp = 'w-full rounded-xl border-slate-200 text-xs font-mono';
                             <td class="text-end"><button v-if="$can('hr.settings.manage')" @click="saveType(t)" class="text-indigo-600 font-bold">حفظ</button></td>
                         </tr>
                     </tbody>
-                </table>
+                </table></div>
             </div>
         </div>
     </AppLayout>

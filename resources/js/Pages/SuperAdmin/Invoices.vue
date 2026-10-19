@@ -1,11 +1,15 @@
 <script setup>
+import { ask } from '@/composables/useDialog';
 import { Head, Link, router } from '@inertiajs/vue3';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import Pagination from '@/Components/UI/Pagination.vue';
 import { money, date } from '@/utils/format';
 
 defineProps({ invoices: Object, status: String });
-const confirmPay = (i) => { const ref = prompt('مرجع التحويل البنكي:'); if (ref !== null) router.post(route('super-admin.invoices.confirm', i.id), { payment_reference: ref }, { preserveScroll: true }); };
+const confirmPay = async (i) => {
+    const ref = await ask('مرجع التحويل البنكي:', { title: 'تأكيد سداد الفاتورة', confirmText: 'تأكيد السداد' });
+    if (ref !== null) router.post(route('super-admin.invoices.confirm', i.id), { payment_reference: ref }, { preserveScroll: true });
+};
 const voidIt = (i) => { if (confirm('إلغاء الفاتورة؟')) router.post(route('super-admin.invoices.void', i.id), {}, { preserveScroll: true }); };
 </script>
 

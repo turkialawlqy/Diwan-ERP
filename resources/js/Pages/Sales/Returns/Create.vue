@@ -141,7 +141,7 @@ const submit = () => {
             <form @submit.prevent="submit" class="space-y-6">
                 <div v-if="selectedInvoice" class="bg-white border border-slate-200 rounded-2xl p-4">
                     <label class="flex items-center gap-2 text-xs font-bold mb-3"><input v-model="itemMode" type="checkbox" class="rounded" /> إرجاع أصناف (تعود للمخزون وتُعكس تكلفتها)</label>
-                    <table v-if="itemMode" class="w-full text-xs">
+                    <div class="overflow-x-auto" v-if="itemMode"><table class="w-full text-xs">
                         <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الصنف</th><th class="px-3 py-2">القابل للإرجاع</th><th class="px-3 py-2">صافي سعر الوحدة</th><th class="px-3 py-2 w-32">الكمية المرتجعة</th><th class="px-3 py-2">يعود للمخزون</th></tr></thead>
                         <tbody>
                             <tr v-for="i in form.items" :key="i.invoice_item_id" class="border-t border-slate-100">
@@ -152,7 +152,7 @@ const submit = () => {
                                 <td class="px-3 py-2 text-center"><input v-model="i.return_to_stock" type="checkbox" class="rounded" /></td>
                             </tr>
                         </tbody>
-                    </table>
+                    </table></div>
                     <p v-if="itemMode" class="text-xs mt-2">إجمالي المرتجع شامل الضريبة: <b class="font-mono">{{ formatCurrency(itemsTotal) }}</b></p>
                     <p v-if="form.errors.items" class="text-xs text-rose-600 mt-1">{{ form.errors.items }}</p>
                     <p v-if="form.errors.lines" class="text-xs text-rose-600 mt-1">{{ form.errors.lines }}</p>

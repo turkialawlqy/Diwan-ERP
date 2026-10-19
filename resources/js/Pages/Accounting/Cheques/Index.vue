@@ -1,4 +1,5 @@
 <script setup>
+import { ask } from '@/composables/useDialog';
 import { ref, reactive } from 'vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -48,8 +49,8 @@ const apply = () => router.get(route('accounting.cheques.index'), filters, { pre
 
 const statusLabel = { pending: 'في الحافظة / صادر', deposited: 'مودع للتحصيل', cleared: 'محصّل / مصروف', bounced: 'مرتجع', cancelled: 'ملغى' };
 const actionLabel = { deposited: 'إيداع', cleared: 'تحصيل/صرف', bounced: 'ارتجاع', cancelled: 'إلغاء' };
-const move = (cheque, status) => {
-    const d = prompt('تاريخ العملية (YYYY-MM-DD):', today);
+const move = async (cheque, status) => {
+    const d = await ask(`تاريخ عملية «${actionLabel[status]}» للشيك ${cheque.cheque_number ?? ''}:`, { title: actionLabel[status], type: 'date', default: today, required: true, danger: status === 'bounced' });
     if (!d) return;
     router.post(route('accounting.cheques.transition', cheque.id), { status, date: d, bank_account_id: cheque.bank_account_id }, { preserveScroll: true });
 };

@@ -110,7 +110,7 @@ const format = (value) => (typeof value === 'object' && value !== null ? JSON.st
                                 </tr>
                                 <tr v-if="expanded === log.id" class="bg-slate-50/70">
                                     <td colspan="6" class="px-4 py-3">
-                                        <table class="w-full text-[11px]">
+                                        <div class="overflow-x-auto"><table class="w-full text-[11px]">
                                             <thead class="text-slate-500">
                                                 <tr><th class="text-start py-1">الحقل</th><th class="text-start py-1">قبل</th><th class="text-start py-1">بعد</th></tr>
                                             </thead>
@@ -121,7 +121,7 @@ const format = (value) => (typeof value === 'object' && value !== null ? JSON.st
                                                     <td class="py-1 text-emerald-700 break-all">{{ format(log.new_values?.[key]) }}</td>
                                                 </tr>
                                             </tbody>
-                                        </table>
+                                        </table></div>
                                     </td>
                                 </tr>
                             </template>

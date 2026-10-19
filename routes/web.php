@@ -57,6 +57,7 @@ use App\Http\Controllers\Reports\ReportController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Sales as S;
 use App\Http\Controllers\Sales\RecurringInvoiceController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\StockCountController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SuperAdmin\ImpersonationController;
@@ -157,6 +158,7 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'erp.authorize', 'throttle:tenant-web'])->group(function () {
     // 1. Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/search', SearchController::class)->name('search');
 
     // Type-ahead lookups for document forms (bounded results).
     Route::prefix('lookup')->name('lookup.')->group(function () {

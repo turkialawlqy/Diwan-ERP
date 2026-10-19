@@ -1,4 +1,5 @@
 <script setup>
+import { ask } from '@/composables/useDialog';
 import { ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -26,7 +27,10 @@ const saveDevice = () => deviceForm.post(route('zatca.devices.store'), { onSucce
 
 const otp = ref({});
 const onboard = (device) => router.post(route('zatca.devices.onboard', device.id), { otp: otp.value[device.id] || '' }, { preserveScroll: true });
-const renew = (device) => { const code = prompt('رمز OTP من بوابة فاتورة لتجديد الشهادة'); if (code) router.post(route('zatca.devices.renew', device.id), { otp: code }); };
+const renew = async (device) => {
+    const code = await ask('أدخل رمز OTP من بوابة «فاتورة» لتجديد الشهادة:', { title: 'تجديد شهادة الجهاز', type: 'password', required: true, minLength: 6 });
+    if (code) router.post(route('zatca.devices.renew', device.id), { otp: code });
+};
 const revoke = (device) => { if (confirm('إيقاف الجهاز؟ لن تُوقّع به فواتير جديدة.')) router.post(route('zatca.devices.revoke', device.id)); };
 const resubmit = (doc) => router.post(route('zatca.documents.resubmit', doc.id), {}, { preserveScroll: true });
 const filter = (status) => router.get(route('zatca.index'), { status: status || undefined }, { preserveState: true, preserveScroll: true });

@@ -87,7 +87,7 @@ const printReport = () => {
                         <span>ضريبة القيمة المضافة على المبيعات (المخرجات)</span>
                     </h3>
 
-                    <table class="w-full text-xs">
+                    <div class="overflow-x-auto"><table class="w-full text-xs">
                         <thead>
                             <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold">
                                 <th class="py-2.5 px-4 text-start">البند الضريبي</th>
@@ -118,7 +118,7 @@ const printReport = () => {
                                 </td>
                             </tr>
                         </tfoot>
-                    </table>
+                    </table></div>
                 </div>
 
                 <!-- 2. ضريبة المدخلات (المشتريات والمصروفات) -->
@@ -128,7 +128,7 @@ const printReport = () => {
                         <span>ضريبة القيمة المضافة على المشتريات (المدخلات القابلة للخصم)</span>
                     </h3>
 
-                    <table class="w-full text-xs">
+                    <div class="overflow-x-auto"><table class="w-full text-xs">
                         <thead>
                             <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold">
                                 <th class="py-2.5 px-4 text-start">البند الضريبي</th>
@@ -159,7 +159,7 @@ const printReport = () => {
                                 </td>
                             </tr>
                         </tfoot>
-                    </table>
+                    </table></div>
                 </div>
 
                 <!-- 3. النتيجة الصافية -->

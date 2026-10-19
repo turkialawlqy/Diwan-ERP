@@ -1,4 +1,5 @@
 <script setup>
+import { notify } from '@/composables/useDialog';
 import { ref, computed, watch } from 'vue';
 import axios from 'axios';
 import {
@@ -251,7 +252,7 @@ const saveCustomer = async () => {
         if (error.response?.data?.errors) {
             formErrors.value = error.response.data.errors;
         } else {
-            alert('حدث خطأ أثناء حفظ بيانات العميل، يرجى المحاولة مجدداً.');
+            notify('حدث خطأ أثناء حفظ بيانات العميل، يرجى المحاولة مجدداً.');
         }
     } finally {
         isSubmitting.value = false;

@@ -1,4 +1,5 @@
 <script setup>
+import { confirmAction } from '@/composables/useDialog';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -8,6 +9,7 @@ const props = defineProps({ tokens: Array, abilities: Array, webhooks: Array, ev
 const tokenForm = useForm({ name: '', abilities: [...props.abilities], expires_in_days: 365 });
 const hookForm = useForm({ url: '', events: [] });
 const opts = { preserveScroll: true };
+const remove = async (url, message) => { if (await confirmAction(message, { danger: true, confirmText: 'تأكيد' })) router.delete(url, opts); };
 </script>
 
 <template>
@@ -22,7 +24,7 @@ const opts = { preserveScroll: true };
                 <p class="text-slate-500 mb-3" dir="ltr">Base URL: <span class="font-mono">{{ apiBase }}</span> — Header: <span class="font-mono">Authorization: Bearer &lt;token&gt;</span></p>
                 <div v-for="t in tokens" :key="t.id" class="flex justify-between py-1.5 border-b border-slate-50">
                     <div><b>{{ t.name }}</b><div class="text-slate-400">{{ t.abilities.join('، ') }}</div><div class="text-slate-400">آخر استخدام: {{ t.last_used_at ? date(t.last_used_at) : '—' }} · ينتهي: {{ t.expires_at ? date(t.expires_at) : 'بدون' }}</div></div>
-                    <button @click="router.delete(route('integrations.tokens.destroy', t.id), opts)" class="text-rose-600 font-bold h-fit">إلغاء</button>
+                    <button @click="remove(route('integrations.tokens.destroy', t.id), 'إلغاء هذا الرمز؟ ستتوقف الأنظمة التي تستخدمه فوراً.')" class="text-rose-600 font-bold h-fit">إلغاء</button>
                 </div>
                 <div class="space-y-2 mt-3">
                     <input v-model="tokenForm.name" placeholder="اسم الرمز (مثال: متجر إلكتروني)" class="w-full rounded-xl border-slate-200 text-xs" />
@@ -36,7 +38,7 @@ const opts = { preserveScroll: true };
                 <h3 class="font-black text-slate-700">Webhooks</h3>
                 <p class="text-slate-500 mb-3">كل طلب موقّع بـ HMAC-SHA256 في الترويسة X-Alostaz-Signature على «timestamp.body».</p>
                 <div v-for="w in webhooks" :key="w.id" class="py-1.5 border-b border-slate-50">
-                    <div class="flex justify-between"><span class="font-mono break-all" dir="ltr">{{ w.url }}</span><span class="whitespace-nowrap"><button @click="router.post(route('webhooks.test', w.id), {}, opts)" class="text-indigo-600 font-bold me-2">اختبار</button><button @click="router.delete(route('webhooks.destroy', w.id), opts)" class="text-rose-600 font-bold">حذف</button></span></div>
+                    <div class="flex justify-between"><span class="font-mono break-all" dir="ltr">{{ w.url }}</span><span class="whitespace-nowrap"><button @click="router.post(route('webhooks.test', w.id), {}, opts)" class="text-indigo-600 font-bold me-2">اختبار</button><button @click="remove(route('webhooks.destroy', w.id), 'حذف هذا الـ Webhook؟')" class="text-rose-600 font-bold">حذف</button></span></div>
                     <div class="text-slate-400">{{ w.events.join('، ') }} · آخر حالة: {{ w.last_status || '—' }} {{ w.is_active ? '' : '(موقوف)' }}</div>
                 </div>
                 <div class="space-y-2 mt-3">

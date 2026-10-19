@@ -11,7 +11,7 @@ defineProps({
             <h3 class="font-bold text-sm text-slate-800">{{ title }}</h3>
             <slot name="header" />
         </div>
-        <div :class="padded ? 'p-4' : ''">
+        <div :class="padded ? 'p-4 overflow-x-auto' : 'overflow-x-auto'">
             <slot />
         </div>
     </div>

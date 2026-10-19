@@ -144,7 +144,7 @@ const printReport = () => {
                 </div>
 
                 <div class="p-6">
-                    <table class="w-full text-right border-collapse">
+                    <div class="overflow-x-auto"><table class="w-full text-right border-collapse">
                         <tbody>
                             <!-- Revenue Section -->
                             <tr class="bg-slate-100 font-bold text-slate-800 border-b border-slate-300">
@@ -215,7 +215,7 @@ const printReport = () => {
                                 </td>
                             </tr>
                         </tbody>
-                    </table>
+                    </table></div>
                 </div>
 
                 <!-- Footer Signatures for Official Financial Statement -->

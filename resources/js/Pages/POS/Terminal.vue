@@ -616,7 +616,7 @@ onMounted(() => {
                     </div>
 
                     <!-- Items Table -->
-                    <table class="w-full text-right text-3xs border-y border-slate-200 py-1 my-1">
+                    <div class="overflow-x-auto"><table class="w-full text-right text-3xs border-y border-slate-200 py-1 my-1">
                         <thead>
                             <tr class="font-bold border-b border-slate-100">
                                 <th class="py-1">البند</th>
@@ -631,7 +631,7 @@ onMounted(() => {
                                 <td class="text-end font-bold">{{ formatCurrency(item.total) }} ﷼</td>
                             </tr>
                         </tbody>
-                    </table>
+                    </table></div>
 
                     <!-- Totals -->
                     <div class="space-y-1 text-3xs pt-1 border-t border-slate-200 text-start">

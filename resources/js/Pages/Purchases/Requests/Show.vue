@@ -1,4 +1,5 @@
 <script setup>
+import { ask } from '@/composables/useDialog';
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -11,7 +12,14 @@ import ApprovalTimeline from '@/Components/Documents/ApprovalTimeline.vue';
 import { money, date, qty } from '@/utils/format';
 
 const props = defineProps({ request: Object, approvals: Array, orders: Array, warehouses: Array });
-const act = (name) => router.post(route(name, props.request.id), { comment: name.endsWith('reject') ? prompt('سبب الرفض؟') || '' : '' });
+const act = async (name) => {
+    let comment = '';
+    if (name.endsWith('reject')) {
+        comment = await ask('سبب رفض الطلب:', { title: 'رفض الطلب', type: 'textarea', confirmText: 'رفض', danger: true });
+        if (comment === null) return;
+    }
+    router.post(route(name, props.request.id), { comment });
+};
 const open = ref(false);
 const form = useForm({ supplier_id: null, warehouse_id: '' });
 const convert = () => form.post(route('purchases.requests.convert', props.request.id));
@@ -37,10 +45,10 @@ const convert = () => form.post(route('purchases.requests.convert', props.reques
                     <div><div class="text-slate-400">مطلوب بتاريخ</div><b class="font-mono">{{ date(request.required_date) }}</b></div>
                     <div><div class="text-slate-400">مقدم الطلب</div><b>{{ request.requester?.name }}</b></div>
                 </div>
-                <table class="w-full text-xs">
+                <div class="overflow-x-auto"><table class="w-full text-xs">
                     <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الصنف</th><th class="px-3 py-2">الكمية</th><th class="px-3 py-2 text-end">السعر التقديري</th></tr></thead>
                     <tbody><tr v-for="i in request.items" :key="i.id" class="border-t border-slate-100"><td class="px-3 py-2">{{ i.item_name }}</td><td class="px-3 py-2 text-center font-mono">{{ qty(i.quantity) }}</td><td class="px-3 py-2 text-end font-mono">{{ money(i.estimated_price) }}</td></tr></tbody>
-                </table>
+                </table></div>
                 <p v-if="request.notes" class="p-3 text-xs text-slate-500">{{ request.notes }}</p>
             </div>
             <div class="space-y-4">

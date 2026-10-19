@@ -94,14 +94,14 @@ const act = (name, message) => { if (!message || confirm(message)) router.post(r
                 <Field label="المستودع"><select v-model="deliverForm.warehouse_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">الافتراضي</option><option v-for="w in warehouses" :key="w.id" :value="w.id">{{ w.name_ar }}</option></select></Field>
                 <Field label="المستلم"><input v-model="deliverForm.receiver_name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
             </div>
-            <table class="w-full text-xs">
+            <div class="overflow-x-auto"><table class="w-full text-xs">
                 <tr class="text-slate-500"><th class="text-start">الصنف</th><th>المتبقي</th><th class="w-32">الكمية المسلمة</th></tr>
                 <tr v-for="l in deliverForm.lines" :key="l.sales_order_item_id" class="border-t border-slate-100">
                     <td class="py-1.5">{{ l.name }}</td>
                     <td class="text-center font-mono">{{ qty(l.open) }}</td>
                     <td><input v-model="l.quantity" type="number" min="0" :max="l.open" step="0.0001" class="w-full rounded-lg border-slate-200 text-xs font-mono" /></td>
                 </tr>
-            </table>
+            </table></div>
             <p v-for="(msg, key) in deliverForm.errors" :key="key" class="text-xs text-rose-600 mt-1">{{ msg }}</p>
             <template #footer><button @click="deliver" :disabled="deliverForm.processing" class="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold">تسليم وصرف من المخزون</button></template>
         </Dialog>

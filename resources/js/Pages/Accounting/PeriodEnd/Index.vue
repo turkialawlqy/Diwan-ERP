@@ -53,7 +53,7 @@ const zakatRows = [
                     <Field label="الشهر"><input v-model="filters.month" type="month" @change="reload" class="rounded-xl border-slate-200 text-xs" /></Field>
                 </div>
 
-                <table class="w-full text-xs">
+                <div class="overflow-x-auto"><table class="w-full text-xs">
                     <thead class="bg-slate-50 text-slate-500">
                         <tr><th class="p-2 text-start">المستند</th><th class="p-2 text-start">الطرف</th><th class="p-2">المتبقي</th><th class="p-2">سعر القيد</th><th class="p-2">سعر الإقفال</th><th class="p-2 text-end">الفرق</th></tr>
                     </thead>
@@ -68,7 +68,7 @@ const zakatRows = [
                         </tr>
                         <tr v-if="!fx.rows.length"><td colspan="6" class="p-6 text-center text-slate-400">لا توجد أرصدة مفتوحة بعملات أجنبية في هذا الشهر.</td></tr>
                     </tbody>
-                </table>
+                </table></div>
 
                 <div class="flex items-center justify-between">
                     <p class="text-xs">صافي الأثر: <strong :class="fx.net_gain >= 0 ? 'text-emerald-600' : 'text-rose-600'">{{ money(fx.net_gain) }}</strong> {{ fx.net_gain >= 0 ? 'ربح' : 'خسارة' }} غير محقق</p>
@@ -97,7 +97,7 @@ const zakatRows = [
                     <Field label="حسميات أخرى"><input v-model.number="filters.deductions" type="number" min="0" step="0.01" @change="reload" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 </div>
 
-                <table v-if="zakat" class="w-full text-xs">
+                <div class="overflow-x-auto" v-if="zakat"><table class="w-full text-xs">
                     <tbody class="divide-y divide-slate-100">
                         <tr v-for="[key, label, sign] in zakatRows" :key="key">
                             <td class="p-2">{{ sign > 0 ? '+' : '−' }} {{ label }}</td>
@@ -107,7 +107,7 @@ const zakatRows = [
                         <tr class="font-bold"><td class="p-2">الوعاء الزكوي المعتمد (لا يقل عن الربح المعدل)</td><td class="p-2 text-end font-mono">{{ money(zakat.base) }}</td></tr>
                         <tr class="font-black text-indigo-700 bg-indigo-50"><td class="p-2">الزكاة المستحقة ({{ zakat.rate }}% × {{ zakat.saudi_share }}%)</td><td class="p-2 text-end font-mono">{{ money(zakat.amount) }}</td></tr>
                     </tbody>
-                </table>
+                </table></div>
 
                 <div v-if="zakat" class="flex items-center justify-end gap-3">
                     <span v-if="zakat.assessment" class="text-3xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-1">سُجّل المخصص: {{ money(zakat.assessment.amount) }}</span>

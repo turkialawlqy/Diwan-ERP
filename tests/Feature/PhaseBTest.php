@@ -263,4 +263,33 @@ class PhaseBTest extends TestCase
         $this->assertSame(37.5, (float) $props['total']['ratio']);
         $this->assertSame(1, $props['total']['below_half']);
     }
+
+    // ------------------------------------------------------------------ B3 global search
+
+    public function test_search_returns_only_the_groups_the_user_may_view(): void
+    {
+        Customer::create(['name' => 'مؤسسة النخبة', 'code' => 'C-77', 'customer_type' => 'commercial', 'status' => 'active']);
+        Supplier::create(['name' => 'النخبة للتوريد', 'status' => 'active']);
+        Product::create(['name_ar' => 'صنف النخبة', 'sku' => 'NK-1', 'is_active' => true]);
+        $this->employee(['name' => 'النخبة موظف']);
+
+        $groups = collect($this->getJson(route('search', ['q' => 'النخبة']))->assertOk()->json('groups'))->keyBy('key');
+        $this->assertEqualsCanonicalizing(['customers', 'suppliers', 'products', 'employees'], $groups->keys()->all());
+        $this->assertSame(route('sales.clients.show', Customer::first()->id), $groups['customers']['items'][0]['url']);
+        $this->assertSame([], $this->getJson(route('search', ['q' => 'ن']))->json('groups'));
+
+        // A cashier sees customers and products, never employees or suppliers.
+        $this->actingAs($this->userWithRole($this->company, 'cashier'));
+        $keys = collect($this->getJson(route('search', ['q' => 'النخبة']))->assertOk()->json('groups'))->pluck('key')->all();
+        $this->assertNotContains('employees', $keys);
+        $this->assertNotContains('suppliers', $keys);
+    }
+
+    public function test_search_never_crosses_companies(): void
+    {
+        $other = Company::factory()->create();
+        app(TenantManager::class)->runAs($other, fn () => Customer::create(['name' => 'عميل سري', 'customer_type' => 'commercial', 'status' => 'active']));
+
+        $this->assertSame([], $this->getJson(route('search', ['q' => 'سري']))->assertOk()->json('groups'));
+    }
 }

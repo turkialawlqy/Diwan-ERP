@@ -1,4 +1,5 @@
 <script setup>
+import { confirmAction } from '@/composables/useDialog';
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -15,6 +16,7 @@ const payOpen = ref(false);
 const payForm = useForm({ date: new Date().toISOString().substring(0, 10), bank_account_id: '' });
 const typeLabel = { bonus: 'مكافأة', commission: 'عمولة', overtime_hours: 'ساعات إضافي', penalty: 'جزاء', deduction: 'استقطاع' };
 const sum = (key) => props.payroll.items.reduce((s, i) => s + Number(i[key] || 0), 0);
+const remove = async (url, message) => { if (await confirmAction(message, { danger: true, confirmText: 'حذف' })) router.delete(url, { preserveScroll: true }); };
 </script>
 
 <template>
@@ -71,7 +73,7 @@ const sum = (key) => props.payroll.items.reduce((s, i) => s + Number(i[key] || 0
             <h3 class="font-black text-slate-700 mb-2">تعديلات الشهر (مكافآت، عمولات، ساعات إضافي، جزاءات)</h3>
             <div v-for="a in adjustments" :key="a.id" class="flex justify-between py-1 border-b border-slate-50">
                 <span>{{ a.employee?.name }} — {{ typeLabel[a.type] }} <span class="text-slate-400">{{ a.description }}</span></span>
-                <span><b class="font-mono">{{ a.type === 'overtime_hours' ? a.amount + ' ساعة' : money(a.amount) }}</b> <button v-if="payroll.status === 'draft' && $can('hr.payroll.create')" @click="router.delete(route('hr.payroll.adjustments.destroy', [payroll.id, a.id]), { preserveScroll: true })" class="text-rose-600 ms-2">✕</button></span>
+                <span><b class="font-mono">{{ a.type === 'overtime_hours' ? a.amount + ' ساعة' : money(a.amount) }}</b> <button v-if="payroll.status === 'draft' && $can('hr.payroll.create')" @click="remove(route('hr.payroll.adjustments.destroy', [payroll.id, a.id]), 'حذف هذا التعديل وإعادة احتساب المسير؟')" class="text-rose-600 ms-2">✕</button></span>
             </div>
             <div v-if="payroll.status === 'draft' && $can('hr.payroll.create')" class="grid grid-cols-6 gap-2 mt-3">
                 <select v-model="adjForm.employee_id" class="col-span-2 rounded-xl border-slate-200 text-xs"><option value="">الموظف...</option><option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }}</option></select>

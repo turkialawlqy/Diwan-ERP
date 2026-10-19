@@ -40,7 +40,7 @@ const daysLeft = (d) => Math.ceil((new Date(d) - new Date()) / 86400000);
                 <select :value="filters.status || ''" @change="filter('status', $event.target.value)" class="rounded-xl border-slate-200 text-xs"><option value="">كل الحالات</option><option v-for="(l, k) in statuses" :key="k" :value="k">{{ l }}</option></select>
                 <select :value="filters.type || ''" @change="filter('type', $event.target.value)" class="rounded-xl border-slate-200 text-xs"><option value="">كل الأنواع</option><option v-for="(l, k) in types" :key="k" :value="k">{{ l }}</option></select>
             </div>
-            <table class="w-full text-xs">
+            <div class="overflow-x-auto"><table class="w-full text-xs">
                 <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الرقم</th><th class="px-3 py-2">النوع</th><th class="px-3 py-2">المشروع</th><th class="px-3 py-2">البنك</th><th class="px-3 py-2">المستفيد</th><th class="px-3 py-2 text-end">المبلغ</th><th class="px-3 py-2">الانتهاء</th><th class="px-3 py-2">الحالة</th><th></th></tr></thead>
                 <tbody>
                     <tr v-for="g in guarantees.data" :key="g.id" class="border-t border-slate-100">
@@ -52,7 +52,7 @@ const daysLeft = (d) => Math.ceil((new Date(d) - new Date()) / 86400000);
                     </tr>
                     <tr v-if="!guarantees.data.length"><td colspan="9" class="py-8 text-center text-slate-400">{{ $t('ui.no_data') }}</td></tr>
                 </tbody>
-            </table>
+            </table></div>
             <Pagination :paginator="guarantees" />
         </div>
         <Dialog :show="open" :title="editing ? 'تعديل خطاب الضمان' : 'خطاب ضمان جديد'" @close="open = false">

@@ -41,7 +41,7 @@ const save = () => form.transform((d) => ({ ...d, items: d.items.filter((i) => N
                 <Field v-if="form.settlement !== 'credit'" label="الحساب"><select v-model="form.bank_account_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">الافتراضي</option><option v-for="b in bankAccounts" :key="b.id" :value="b.id">{{ b.name }}</option></select></Field>
                 <Field label="السبب" class="md:col-span-3"><input v-model="form.reason" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
             </div>
-            <table v-if="invoice" class="w-full text-xs">
+            <div class="overflow-x-auto" v-if="invoice"><table class="w-full text-xs">
                 <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الصنف</th><th class="px-3 py-2">القابل للإرجاع</th><th class="px-3 py-2 text-end">صافي سعر الوحدة</th><th class="px-3 py-2 w-32">كمية المرتجع</th></tr></thead>
                 <tbody>
                     <tr v-for="i in form.items" :key="i.purchase_invoice_item_id" class="border-t border-slate-100">
@@ -51,7 +51,7 @@ const save = () => form.transform((d) => ({ ...d, items: d.items.filter((i) => N
                         <td class="px-3 py-2"><input v-model="i.quantity" type="number" min="0" :max="i.returnable" step="0.0001" class="w-full rounded-lg border-slate-200 text-xs font-mono" /></td>
                     </tr>
                 </tbody>
-            </table>
+            </table></div>
             <p v-for="(msg, key) in form.errors" :key="key" class="text-xs text-rose-600">{{ msg }}</p>
             <div class="flex justify-between items-center">
                 <span class="text-xs">إجمالي المرتجع شامل الضريبة: <b class="font-mono">{{ money(total) }}</b></span>

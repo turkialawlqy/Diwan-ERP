@@ -1,4 +1,5 @@
 <script setup>
+import { notify } from '@/composables/useDialog';
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -418,7 +419,7 @@ const saveTemplate = () => {
         onError: (errors) => {
             isSaving.value = false;
             console.error('Save template errors:', errors);
-            alert('حدث خطأ أثناء حفظ القالب: ' + Object.values(errors).join(', '));
+            notify('حدث خطأ أثناء حفظ القالب:\n' + Object.values(errors).join('\n'));
         }
     });
 };

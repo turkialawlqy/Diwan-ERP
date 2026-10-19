@@ -267,6 +267,8 @@ return [
     */
     'routes' => [
         'dashboard' => 'dashboard.main.view',
+        // Each result group re-checks its own view permission in SearchController.
+        'search' => '@authenticated',
         'files.show' => '@authenticated',
         'company.logo' => '@authenticated',
         // Each document type re-checks its own permission in DocumentShareController.

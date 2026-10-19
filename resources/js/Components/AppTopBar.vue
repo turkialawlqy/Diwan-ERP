@@ -1,5 +1,6 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import axios from 'axios';
 import { Link, usePage, router } from '@inertiajs/vue3';
 import { 
     Bars3Icon, 
@@ -22,12 +23,54 @@ const page = usePage();
 const user = page.props.auth?.user;
 const tenant = page.props.tenant;
 
+// Global search: debounced lookup across the records the user may view.
 const searchQuery = ref('');
+const results = ref([]);
+const searchOpen = ref(false);
+const searching = ref(false);
+const active = ref(-1);
+const flat = computed(() => results.value.flatMap((g) => g.items));
+let timer = null;
+let latest = 0;
 
-const handleSearch = () => {
-    if (!searchQuery.value.trim()) return;
-    router.get(route('dashboard'), { q: searchQuery.value }, { preserveState: true });
+watch(searchQuery, (value) => {
+    clearTimeout(timer);
+    active.value = -1;
+    if (value.trim().length < 2) {
+        results.value = [];
+        return;
+    }
+    timer = setTimeout(async () => {
+        const ticket = ++latest;
+        searching.value = true;
+        try {
+            const { data } = await axios.get(route('search'), { params: { q: value.trim() } });
+            if (ticket === latest) {
+                results.value = data.groups || [];
+                searchOpen.value = true;
+            }
+        } catch {
+            if (ticket === latest) results.value = [];
+        } finally {
+            if (ticket === latest) searching.value = false;
+        }
+    }, 250);
+});
+
+const go = (item) => {
+    if (!item) return;
+    searchOpen.value = false;
+    searchQuery.value = '';
+    router.visit(item.url);
 };
+const move = (step) => {
+    if (!flat.value.length) return;
+    searchOpen.value = true;
+    active.value = (active.value + step + flat.value.length) % flat.value.length;
+};
+const handleSearch = () => go(flat.value[active.value] || flat.value[0]);
+const indexOf = (item) => flat.value.indexOf(item);
+const closeSoon = () => setTimeout(() => (searchOpen.value = false), 150);
 
 const logout = () => {
     router.post(route('logout'));
@@ -55,8 +98,28 @@ const logout = () => {
                     v-model="searchQuery"
                     type="search" 
                     :placeholder="$t('common.search')" 
+                    role="combobox"
+                    aria-autocomplete="list"
+                    :aria-expanded="searchOpen && searchQuery.trim().length >= 2"
+                    @keydown.down.prevent="move(1)"
+                    @keydown.up.prevent="move(-1)"
+                    @keydown.esc="searchOpen = false"
+                    @focus="searchOpen = true"
+                    @blur="closeSoon"
                     class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs sm:text-sm rounded-lg ps-9 pe-4 py-2 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder:text-slate-400"
                 />
+                <div v-if="searchOpen && searchQuery.trim().length >= 2" class="absolute top-full mt-1 inset-x-0 bg-white border border-slate-200 rounded-xl shadow-lg max-h-[70vh] overflow-y-auto z-40 text-xs" role="listbox" data-search-results>
+                    <p v-if="searching && !results.length" class="p-3 text-slate-400">جارٍ البحث...</p>
+                    <p v-else-if="!results.length" class="p-3 text-slate-400">لا توجد نتائج مطابقة.</p>
+                    <div v-for="g in results" :key="g.key" class="py-1">
+                        <p class="px-3 py-1 text-3xs font-bold text-slate-400">{{ g.label }}</p>
+                        <button v-for="item in g.items" :key="item.url" type="button" role="option" :aria-selected="indexOf(item) === active"
+                            @mousedown.prevent="go(item)" :class="indexOf(item) === active ? 'bg-indigo-50' : 'hover:bg-slate-50'" class="w-full text-start px-3 py-1.5 flex items-center justify-between gap-3">
+                            <span class="font-bold text-slate-700 truncate">{{ item.title }}</span>
+                            <span class="text-slate-400 truncate font-mono">{{ item.subtitle }}</span>
+                        </button>
+                    </div>
+                </div>
             </form>
         </div>
 
