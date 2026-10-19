@@ -8,7 +8,7 @@ import Field from '@/Components/UI/Field.vue';
 import StatusBadge from '@/Components/Documents/StatusBadge.vue';
 import { money } from '@/utils/format';
 
-const props = defineProps({ payroll: Object, adjustments: Array, employees: Array, bankAccounts: Array });
+const props = defineProps({ payroll: Object, adjustments: Array, employees: Array, bankAccounts: Array, errors: { type: Object, default: () => ({}) } });
 const act = (name, message) => { if (!message || confirm(message)) router.post(route(name, props.payroll.id), {}, { preserveScroll: true }); };
 const adjForm = useForm({ employee_id: '', type: 'bonus', amount: 0, description: '' });
 const payOpen = ref(false);
@@ -28,9 +28,17 @@ const sum = (key) => props.payroll.items.reduce((s, i) => s + Number(i[key] || 0
                     <button v-if="$can('hr.payroll.approve')" @click="act('hr.payroll.approve', 'اعتماد المسير وقيده محاسبياً؟')" class="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">اعتماد</button>
                 </template>
                 <button v-if="payroll.status === 'approved' && $can('hr.payroll.post')" @click="payOpen = true" class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">صرف الرواتب</button>
-                <a v-if="$can('hr.payroll.export')" :href="route('hr.payroll.wps', payroll.id)" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold">ملف حماية الأجور (WPS)</a>
+                <template v-if="$can('hr.payroll.export')">
+                    <a :href="route('hr.payroll.wps', { payroll: payroll.id, format: 'mudad' })" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold">ملف مُدد (WPS)</a>
+                    <a :href="route('hr.payroll.wps', { payroll: payroll.id, format: 'bank' })" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold">ملف البنك</a>
+                </template>
             </template>
         </PageHeader>
+
+        <div v-if="errors.wps" class="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
+            <p class="font-bold mb-1">لا يمكن إنشاء ملف الرواتب؛ صحّح بيانات الموظفين التالية ثم أعد المحاولة:</p>
+            <ul class="list-disc ps-5 space-y-0.5"><li v-for="(e, i) in String(errors.wps).split('\n')" :key="i">{{ e }}</li></ul>
+        </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto mb-4">
             <table class="w-full text-xs min-w-[1100px]">

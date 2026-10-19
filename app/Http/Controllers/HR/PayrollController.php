@@ -100,13 +100,24 @@ class PayrollController extends Controller
         return back()->with('success', 'تم حذف التعديل');
     }
 
-    public function wps(Payroll $payroll)
+    /**
+     * Salary file for Mudad (?format=mudad) or the company's bank
+     * (?format=bank). Refused with the list of employees to fix when the
+     * file would be rejected on upload.
+     */
+    public function wps(Request $request, Payroll $payroll)
     {
-        $csv = $this->payrolls->wpsFile($payroll);
+        $bank = $request->query('format') === 'bank';
+        if ($issues = $this->payrolls->wpsIssues($payroll)) {
+            return back()->withErrors(['wps' => implode("\n", array_slice($issues, 0, 30))]);
+        }
+
+        $csv = $bank ? $this->payrolls->bankFile($payroll) : $this->payrolls->wpsFile($payroll);
+        $name = ($bank ? 'BANK-' : 'WPS-').$payroll->payroll_number.'.csv';
 
         return response($csv, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="WPS-'.$payroll->payroll_number.'.csv"',
+            'Content-Disposition' => 'attachment; filename="'.$name.'"',
         ]);
     }
 

@@ -5,13 +5,18 @@ namespace Tests\Feature;
 use App\Models\Account;
 use App\Models\Company;
 use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\InventoryStock;
 use App\Models\JournalEntry;
+use App\Models\Payroll;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
+use App\Services\HR\BankSalaryFormats;
+use App\Services\HR\PayrollService;
+use App\Services\Settings\CompanyPolicy;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -145,5 +150,117 @@ class PhaseBTest extends TestCase
 
         $this->get(route('data-transfer.index'))->assertOk();
         $this->upload('opening_balances', "account_code,debit,credit\n1,1,\n")->assertForbidden();
+    }
+
+    // ------------------------------------------------------------------ B2 payroll compliance
+
+    protected int $sequence = 100;
+
+    protected function employee(array $attributes = []): Employee
+    {
+        return Employee::create(array_merge([
+            'name' => 'أحمد', 'job_title' => 'محاسب', 'department' => 'المالية', 'hire_date' => '2020-01-01', 'nationality' => 'SA',
+            'basic_salary' => 10000, 'housing_allowance' => 2500, 'transport_allowance' => 1000, 'other_allowances' => 0, 'total_salary' => 13500,
+            'status' => 'active', 'gosi_registered' => true, 'employee_number' => 'E'.(++$this->sequence),
+            'national_id' => '1012345678', 'iban' => 'SA0380000000608010167519', 'gosi_number' => '555',
+        ], $attributes));
+    }
+
+    protected function payroll(): Payroll
+    {
+        $service = app(PayrollService::class);
+        $payroll = $service->generate(2026, 6);
+        $service->approve($payroll);
+
+        return $payroll->fresh();
+    }
+
+    public function test_iban_validation(): void
+    {
+        $this->assertTrue(BankSalaryFormats::validIban('SA03 8000 0000 6080 1016 7519'));
+        $this->assertFalse(BankSalaryFormats::validIban('SA0480000000608010167519'));
+        $this->assertFalse(BankSalaryFormats::validIban('AE070331234567890123456'));
+        $this->assertSame('80', BankSalaryFormats::bankCode('SA0380000000608010167519'));
+    }
+
+    public function test_mudad_file_is_refused_with_the_employees_to_fix(): void
+    {
+        $this->employee();
+        $this->employee(['name' => 'سالم', 'iban' => 'SA0480000000608010167519', 'national_id' => '12345']);
+        $payroll = $this->payroll();
+
+        $this->from(route('hr.payroll.show', $payroll))->get(route('hr.payroll.wps', ['payroll' => $payroll->id, 'format' => 'mudad']))
+            ->assertRedirect(route('hr.payroll.show', $payroll))->assertSessionHasErrors('wps');
+        $message = session('errors')->first('wps');
+        $this->assertStringContainsString('سالم: رقم الهوية', $message);
+        $this->assertStringContainsString('سالم: رقم الآيبان', $message);
+        $this->assertStringNotContainsString('أحمد', $message);
+    }
+
+    public function test_mudad_and_bank_files_balance_to_the_payroll(): void
+    {
+        app(CompanyPolicy::class)->set($this->company, 'hr.wps', ['mol_establishment_id' => '1-99999', 'gosi_establishment_id' => '777',
+            'company_iban' => 'SA1510000000608010167519', 'bank_format' => 'alrajhi']);
+        $this->employee();
+        $this->employee(['name' => 'راج', 'nationality' => 'IN', 'national_id' => '2123456789', 'iban' => 'SA1510000000608010167519', 'basic_salary' => 4000, 'housing_allowance' => 1000, 'transport_allowance' => 0]);
+        $payroll = $this->payroll();
+
+        $mudad = $this->get(route('hr.payroll.wps', ['payroll' => $payroll->id, 'format' => 'mudad']))->assertOk()->getContent();
+        $lines = array_map('str_getcsv', array_filter(explode("\n", trim(preg_replace('/^\xEF\xBB\xBF/', '', $mudad)))));
+        $this->assertCount(3, $lines);
+        $this->assertSame('Establishment ID', end($lines[0]));
+        $net = array_sum(array_map(fn ($l) => (float) $l[8], array_slice($lines, 1)));
+        $this->assertEqualsWithDelta((float) $payroll->net_total, $net, 0.001);
+        foreach (array_slice($lines, 1) as $l) {
+            // basic + housing + other - deductions = net
+            $this->assertEqualsWithDelta((float) $l[8], (float) $l[4] + (float) $l[5] + (float) $l[6] - (float) $l[7], 0.001);
+            $this->assertSame('1-99999', $l[10]);
+        }
+        $this->assertSame('10', collect($lines)->firstWhere(1, 'راج')[2]);
+
+        $bank = $this->get(route('hr.payroll.wps', ['payroll' => $payroll->id, 'format' => 'bank']))->assertOk()->getContent();
+        $rows = array_map('str_getcsv', array_filter(explode("\n", trim($bank))));
+        $this->assertSame(['H', '1-99999', 'SA1510000000608010167519'], array_slice($rows[0], 0, 3));
+        $this->assertSame('2', $rows[0][4]);
+        $this->assertEqualsWithDelta((float) $payroll->net_total, (float) $rows[0][5], 0.001);
+        $this->assertSame('D', $rows[1][0]);
+    }
+
+    public function test_gosi_report_reconciles_to_the_payable_account(): void
+    {
+        $this->employee();
+        $this->employee(['name' => 'راج', 'nationality' => 'IN', 'national_id' => '2123456789', 'gosi_number' => '', 'basic_salary' => 4000, 'housing_allowance' => 1000]);
+        $payroll = $this->payroll();
+
+        $response = $this->get(route('hr.reports.gosi', ['month' => '2026-06']))->assertOk();
+        $props = $response->viewData('page')['props'];
+        $this->assertCount(2, $props['rows']);
+        $this->assertEqualsWithDelta((float) $payroll->total_gosi_employee + (float) $payroll->total_gosi_employer, $props['totals']['total'], 0.001);
+        $this->assertEqualsWithDelta($props['totals']['total'], $this->balance('gosi_payable'), 0.001);
+        $this->assertSame(0.0, (float) $props['difference']);
+        $this->assertSame(1, $props['missing_numbers']);
+        // Saudi on 12,500: 9.75% / 11.75%; expatriate: 2% hazards only.
+        $saudi = collect($props['rows'])->firstWhere('name', 'أحمد');
+        $this->assertSame([12500.0, 1218.75, 1468.75], [$saudi['base'], $saudi['employee'], $saudi['employer']]);
+
+        $csv = $this->get(route('hr.reports.gosi', ['month' => '2026-06', 'export' => 'csv']))->assertOk()->streamedContent();
+        $this->assertStringContainsString('Contributory Wage', $csv);
+    }
+
+    public function test_saudization_indicator_weights_saudis_by_wage(): void
+    {
+        $this->employee(['basic_salary' => 4000, 'housing_allowance' => 1000]);                 // full
+        $this->employee(['name' => 'ب', 'basic_salary' => 3000, 'housing_allowance' => 500]);  // half
+        $this->employee(['name' => 'ج', 'basic_salary' => 2000, 'housing_allowance' => 500]);  // not counted
+        $this->employee(['name' => 'د', 'nationality' => 'EG']);
+        $this->employee(['name' => 'هـ', 'nationality' => 'EG', 'status' => 'terminated', 'termination_date' => '2026-05-31']);
+        $this->employee(['name' => 'و', 'hire_date' => '2026-07-15']);
+
+        $props = $this->get(route('hr.reports.saudization', ['date' => '2026-06-30']))->assertOk()->viewData('page')['props'];
+        $this->assertSame(4, $props['total']['headcount']);
+        $this->assertSame(3, $props['total']['saudis']);
+        $this->assertSame(1.5, (float) $props['total']['counted']);
+        $this->assertSame(37.5, (float) $props['total']['ratio']);
+        $this->assertSame(1, $props['total']['below_half']);
     }
 }

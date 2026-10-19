@@ -59,4 +59,21 @@ return [
         ['code' => 'hajj', 'name' => 'إجازة حج', 'days_per_year' => 15, 'pay_rule' => 'full', 'deducts_balance' => false],
         ['code' => 'exam', 'name' => 'إجازة امتحان', 'days_per_year' => 0, 'pay_rule' => 'full', 'deducts_balance' => false],
     ],
+
+    // Wage Protection: establishment identifiers printed on the Mudad / bank
+    // salary files, and the bank layout used for the bank upload file.
+    'wps' => [
+        'mol_establishment_id' => '',   // establishment number at the Ministry (labour office - sequence)
+        'gosi_establishment_id' => '',
+        'company_iban' => '',           // account the salaries are paid from
+        'bank_format' => 'alrajhi',     // see App\Services\HR\BankSalaryFormats
+    ],
+
+    // Indicative Nitaqat weighting of a Saudi employee by monthly wage
+    // (basic + housing): full count at or above full_wage, half count from
+    // half_wage, not counted below. The official band comes from Qiwa.
+    'saudization' => [
+        'full_wage' => 4000,
+        'half_wage' => 3000,
+    ],
 ];

@@ -7,6 +7,8 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 const props = defineProps({ types: Array });
 const forms = Object.fromEntries(props.types.map((t) => [t.key, useForm({ file: null, opening_date: null })]));
 const formFor = (key) => forms[key];
+// Row errors arrive as one message, a line each.
+const lines = (...messages) => messages.filter(Boolean).flatMap((m) => String(m).split('\n'));
 
 // Go-live date shared by every opening balance posted from this page.
 const openingDate = ref(new Date().toISOString().slice(0, 10));
@@ -53,7 +55,7 @@ const masterTypes = computed(() => props.types.filter((t) => !t.opening));
                     <input type="file" accept=".csv,.txt,.xlsx,.xls" @input="formFor(s.type.key).file = $event.target.files[0]" class="text-xs max-w-[14rem]" />
                     <button @click="upload(s.type.key)" :disabled="!formFor(s.type.key).file || formFor(s.type.key).processing" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-40">استيراد</button>
                     <ul v-if="formFor(s.type.key).errors.file || formFor(s.type.key).errors.opening_date" class="basis-full text-rose-600 list-disc ps-4">
-                        <li v-for="(e, j) in [].concat(formFor(s.type.key).errors.file || [], formFor(s.type.key).errors.opening_date || [])" :key="j">{{ e }}</li>
+                        <li v-for="(e, j) in lines(formFor(s.type.key).errors.file, formFor(s.type.key).errors.opening_date)" :key="j">{{ e }}</li>
                     </ul>
                 </li>
             </ol>
@@ -71,7 +73,7 @@ const masterTypes = computed(() => props.types.filter((t) => !t.opening));
                     <input type="file" accept=".csv,.txt,.xlsx,.xls" @input="formFor(t.key).file = $event.target.files[0]" class="text-xs max-w-full" />
                     <button @click="upload(t.key)" :disabled="!formFor(t.key).file || formFor(t.key).processing" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-40">استيراد</button>
                 </div>
-                <ul v-if="formFor(t.key).errors.file" class="mt-2 text-rose-600 list-disc ps-4"><li v-for="(e, i) in [].concat(formFor(t.key).errors.file)" :key="i">{{ e }}</li></ul>
+                <ul v-if="formFor(t.key).errors.file" class="mt-2 text-rose-600 list-disc ps-4"><li v-for="(e, i) in lines(formFor(t.key).errors.file)" :key="i">{{ e }}</li></ul>
             </div>
         </div>
     </AppLayout>

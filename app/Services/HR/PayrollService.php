@@ -11,6 +11,7 @@ use App\Models\PayrollItem;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\PostingService;
 use App\Services\Documents\DocumentNumberService;
+use App\Services\Settings\CompanyPolicy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -201,23 +202,75 @@ class PayrollService
     }
 
     /**
-     * Wage Protection System salary file (generic Mudad / bank upload layout).
+     * One row per employee paid in the payroll, in the units the Mudad and
+     * bank files use: deductions are whatever separates the earnings from
+     * the net pay, so every row satisfies basic + housing + other - deductions = net.
      */
-    public function wpsFile(Payroll $payroll, ?string $employerId = null): string
+    public function wpsRows(Payroll $payroll): array
     {
-        $payroll->load('items.employee');
-        $rows = [['Employee ID', 'Employee Name', 'Bank', 'IBAN', 'Basic', 'Housing', 'Other Earnings', 'Deductions', 'Net Salary', 'Payment Period']];
-        foreach ($payroll->items as $item) {
+        $payroll->loadMissing('items.employee');
+
+        return $payroll->items->filter(fn ($item) => (float) $item->net_salary > 0)->map(function ($item) {
             $e = $item->employee;
-            $rows[] = [
-                $e?->national_id, $e?->name, $e?->bank_code ?: $e?->bank_name, $e?->iban,
-                number_format((float) $item->basic_salary, 2, '.', ''),
-                number_format((float) $item->housing_allowance, 2, '.', ''),
-                number_format((float) $item->transport_allowance + (float) $item->other_allowances + (float) $item->overtime + (float) $item->bonuses, 2, '.', ''),
-                number_format((float) $item->deductions + (float) $item->absence_deduction, 2, '.', ''),
-                number_format((float) $item->net_salary, 2, '.', ''),
-                sprintf('%04d-%02d', $payroll->year, $payroll->month),
+            $iban = strtoupper(str_replace(' ', '', (string) $e?->iban));
+            $basic = round((float) $item->basic_salary, 2);
+            $housing = round((float) $item->housing_allowance, 2);
+            $other = round((float) $item->transport_allowance + (float) $item->other_allowances + (float) $item->overtime + (float) $item->bonuses, 2);
+            $net = round((float) $item->net_salary, 2);
+
+            return [
+                'employee_id' => $e?->id,
+                'employee_number' => (string) $e?->employee_number,
+                'national_id' => trim((string) $e?->national_id),
+                'name' => (string) $e?->name,
+                'iban' => $iban,
+                'bank_code' => (string) ($e?->bank_code ?: BankSalaryFormats::bankCode($iban)),
+                'basic' => $basic,
+                'housing' => $housing,
+                'other' => $other,
+                'deductions' => round($basic + $housing + $other - $net, 2),
+                'net' => $net,
             ];
+        })->values()->all();
+    }
+
+    /** Problems that would make Mudad or the bank reject the salary file. */
+    public function wpsIssues(Payroll $payroll): array
+    {
+        $issues = [];
+        $rows = $this->wpsRows($payroll);
+        foreach ($rows as $row) {
+            $who = $row['name'] ?: '#'.$row['employee_id'];
+            if (! preg_match('/^[12]\d{9}$/', $row['national_id'])) {
+                $issues[] = "{$who}: رقم الهوية/الإقامة يجب أن يكون 10 أرقام يبدأ بـ 1 أو 2.";
+            }
+            if (! BankSalaryFormats::validIban($row['iban'])) {
+                $issues[] = "{$who}: رقم الآيبان ".($row['iban'] ?: '(فارغ)').' غير صحيح.';
+            }
+            if ($row['deductions'] < 0) {
+                $issues[] = "{$who}: صافي الراتب يتجاوز مجموع الأجر والبدلات.";
+            }
+        }
+        $total = round(array_sum(array_column($rows, 'net')), 2);
+        if (abs($total - round((float) $payroll->net_total, 2)) > 0.01) {
+            $issues[] = 'مجموع صافي الملف '.number_format($total, 2).' لا يطابق صافي المسير '.number_format((float) $payroll->net_total, 2).'؛ أعد احتساب المسير.';
+        }
+
+        return $issues;
+    }
+
+    /**
+     * Wage Protection salary file in the Mudad upload template.
+     */
+    public function wpsFile(Payroll $payroll): string
+    {
+        $establishment = (string) CompanyPolicy::get('hr.wps.mol_establishment_id', '');
+        $period = sprintf('%04d-%02d', $payroll->year, $payroll->month);
+        $rows = [['Employee ID', 'Employee Name', 'Bank Code', 'IBAN', 'Basic Salary', 'Housing Allowance', 'Other Earnings', 'Deductions', 'Net Salary', 'Payment Period', 'Establishment ID']];
+        foreach ($this->wpsRows($payroll) as $r) {
+            $rows[] = [$r['national_id'], $r['name'], $r['bank_code'], $r['iban'],
+                ...array_map(fn ($v) => number_format($v, 2, '.', ''), [$r['basic'], $r['housing'], $r['other'], $r['deductions'], $r['net']]),
+                $period, $establishment];
         }
 
         $out = fopen('php://temp', 'r+');
@@ -229,5 +282,17 @@ class PayrollService
         rewind($out);
 
         return stream_get_contents($out);
+    }
+
+    /** Salary upload file in the layout of the company's bank (hr.wps.bank_format). */
+    public function bankFile(Payroll $payroll): string
+    {
+        return app(BankSalaryFormats::class)->render((string) CompanyPolicy::get('hr.wps.bank_format', 'alrajhi'), [
+            'mol' => (string) CompanyPolicy::get('hr.wps.mol_establishment_id', ''),
+            'gosi' => (string) CompanyPolicy::get('hr.wps.gosi_establishment_id', ''),
+            'company_iban' => (string) CompanyPolicy::get('hr.wps.company_iban', ''),
+            'value_date' => $payroll->payment_date ? Carbon::parse($payroll->payment_date) : now(),
+            'reference' => (string) $payroll->payroll_number,
+        ], $this->wpsRows($payroll));
     }
 }

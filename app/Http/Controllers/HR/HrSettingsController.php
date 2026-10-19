@@ -4,11 +4,13 @@ namespace App\Http\Controllers\HR;
 
 use App\Http\Controllers\Controller;
 use App\Models\LeaveType;
+use App\Services\HR\BankSalaryFormats;
 use App\Services\HR\LeaveService;
 use App\Services\Settings\CompanyPolicy;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -37,6 +39,7 @@ class HrSettingsController extends Controller
         return Inertia::render('HR/Settings', [
             'groups' => $groups,
             'leaveTypes' => LeaveType::orderBy('id')->get(),
+            'bankFormats' => collect(BankSalaryFormats::FORMATS)->map(fn ($f) => $f['label']),
         ]);
     }
 
@@ -96,7 +99,7 @@ class HrSettingsController extends Controller
                 'later_rate' => $value['later_rate'],
                 'resignation' => array_map(fn ($t) => ['below' => $t[0], 'share' => $pct($t[1])], $value['resignation']),
             ],
-            'hr.annual_leave' => $value,
+            'hr.annual_leave', 'hr.wps' => $value,
         };
     }
 
@@ -127,6 +130,12 @@ class HrSettingsController extends Controller
                 'resignation' => collect($v['resignation'])->sortBy('below')->map(fn ($t) => [(float) $t['below'], $frac($t['share'])])->values()->all(),
             ],
             'hr.annual_leave' => ['days' => (int) $v['days'], 'senior_days' => (int) $v['senior_days'], 'senior_after_years' => (int) $v['senior_after_years']],
+            'hr.wps' => [
+                'mol_establishment_id' => trim((string) ($v['mol_establishment_id'] ?? '')),
+                'gosi_establishment_id' => trim((string) ($v['gosi_establishment_id'] ?? '')),
+                'company_iban' => strtoupper(str_replace(' ', '', (string) ($v['company_iban'] ?? ''))),
+                'bank_format' => $v['bank_format'],
+            ],
         };
     }
 
@@ -150,6 +159,15 @@ class HrSettingsController extends Controller
                 'resignation' => 'required|array|max:10', 'resignation.*.below' => 'required|numeric|min:0|max:60|distinct', 'resignation.*.share' => $pct,
             ],
             'hr.annual_leave' => ['days' => 'required|integer|min:21|max:60', 'senior_days' => 'required|integer|gte:days|max:60', 'senior_after_years' => 'required|integer|min:1|max:30'],
+            'hr.wps' => [
+                'mol_establishment_id' => 'nullable|string|max:30', 'gosi_establishment_id' => 'nullable|string|max:30',
+                'company_iban' => ['nullable', 'string', function ($attribute, $iban, $fail) {
+                    if (! BankSalaryFormats::validIban($iban)) {
+                        $fail('رقم الآيبان غير صحيح: 24 خانة تبدأ بـ SA.');
+                    }
+                }],
+                'bank_format' => ['required', Rule::in(array_keys(BankSalaryFormats::FORMATS))],
+            ],
         };
 
         $validator = Validator::make($value, $rules, [

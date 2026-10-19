@@ -5,7 +5,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { ExclamationTriangleIcon } from '@heroicons/vue/24/outline';
 
-const props = defineProps({ groups: Object, leaveTypes: Array, errors: Object });
+const props = defineProps({ groups: Object, leaveTypes: Array, bankFormats: Object, errors: Object });
 
 // Editable copies per group.
 const forms = reactive(Object.fromEntries(Object.entries(props.groups).map(([k, g]) => [k, JSON.parse(JSON.stringify(g.value))])));
@@ -118,6 +118,21 @@ const inp = 'w-full rounded-xl border-slate-200 text-xs font-mono';
                 <button @click="forms['hr.end_of_service'].resignation.push({ below: 0, share: 0 })" class="text-indigo-600 font-bold">+ شريحة</button>
                 <p class="text-slate-400 mt-1">ما تجاوز آخر شريحة يستحق المكافأة كاملة.</p>
                 <div v-if="$can('hr.settings.manage')" class="flex gap-2 mt-3"><button @click="save('hr.end_of_service')" class="flex-1 px-3 py-2 rounded-xl bg-indigo-600 text-white font-bold">حفظ</button><button v-if="groups['hr.end_of_service'].overridden" @click="reset('hr.end_of_service')" class="px-3 py-2 rounded-xl border font-bold">استعادة النظامي</button></div>
+            </div>
+
+            <!-- Wage protection -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 lg:col-span-2">
+                <h3 class="font-black text-slate-700 mb-1">حماية الأجور (مُدد) وملف البنك</h3>
+                <p class="text-slate-400 mb-3">تُطبع على ملف مُدد وملف رواتب البنك. صيغة البنك مبنية على النماذج الشائعة؛ طابق الملف مع بنكك عند أول رفع.</p>
+                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <label class="block">رقم المنشأة في وزارة الموارد البشرية<input v-model="forms['hr.wps'].mol_establishment_id" :class="inp" dir="ltr" placeholder="1-1234567" /><span v-if="err('mol_establishment_id')" class="text-rose-600">{{ err('mol_establishment_id')[0] }}</span></label>
+                    <label class="block">رقم المنشأة في التأمينات<input v-model="forms['hr.wps'].gosi_establishment_id" :class="inp" dir="ltr" /><span v-if="err('gosi_establishment_id')" class="text-rose-600">{{ err('gosi_establishment_id')[0] }}</span></label>
+                    <label class="block">آيبان حساب الرواتب<input v-model="forms['hr.wps'].company_iban" :class="inp" dir="ltr" placeholder="SA..." /><span v-if="err('company_iban')" class="text-rose-600">{{ err('company_iban')[0] }}</span></label>
+                    <label class="block">صيغة ملف البنك
+                        <select v-model="forms['hr.wps'].bank_format" :class="inp"><option v-for="(label, key) in bankFormats" :key="key" :value="key">{{ label }}</option></select>
+                    </label>
+                </div>
+                <div v-if="$can('hr.settings.manage')" class="flex gap-2 mt-3"><button @click="save('hr.wps')" class="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold">حفظ</button></div>
             </div>
 
             <!-- Leave types -->

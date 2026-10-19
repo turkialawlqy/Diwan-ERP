@@ -33,6 +33,7 @@ use App\Http\Controllers\FreeformTemplateController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\HR\EmployeeController;
 use App\Http\Controllers\HR\HrOperationsController;
+use App\Http\Controllers\HR\HrReportController;
 use App\Http\Controllers\HR\HrSettingsController;
 use App\Http\Controllers\HR\PayrollController;
 use App\Http\Controllers\HR\SelfServiceController;
@@ -617,6 +618,8 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'erp.auth
         Route::post('/payroll/{payroll}/adjustments', [PayrollController::class, 'storeAdjustment'])->name('payroll.adjustments.store');
         Route::delete('/payroll/{payroll}/adjustments/{adjustment}', [PayrollController::class, 'destroyAdjustment'])->name('payroll.adjustments.destroy');
         Route::get('/payroll/{payroll}/wps', [PayrollController::class, 'wps'])->name('payroll.wps');
+        Route::get('/reports/gosi', [HrReportController::class, 'gosi'])->name('reports.gosi');
+        Route::get('/reports/saudization', [HrReportController::class, 'saudization'])->name('reports.saudization');
         Route::get('/payroll/{payroll}/payslips/{item}', [PayrollController::class, 'payslip'])->name('payroll.payslip');
 
         Route::get('/me', [SelfServiceController::class, 'index'])->name('me');

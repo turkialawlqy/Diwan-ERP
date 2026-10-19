@@ -105,6 +105,8 @@
         "integrations": "API & Webhooks",
         "data_transfer": "Import / Export",
         "crm_leads": "Leads (CRM)",
+        "gosi_report": "GOSI Monthly Report",
+        "saudization_report": "Saudization Indicator",
         "hr_settings": "Payroll Settings",
         "equipment": "Equipment",
         "equipment_list": "Equipment",

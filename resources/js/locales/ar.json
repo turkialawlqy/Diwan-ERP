@@ -105,6 +105,8 @@
         "integrations": "الربط البرمجي",
         "data_transfer": "استيراد وتصدير",
         "crm_leads": "العملاء المحتملون",
+        "gosi_report": "تقرير التأمينات الشهري",
+        "saudization_report": "مؤشر السعودة (نطاقات)",
         "hr_settings": "إعدادات الرواتب ونظام العمل",
         "equipment": "المعدات والصيانة",
         "equipment_list": "المعدات",

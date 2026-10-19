@@ -48,12 +48,14 @@ class HrPayrollTest extends TestCase
         parent::tearDown();
     }
 
+    protected int $sequence = 100;
+
     protected function employee(array $attributes = []): Employee
     {
         return Employee::create(array_merge([
             'name' => 'أحمد', 'job_title' => 'محاسب', 'department' => 'المالية', 'hire_date' => '2020-01-01', 'nationality' => 'SA',
             'basic_salary' => 10000, 'housing_allowance' => 2500, 'transport_allowance' => 1000, 'other_allowances' => 0, 'total_salary' => 13500,
-            'status' => 'active', 'gosi_registered' => true, 'employee_number' => 'E'.random_int(100, 999),
+            'status' => 'active', 'gosi_registered' => true, 'employee_number' => 'E'.(++$this->sequence),
         ], $attributes));
     }
 
@@ -211,9 +213,11 @@ class HrPayrollTest extends TestCase
 
         foreach ([route('hr.employees.index'), route('hr.employees.create'), route('hr.employees.show', $e), route('hr.employees.edit', $e), route('hr.organization'),
             route('hr.attendance.index'), route('hr.leaves.index'), route('hr.loans.index'), route('hr.settlements.index'), route('hr.payroll.index'),
-            route('hr.payroll.show', $payroll), route('hr.payroll.payslip', [$payroll, $payroll->items()->first()]), route('hr.payroll.wps', $payroll)] as $url) {
+            route('hr.payroll.show', $payroll), route('hr.payroll.payslip', [$payroll, $payroll->items()->first()])] as $url) {
             $this->get($url)->assertOk();
         }
+        // Employees without a valid ID / IBAN: the salary file is refused with what to fix.
+        $this->get(route('hr.payroll.wps', $payroll))->assertRedirect()->assertSessionHasErrors('wps');
 
         // Self service: a user sees only their own payslips.
         $user = $this->userWithRole($this->company, 'employee');

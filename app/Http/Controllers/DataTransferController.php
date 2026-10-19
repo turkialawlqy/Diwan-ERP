@@ -197,7 +197,8 @@ class DataTransferController extends Controller
         }
 
         if ($errors) {
-            throw ValidationException::withMessages(['file' => array_slice($errors, 0, 20)]);
+            // Inertia shares the first message per key: send the row errors as one, a line each.
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
         }
 
         if ($type === 'opening_balances') {
@@ -339,7 +340,8 @@ class DataTransferController extends Controller
             $errors[] = 'الميزان غير متوازن: المدين '.number_format($debits, 2).' والدائن '.number_format($credits, 2).' (الفرق '.number_format(abs($debits - $credits), 2).').';
         }
         if ($errors) {
-            throw ValidationException::withMessages(['file' => array_slice($errors, 0, 20)]);
+            // Inertia shares the first message per key: send the row errors as one, a line each.
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
         }
 
         return app(PostingService::class)->post([
