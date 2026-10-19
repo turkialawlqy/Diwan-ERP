@@ -102,6 +102,21 @@ const remove = async (url, message) => { if (await confirmAction(message, { dang
                     <button @click="payForm.post(route('hr.employees.pay-items.store', employee.id), { preserveScroll: true, onSuccess: () => payForm.reset() })" class="px-3 py-2 rounded-xl bg-indigo-600 text-white font-bold">إضافة</button>
                 </div>
             </div>
+            <div v-if="$can('hr.salaries.view') && employee.salary_changes?.length" class="md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4">
+                <h3 class="font-black text-slate-700 mb-2">سجل تعديلات الراتب</h3>
+                <div class="overflow-x-auto"><table class="w-full min-w-[640px]">
+                    <thead class="text-slate-500"><tr><th class="text-start py-1">السريان</th><th class="text-end">الأساسي</th><th class="text-end">السكن</th><th class="text-end">النقل</th><th class="text-end">أخرى</th><th class="text-start ps-3">السبب</th><th class="text-start">بواسطة</th></tr></thead>
+                    <tbody>
+                        <tr v-for="c in employee.salary_changes" :key="c.id" class="border-t border-slate-100">
+                            <td class="py-1 font-mono">{{ date(c.effective_date) }}</td>
+                            <td v-for="f in ['basic_salary', 'housing_allowance', 'transport_allowance', 'other_allowances']" :key="f" class="text-end font-mono">
+                                {{ money(c[f]) }}<span v-if="Number(c.previous?.[f] || 0) !== Number(c[f])" class="block text-3xs text-slate-400 line-through">{{ money(c.previous?.[f]) }}</span>
+                            </td>
+                            <td class="ps-3">{{ c.reason || '—' }}</td><td>{{ c.creator?.name }}</td>
+                        </tr>
+                    </tbody>
+                </table></div>
+            </div>
             <div class="md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4">
                 <h3 class="font-black text-slate-700 mb-2">السلف</h3>
                 <div v-for="l in employee.loans" :key="l.id" class="flex justify-between py-1 border-b border-slate-50"><span>{{ date(l.date) }} — قسط {{ money(l.monthly_installment) }}</span><span class="font-mono">{{ money(l.repaid) }} / {{ money(l.amount) }} <StatusBadge :status="l.status" /></span></div>

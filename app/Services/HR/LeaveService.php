@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\PublicHoliday;
 use App\Services\Settings\CompanyPolicy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -66,6 +67,13 @@ class LeaveService
         $start = Carbon::parse($data['start_date']);
         $end = Carbon::parse($data['end_date']);
         $days = (int) round($start->diffInDays($end)) + 1;
+        // Official holidays inside annual leave are not taken from the balance (Art. 112).
+        if ($type->deducts_balance) {
+            $days -= PublicHoliday::daysBetween($start, $end);
+            if ($days <= 0) {
+                throw ValidationException::withMessages(['start_date' => 'الفترة كلها عطلة رسمية؛ لا حاجة لطلب إجازة.']);
+            }
+        }
 
         $overlap = LeaveRequest::where('employee_id', $employee->id)->whereIn('status', ['pending', 'approved'])
             ->whereDate('start_date', '<=', $end)->whereDate('end_date', '>=', $start)->exists();

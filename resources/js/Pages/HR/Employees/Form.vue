@@ -17,7 +17,11 @@ const form = useForm({
     basic_salary: e.basic_salary ?? 0, housing_allowance: e.housing_allowance ?? 0, transport_allowance: e.transport_allowance ?? 0, other_allowances: e.other_allowances ?? 0,
     gosi_registered: e.gosi_registered ?? true, gosi_number: e.gosi_number || '', gosi_join_date: d(e.gosi_join_date), annual_leave_days: e.annual_leave_days || 21, leave_opening_balance: e.leave_opening_balance ?? 0,
     bank_name: e.bank_name || '', bank_code: e.bank_code || '', iban: e.iban || '', status: e.status || 'active', notes: e.notes || '',
+    salary_effective_date: new Date().toISOString().slice(0, 10), salary_change_reason: '',
 });
+// A pay change on an existing employee is recorded with its effective date.
+const payFields = ['basic_salary', 'housing_allowance', 'transport_allowance', 'other_allowances'];
+const payChanged = () => props.employee && payFields.some((f) => Number(form[f] || 0) !== Number(e[f] || 0));
 const save = () => (props.employee ? form.put(route('hr.employees.update', e.id)) : form.post(route('hr.employees.store')));
 const total = () => Number(form.basic_salary || 0) + Number(form.housing_allowance || 0) + Number(form.transport_allowance || 0) + Number(form.other_allowances || 0);
 const input = 'w-full rounded-xl border-slate-200 text-xs';
@@ -71,6 +75,10 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
                     <Field label="بدل السكن"><input v-model="form.housing_allowance" type="number" step="0.01" :class="input" class="font-mono" /></Field>
                     <Field label="بدل النقل"><input v-model="form.transport_allowance" type="number" step="0.01" :class="input" class="font-mono" /></Field>
                     <Field label="بدلات أخرى" :hint="`الإجمالي: ${money(total())}`"><input v-model="form.other_allowances" type="number" step="0.01" :class="input" class="font-mono" /></Field>
+                    <template v-if="payChanged()">
+                        <Field label="تاريخ سريان تعديل الراتب" :error="form.errors.salary_effective_date" hint="يُجزّأ المسير إن كان التاريخ في منتصف الشهر"><input v-model="form.salary_effective_date" type="date" :class="input" /></Field>
+                        <Field label="سبب التعديل" class="md:col-span-3"><input v-model="form.salary_change_reason" placeholder="زيادة سنوية، ترقية..." :class="input" /></Field>
+                    </template>
                     <label class="text-xs flex items-center gap-2"><input v-model="form.gosi_registered" type="checkbox" class="rounded" /> مسجل في التأمينات</label>
                     <Field label="رقم التأمينات"><input v-model="form.gosi_number" :class="input" /></Field>
                     <Field label="تاريخ أول تسجيل" hint="من 3 يوليو 2024 تُطبّق نسب النظام الجديد"><input v-model="form.gosi_join_date" type="date" :class="input" /></Field>

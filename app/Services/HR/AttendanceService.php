@@ -4,6 +4,7 @@ namespace App\Services\HR;
 
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
+use App\Models\PublicHoliday;
 use App\Models\WorkShift;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -22,7 +23,7 @@ class AttendanceService
         $metrics = ['worked_minutes' => 0, 'late_minutes' => 0, 'overtime_minutes' => 0];
 
         if (! $status) {
-            $status = $in ? 'present' : ($shift && ! in_array($day->isoWeekday(), $shift->work_days ?? [], true) ? 'weekend' : 'absent');
+            $status = $in ? 'present' : ($shift && ! in_array($day->isoWeekday(), $shift->work_days ?? [], true) ? 'weekend' : (PublicHoliday::covers($day) ? 'holiday' : 'absent'));
         }
 
         if ($in && $out) {

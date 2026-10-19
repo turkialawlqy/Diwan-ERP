@@ -12,7 +12,9 @@ use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeLoan;
 use App\Models\EmployeePayItem;
+use App\Models\EmployeeSalaryChange;
 use App\Models\JobPosition;
+use App\Models\Payroll;
 use App\Models\PayrollItem;
 use App\Models\User;
 use App\Models\WorkShift;
@@ -23,6 +25,7 @@ use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -96,7 +99,10 @@ class EmployeeController extends Controller
             && EmployeeLoan::where('employee_id', $employee->id)->where('status', 'active')->exists()) {
             throw ValidationException::withMessages(['status' => 'للموظف سلف قائمة؛ أنهِ خدمته من شاشة المخالصة لتُخصم السلف ويُقيَّد المستحق.']);
         }
-        $employee->update($validated);
+        DB::transaction(function () use ($request, $employee, $validated) {
+            $this->recordSalaryChange($request, $employee, $validated);
+            $employee->update($validated);
+        });
 
         return redirect()->route('hr.employees.show', $employee->id)->with('success', 'تم تحديث بيانات الموظف');
     }
@@ -105,7 +111,7 @@ class EmployeeController extends Controller
     {
         $canSalaries = $request->user()->can('hr.salaries.view');
         $employee->load(['branch:id,name_ar', 'departmentRef:id,name', 'position:id,title', 'manager:id,name', 'shift:id,name', 'user:id,name,email',
-            'documents', 'payItems', 'leaveRequests.type:id,name', 'loans']);
+            'documents', 'payItems', 'leaveRequests.type:id,name', 'loans', 'salaryChanges.creator:id,name']);
         $employee->documents->each(fn ($d) => $d->url = $d->file_path ? route('files.show', ['token' => Crypt::encryptString($d->file_path)], false) : null);
         if (! $canSalaries) {
             $employee->makeHidden(self::SALARY_FIELDS);
@@ -185,8 +191,39 @@ class EmployeeController extends Controller
         return back()->with('success', 'تم حذف البند');
     }
 
+    /**
+     * A pay change is kept with its effective date (the payroll prorates a
+     * change in mid-month). A date inside an approved payroll is refused:
+     * the difference for a closed month is paid as a bonus instead.
+     */
+    protected function recordSalaryChange(Request $request, Employee $employee, array $validated): void
+    {
+        $previous = array_map(fn ($f) => round((float) $employee->getRawOriginal($f), 2), array_combine(EmployeeSalaryChange::FIELDS, EmployeeSalaryChange::FIELDS));
+        $new = array_map(fn ($f) => round((float) ($validated[$f] ?? $previous[$f]), 2), array_combine(EmployeeSalaryChange::FIELDS, EmployeeSalaryChange::FIELDS));
+        if (! $request->user()->can('hr.salaries.view') || $previous == $new) {
+            return;
+        }
+
+        $data = $request->validate([
+            'salary_effective_date' => 'required|date',
+            'salary_change_reason' => 'nullable|string|max:255',
+        ], ['salary_effective_date.required' => 'حدد تاريخ سريان تعديل الراتب.']);
+        $effective = Carbon::parse($data['salary_effective_date']);
+        $closed = Payroll::whereIn('status', ['approved', 'paid'])
+            ->where(fn ($q) => $q->where('year', '>', $effective->year)->orWhere(fn ($q) => $q->where('year', $effective->year)->where('month', '>=', $effective->month)))
+            ->whereHas('items', fn ($q) => $q->where('employee_id', $employee->id))->exists();
+        if ($closed) {
+            throw ValidationException::withMessages(['salary_effective_date' => 'يوجد مسير معتمد من هذا التاريخ؛ اجعل السريان بعده وأضف فرق الأشهر السابقة كمكافأة.']);
+        }
+
+        EmployeeSalaryChange::create($new + [
+            'employee_id' => $employee->id, 'effective_date' => $effective->toDateString(), 'previous' => $previous,
+            'reason' => $data['salary_change_reason'] ?? null, 'created_by' => $request->user()->id,
+        ]);
+    }
+
     /** Pay and bank details only users with hr.salaries.view may see or change. */
-    public const SALARY_FIELDS = ['basic_salary', 'housing_allowance', 'transport_allowance', 'other_allowances', 'total_salary', 'iban', 'bank_name', 'bank_code', 'payItems', 'loans'];
+    public const SALARY_FIELDS = ['basic_salary', 'housing_allowance', 'transport_allowance', 'other_allowances', 'total_salary', 'iban', 'bank_name', 'bank_code', 'payItems', 'loans', 'salaryChanges'];
 
     protected function validated(Request $request, ?Employee $employee = null): array
     {

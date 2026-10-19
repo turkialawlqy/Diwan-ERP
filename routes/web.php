@@ -587,6 +587,8 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'erp.auth
         Route::put('/settings/{group}', [HrSettingsController::class, 'update'])->name('settings.update');
         Route::delete('/settings/{group}', [HrSettingsController::class, 'reset'])->name('settings.reset');
         Route::put('/leave-types/{leaveType}', [HrSettingsController::class, 'updateLeaveType'])->name('leave-types.update');
+        Route::post('/holidays', [HrSettingsController::class, 'storeHoliday'])->name('holidays.store');
+        Route::delete('/holidays/{holiday}', [HrSettingsController::class, 'destroyHoliday'])->name('holidays.destroy');
 
         Route::get('/organization', [HrOperationsController::class, 'organization'])->name('organization');
         Route::post('/organization/departments', [HrOperationsController::class, 'storeDepartment'])->name('departments.store');

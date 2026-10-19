@@ -69,6 +69,14 @@ return [
         'bank_format' => 'alrajhi',     // see App\Services\HR\BankSalaryFormats
     ],
 
+    // Lateness deduction: only when the company's approved work regulation
+    // provides for it. Minutes late beyond the monthly allowance are
+    // deducted at the minute wage.
+    'late_deduction' => [
+        'enabled' => false,
+        'monthly_grace_minutes' => 60,
+    ],
+
     // Indicative Nitaqat weighting of a Saudi employee by monthly wage
     // (basic + housing): full count at or above full_wage, half count from
     // half_wage, not counted below. The official band comes from Qiwa.

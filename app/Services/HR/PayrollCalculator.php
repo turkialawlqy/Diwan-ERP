@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAdjustment;
 use App\Models\EmployeeLoan;
 use App\Models\EmployeePayItem;
+use App\Models\EmployeeSalaryChange;
 use App\Models\LeaveRequest;
 use App\Services\Settings\CompanyPolicy;
 use Illuminate\Support\Carbon;
@@ -44,10 +45,21 @@ class PayrollCalculator
         $extraAllowances = (float) $payItems->where('kind', 'allowance')->sum('amount');
         $fixedDeductions = (float) $payItems->where('kind', 'deduction')->sum('amount');
 
-        $basic = (float) $employee->basic_salary;
-        $housing = (float) $employee->housing_allowance;
-        $transport = (float) $employee->transport_allowance;
-        $other = (float) $employee->other_allowances + $extraAllowances;
+        // Pay in effect on each day of the month (salary changes take effect on their date).
+        $changes = EmployeeSalaryChange::where('employee_id', $employee->id)->whereDate('effective_date', '>', $from)
+            ->orderBy('effective_date')->orderBy('id')->get();
+        $payOn = function (Carbon $day) use ($employee, $changes) {
+            $next = $changes->first(fn ($c) => $c->effective_date->gt($day));
+            $source = $next ? $next->previous : $employee->only(EmployeeSalaryChange::FIELDS);
+
+            return array_map(fn ($f) => (float) ($source[$f] ?? 0), array_combine(EmployeeSalaryChange::FIELDS, EmployeeSalaryChange::FIELDS));
+        };
+
+        $current = $payOn($to);
+        $basic = $current['basic_salary'];
+        $housing = $current['housing_allowance'];
+        $transport = $current['transport_allowance'];
+        $other = $current['other_allowances'] + $extraAllowances;
         $monthlyWage = $basic + $housing + $transport + $other;
         $dailyWage = $monthlyWage / $monthDays;
 
@@ -63,6 +75,14 @@ class PayrollCalculator
         $sickDeductionDays = $this->sickDeductionDays($employee, $from, $to);
         $absence = round($dailyWage * ($absentDays + $unpaidLeave + $sickDeductionDays), 2);
 
+        // Lateness, when the company's work regulation deducts it: minutes beyond the monthly allowance at the minute wage.
+        $lateMinutes = (int) AttendanceRecord::where('employee_id', $employee->id)->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->sum('late_minutes');
+        $lateDeducted = 0;
+        if (CompanyPolicy::get('hr.late_deduction.enabled', false)) {
+            $lateDeducted = max(0, $lateMinutes - (int) CompanyPolicy::get('hr.late_deduction.monthly_grace_minutes', 0));
+            $absence = round($absence + $lateDeducted * $monthlyWage / ($monthDays * (float) CompanyPolicy::get('hr.hours_per_day', 8) * 60), 2);
+        }
+
         // Overtime: attendance minutes + approved overtime hours.
         $adjustments = EmployeeAdjustment::where('employee_id', $employee->id)->where('year', $year)->where('month', $month)->get();
         $overtimeHours = (float) $adjustments->where('type', 'overtime_hours')->sum('amount')
@@ -74,10 +94,29 @@ class PayrollCalculator
         $penalties = round((float) $adjustments->whereIn('type', ['penalty', 'deduction'])->sum('amount') + $fixedDeductions, 2);
         $disciplinary = round((float) $adjustments->where('type', 'penalty')->sum('amount'), 2);
 
-        $earnedBasic = round($basic * $ratio, 2);
-        $earnedHousing = round($housing * $ratio, 2);
-        $earnedTransport = round($transport * $ratio, 2);
-        $earnedOther = round($other * $ratio, 2);
+        $earned = ['basic_salary' => $basic * $ratio, 'housing_allowance' => $housing * $ratio, 'transport_allowance' => $transport * $ratio, 'other_allowances' => $other * $ratio];
+        $midMonth = $changes->filter(fn ($c) => $c->effective_date->lte($to));
+        if ($midMonth->isNotEmpty() && $inService > 0) {
+            // Each stretch of the month at the pay then in effect, by calendar days in service.
+            $earned = array_fill_keys(EmployeeSalaryChange::FIELDS, 0.0);
+            $bounds = $midMonth->map(fn ($c) => $c->effective_date->copy()->startOfDay())->unique(fn ($d) => $d->toDateString())->values()->prepend($from->copy())->push($to->copy()->addDay());
+            for ($i = 0; $i < $bounds->count() - 1; $i++) {
+                $start = $bounds[$i]->max($serviceStart);
+                $end = $bounds[$i + 1]->copy()->subDay()->min($serviceEnd);
+                if ($end->lt($start)) {
+                    continue;
+                }
+                $days = (int) round($start->diffInDays($end)) + 1;
+                foreach ($payOn($start) as $field => $amount) {
+                    $earned[$field] += $amount * $days / $calendarDays;
+                }
+            }
+            $earned['other_allowances'] += $extraAllowances * $ratio;
+        }
+        $earnedBasic = round($earned['basic_salary'], 2);
+        $earnedHousing = round($earned['housing_allowance'], 2);
+        $earnedTransport = round($earned['transport_allowance'], 2);
+        $earnedOther = round($earned['other_allowances'], 2);
         // Absence can take the month's wage to nil, never below.
         $absence = min($absence, round($earnedBasic + $earnedHousing + $earnedTransport + $earnedOther, 2));
         $gross = round($earnedBasic + $earnedHousing + $earnedTransport + $earnedOther + $overtime + $bonuses - $absence, 2);
@@ -117,6 +156,8 @@ class PayrollCalculator
                 'absent_days' => $absentDays,
                 'unpaid_leave_days' => $unpaidLeave,
                 'sick_deduction_days' => $sickDeductionDays,
+                'late_minutes' => $lateMinutes,
+                'late_deducted_minutes' => $lateDeducted,
                 'overtime_hours' => round($overtimeHours, 2),
                 'gosi_base' => $gosiBase,
                 'loan_due' => $loanDue,

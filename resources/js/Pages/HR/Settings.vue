@@ -1,11 +1,19 @@
 <script setup>
 import { reactive } from 'vue';
-import { Head, router } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
+import { confirmAction } from '@/composables/useDialog';
+import { date } from '@/utils/format';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { ExclamationTriangleIcon } from '@heroicons/vue/24/outline';
 
-const props = defineProps({ groups: Object, leaveTypes: Array, bankFormats: Object, errors: Object });
+const props = defineProps({ groups: Object, leaveTypes: Array, bankFormats: Object, holidays: Array, errors: Object });
+const holiday = useForm({ name: '', start_date: '', end_date: '' });
+const year = new Date().getFullYear();
+// Fixed-date holidays; the two Eids follow the Hijri calendar, so their dates are entered each year.
+const presets = [['اليوم الوطني', `${year}-09-23`, `${year}-09-23`], ['يوم التأسيس', `${year}-02-22`, `${year}-02-22`], ['عطلة عيد الفطر', '', ''], ['عطلة عيد الأضحى', '', '']];
+const usePreset = ([name, start, end]) => Object.assign(holiday, { name, start_date: start, end_date: end });
+const removeHoliday = async (h) => { if (await confirmAction(`حذف «${h.name}»؟`, { danger: true, confirmText: 'حذف' })) router.delete(route('hr.holidays.destroy', h.id), { preserveScroll: true }); };
 
 // Editable copies per group.
 const forms = reactive(Object.fromEntries(Object.entries(props.groups).map(([k, g]) => [k, JSON.parse(JSON.stringify(g.value))])));
@@ -118,6 +126,34 @@ const inp = 'w-full rounded-xl border-slate-200 text-xs font-mono';
                 <button @click="forms['hr.end_of_service'].resignation.push({ below: 0, share: 0 })" class="text-indigo-600 font-bold">+ شريحة</button>
                 <p class="text-slate-400 mt-1">ما تجاوز آخر شريحة يستحق المكافأة كاملة.</p>
                 <div v-if="$can('hr.settings.manage')" class="flex gap-2 mt-3"><button @click="save('hr.end_of_service')" class="flex-1 px-3 py-2 rounded-xl bg-indigo-600 text-white font-bold">حفظ</button><button v-if="groups['hr.end_of_service'].overridden" @click="reset('hr.end_of_service')" class="px-3 py-2 rounded-xl border font-bold">استعادة النظامي</button></div>
+            </div>
+
+            <!-- Public holidays -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-4">
+                <h3 class="font-black text-slate-700 mb-1">العطل الرسمية (م 112)</h3>
+                <p class="text-slate-400 mb-3">لا تُخصم أيامها من الإجازة السنوية، ولا يُسجَّل فيها غياب. أدخل تواريخ العيدين ميلادياً لكل سنة.</p>
+                <div class="flex flex-wrap gap-1.5 mb-2"><button v-for="p in presets" :key="p[0]" @click="usePreset(p)" class="px-2 py-1 rounded-lg border border-slate-200">{{ p[0] }}</button></div>
+                <div v-if="$can('hr.settings.manage')" class="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
+                    <input v-model="holiday.name" placeholder="الاسم" class="col-span-2 sm:col-span-1 rounded-xl border-slate-200 text-xs" />
+                    <input v-model="holiday.start_date" type="date" class="rounded-xl border-slate-200 text-xs" />
+                    <input v-model="holiday.end_date" type="date" class="rounded-xl border-slate-200 text-xs" />
+                    <button @click="holiday.post(route('hr.holidays.store'), { preserveScroll: true, onSuccess: () => holiday.reset() })" :disabled="holiday.processing" class="px-3 py-2 rounded-xl bg-indigo-600 text-white font-bold">إضافة</button>
+                </div>
+                <p v-for="k in ['name', 'start_date', 'end_date']" :key="k" class="text-rose-600">{{ holiday.errors[k] }}</p>
+                <div v-for="h in holidays" :key="h.id" class="flex justify-between py-1 border-b border-slate-50 mt-1">
+                    <span>{{ h.name }} <span class="font-mono text-slate-400">{{ date(h.start_date) }} → {{ date(h.end_date) }}</span></span>
+                    <button v-if="$can('hr.settings.manage')" @click="removeHoliday(h)" class="text-rose-600">✕</button>
+                </div>
+            </div>
+
+            <!-- Late deduction -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-4">
+                <h3 class="font-black text-slate-700 mb-1">خصم التأخير</h3>
+                <p class="text-slate-400 mb-3">فعّله فقط إذا نصّت عليه لائحة تنظيم العمل المعتمدة لمنشأتك. يُخصم ما زاد على السماح الشهري بأجر الدقيقة.</p>
+                <label class="flex items-center gap-2 mb-2"><input v-model="forms['hr.late_deduction'].enabled" type="checkbox" class="rounded" /> خصم دقائق التأخير من الراتب</label>
+                <label class="block">دقائق السماح الشهرية<input v-model="forms['hr.late_deduction'].monthly_grace_minutes" type="number" min="0" :class="inp" /></label>
+                <p v-if="err('monthly_grace_minutes')" class="text-rose-600">{{ err('monthly_grace_minutes')[0] }}</p>
+                <div v-if="$can('hr.settings.manage')" class="flex gap-2 mt-3"><button @click="save('hr.late_deduction')" class="flex-1 px-3 py-2 rounded-xl bg-indigo-600 text-white font-bold">حفظ</button></div>
             </div>
 
             <!-- Wage protection -->

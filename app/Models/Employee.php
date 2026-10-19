@@ -102,6 +102,11 @@ class Employee extends Model
         return $this->hasMany(EmployeeDocument::class);
     }
 
+    public function salaryChanges(): HasMany
+    {
+        return $this->hasMany(EmployeeSalaryChange::class)->orderByDesc('effective_date')->orderByDesc('id');
+    }
+
     public function payItems(): HasMany
     {
         return $this->hasMany(EmployeePayItem::class);

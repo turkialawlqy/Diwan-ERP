@@ -16,7 +16,7 @@ class CompanyPolicy
     /** Overridable groups (config keys). */
     public const GROUPS = [
         'hr.month_days', 'hr.hours_per_day', 'hr.overtime_premium', 'hr.max_deduction_ratio',
-        'hr.gosi', 'hr.annual_leave', 'hr.sick_tiers', 'hr.end_of_service', 'hr.wps',
+        'hr.gosi', 'hr.annual_leave', 'hr.sick_tiers', 'hr.end_of_service', 'hr.wps', 'hr.late_deduction',
     ];
 
     public static function get(string $key, mixed $default = null): mixed

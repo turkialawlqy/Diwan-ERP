@@ -504,6 +504,8 @@ return [
         'hr.settings.update' => 'hr.settings.manage',
         'hr.settings.reset' => 'hr.settings.manage',
         'hr.leave-types.update' => 'hr.settings.manage',
+        'hr.holidays.store' => 'hr.settings.manage',
+        'hr.holidays.destroy' => 'hr.settings.manage',
         'hr.organization' => 'hr.organization.view',
         'hr.departments.store' => 'hr.organization.manage',
         'hr.positions.store' => 'hr.organization.manage',

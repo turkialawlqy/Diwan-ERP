@@ -4,11 +4,13 @@ namespace App\Http\Controllers\HR;
 
 use App\Http\Controllers\Controller;
 use App\Models\LeaveType;
+use App\Models\PublicHoliday;
 use App\Services\HR\BankSalaryFormats;
 use App\Services\HR\LeaveService;
 use App\Services\Settings\CompanyPolicy;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -40,6 +42,7 @@ class HrSettingsController extends Controller
             'groups' => $groups,
             'leaveTypes' => LeaveType::orderBy('id')->get(),
             'bankFormats' => collect(BankSalaryFormats::FORMATS)->map(fn ($f) => $f['label']),
+            'holidays' => PublicHoliday::orderByDesc('start_date')->limit(60)->get(),
         ]);
     }
 
@@ -58,6 +61,24 @@ class HrSettingsController extends Controller
         $this->policy->reset($this->tenantManager->getCompany(), $group);
 
         return back()->with('success', 'تمت استعادة القيمة النظامية الافتراضية.');
+    }
+
+    public function storeHoliday(Request $request)
+    {
+        PublicHoliday::create($request->validate([
+            'name' => 'required|string|max:100',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date|before_or_equal:'.Carbon::parse((string) $request->input('start_date'))->addDays(30)->toDateString(),
+        ]));
+
+        return back()->with('success', 'تمت إضافة العطلة؛ لا تُخصم أيامها من الإجازات السنوية الجديدة ولا تُسجّل غياباً.');
+    }
+
+    public function destroyHoliday(PublicHoliday $holiday)
+    {
+        $holiday->delete();
+
+        return back()->with('success', 'تم حذف العطلة');
     }
 
     public function updateLeaveType(Request $request, LeaveType $leaveType)
@@ -99,7 +120,7 @@ class HrSettingsController extends Controller
                 'later_rate' => $value['later_rate'],
                 'resignation' => array_map(fn ($t) => ['below' => $t[0], 'share' => $pct($t[1])], $value['resignation']),
             ],
-            'hr.annual_leave', 'hr.wps' => $value,
+            'hr.annual_leave', 'hr.wps', 'hr.late_deduction' => $value,
         };
     }
 
@@ -130,6 +151,7 @@ class HrSettingsController extends Controller
                 'resignation' => collect($v['resignation'])->sortBy('below')->map(fn ($t) => [(float) $t['below'], $frac($t['share'])])->values()->all(),
             ],
             'hr.annual_leave' => ['days' => (int) $v['days'], 'senior_days' => (int) $v['senior_days'], 'senior_after_years' => (int) $v['senior_after_years']],
+            'hr.late_deduction' => ['enabled' => (bool) ($v['enabled'] ?? false), 'monthly_grace_minutes' => (int) $v['monthly_grace_minutes']],
             'hr.wps' => [
                 'mol_establishment_id' => trim((string) ($v['mol_establishment_id'] ?? '')),
                 'gosi_establishment_id' => trim((string) ($v['gosi_establishment_id'] ?? '')),
@@ -159,6 +181,7 @@ class HrSettingsController extends Controller
                 'resignation' => 'required|array|max:10', 'resignation.*.below' => 'required|numeric|min:0|max:60|distinct', 'resignation.*.share' => $pct,
             ],
             'hr.annual_leave' => ['days' => 'required|integer|min:21|max:60', 'senior_days' => 'required|integer|gte:days|max:60', 'senior_after_years' => 'required|integer|min:1|max:30'],
+            'hr.late_deduction' => ['enabled' => 'boolean', 'monthly_grace_minutes' => 'required|integer|min:0|max:6000'],
             'hr.wps' => [
                 'mol_establishment_id' => 'nullable|string|max:30', 'gosi_establishment_id' => 'nullable|string|max:30',
                 'company_iban' => ['nullable', 'string', function ($attribute, $iban, $fail) {

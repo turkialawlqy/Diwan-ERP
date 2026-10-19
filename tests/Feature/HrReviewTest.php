@@ -12,11 +12,13 @@ use App\Models\LeaveType;
 use App\Models\Payroll;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
+use App\Services\HR\AttendanceService;
 use App\Services\HR\EmployeeFinanceService;
 use App\Services\HR\LeaveService;
 use App\Services\HR\PayrollCalculator;
 use App\Services\HR\PayrollService;
 use App\Services\Saas\AlertService;
+use App\Services\Settings\CompanyPolicy;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -309,5 +311,80 @@ class HrReviewTest extends TestCase
     {
         app(PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
         $user->givePermissionTo($permissions);
+    }
+
+    // ------------------------------------------------------------------ H3
+
+    public function test_a_mid_month_raise_is_prorated_and_logged(): void
+    {
+        $e = $this->employee(['national_id' => '1022222222', 'id_type' => 'national_id', 'contract_type' => 'unlimited']);
+
+        // From 16 June (30-day month): 15 days at 6000/1500, 15 days at 9000/1500.
+        $this->put(route('hr.employees.update', $e), $this->employeeForm(['name' => 'أحمد', 'national_id' => '1022222222', 'basic_salary' => 9000, 'housing_allowance' => 1500,
+            'salary_effective_date' => '2026-06-16', 'salary_change_reason' => 'ترقية']))->assertSessionHasNoErrors();
+        $change = $e->salaryChanges()->first();
+        $this->assertSame(6000.0, (float) $change->previous['basic_salary']);
+        $this->assertSame('ترقية', $change->reason);
+
+        $pay = app(PayrollCalculator::class)->calculate($e->fresh(), 2026, 6);
+        $this->assertSame(7500.0, $pay['basic_salary']);
+        $this->assertSame(1500.0, $pay['housing_allowance']);
+        // May was entirely at the old pay; July entirely at the new one.
+        $this->assertSame(6000.0, app(PayrollCalculator::class)->calculate($e->fresh(), 2026, 5)['basic_salary']);
+        $this->assertSame(9000.0, app(PayrollCalculator::class)->calculate($e->fresh(), 2026, 7)['basic_salary']);
+    }
+
+    public function test_a_raise_cannot_take_effect_inside_an_approved_payroll(): void
+    {
+        $e = $this->employee(['national_id' => '1022222223', 'id_type' => 'national_id', 'contract_type' => 'unlimited']);
+        $service = app(PayrollService::class);
+        $service->approve($service->generate(2026, 6));
+
+        $this->put(route('hr.employees.update', $e), $this->employeeForm(['national_id' => '1022222223', 'basic_salary' => 9000, 'housing_allowance' => 1500, 'salary_effective_date' => '2026-06-01']))
+            ->assertSessionHasErrors('salary_effective_date');
+        $this->put(route('hr.employees.update', $e), $this->employeeForm(['national_id' => '1022222223', 'basic_salary' => 9000, 'housing_allowance' => 1500, 'salary_effective_date' => '2026-07-01']))
+            ->assertSessionHasNoErrors();
+        $this->assertSame(9000.0, (float) $e->fresh()->basic_salary);
+    }
+
+    public function test_public_holidays_are_not_taken_from_annual_leave_nor_marked_absent(): void
+    {
+        $this->post(route('hr.holidays.store'), ['name' => 'عطلة عيد الأضحى', 'start_date' => '2026-05-26', 'end_date' => '2026-05-29'])->assertSessionHasNoErrors();
+        $e = $this->employee();
+
+        $leave = app(LeaveService::class)->request($e, ['leave_type_id' => LeaveType::where('code', 'annual')->value('id'), 'start_date' => '2026-05-24', 'end_date' => '2026-06-02']);
+        $this->assertSame(6.0, (float) $leave->days); // 10 calendar days less 4 holiday days
+
+        $record = app(AttendanceService::class)->record($e, '2026-05-27', null, null);
+        $this->assertSame('holiday', $record->status);
+    }
+
+    public function test_lateness_is_deducted_only_when_the_policy_is_on(): void
+    {
+        $e = $this->employee();
+        foreach (['2026-06-02', '2026-06-03'] as $day) {
+            AttendanceRecord::create(['employee_id' => $e->id, 'date' => $day, 'status' => 'present', 'late_minutes' => 75]);
+        }
+        $calc = app(PayrollCalculator::class);
+        $this->assertSame(0.0, $calc->calculate($e, 2026, 6)['absence_deduction']);
+
+        app(CompanyPolicy::class)->set($this->company, 'hr.late_deduction', ['enabled' => true, 'monthly_grace_minutes' => 30]);
+        $pay = $calc->calculate($e, 2026, 6);
+        // 150 - 30 = 120 minutes at 7500 / (30 x 8 x 60) = 0.5208 a minute.
+        $this->assertSame(120, $pay['breakdown']['late_deducted_minutes']);
+        $this->assertSame(62.5, $pay['absence_deduction']);
+    }
+
+    public function test_date_columns_reach_the_browser_as_the_same_day(): void
+    {
+        config(['app.timezone' => 'Asia/Riyadh']);
+        date_default_timezone_set('Asia/Riyadh');
+        $leave = $this->leave($this->employee(), 'annual', '2026-07-01', '2026-07-03', 'pending');
+
+        $array = LeaveRequest::find($leave->id)->toArray();
+        $this->assertStringStartsWith('2026-07-01', $array['start_date']);
+        $this->assertStringStartsWith('2026-07-03', $array['end_date']);
+        $this->assertStringEndsWith('+03:00', $array['start_date']);
+        $this->assertStringStartsWith('2026-07-01', auth()->user()->forceFill(['email_verified_at' => '2026-07-01 00:30:00'])->toArray()['email_verified_at']);
     }
 }
