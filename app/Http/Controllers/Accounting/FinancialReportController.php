@@ -46,10 +46,11 @@ class FinancialReportController extends Controller
     public function cashFlow(Request $request): Response
     {
         [$from, $to, $filters] = $this->range($request);
+        $method = $request->validate(['method' => 'nullable|in:direct,indirect'])['method'] ?? 'direct';
 
         return Inertia::render('Accounting/Reports/CashFlow', [
-            'report' => $this->reports->cashFlow($from, $to),
-            'filters' => $filters,
+            'report' => $method === 'indirect' ? $this->reports->cashFlowIndirect($from, $to) : $this->reports->cashFlow($from, $to),
+            'filters' => $filters + ['method' => $method],
         ]);
     }
 

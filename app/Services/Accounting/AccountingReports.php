@@ -3,6 +3,7 @@
 namespace App\Services\Accounting;
 
 use App\Models\Account;
+use App\Models\AssetCategory;
 use App\Models\BankAccount;
 use App\Models\Customer;
 use App\Models\JournalEntry;
@@ -421,6 +422,86 @@ class AccountingReports
             'net_change' => round($net, 2),
             'opening_cash' => round($openingCash, 2),
             'closing_cash' => round($openingCash + $net, 2),
+        ];
+    }
+
+    /**
+     * Cash flow statement, indirect method: operating cash is derived from
+     * net profit, adjusted for non-cash items (depreciation, impairment,
+     * provisions, gains on investing items) and for the change in working
+     * capital. Investing and financing are the actual cash flows of the
+     * direct method, so both statements reach the same cash; any operating
+     * difference (non-cash investing or financing transactions, such as an
+     * asset bought on credit) is shown on its own line.
+     */
+    public function cashFlowIndirect(Carbon $from, Carbon $to): array
+    {
+        $direct = $this->cashFlow($from, $to);
+        $cashIds = $this->cashAccountIds();
+        $accounts = Account::query()->where('is_parent', false)->get(['id', 'code', 'name_ar', 'type', 'cash_flow_category'])->keyBy('id');
+
+        // Period movement (credit - debit) per account, without opening and year-end closing entries.
+        $closingIds = DB::table('journal_entries')->where('company_id', $this->companyId())->where('entry_type', 'closing')->pluck('id');
+        $movement = DB::table('journal_entry_lines as l')
+            ->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
+            ->where('l.company_id', $this->companyId())
+            ->whereIn('e.status', self::STATUSES)
+            ->whereBetween('l.date', [$from->toDateString(), $to->toDateString().' 23:59:59'])
+            ->where(fn ($q) => $q->whereNull('e.entry_type')->orWhereNotIn('e.entry_type', ['opening', 'closing']))
+            ->when($closingIds->isNotEmpty(), fn ($q) => $q->where(fn ($q) => $q->whereNull('e.reversal_of_id')->orWhereNotIn('e.reversal_of_id', $closingIds)))
+            ->groupBy('l.account_id')
+            ->selectRaw('l.account_id, SUM(l.credit) - SUM(l.debit) as net')
+            ->pluck('net', 'account_id')->map(fn ($v) => (float) $v);
+        $net = fn ($ids) => round(collect((array) $ids)->filter()->sum(fn ($id) => $movement[$id] ?? 0), 2);
+        $row = fn ($id, $amount) => ['id' => $id, 'code' => $accounts[$id]->code ?? '', 'name' => $accounts[$id]->name_ar ?? '', 'amount' => round($amount, 2)];
+
+        $profitAndLoss = $accounts->whereIn('type', ['revenue', 'expense']);
+        $profit = $net($profitAndLoss->keys()->all());
+
+        $categories = AssetCategory::query()->get(['asset_account_id', 'accumulated_account_id', 'expense_account_id']);
+        $depreciationIds = $categories->pluck('expense_account_id')->push($this->map->find('depreciation_expense'))->filter()->unique()->all();
+        $impairmentId = $this->map->find('impairment_loss');
+        $provisionIds = array_values(array_filter([$this->map->find('end_of_service_provision'), $this->map->find('leave_provision')]));
+        $fixedAssetIds = $categories->pluck('asset_account_id')->merge($categories->pluck('accumulated_account_id'))
+            ->push($this->map->find('fixed_assets'))->push($this->map->find('accumulated_depreciation'))->filter()->unique()->all();
+
+        $adjustments = [];
+        if ($amount = -$net($depreciationIds)) {
+            $adjustments[] = ['id' => null, 'name' => 'الإهلاك', 'amount' => $amount];
+        }
+        if ($impairmentId && ($amount = -$net([$impairmentId]))) {
+            $adjustments[] = ['id' => null, 'name' => 'خسائر هبوط قيمة الأصول', 'amount' => $amount];
+        }
+        foreach ($provisionIds as $id) {
+            if ($amount = $net([$id])) {
+                $adjustments[] = $row($id, $amount);
+            }
+        }
+        // Gains and losses on investing / financing items: their cash is in those sections.
+        foreach ($profitAndLoss->whereIn('cash_flow_category', ['investing', 'financing']) as $id => $account) {
+            if (! in_array($id, $depreciationIds, true) && $id !== $impairmentId && ($amount = -$net([$id]))) {
+                $adjustments[] = $row($id, $amount);
+            }
+        }
+
+        // Working capital: operating balance sheet accounts other than cash, fixed assets and provisions.
+        $excluded = array_merge($cashIds, $fixedAssetIds, $provisionIds);
+        $workingCapital = $accounts->whereIn('type', ['asset', 'liability'])
+            ->reject(fn ($a) => in_array($a->id, $excluded, true) || in_array($a->cash_flow_category, ['investing', 'financing', 'cash'], true))
+            ->map(fn ($a) => $row($a->id, $net([$a->id])))
+            ->filter(fn ($r) => abs($r['amount']) >= 0.01)->sortBy('code')->values()->all();
+
+        $operating = $direct['sections']['operating']['total'];
+        $explained = round($profit + array_sum(array_column($adjustments, 'amount')) + array_sum(array_column($workingCapital, 'amount')), 2);
+
+        return $direct + [
+            'indirect' => [
+                'net_profit' => $profit,
+                'adjustments' => $adjustments,
+                'working_capital' => $workingCapital,
+                'non_cash' => round($operating - $explained, 2),
+                'operating_total' => $operating,
+            ],
         ];
     }
 
