@@ -17,6 +17,7 @@ class FixedAsset extends Model
         'location', 'acquisition_date', 'depreciation_start_date', 'cost', 'salvage_value', 'useful_life_months',
         'depreciation_method', 'accumulated_depreciation', 'last_depreciation_date', 'status', 'disposal_date',
         'disposal_amount', 'acquisition_entry_id', 'disposal_entry_id', 'notes', 'opening_accumulated', 'acquisition_vat', 'disposal_vat',
+        'accumulated_impairment', 'total_units', 'unit_label',
     ];
 
     protected $casts = [
@@ -31,18 +32,30 @@ class FixedAsset extends Model
         'opening_accumulated' => 'decimal:2',
         'acquisition_vat' => 'decimal:2',
         'disposal_vat' => 'decimal:2',
+        'accumulated_impairment' => 'decimal:2',
+        'total_units' => 'decimal:2',
     ];
 
     protected $appends = ['book_value'];
 
     public function getBookValueAttribute(): float
     {
-        return round((float) $this->cost - (float) $this->accumulated_depreciation, 2);
+        return round((float) $this->cost - (float) $this->accumulated_depreciation - (float) $this->accumulated_impairment, 2);
     }
 
     public function category(): BelongsTo
     {
         return $this->belongsTo(AssetCategory::class, 'asset_category_id');
+    }
+
+    public function impairments(): HasMany
+    {
+        return $this->hasMany(AssetImpairment::class)->orderBy('date');
+    }
+
+    public function usages(): HasMany
+    {
+        return $this->hasMany(AssetUsage::class)->orderBy('period');
     }
 
     public function depreciations(): HasMany

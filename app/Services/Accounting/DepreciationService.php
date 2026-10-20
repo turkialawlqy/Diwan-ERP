@@ -3,13 +3,17 @@
 namespace App\Services\Accounting;
 
 use App\Models\AssetDepreciation;
+use App\Models\AssetImpairment;
+use App\Models\AssetUsage;
+use App\Models\Equipment;
+use App\Models\EquipmentReading;
 use App\Models\FixedAsset;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Monthly depreciation of fixed assets (straight line or declining balance),
- * acquisition and disposal postings.
+ * Monthly depreciation of fixed assets (straight line, declining balance or
+ * units of production), impairment, acquisition and disposal postings.
  */
 class DepreciationService
 {
@@ -97,11 +101,17 @@ class DepreciationService
             $isPartial = $partialDate && $period === (int) $partialDate->format('Ym');
 
             if (! in_array($period, $done, true)) {
-                $amount = $this->monthlyAmount($asset);
-                if ($isPartial) {
+                $amount = $this->monthlyAmount($asset, $period);
+                // Units of production: a month without usage depreciates nothing (the usage itself is not prorated).
+                if ($isPartial && $asset->depreciation_method !== 'units_of_production') {
                     $amount = round($amount * $partialDate->day / $monthEnd->daysInMonth, 2);
                 }
                 if ($amount <= 0) {
+                    if ($asset->depreciation_method === 'units_of_production' && $this->remaining($asset) > 0) {
+                        $cursor->addMonthNoOverflow()->startOfMonth();
+
+                        continue;
+                    }
                     break;
                 }
                 $this->postMonth($asset, $isPartial ? $partialDate : $monthEnd, $period, $amount);
@@ -137,29 +147,171 @@ class DepreciationService
             $asset->update([
                 'accumulated_depreciation' => $accumulated,
                 'last_depreciation_date' => $date->toDateString(),
-                'status' => $accumulated >= (float) $asset->cost - (float) $asset->salvage_value - 0.005 ? 'fully_depreciated' : 'active',
+                'status' => $accumulated + (float) $asset->accumulated_impairment >= (float) $asset->cost - (float) $asset->salvage_value - 0.005 ? 'fully_depreciated' : 'active',
             ]);
         });
     }
 
-    public function monthlyAmount(FixedAsset $asset): float
+    /**
+     * The months still to come, as the monthly run would post them (nothing
+     * is posted). Units of production depends on future usage: none.
+     * Declining balance stops at the end of the useful life, leaving the
+     * book value it has not reached.
+     *
+     * @return array<int, array{period: int, amount: float, accumulated: float, book_value: float}>
+     */
+    public function schedule(FixedAsset $asset): array
     {
-        $depreciable = (float) $asset->cost - (float) $asset->salvage_value;
-        $remaining = round($depreciable - (float) $asset->accumulated_depreciation, 2);
+        if ($asset->status !== 'active' || $asset->depreciation_method === 'units_of_production') {
+            return [];
+        }
+        $asset->loadMissing('category');
+        $simulated = $asset->replicate();
+        $simulated->setRelation('category', $asset->category);
 
-        if ($remaining <= 0 || $asset->useful_life_months <= 0) {
+        $done = AssetDepreciation::where('fixed_asset_id', $asset->id)->count();
+        $last = AssetDepreciation::where('fixed_asset_id', $asset->id)->max('period');
+        $cursor = $last ? $this->monthStart((int) $last)->addMonthNoOverflow()
+            : Carbon::parse($asset->depreciation_start_date)->startOfMonth();
+        $months = $asset->depreciation_method === 'declining_balance' ? max(0, $asset->useful_life_months - $done) : 1200;
+
+        $rows = [];
+        while (count($rows) < $months) {
+            $period = (int) $cursor->format('Ym');
+            $amount = $this->monthlyAmount($simulated, $period);
+            if ($amount <= 0) {
+                break;
+            }
+            $simulated->accumulated_depreciation = round((float) $simulated->accumulated_depreciation + $amount, 2);
+            $written = round((float) $simulated->accumulated_depreciation + (float) $simulated->accumulated_impairment, 2);
+            $rows[] = ['period' => $period, 'amount' => $amount, 'accumulated' => $written, 'book_value' => round((float) $asset->cost - $written, 2)];
+            $cursor->addMonthNoOverflow();
+        }
+
+        return $rows;
+    }
+
+    /** First day of a Ym period (createFromFormat would take today's day and overflow short months). */
+    protected function monthStart(int $period): Carbon
+    {
+        return Carbon::create(intdiv($period, 100), $period % 100, 1)->startOfDay();
+    }
+
+    /** Depreciable amount not yet written off (by depreciation or impairment). */
+    public function remaining(FixedAsset $asset): float
+    {
+        return round((float) $asset->cost - (float) $asset->salvage_value - (float) $asset->accumulated_depreciation - (float) $asset->accumulated_impairment, 2);
+    }
+
+    /**
+     * Depreciation of one month (Ym; defaults to the current month). After an
+     * impairment the remaining amount is spread over the remaining life.
+     */
+    public function monthlyAmount(FixedAsset $asset, ?int $period = null): float
+    {
+        $period ??= (int) now()->format('Ym');
+        $remaining = $this->remaining($asset);
+
+        if ($remaining <= 0 || ($asset->useful_life_months <= 0 && $asset->depreciation_method !== 'units_of_production')) {
             return 0.0;
         }
 
-        if ($asset->depreciation_method === 'declining_balance') {
+        if ($asset->depreciation_method === 'units_of_production') {
+            $units = $this->unitsFor($asset, $period);
+            $unitsLeft = (float) $asset->total_units - $this->unitsBefore($asset, $period);
+            if ($units <= 0 || (float) $asset->total_units <= 0) {
+                return 0.0;
+            }
+            $amount = round($remaining * $units / max($units, $unitsLeft), 2);
+        } elseif ($asset->depreciation_method === 'declining_balance') {
+            $asset->loadMissing('category');
             $rate = (float) ($asset->category->declining_rate ?: (200 / max(1, $asset->useful_life_months / 12)));
-            $bookValue = (float) $asset->cost - (float) $asset->accumulated_depreciation;
+            $bookValue = (float) $asset->cost - (float) $asset->accumulated_depreciation - (float) $asset->accumulated_impairment;
             $amount = round($bookValue * ($rate / 100) / 12, 2);
+        } elseif ((float) $asset->accumulated_impairment > 0) {
+            $month = $this->monthStart($period);
+            $elapsed = (int) Carbon::parse($asset->acquisition_date)->startOfMonth()->diffInMonths($month);
+            $amount = round($remaining / max(1, $asset->useful_life_months - $elapsed), 2);
         } else {
-            $amount = round($depreciable / $asset->useful_life_months, 2);
+            $amount = round(((float) $asset->cost - (float) $asset->salvage_value) / $asset->useful_life_months, 2);
         }
 
         return min($amount, $remaining);
+    }
+
+    /**
+     * Units of a month: entered on the asset, or else the hours worked by the
+     * equipment linked to it.
+     */
+    public function unitsFor(FixedAsset $asset, int $period): float
+    {
+        $entered = AssetUsage::where('fixed_asset_id', $asset->id)->where('period', $period)->value('units');
+        if ($entered !== null) {
+            return (float) $entered;
+        }
+        $equipmentId = Equipment::where('fixed_asset_id', $asset->id)->value('id');
+        if (! $equipmentId) {
+            return 0.0;
+        }
+        $month = $this->monthStart($period);
+
+        return (float) EquipmentReading::where('equipment_id', $equipmentId)
+            ->whereDate('date', '>=', $month)->whereDate('date', '<=', $month->copy()->endOfMonth())->sum('worked_hours');
+    }
+
+    /** Units of the months already depreciated before $period. */
+    protected function unitsBefore(FixedAsset $asset, int $period): float
+    {
+        return (float) AssetDepreciation::where('fixed_asset_id', $asset->id)->where('period', '<', $period)->pluck('period')
+            ->sum(fn ($p) => $this->unitsFor($asset, (int) $p));
+    }
+
+    /**
+     * Impairment (IAS 36): the asset's carrying amount is written down to its
+     * recoverable amount. Depreciation is first brought up to the previous
+     * month so the loss is measured on the current book value.
+     *
+     *   Dr Impairment loss / Cr Accumulated depreciation (of the category)
+     */
+    public function impair(FixedAsset $asset, Carbon $date, float $amount, ?string $reason = null): AssetImpairment
+    {
+        if (! in_array($asset->status, ['active', 'fully_depreciated'], true)) {
+            throw new AccountingException('لا يمكن تسجيل هبوط قيمة لأصل مستبعد.');
+        }
+        $asset->loadMissing('category');
+        if ($asset->status === 'active' && $date->copy()->startOfMonth()->gt(Carbon::parse($asset->depreciation_start_date)->startOfMonth())) {
+            $this->depreciateThrough($asset, $date->copy()->startOfMonth()->subDay());
+            $asset->refresh();
+        }
+
+        $amount = round($amount, 2);
+        $max = $this->remaining($asset);
+        if ($amount <= 0 || $amount > $max + 0.005) {
+            throw new AccountingException('مبلغ هبوط القيمة يجب أن يكون أكبر من صفر ولا يتجاوز القيمة الدفترية القابلة للإهلاك ('.number_format($max, 2).').');
+        }
+
+        return DB::transaction(function () use ($asset, $date, $amount, $reason) {
+            $entry = $this->posting->post([
+                'date' => $date,
+                'description' => "هبوط قيمة الأصل {$asset->code} - {$asset->name_ar}",
+                'source' => $asset,
+                'lines' => [
+                    ['role' => 'impairment_loss', 'debit' => $amount, 'cost_center_id' => $asset->cost_center_id],
+                    ['account_id' => $asset->category->accumulated_account_id, 'credit' => $amount, 'description' => 'هبوط قيمة'],
+                ],
+            ]);
+
+            $impaired = round((float) $asset->accumulated_impairment + $amount, 2);
+            $asset->update([
+                'accumulated_impairment' => $impaired,
+                'status' => (float) $asset->accumulated_depreciation + $impaired >= (float) $asset->cost - (float) $asset->salvage_value - 0.005 ? 'fully_depreciated' : $asset->status,
+            ]);
+
+            return AssetImpairment::create([
+                'fixed_asset_id' => $asset->id, 'date' => $date->toDateString(), 'amount' => $amount,
+                'reason' => $reason, 'journal_entry_id' => $entry->id, 'created_by' => auth()->id(),
+            ]);
+        });
     }
 
     /**
@@ -185,7 +337,8 @@ class DepreciationService
         }
 
         $cost = (float) $asset->cost;
-        $accumulated = (float) $asset->accumulated_depreciation;
+        // Impairment losses sit in the same accumulated account and leave with the asset.
+        $accumulated = round((float) $asset->accumulated_depreciation + (float) $asset->accumulated_impairment, 2);
         $bookValue = round($cost - $accumulated, 2);
         $gain = round($proceeds - $bookValue, 2);
 

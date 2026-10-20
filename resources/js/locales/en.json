@@ -62,6 +62,7 @@
         "audit_log": "Audit Log",
         "recurring_journals": "Recurring Journals",
         "cost_centers": "Cost Centers",
+        "asset_register": "Fixed Asset Register",
         "fixed_assets": "Fixed Assets",
         "period_end": "Period End (FX & Zakat)",
         "cheques": "Cheques",

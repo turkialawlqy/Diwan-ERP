@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Accounting;
 use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\AssetCategory;
+use App\Models\AssetDepreciation;
+use App\Models\AssetUsage;
 use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\CostCenter;
 use App\Models\FixedAsset;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DepreciationService;
+use App\Services\Accounting\FixedAssetRegister;
 use App\Services\TenantManager;
 use App\Services\Zatca\VatClassifier;
 use Illuminate\Http\Request;
@@ -40,7 +43,7 @@ class FixedAssetController extends Controller
             ->withQueryString();
 
         $totals = FixedAsset::where('status', '!=', 'disposed')
-            ->selectRaw('COALESCE(SUM(cost),0) as cost, COALESCE(SUM(accumulated_depreciation),0) as accumulated')
+            ->selectRaw('COALESCE(SUM(cost),0) as cost, COALESCE(SUM(accumulated_depreciation + accumulated_impairment),0) as accumulated')
             ->first();
 
         return Inertia::render('Accounting/FixedAssets/Index', [
@@ -61,7 +64,7 @@ class FixedAssetController extends Controller
             'name_ar' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'useful_life_months' => 'required|integer|min:1|max:1200',
-            'depreciation_method' => 'required|in:straight_line,declining_balance',
+            'depreciation_method' => 'required|in:straight_line,declining_balance,units_of_production',
             'declining_rate' => 'nullable|numeric|min:0|max:100',
             'asset_account_id' => 'nullable|tenant_exists:accounts,id',
             'accumulated_account_id' => 'nullable|tenant_exists:accounts,id',
@@ -95,6 +98,8 @@ class FixedAssetController extends Controller
             'cost' => 'required|numeric|min:0.01',
             'salvage_value' => 'nullable|numeric|min:0|lt:cost',
             'useful_life_months' => 'nullable|integer|min:1|max:1200',
+            'total_units' => 'nullable|numeric|gt:0',
+            'unit_label' => 'nullable|string|max:20',
             'paid_from' => 'required|in:cash,bank_transfer,payables,opening',
             'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
             'supplier_id' => 'nullable|required_if:paid_from,payables|tenant_exists:suppliers,id',
@@ -105,6 +110,9 @@ class FixedAssetController extends Controller
         $this->guardAmounts($validated);
 
         $category = AssetCategory::findOrFail($validated['asset_category_id']);
+        if ($category->depreciation_method === 'units_of_production' && empty($validated['total_units'])) {
+            throw ValidationException::withMessages(['total_units' => 'فئة هذا الأصل تُهلك بوحدات الإنتاج: حدد إجمالي الوحدات المتوقعة طوال عمره (ساعات تشغيل، كيلومترات، وحدات).']);
+        }
 
         DB::transaction(function () use ($validated, $category, $depreciation) {
             $opening = $validated['paid_from'] === 'opening';
@@ -130,11 +138,13 @@ class FixedAssetController extends Controller
 
     public function show(FixedAsset $asset): Response
     {
-        $asset->load(['category', 'depreciations']);
+        $asset->load(['category', 'depreciations', 'impairments', 'usages']);
+        $service = app(DepreciationService::class);
 
         return Inertia::render('Accounting/FixedAssets/Show', [
             'asset' => $asset,
-            'monthlyAmount' => app(DepreciationService::class)->monthlyAmount($asset),
+            'monthlyAmount' => $service->monthlyAmount($asset),
+            'schedule' => $service->schedule($asset),
             'bankAccounts' => BankAccount::where('is_active', true)->get(['id', 'name', 'type']),
         ]);
     }
@@ -165,6 +175,63 @@ class FixedAssetController extends Controller
         $depreciation->dispose($asset, Carbon::parse($validated['date']), (float) $validated['proceeds'], $validated['bank_account_id'] ?? null, $validated['method'], $vat);
 
         return back()->with('success', 'تم استبعاد الأصل وترحيل قيد البيع/الاستبعاد');
+    }
+
+    /** Register (PP&E note) for a period, by category; CSV with ?export=csv. */
+    public function register(Request $request, FixedAssetRegister $register)
+    {
+        $validated = $request->validate(['start_date' => 'nullable|date', 'end_date' => 'nullable|date|after_or_equal:start_date']);
+        $from = Carbon::parse($validated['start_date'] ?? now()->startOfYear()->toDateString());
+        $to = Carbon::parse($validated['end_date'] ?? now()->toDateString());
+        $report = $register->build($from, $to);
+
+        if ($request->query('export') === 'csv') {
+            $headers = ['Category', 'Code', 'Asset', 'Cost (open)', 'Additions', 'Disposals', 'Cost (close)', 'Acc. dep. (open)', 'Acc. dep. acquired',
+                'Depreciation', 'Impairment', 'Acc. dep. disposed', 'Acc. dep. (close)', 'Net book value'];
+
+            return response()->streamDownload(function () use ($report, $headers) {
+                $out = fopen('php://output', 'w');
+                fwrite($out, "\xEF\xBB\xBF");
+                fputcsv($out, $headers);
+                foreach ($report['categories'] as $category) {
+                    foreach ($category['assets'] as $a) {
+                        fputcsv($out, array_merge([$category['name'], $a['code'], $a['name']], array_map(fn ($c) => $a[$c], FixedAssetRegister::COLUMNS)));
+                    }
+                }
+                fclose($out);
+            }, 'fixed-asset-register-'.$to->format('Ymd').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+        }
+
+        return Inertia::render('Accounting/FixedAssets/Register', [
+            'report' => $report,
+            'filters' => ['start_date' => $from->toDateString(), 'end_date' => $to->toDateString()],
+        ]);
+    }
+
+    /** Units an asset ran or produced in a month (units-of-production depreciation). */
+    public function storeUsage(Request $request, FixedAsset $asset)
+    {
+        abort_unless($asset->depreciation_method === 'units_of_production', 422);
+        $validated = $request->validate(['month' => 'required|date_format:Y-m', 'units' => 'required|numeric|min:0']);
+        $period = (int) str_replace('-', '', $validated['month']);
+        if (AssetDepreciation::where('fixed_asset_id', $asset->id)->where('period', $period)->exists()) {
+            throw ValidationException::withMessages(['units' => 'إهلاك هذا الشهر مرحَّل؛ لا يمكن تعديل استخدامه.']);
+        }
+        AssetUsage::updateOrCreate(['fixed_asset_id' => $asset->id, 'period' => $period], ['units' => $validated['units']]);
+
+        return back()->with('success', 'تم تسجيل استخدام الشهر؛ يُرحَّل إهلاكه مع تشغيل الإهلاك الشهري.');
+    }
+
+    public function impair(Request $request, FixedAsset $asset, DepreciationService $depreciation)
+    {
+        $validated = $request->validate([
+            'date' => 'required|date',
+            'amount' => 'required|numeric|gt:0',
+            'reason' => 'required|string|max:500',
+        ]);
+        $depreciation->impair($asset, Carbon::parse($validated['date']), (float) $validated['amount'], $validated['reason']);
+
+        return back()->with('success', 'تم تسجيل هبوط القيمة؛ يُحتسب الإهلاك القادم على القيمة الدفترية الجديدة.');
     }
 
     protected function guardAmounts(array $data): void

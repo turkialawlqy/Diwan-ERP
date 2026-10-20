@@ -68,6 +68,7 @@ class AccountMap
         'maintenance_expense' => ['مصروفات الصيانة', 'expense'],
         'general_expense' => ['مصروفات عمومية', 'expense'],
         'depreciation_expense' => ['مصروف الإهلاك', 'expense'],
+        'impairment_loss' => ['خسائر هبوط قيمة الأصول', 'expense'],
         'marketing_expense' => ['مصروفات التسويق', 'expense'],
         'bank_charges' => ['عمولات بنكية', 'expense'],
         'asset_disposal_loss' => ['خسائر بيع أصول', 'expense'],

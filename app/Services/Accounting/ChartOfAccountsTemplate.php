@@ -99,6 +99,7 @@ class ChartOfAccountsTemplate
             ['529', '52', 'مصروف الإهلاك', 'Depreciation Expense', 'expense', 'debit', false, 'depreciation_expense', 'operating'],
             ['5211', '52', 'مصروف الإجازات السنوية', 'Annual Leave Expense', 'expense', 'debit', false, 'leave_expense', 'operating'],
             ['5210', '52', 'عجز وزيادة الصندوق', 'Cash Over / Short', 'expense', 'debit', false, 'cash_over_short', 'operating'],
+            ['5213', '52', 'خسائر هبوط قيمة الأصول', 'Asset Impairment Losses', 'expense', 'debit', false, 'impairment_loss', 'operating'],
             ['53', '5', 'مصروفات البيع والتسويق', 'Selling & Marketing', 'expense', 'debit', false, 'marketing_expense', 'operating'],
             ['54', '5', 'مصروفات تمويلية وبنكية', 'Finance & Bank Charges', 'expense', 'debit', false, 'bank_charges', 'operating'],
             ['55', '5', 'خسائر بيع أصول', 'Loss on Asset Disposal', 'expense', 'debit', false, 'asset_disposal_loss', 'investing'],

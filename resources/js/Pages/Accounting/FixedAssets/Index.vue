@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive } from 'vue';
+import { computed, ref, reactive } from 'vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -17,8 +17,10 @@ const categoryOpen = ref(false);
 const depreciateOpen = ref(false);
 
 const today = new Date().toISOString().substring(0, 10);
-const assetForm = useForm({ asset_category_id: '', code: '', name_ar: '', serial_number: '', location: '', branch_id: '', cost_center_id: '', acquisition_date: today, cost: '', salvage_value: 0, useful_life_months: '', paid_from: 'bank_transfer', bank_account_id: '', supplier_id: '', taxable: false, opening_accumulated: 0, notes: '' });
+const assetForm = useForm({ asset_category_id: '', code: '', name_ar: '', serial_number: '', location: '', branch_id: '', cost_center_id: '', acquisition_date: today, cost: '', salvage_value: 0, useful_life_months: '', total_units: '', unit_label: 'ساعة', paid_from: 'bank_transfer', bank_account_id: '', supplier_id: '', taxable: false, opening_accumulated: 0, notes: '' });
 const categoryForm = useForm({ name_ar: '', useful_life_months: 60, depreciation_method: 'straight_line', declining_rate: '', asset_account_id: '', accumulated_account_id: '', expense_account_id: '' });
+// Units-of-production categories need the asset's lifetime units.
+const unitsCategory = computed(() => props.categories.find((c) => c.id === assetForm.asset_category_id)?.depreciation_method === 'units_of_production');
 const depreciateForm = useForm({ month: new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().substring(0, 7) });
 
 const filters = reactive({ search: props.filters.search ?? '', status: props.filters.status ?? '' });
@@ -72,7 +74,7 @@ const statusLabel = { active: 'نشط', fully_depreciated: 'مهلك بالكا�
                             <td class="px-3 py-2 text-slate-500">{{ a.category?.name_ar }}</td>
                             <td class="px-3 py-2 text-center font-mono">{{ date(a.acquisition_date) }}</td>
                             <td class="px-3 py-2 text-end font-mono">{{ money(a.cost) }}</td>
-                            <td class="px-3 py-2 text-end font-mono">{{ money(a.accumulated_depreciation) }}</td>
+                            <td class="px-3 py-2 text-end font-mono">{{ money(Number(a.accumulated_depreciation) + Number(a.accumulated_impairment || 0)) }}</td>
                             <td class="px-3 py-2 text-end font-mono font-bold">{{ money(a.book_value) }}</td>
                             <td class="px-3 py-2 text-center">{{ statusLabel[a.status] }}</td>
                         </tr>
@@ -95,6 +97,10 @@ const statusLabel = { active: 'نشط', fully_depreciated: 'مهلك بالكا�
                 <Field label="التكلفة" :error="assetForm.errors.cost"><input v-model="assetForm.cost" type="number" step="0.01" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="القيمة التخريدية" :error="assetForm.errors.salvage_value"><input v-model="assetForm.salvage_value" type="number" step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="العمر الإنتاجي (شهر)" hint="فارغ = حسب الفئة"><input v-model="assetForm.useful_life_months" type="number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <template v-if="unitsCategory">
+                    <Field label="إجمالي الوحدات المتوقعة طوال العمر" :error="assetForm.errors.total_units"><input v-model="assetForm.total_units" type="number" step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field label="وحدة القياس"><input v-model="assetForm.unit_label" placeholder="ساعة، كم، قطعة" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                </template>
                 <Field label="طريقة السداد"><select v-model="assetForm.paid_from" class="w-full rounded-xl border-slate-200 text-xs"><option value="bank_transfer">بنك</option><option value="cash">نقداً</option><option value="payables">آجل لمورد</option><option value="opening">رصيد افتتاحي</option></select></Field>
                 <Field v-if="['cash','bank_transfer'].includes(assetForm.paid_from)" label="الصندوق / البنك"><select v-model="assetForm.bank_account_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">الافتراضي</option><option v-for="b in bankAccounts" :key="b.id" :value="b.id">{{ b.name }}</option></select></Field>
                 <Field v-if="assetForm.paid_from === 'payables'" label="رقم المورد" :error="assetForm.errors.supplier_id"><input v-model="assetForm.supplier_id" type="number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
@@ -114,7 +120,7 @@ const statusLabel = { active: 'نشط', fully_depreciated: 'مهلك بالكا�
                 <Field label="اسم الفئة" :error="categoryForm.errors.name_ar"><input v-model="categoryForm.name_ar" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <div class="grid grid-cols-2 gap-3">
                     <Field label="العمر الإنتاجي (شهر)"><input v-model="categoryForm.useful_life_months" type="number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="طريقة الإهلاك"><select v-model="categoryForm.depreciation_method" class="w-full rounded-xl border-slate-200 text-xs"><option value="straight_line">القسط الثابت</option><option value="declining_balance">القسط المتناقص</option></select></Field>
+                    <Field label="طريقة الإهلاك"><select v-model="categoryForm.depreciation_method" class="w-full rounded-xl border-slate-200 text-xs"><option value="straight_line">القسط الثابت</option><option value="declining_balance">القسط المتناقص</option><option value="units_of_production">وحدات الإنتاج (ساعات/كم/وحدات)</option></select></Field>
                 </div>
                 <Field label="حساب الأصل" hint="فارغ = الحساب الافتراضي"><select v-model="categoryForm.asset_account_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">الافتراضي</option><option v-for="a in accounts.filter(x => x.type === 'asset')" :key="a.id" :value="a.id">{{ a.code }} - {{ a.name_ar }}</option></select></Field>
                 <Field label="حساب مجمع الإهلاك"><select v-model="categoryForm.accumulated_account_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">الافتراضي</option><option v-for="a in accounts.filter(x => x.type === 'asset')" :key="a.id" :value="a.id">{{ a.code }} - {{ a.name_ar }}</option></select></Field>

@@ -2,10 +2,19 @@
 
 namespace Tests\Feature;
 
+use App\Models\Account;
+use App\Models\AssetCategory;
+use App\Models\AssetDepreciation;
 use App\Models\Company;
+use App\Models\Equipment;
+use App\Models\EquipmentReading;
+use App\Models\FixedAsset;
+use App\Services\Accounting\AccountingException;
 use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
+use App\Services\Accounting\DepreciationService;
+use App\Services\Accounting\FixedAssetRegister;
 use App\Services\Accounting\PostingService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -104,5 +113,122 @@ class CashFlowAndAssetsTest extends TestCase
         $this->assertSame('indirect', $props['filters']['method']);
         $this->assertSame(300.0, $props['report']['indirect']['operating_total']);
         $this->assertArrayNotHasKey('indirect', $this->get(route('accounting.reports.cash-flow'))->viewData('page')['props']['report']);
+    }
+
+    // ------------------------------------------------------------------ assets
+
+    protected function category(string $method = 'straight_line', int $months = 60): AssetCategory
+    {
+        return AssetCategory::create(['name_ar' => 'معدات', 'useful_life_months' => $months, 'depreciation_method' => $method,
+            'asset_account_id' => $this->role('fixed_assets'), 'accumulated_account_id' => $this->role('accumulated_depreciation'), 'expense_account_id' => $this->role('depreciation_expense')]);
+    }
+
+    protected function asset(AssetCategory $category, array $attributes = []): FixedAsset
+    {
+        $this->post(route('accounting.fixed-assets.store'), array_merge([
+            'asset_category_id' => $category->id, 'code' => 'FA-'.random_int(1000, 9999), 'name_ar' => 'أصل', 'acquisition_date' => '2026-01-01',
+            'cost' => 12000, 'salvage_value' => 0, 'paid_from' => 'bank_transfer',
+        ], $attributes))->assertSessionHasNoErrors();
+
+        return FixedAsset::latest('id')->first();
+    }
+
+    protected function balance(string $role): float
+    {
+        return round((float) Account::find($this->role($role))->balance, 2);
+    }
+
+    public function test_schedule_runs_to_the_end_of_life(): void
+    {
+        $asset = $this->asset($this->category());
+        app(DepreciationService::class)->run(Carbon::parse('2026-03-31'));
+        $schedule = app(DepreciationService::class)->schedule($asset->fresh());
+
+        $this->assertCount(57, $schedule);                     // 60 months less 3 posted
+        $this->assertSame(202604, $schedule[0]['period']);
+        $this->assertSame(203012, end($schedule)['period']);
+        $this->assertSame(0.0, end($schedule)['book_value']);
+        $this->assertEqualsWithDelta(12000 - 600, array_sum(array_column($schedule, 'amount')), 0.01);
+    }
+
+    public function test_register_moves_and_matches_the_ledger(): void
+    {
+        $category = $this->category();
+        $old = $this->asset($category, ['code' => 'FA-OLD', 'acquisition_date' => '2025-01-01', 'cost' => 6000]);
+        $new = $this->asset($category, ['code' => 'FA-NEW', 'acquisition_date' => '2026-03-15', 'cost' => 12000]);
+        $service = app(DepreciationService::class);
+        $service->run(Carbon::parse('2025-12-31'));
+        $service->run(Carbon::parse('2026-05-31'));
+        $service->dispose($old->fresh(), Carbon::parse('2026-06-30'), 3000, null, 'bank_transfer');
+
+        $report = app(FixedAssetRegister::class)->build(Carbon::parse('2026-01-01'), Carbon::parse('2026-06-30'));
+        $t = $report['totals'];
+        $this->assertSame(6000.0, $t['cost_open']);
+        $this->assertSame(12000.0, $t['additions']);
+        $this->assertSame(6000.0, $t['disposals']);
+        $this->assertSame(12000.0, $t['cost_close']);
+        $this->assertSame(1200.0, $t['acc_open']);             // 12 months x 100
+        // FA-OLD Jan-Jun 600, FA-NEW Mar-May 600
+        $this->assertSame(1200.0, $t['depreciation']);
+        $this->assertSame(1800.0, $t['acc_disposed']);
+        $this->assertSame(600.0, $t['acc_close']);
+        $this->assertSame(11400.0, $t['book_value']);
+        $this->assertSame(0.0, $report['ledger']['cost_difference']);
+        $this->assertSame(0.0, $report['ledger']['accumulated_difference']);
+
+        $this->get(route('accounting.fixed-assets.register', ['start_date' => '2026-01-01', 'end_date' => '2026-06-30']))->assertOk();
+        $this->assertStringContainsString('FA-NEW', $this->get(route('accounting.fixed-assets.register', ['export' => 'csv']))->streamedContent());
+    }
+
+    public function test_impairment_writes_down_and_reschedules_depreciation(): void
+    {
+        $asset = $this->asset($this->category());            // 12000 over 60 months = 200
+        $service = app(DepreciationService::class);
+
+        // Depreciation catches up to May, then 2000 of impairment on a book value of 11000.
+        $this->post(route('accounting.fixed-assets.impair', $asset), ['date' => '2026-06-10', 'amount' => 2000, 'reason' => 'تلف جزئي'])->assertSessionHasNoErrors();
+        $asset->refresh();
+        $this->assertSame(1000.0, (float) $asset->accumulated_depreciation);
+        $this->assertSame(2000.0, (float) $asset->accumulated_impairment);
+        $this->assertSame(9000.0, (float) $asset->book_value);
+        $this->assertSame(2000.0, $this->balance('impairment_loss'));
+
+        // 9000 over the 55 months left from June.
+        $this->assertSame(round(9000 / 55, 2), $service->monthlyAmount($asset, 202606));
+
+        $this->expectException(AccountingException::class);
+        $service->impair($asset, Carbon::parse('2026-06-20'), 9500);
+    }
+
+    public function test_disposal_after_impairment_books_the_right_gain(): void
+    {
+        $asset = $this->asset($this->category());
+        $service = app(DepreciationService::class);
+        $service->impair($asset, Carbon::parse('2026-06-01'), 2000);  // book value 12000 - 1000 - 2000 = 9000
+        $service->dispose($asset->fresh(), Carbon::parse('2026-06-01'), 9500, null, 'bank_transfer');
+
+        $this->assertSame(0.0, $this->balance('fixed_assets'));
+        $this->assertSame(0.0, $this->balance('accumulated_depreciation'));
+        // June's first day is depreciated before the sale, at the post-impairment rate (9000 over 55 months).
+        $this->assertEqualsWithDelta(500 + round(round(9000 / 55, 2) / 30, 2), $this->balance('asset_disposal_gain'), 0.01);
+    }
+
+    public function test_units_of_production_follow_usage_and_equipment_hours(): void
+    {
+        $category = $this->category('units_of_production');
+        $this->post(route('accounting.fixed-assets.store'), ['asset_category_id' => $category->id, 'code' => 'FA-X', 'name_ar' => 'حفار', 'acquisition_date' => '2026-01-01',
+            'cost' => 600000, 'paid_from' => 'bank_transfer'])->assertSessionHasErrors('total_units');
+        $asset = $this->asset($category, ['cost' => 600000, 'total_units' => 6000, 'unit_label' => 'ساعة']);
+
+        $this->post(route('accounting.fixed-assets.usage', $asset), ['month' => '2026-01', 'units' => 120])->assertSessionHasNoErrors();
+        // February: no usage; March: hours from the linked equipment.
+        $equipment = Equipment::create(['code' => 'EX-1', 'name' => 'حفار', 'meter_type' => 'hours', 'current_hours' => 0, 'fixed_asset_id' => $asset->id, 'status' => 'available']);
+        EquipmentReading::create(['equipment_id' => $equipment->id, 'date' => '2026-03-10', 'hours_reading' => 50, 'worked_hours' => 50]);
+        EquipmentReading::create(['equipment_id' => $equipment->id, 'date' => '2026-03-20', 'hours_reading' => 80, 'worked_hours' => 30]);
+
+        app(DepreciationService::class)->run(Carbon::parse('2026-03-31'));
+        $posted = AssetDepreciation::where('fixed_asset_id', $asset->id)->pluck('amount', 'period')->map(fn ($v) => (float) $v)->all();
+        $this->assertSame([202601 => 12000.0, 202603 => 8000.0], $posted);   // 120 h and 80 h at 100 per hour
+        $this->assertSame([], app(DepreciationService::class)->schedule($asset->fresh()));
     }
 }

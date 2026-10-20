@@ -62,6 +62,7 @@
         "audit_log": "سجل التدقيق",
         "recurring_journals": "القيود المتكررة",
         "cost_centers": "مراكز التكلفة",
+        "asset_register": "سجل الأصول الثابتة",
         "fixed_assets": "الأصول الثابتة",
         "period_end": "نهاية الفترة (العملات والزكاة)",
         "cheques": "الشيكات",

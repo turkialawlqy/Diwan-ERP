@@ -505,8 +505,11 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'erp.auth
         Route::post('/fixed-assets', [A\FixedAssetController::class, 'store'])->name('fixed-assets.store');
         Route::post('/fixed-assets/categories', [A\FixedAssetController::class, 'storeCategory'])->name('fixed-assets.categories.store');
         Route::post('/fixed-assets/depreciate', [A\FixedAssetController::class, 'depreciate'])->name('fixed-assets.depreciate');
+        Route::get('/fixed-assets/register', [A\FixedAssetController::class, 'register'])->name('fixed-assets.register');
         Route::get('/fixed-assets/{asset}', [A\FixedAssetController::class, 'show'])->name('fixed-assets.show');
         Route::post('/fixed-assets/{asset}/dispose', [A\FixedAssetController::class, 'dispose'])->name('fixed-assets.dispose');
+        Route::post('/fixed-assets/{asset}/usage', [A\FixedAssetController::class, 'storeUsage'])->name('fixed-assets.usage');
+        Route::post('/fixed-assets/{asset}/impair', [A\FixedAssetController::class, 'impair'])->name('fixed-assets.impair');
 
         // Cheques
         Route::get('/cheques', [A\ChequeController::class, 'index'])->name('cheques.index');

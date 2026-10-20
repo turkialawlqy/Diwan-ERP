@@ -113,6 +113,7 @@ export default [
             { label: 'nav.recurring_journals', route: 'accounting.recurring.index', path: '/accounting/recurring' },
             { label: 'nav.cost_centers', route: 'accounting.cost-centers.index', path: '/accounting/cost-centers' },
             { label: 'nav.fixed_assets', route: 'accounting.fixed-assets.index', path: '/accounting/fixed-assets' },
+            { label: 'nav.asset_register', route: 'accounting.fixed-assets.register', path: '/accounting/fixed-assets/register' },
             { label: 'nav.cheques', route: 'accounting.cheques.index', path: '/accounting/cheques' },
             { label: 'nav.reconciliations', route: 'accounting.reconciliations.index', path: '/accounting/reconciliations' },
             { label: 'nav.budgets', route: 'accounting.budgets.index', path: '/accounting/budgets' },
