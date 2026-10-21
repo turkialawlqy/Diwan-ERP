@@ -1,4 +1,5 @@
 <script setup>
+import ImportLines from '@/Components/Documents/ImportLines.vue';
 import { reactive, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -35,6 +36,12 @@ const addProduct = (p) => {
     results.value = [];
     lookup.value = '';
 };
+
+// A count sheet from a spreadsheet: code and counted quantity, saved at once (products not yet in the count are added).
+const importCounts = (lines) => {
+    useForm({ lines: lines.map((l) => ({ product_id: l.product_id, counted_quantity: l.quantity })) })
+        .put(route('inventory.counts.update', props.count.id), { preserveScroll: true });
+};
 </script>
 
 <template>
@@ -42,6 +49,7 @@ const addProduct = (p) => {
         <Head :title="`جرد ${count.count_number}`" />
         <PageHeader :title="`جرد ${count.count_number}`" :subtitle="`${count.warehouse.name_ar} · ${count.count_date.substring(0, 10)}`" :crumbs="[{ label: 'الجرد', href: route('inventory.counts.index') }, { label: count.count_number }]">
             <template #actions v-if="editable">
+                <ImportLines kind="stock" label="استيراد الكميات المعدودة" @imported="importCounts" />
                 <button @click="save" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">حفظ الكميات</button>
                 <button v-if="$can('inventory.counts.approve')" @click="approve" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">اعتماد الجرد</button>
                 <button v-if="$can('inventory.counts.approve')" @click="cancel" class="px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">إلغاء</button>

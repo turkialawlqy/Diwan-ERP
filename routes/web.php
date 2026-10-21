@@ -41,6 +41,7 @@ use App\Http\Controllers\IntegrationController;
 use App\Http\Controllers\InventoryOperationController;
 use App\Http\Controllers\InventoryReportController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\LineImportController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\LookupController;
 use App\Http\Controllers\NotificationController;
@@ -166,6 +167,8 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'erp.auth
         Route::get('/products', [LookupController::class, 'products'])->name('products');
         Route::get('/suppliers', [LookupController::class, 'suppliers'])->name('suppliers');
         Route::get('/price', [LookupController::class, 'price'])->name('price');
+        Route::post('/lines/import', [LineImportController::class, 'import'])->name('lines.import');
+        Route::get('/lines/template', [LineImportController::class, 'template'])->name('lines.template');
     });
 
     // Private tenant files (attachments) — streamed only to the owning company.

@@ -1,4 +1,5 @@
 <script setup>
+import ImportLines from '@/Components/Documents/ImportLines.vue';
 import CurrencyPicker from '@/Components/Documents/CurrencyPicker.vue';
 import { createRemoteLookup } from '@/lookup';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
@@ -413,6 +414,11 @@ onMounted(() => {
 onUnmounted(() => {
     document.removeEventListener('click', handleGlobalClick);
 });
+
+const importLines = (lines, replace) => {
+    const rows = lines.map((l) => ({ product_id: l.product_id, item_name: l.item_name, quantity: l.quantity, unit_price: l.unit_price, discount: l.discount, tax_rate: l.tax_rate, isDropdownOpen: false }));
+    form.items = replace ? rows : [...form.items.filter((i) => i.item_name || i.product_id), ...rows];
+};
 </script>
 
 <template>
@@ -636,6 +642,7 @@ onUnmounted(() => {
                                 <ArchiveBoxIcon class="w-4 h-4 text-indigo-600" />
                                 <span>بنود فاتورة الشراء والمنتجات المستلمة</span>
                             </h2>
+                            <ImportLines kind="purchase" @imported="importLines" />
                             <button 
                                 type="button" 
                                 @click="addItem"

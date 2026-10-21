@@ -1,4 +1,5 @@
 <script setup>
+import ImportLines from '@/Components/Documents/ImportLines.vue';
 import { computed, ref } from 'vue';
 import axios from 'axios';
 import { money } from '@/utils/format';
@@ -43,6 +44,16 @@ const totals = computed(() => {
     const tax = items.value.reduce((s, l) => s + lineTax(l), 0);
     return { net, tax, total: net + tax };
 });
+
+// Spreadsheet lines in this editor's shape (price key, discount).
+const importLines = (lines, replace) => {
+    const rows = lines.filter((l) => props.allowFreeText || l.product_id).map((l) => ({
+        product_id: l.product_id, item_name: l.item_name, quantity: l.quantity, [props.priceKey]: l.unit_price,
+        discount: props.allowDiscount ? l.discount : 0, tax_rate: l.tax_rate,
+    }));
+    if (replace) items.value.splice(0, items.value.length);
+    items.value.push(...rows);
+};
 </script>
 
 <template>
@@ -57,6 +68,7 @@ const totals = computed(() => {
                 </div>
                 <div v-else-if="status" class="absolute z-20 mt-1 w-full bg-white border rounded-xl shadow px-3 py-2 text-xs" :class="status === 'loading' || status === 'empty' ? 'text-slate-500' : 'text-rose-600'">{{ messages[status] }}</div>
             </div>
+            <ImportLines :kind="priceField === 'purchase_price' ? 'purchase' : 'sales'" :customer-id="customerId" label="Excel" @imported="importLines" />
             <button v-if="allowFreeText" type="button" @click="addFree" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">+ سطر حر</button>
         </div>
         <div class="overflow-x-auto">

@@ -1,4 +1,5 @@
 <script setup>
+import ImportLines from '@/Components/Documents/ImportLines.vue';
 import { ref, computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -126,6 +127,12 @@ const selectedCustomer = computed(() => {
 
 const submit = () => {
     form.post(route('sales.quotations.store'));
+};
+
+// Lines read from a spreadsheet (bill of quantities): appended, or replacing the current ones.
+const importLines = (lines, replace) => {
+    const rows = lines.map((l) => ({ product_id: l.product_id || '', item_name: l.item_name, description: l.description || '', quantity: l.quantity, unit_price: l.unit_price, discount: l.discount, tax_rate: l.tax_rate }));
+    form.items = replace ? rows : [...form.items.filter((i) => i.item_name || i.product_id), ...rows];
 };
 </script>
 
@@ -300,6 +307,8 @@ const submit = () => {
                 <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
                     <div class="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between">
                         <h3 class="text-sm font-black text-slate-800">الأصناف والخدمات المقدمة</h3>
+                        <div class="flex flex-wrap items-center gap-2">
+                        <ImportLines kind="sales" :customer-id="form.customer_id" @imported="importLines" />
                         <button 
                             type="button"
                             @click="addItem"
@@ -308,6 +317,7 @@ const submit = () => {
                             <PlusIcon class="w-3.5 h-3.5 stroke-2" />
                             <span>إضافة بند جديد</span>
                         </button>
+                        </div>
                     </div>
 
                     <div class="overflow-x-auto">

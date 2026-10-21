@@ -1,4 +1,5 @@
 <script setup>
+import ImportLines from '@/Components/Documents/ImportLines.vue';
 import { ref } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -23,6 +24,11 @@ const search = async () => {
 const add = (p) => { form.items.push({ product_id: p.id, name: p.name_ar, quantity: 1 }); results.value = []; lookup.value = ''; };
 const save = () => form.post(route('inventory.stock-transfers.store'));
 const statusLabel = { draft: ['مسودة', 'text-slate-500'], in_transit: ['في الطريق', 'text-amber-600'], received: ['مستلم', 'text-emerald-600'], cancelled: ['ملغى', 'text-slate-400'] };
+
+const importLines = (lines, replace) => {
+    const rows = lines.map((l) => ({ product_id: l.product_id, name: l.item_name, quantity: l.quantity }));
+    form.items = replace ? rows : [...form.items, ...rows];
+};
 </script>
 
 <template>
@@ -58,6 +64,7 @@ const statusLabel = { draft: ['مسودة', 'text-slate-500'], in_transit: ['ف�
                 <Field label="التاريخ"><input v-model="form.transfer_date" type="date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
             </div>
             <div class="relative mb-2">
+                <div class="flex gap-2 mb-2"><ImportLines kind="stock" @imported="importLines" /></div>
                 <input v-model="lookup" @input="search" placeholder="ابحث عن صنف لإضافته..." class="w-full rounded-xl border-slate-200 text-xs" />
                 <div v-if="results.length" class="absolute z-10 mt-1 w-full bg-white border rounded-xl shadow max-h-48 overflow-y-auto">
                     <button type="button" v-for="p in results" :key="p.id" @mousedown.prevent="add(p)" @keydown.enter.prevent="add(p)" class="block w-full text-start px-3 py-2 text-xs hover:bg-indigo-50">{{ p.name_ar }} <span class="text-slate-400">{{ p.sku }}</span></button>

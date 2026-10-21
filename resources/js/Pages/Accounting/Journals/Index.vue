@@ -1,4 +1,5 @@
 <script setup>
+import ImportLines from '@/Components/Documents/ImportLines.vue';
 import { ref, computed } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -125,6 +126,11 @@ const formatCurrency = (val) => {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     });
+};
+
+const importLines = (lines, replace) => {
+    const rows = lines.map((l) => ({ account_id: l.account_id, cost_center_id: l.cost_center_id || '', party_type: '', party_id: '', description: l.description || '', debit: l.debit, credit: l.credit }));
+    form.lines = replace ? rows : [...form.lines.filter((l) => Number(l.debit) || Number(l.credit)), ...rows];
 };
 </script>
 
@@ -491,6 +497,7 @@ const formatCurrency = (val) => {
                                 <tfoot>
                                     <tr class="bg-slate-50 font-bold border-t border-slate-200">
                                         <td colspan="3" class="p-2 text-start">
+                                            <ImportLines kind="journal" label="استيراد الأطراف من Excel" @imported="importLines" />
                                             <button 
                                                 type="button" 
                                                 @click="addLine" 
