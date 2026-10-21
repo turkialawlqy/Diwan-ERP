@@ -1,4 +1,5 @@
 <script setup>
+import ImportLines from '@/Components/Documents/ImportLines.vue';
 import { ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -24,6 +25,11 @@ const create = () => { editing.value = null; form.reset(); form.items = []; open
 const term = ref('');
 const results = ref([]);
 const search = async () => { results.value = term.value.length < 1 ? [] : (await axios.get(route('lookup.products'), { params: { q: term.value } })).data.data; };
+// Price list lines from a spreadsheet: code, price and (optionally) the minimum quantity in the quantity column.
+const importPrices = (lines, replace) => {
+    const rows = lines.filter((l) => l.product_id).map((l) => ({ product_id: l.product_id, name: l.item_name, base: null, min_quantity: Number(l.quantity) || 1, price: Number(l.unit_price) }));
+    form.items = replace ? rows : [...form.items, ...rows];
+};
 const add = (p) => { form.items.push({ product_id: p.id, name: p.name_ar, base: p.selling_price, min_quantity: 1, price: Number(p.selling_price) }); results.value = []; term.value = ''; };
 const save = () => editing.value
     ? form.put(route('sales.price-lists.update', editing.value.id), { onSuccess: () => (open.value = false) })
@@ -60,6 +66,7 @@ const destroy = (list) => { if (confirm(`حذف قائمة "${list.name}"؟`)) r
                 <label class="text-xs flex items-center gap-2"><input v-model="form.is_active" type="checkbox" class="rounded" /> فعالة</label>
             </div>
             <div class="relative mb-2">
+                <div class="mb-2"><ImportLines kind="sales" label="استيراد الأسعار من Excel" @imported="importPrices" /> <span class="text-3xs text-slate-400">رمز الصنف، السعر، والكمية = الحد الأدنى للكمية</span></div>
                 <input v-model="term" @input="search" placeholder="أضف صنفاً..." class="w-full rounded-xl border-slate-200 text-xs" />
                 <div v-if="results.length" class="absolute z-10 mt-1 w-full bg-white border rounded-xl shadow max-h-48 overflow-y-auto">
                     <button type="button" v-for="p in results" :key="p.id" @mousedown.prevent="add(p)" @keydown.enter.prevent="add(p)" class="block w-full text-start px-3 py-2 text-xs hover:bg-indigo-50">{{ p.name_ar }}</button>

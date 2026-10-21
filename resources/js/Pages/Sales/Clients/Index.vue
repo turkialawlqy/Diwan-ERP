@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import { ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -142,6 +143,7 @@ const formatCurrency = (val) => {
                         <span class="text-indigo-600 font-bold">العملاء</span>
                     </div>
 
+                    <ImportButton v-if="$can('sales.clients.create')" type="customers" title="استيراد العملاء من Excel" hint="عمود opening_balance اختياري: رصيد العميل الافتتاحي (للعملاء الجدد فقط)." />
                     <!-- Refresh Button -->
                     <button 
                         @click="router.reload()" 

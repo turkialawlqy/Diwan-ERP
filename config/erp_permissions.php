@@ -404,8 +404,9 @@ return [
         'notifications.read-all' => '@authenticated',
         'data-transfer.index' => 'admin.data.use',
         'data-transfer.export' => 'admin.data.use',
-        'data-transfer.template' => 'admin.data.use',
-        'data-transfer.import' => 'admin.data.use',
+        // Imports from list screens: each type re-checks its own create permission (DataTransferController::definition).
+        'data-transfer.template' => '@authenticated',
+        'data-transfer.import' => '@authenticated',
         'crm.leads.index' => 'crm.leads.view',
         'crm.leads.store' => 'crm.leads.create',
         'crm.leads.show' => 'crm.leads.view',

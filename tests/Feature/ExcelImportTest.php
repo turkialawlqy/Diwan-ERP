@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\AssetCategory;
 use App\Models\Company;
 use App\Models\Customer;
+use App\Models\Employee;
+use App\Models\FixedAsset;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
@@ -15,6 +18,7 @@ use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 /**
@@ -168,5 +172,77 @@ B,C-9,2026-06-01,خدمة,1,100
         $this->post(route('data-transfer.import', 'quotations'), ['file' => $this->csv($csv, 'q.csv')])->assertSessionHasErrors('file');
         $this->assertStringContainsString('C-9', session('errors')->first('file'));
         $this->assertSame(0, Quotation::count());
+    }
+
+    // ------------------------------------------------------------------ S4
+
+    protected function import(string $type, string $csv)
+    {
+        return $this->post(route('data-transfer.import', $type), ['file' => $this->csv($csv, "{$type}.csv"), 'opening_date' => '2026-06-01']);
+    }
+
+    public function test_employees_import_validates_ids_and_keeps_pay_for_salary_access(): void
+    {
+        $header = "employee_number,name,nationality,national_id,job_title,hire_date,basic_salary,housing_allowance,iban\n";
+        $this->import('employees', $header."E-1,أحمد,SA,2012345678,محاسب,2025-01-01,8000,2000,\n")->assertSessionHasErrors('file');
+        $this->import('employees', $header."E-1,أحمد,SA,1012345678,محاسب,2025-01-01,8000,2000,SA0480000000608010167519\n")->assertSessionHasErrors('file');
+        $this->import('employees', $header."E-1,أحمد,SA,1012345678,محاسب,2025-01-01,8000,2000,SA0380000000608010167519\nE-2,راج,IN,2012345678,فني,2025-03-01,3000,750,\n")->assertSessionHasNoErrors();
+        $this->assertSame(2, Employee::count());
+        $this->assertSame(10000.0, (float) Employee::where('employee_number', 'E-1')->value('total_salary'));
+        $this->assertSame('iqama', Employee::where('employee_number', 'E-2')->value('id_type'));
+
+        // Re-import updates the profile, never the pay; the same ID twice is refused.
+        $this->import('employees', $header."E-1,أحمد العلي,SA,1012345678,رئيس حسابات,2025-01-01,99999,0,\n")->assertSessionHasNoErrors();
+        $e = Employee::where('employee_number', 'E-1')->first();
+        $this->assertSame(['أحمد العلي', 'رئيس حسابات', 8000.0], [$e->name, $e->job_title, (float) $e->basic_salary]);
+        $this->import('employees', $header."E-9,مكرر,SA,1012345678,فني,2025-01-01,,,\n")->assertSessionHasErrors('file');
+
+        // HR clerk without salary access: pay columns are ignored.
+        $clerk = $this->userWithRole($this->company, 'employee');
+        app(PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
+        $clerk->givePermissionTo(['hr.employees.view', 'hr.employees.create']);
+        $this->actingAs($clerk->fresh());
+        $this->import('employees', $header."E-3,سالم,SA,1098765432,سائق,2025-05-01,7000,1000,\n")->assertSessionHasNoErrors();
+        $this->assertSame(0.0, (float) Employee::where('employee_number', 'E-3')->value('basic_salary'));
+    }
+
+    public function test_chart_of_accounts_import_builds_under_parents(): void
+    {
+        $parent = Account::where('is_parent', true)->where('type', 'expense')->first();
+        $csv = "code,name_ar,type,parent_code\n{$parent->code}9901,مصروفات سفر,,{$parent->code}\n{$parent->code}990101,تذاكر طيران,,{$parent->code}9901\n";
+        $this->import('accounts', $csv)->assertSessionHasNoErrors();
+
+        $travel = Account::where('code', $parent->code.'9901')->first();
+        $this->assertTrue((bool) $travel->is_parent);
+        $this->assertSame('expense', $travel->type);
+        $this->assertSame($travel->id, Account::where('code', $parent->code.'990101')->value('parent_id'));
+
+        $this->import('accounts', "code,name_ar,type,parent_code\nX1,حساب,revenue,{$parent->code}\n")->assertSessionHasErrors('file');
+        $this->import('accounts', "code,name_ar,parent_code\nX2,حساب,NOPE\n")->assertSessionHasErrors('file');
+    }
+
+    public function test_fixed_assets_import_as_opening_assets(): void
+    {
+        $map = app(AccountMap::class);
+        AssetCategory::create(['name_ar' => 'سيارات', 'useful_life_months' => 48, 'depreciation_method' => 'straight_line',
+            'asset_account_id' => $map->id('fixed_assets'), 'accumulated_account_id' => $map->id('accumulated_depreciation'), 'expense_account_id' => $map->id('depreciation_expense')]);
+
+        $this->import('fixed_assets', "code,name_ar,category,acquisition_date,cost,opening_accumulated\nCAR-1,سيارة,شاحنات,2024-01-01,96000,24000\n")->assertSessionHasErrors('file');
+        $this->import('fixed_assets', "code,name_ar,category,acquisition_date,cost,opening_accumulated\nCAR-1,سيارة,سيارات,2024-01-01,96000,24000\n")->assertSessionHasNoErrors();
+
+        $asset = FixedAsset::where('code', 'CAR-1')->first();
+        $this->assertSame(72000.0, (float) $asset->book_value);
+        $this->assertSame('2026-06-01', $asset->depreciation_start_date->toDateString());
+        $this->assertSame(96000.0, round((float) Account::find($map->id('fixed_assets'))->balance, 2));
+        $this->assertSame(24000.0, round((float) Account::find($map->id('accumulated_depreciation'))->balance, 2));
+        $this->import('fixed_assets', "code,name_ar,category,acquisition_date,cost\nCAR-1,مكرر,سيارات,2024-01-01,100\n")->assertSessionHasErrors('file');
+    }
+
+    public function test_list_screen_imports_need_the_type_permission(): void
+    {
+        $salesUser = $this->userWithRole($this->company, 'sales');
+        $this->actingAs($salesUser);
+        $this->import('accounts', "code,name_ar,type\nZ1,حساب,asset\n")->assertForbidden();
+        $this->get(route('data-transfer.template', 'customers'))->assertOk();
     }
 }

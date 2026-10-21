@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import { ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -104,6 +105,7 @@ const formatDateArabic = (dateStr) => {
                         <span>البحث والتصفية</span>
                     </button>
 
+                    <ImportButton v-if="$can('sales.quotations.create')" type="quotations" title="استيراد عروض أسعار من Excel" hint="سطر لكل بند؛ الأسطر التي تحمل نفس quotation_ref تكوّن عرضاً واحداً. العميل برمزه (customer_code) أو اسمه. تُنشأ العروض كمسودات." />
                     <Link 
                         v-if="$canRoute('sales.quotations.create')"
                         :href="route('sales.quotations.create')"

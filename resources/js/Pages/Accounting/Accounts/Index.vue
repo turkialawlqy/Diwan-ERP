@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import { notify } from '@/composables/useDialog';
 import { ref, computed, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -311,6 +312,7 @@ const typeBadgeColors = {
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <!-- Breadcrumb & Refresh -->
                 <div class="flex items-center gap-2">
+                    <ImportButton v-if="$can('accounting.accounts.create')" type="accounts" title="استيراد دليل الحسابات من Excel" hint="الحساب الجديد يُنشأ تحت أبيه (parent_code) ويرث نوعه. الحساب الموجود يُحدّث اسمه فقط." />
                     <button 
                         @click="handleSearch"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-xs"

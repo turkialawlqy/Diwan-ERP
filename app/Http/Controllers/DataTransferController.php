@@ -3,16 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Models\Account;
+use App\Models\AssetCategory;
 use App\Models\Customer;
+use App\Models\Department;
 use App\Models\Employee;
+use App\Models\FixedAsset;
 use App\Models\JournalEntry;
 use App\Models\Product;
 use App\Models\Quotation;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Services\Accounting\AccountMap;
+use App\Services\Accounting\DepreciationService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\PostingService;
+use App\Services\HR\BankSalaryFormats;
 use App\Services\Imports\LineImporter;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
@@ -79,12 +84,33 @@ class DataTransferController extends Controller
                 'key' => 'sku', 'number' => 'product',
             ],
             'employees' => [
-                'label' => 'الموظفون', 'model' => Employee::class, 'permission' => ['view' => 'hr.employees.view', 'create' => 'hr.employees.create'], 'export_only' => true,
-                'columns' => ['employee_number', 'name', 'nationality', 'national_id', 'job_title', 'department', 'hire_date', 'status'],
+                'label' => 'الموظفون', 'model' => Employee::class, 'permission' => ['view' => 'hr.employees.view', 'create' => 'hr.employees.create'], 'handler' => 'importEmployees',
+                'export_columns' => ['employee_number', 'name', 'nationality', 'national_id', 'job_title', 'department', 'hire_date', 'status'],
+                'columns' => ['employee_number', 'name', 'nationality', 'id_type', 'national_id', 'job_title', 'department', 'hire_date', 'contract_type', 'contract_end',
+                    'phone', 'email', 'gosi_number', 'basic_salary', 'housing_allowance', 'transport_allowance', 'other_allowances', 'iban'],
+                'rules' => ['employee_number' => 'nullable|string|max:30', 'name' => 'required|string|max:255', 'nationality' => 'required|string|size:2',
+                    'id_type' => 'nullable|in:national_id,iqama,border_number', 'national_id' => 'nullable|string|max:20', 'job_title' => 'required|string|max:255',
+                    'department' => 'nullable|string|max:255', 'hire_date' => 'required|date', 'contract_type' => 'nullable|in:limited,unlimited', 'contract_end' => 'nullable|date|after:hire_date',
+                    'phone' => 'nullable|string|max:20', 'email' => 'nullable|email', 'gosi_number' => 'nullable|string|max:30',
+                    'basic_salary' => 'nullable|numeric|min:0', 'housing_allowance' => 'nullable|numeric|min:0', 'transport_allowance' => 'nullable|numeric|min:0',
+                    'other_allowances' => 'nullable|numeric|min:0', 'iban' => 'nullable|string|max:34'],
             ],
             'accounts' => [
-                'label' => 'دليل الحسابات', 'model' => Account::class, 'permission' => ['view' => 'accounting.accounts.view', 'create' => 'accounting.accounts.create'], 'export_only' => true,
-                'columns' => ['code', 'name_ar', 'name_en', 'type', 'nature', 'is_parent', 'balance'],
+                'label' => 'دليل الحسابات', 'model' => Account::class, 'permission' => ['view' => 'accounting.accounts.view', 'create' => 'accounting.accounts.create'], 'handler' => 'importAccounts',
+                'export_columns' => ['code', 'name_ar', 'name_en', 'type', 'nature', 'is_parent', 'balance'],
+                'columns' => ['code', 'name_ar', 'name_en', 'type', 'nature', 'parent_code', 'cash_flow_category'],
+                'rules' => ['code' => 'required|string|max:50', 'name_ar' => 'required|string|max:255', 'name_en' => 'nullable|string|max:255',
+                    'type' => 'nullable|in:asset,liability,equity,revenue,expense', 'nature' => 'nullable|in:debit,credit', 'parent_code' => 'nullable|string|max:50',
+                    'cash_flow_category' => 'nullable|in:operating,investing,financing'],
+            ],
+            'fixed_assets' => [
+                'label' => 'الأصول الثابتة', 'model' => FixedAsset::class, 'permission' => ['view' => 'accounting.fixed_assets.view', 'create' => 'accounting.fixed_assets.create'], 'handler' => 'importFixedAssets',
+                'export_columns' => ['code', 'name_ar', 'acquisition_date', 'cost', 'salvage_value', 'useful_life_months', 'accumulated_depreciation', 'accumulated_impairment', 'status'],
+                'columns' => ['code', 'name_ar', 'category', 'acquisition_date', 'cost', 'salvage_value', 'useful_life_months', 'opening_accumulated', 'total_units', 'unit_label', 'serial_number', 'location'],
+                'rules' => ['code' => 'required|string|max:50', 'name_ar' => 'required|string|max:255', 'category' => 'required|string|max:255', 'acquisition_date' => 'required|date',
+                    'cost' => 'required|numeric|gt:0', 'salvage_value' => 'nullable|numeric|min:0', 'useful_life_months' => 'nullable|integer|min:1|max:1200',
+                    'opening_accumulated' => 'nullable|numeric|min:0', 'total_units' => 'nullable|numeric|gt:0', 'unit_label' => 'nullable|string|max:20',
+                    'serial_number' => 'nullable|string|max:100', 'location' => 'nullable|string|max:255'],
             ],
             'quotations' => [
                 'label' => 'عروض الأسعار', 'permission' => ['view' => 'sales.quotations.create', 'create' => 'sales.quotations.create'], 'import_only' => true,
@@ -125,7 +151,7 @@ class DataTransferController extends Controller
     {
         $definition = $this->definition($type, 'view');
         abort_if(! empty($definition['import_only']), 404);
-        $columns = array_values(array_diff($definition['columns'], self::OPENING_COLUMNS));
+        $columns = $definition['export_columns'] ?? array_values(array_diff($definition['columns'], self::OPENING_COLUMNS));
 
         return response()->streamDownload(function () use ($definition, $columns) {
             $out = fopen('php://output', 'w');
@@ -220,6 +246,9 @@ class DataTransferController extends Controller
             throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
         }
 
+        if (! empty($definition['handler'])) {
+            return back()->with('success', $this->{$definition['handler']}($records, $request, $openingDate));
+        }
         if ($type === 'quotations') {
             $quotations = $this->importQuotations($records);
 
@@ -317,6 +346,200 @@ class DataTransferController extends Controller
             ]);
             $poster->openingBalance($model, ['role' => 'inventory', 'side' => 'debit'], (float) $movement->total_cost, $date, 'رصيد افتتاحي للصنف '.$model->name_ar);
         }
+    }
+
+    /**
+     * Employees: new ones are created, an existing employee number updates
+     * the profile only (pay changes go through the employee file with an
+     * effective date). Pay and IBAN are read only for users with salary
+     * access. IDs are checked like the employee form.
+     */
+    protected function importEmployees(array $records, Request $request): string
+    {
+        $canSalaries = $request->user()->can('hr.salaries.view');
+        $pay = ['basic_salary', 'housing_allowance', 'transport_allowance', 'other_allowances', 'iban'];
+        $existing = Employee::query()->get(['id', 'employee_number', 'national_id']);
+        $departments = Department::query()->pluck('id', 'name');
+        $errors = [];
+        $seenIds = [];
+
+        foreach ($records as $line => &$row) {
+            if (! $canSalaries) {
+                $row = array_diff_key($row, array_flip($pay));
+            }
+            $row['id_type'] ??= strtoupper($row['nationality']) === 'SA' ? 'national_id' : 'iqama';
+            $current = ! empty($row['employee_number']) ? $existing->firstWhere('employee_number', (string) $row['employee_number']) : null;
+            if (! empty($row['national_id'])) {
+                $prefix = ['national_id' => '1', 'iqama' => '2', 'border_number' => '[34]'][$row['id_type']];
+                if (! preg_match('/^'.$prefix.'\d{9}$/', (string) $row['national_id'])) {
+                    $errors[] = "سطر {$line}: رقم الهوية يجب أن يكون 10 أرقام يبدأ بـ 1 للمواطن و2 للإقامة.";
+                } elseif (in_array($row['national_id'], $seenIds, true) || $existing->first(fn ($e) => $e->national_id === (string) $row['national_id'] && $e->id !== $current?->id)) {
+                    $errors[] = "سطر {$line}: رقم الهوية {$row['national_id']} مسجل لموظف آخر.";
+                }
+                $seenIds[] = $row['national_id'];
+            }
+            if (! empty($row['iban'])) {
+                $row['iban'] = strtoupper(str_replace(' ', '', $row['iban']));
+                if (! BankSalaryFormats::validIban($row['iban'])) {
+                    $errors[] = "سطر {$line}: رقم الآيبان غير صحيح.";
+                }
+            }
+        }
+        unset($row);
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        [$created, $updated] = DB::transaction(function () use ($records, $existing, $departments, $pay) {
+            $created = $updated = 0;
+            foreach ($records as $row) {
+                $row['nationality'] = strtoupper($row['nationality']);
+                if (! empty($row['department'])) {
+                    $row['department_id'] = $departments[$row['department']] ?? null;
+                }
+                $current = ! empty($row['employee_number']) ? $existing->firstWhere('employee_number', (string) $row['employee_number']) : null;
+                if ($current) {
+                    $current->update(array_diff_key($row, array_flip($pay)));
+                    $updated++;
+
+                    continue;
+                }
+                $row['employee_number'] ??= $this->nextNumber('employee');
+                $row['total_salary'] = round(collect(['basic_salary', 'housing_allowance', 'transport_allowance', 'other_allowances'])->sum(fn ($f) => (float) ($row[$f] ?? 0)), 2);
+                Employee::create($row + ['contract_type' => 'unlimited', 'department' => $row['department'] ?? 'عام', 'status' => 'active',
+                    'gosi_registered' => true, 'annual_leave_days' => 21, 'basic_salary' => 0]);
+                $created++;
+            }
+
+            return [$created, $updated];
+        });
+
+        return "تم استيراد الموظفين: {$created} جديد، {$updated} محدّث (البيانات الشخصية فقط؛ تعديل الراتب من ملف الموظف بتاريخ سريان)".($request->user()->can('hr.salaries.view') ? '' : '. لم تُستورد الرواتب لعدم وجود صلاحية الرواتب');
+    }
+
+    /**
+     * Chart of accounts: a new account goes under its parent (by code, in
+     * the system or earlier in the file) and takes the parent's type and
+     * nature unless given; an existing code only gets its names updated.
+     */
+    protected function importAccounts(array $records): string
+    {
+        $accounts = Account::query()->get()->keyBy(fn ($a) => (string) $a->code);
+        $errors = [];
+        $planned = [];
+        // Parents first: shorter codes before longer ones.
+        uasort($records, fn ($a, $b) => strlen((string) $a['code']) <=> strlen((string) $b['code']) ?: strcmp((string) $a['code'], (string) $b['code']));
+
+        foreach ($records as $line => $row) {
+            $code = (string) $row['code'];
+            if ($accounts->has($code) || isset($planned[$code])) {
+                continue;
+            }
+            $parentCode = isset($row['parent_code']) ? (string) $row['parent_code'] : null;
+            $parent = $parentCode ? ($accounts->get($parentCode) ?? $planned[$parentCode] ?? null) : null;
+            if ($parentCode && ! $parent) {
+                $errors[] = "سطر {$line}: الحساب الأب {$parentCode} غير موجود.";
+
+                continue;
+            }
+            if ($parent instanceof Account && ! $parent->is_parent && DB::table('journal_entry_lines')->where('account_id', $parent->id)->exists()) {
+                $errors[] = "سطر {$line}: الحساب الأب {$parentCode} عليه قيود؛ لا يمكن أن يصبح حساباً رئيسياً.";
+
+                continue;
+            }
+            $type = $row['type'] ?? ($parent['type'] ?? null);
+            if (! $type) {
+                $errors[] = "سطر {$line}: حدد نوع الحساب (type) لحساب بلا أب.";
+
+                continue;
+            }
+            if ($parent && $type !== $parent['type']) {
+                $errors[] = "سطر {$line}: نوع الحساب يجب أن يطابق نوع الأب ({$parent['type']}).";
+
+                continue;
+            }
+            $planned[$code] = ['type' => $type, 'nature' => $row['nature'] ?? ($parent['nature'] ?? (in_array($type, ['asset', 'expense'], true) ? 'debit' : 'credit'))];
+        }
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        [$created, $updated] = DB::transaction(function () use ($records, $accounts, $planned) {
+            $created = $updated = 0;
+            foreach ($records as $row) {
+                $code = (string) $row['code'];
+                if ($account = $accounts->get($code)) {
+                    $account->update(array_filter(['name_ar' => $row['name_ar'], 'name_en' => $row['name_en'] ?? null]));
+                    $updated++;
+
+                    continue;
+                }
+                $parent = ! empty($row['parent_code']) ? $accounts->get((string) $row['parent_code']) : null;
+                if ($parent && ! $parent->is_parent) {
+                    $parent->update(['is_parent' => true]);
+                }
+                $accounts->put($code, Account::create([
+                    'code' => $code, 'name_ar' => $row['name_ar'], 'name_en' => $row['name_en'] ?? null, 'parent_id' => $parent?->id,
+                    'type' => $planned[$code]['type'], 'nature' => $planned[$code]['nature'], 'is_parent' => false, 'balance' => 0, 'is_active' => true,
+                    'cash_flow_category' => $row['cash_flow_category'] ?? null,
+                ]));
+                $created++;
+            }
+
+            return [$created, $updated];
+        });
+
+        return "تم استيراد دليل الحسابات: {$created} حساب جديد، {$updated} محدّث الاسم";
+    }
+
+    /**
+     * Fixed assets in use when the company starts on the system: posted as
+     * opening assets (cost against opening balance equity, with their
+     * accumulated depreciation so far), depreciating from the go-live month.
+     */
+    protected function importFixedAssets(array $records, Request $request, Carbon $openingDate): string
+    {
+        $categories = AssetCategory::query()->get()->keyBy('name_ar');
+        $codes = FixedAsset::query()->pluck('code')->map(fn ($c) => (string) $c)->all();
+        $errors = [];
+        foreach ($records as $line => $row) {
+            $category = $categories->get($row['category']);
+            if (! $category) {
+                $errors[] = "سطر {$line}: فئة الأصول «{$row['category']}» غير موجودة؛ أنشئها من شاشة الأصول الثابتة.";
+            } elseif ($category->depreciation_method === 'units_of_production' && empty($row['total_units'])) {
+                $errors[] = "سطر {$line}: الفئة تُهلك بوحدات الإنتاج؛ حدد total_units.";
+            }
+            if (in_array((string) $row['code'], $codes, true)) {
+                $errors[] = "سطر {$line}: رمز الأصل {$row['code']} مستخدم.";
+            }
+            $codes[] = (string) $row['code'];
+            if ((float) ($row['opening_accumulated'] ?? 0) > (float) $row['cost'] - (float) ($row['salvage_value'] ?? 0)) {
+                $errors[] = "سطر {$line}: المجمع السابق يتجاوز التكلفة ناقص القيمة المتبقية.";
+            }
+        }
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        $depreciation = app(DepreciationService::class);
+        DB::transaction(function () use ($records, $categories, $openingDate, $depreciation) {
+            foreach ($records as $row) {
+                $category = $categories->get($row['category']);
+                $accumulated = round((float) ($row['opening_accumulated'] ?? 0), 2);
+                $asset = FixedAsset::create([
+                    'asset_category_id' => $category->id, 'code' => (string) $row['code'], 'name_ar' => $row['name_ar'],
+                    'serial_number' => $row['serial_number'] ?? null, 'location' => $row['location'] ?? null,
+                    'acquisition_date' => $row['acquisition_date'], 'depreciation_start_date' => $openingDate->copy()->startOfMonth()->toDateString(),
+                    'cost' => (float) $row['cost'], 'salvage_value' => (float) ($row['salvage_value'] ?? 0),
+                    'useful_life_months' => (int) ($row['useful_life_months'] ?? $category->useful_life_months),
+                    'depreciation_method' => $category->depreciation_method, 'total_units' => $row['total_units'] ?? null, 'unit_label' => $row['unit_label'] ?? null,
+                    'opening_accumulated' => $accumulated, 'accumulated_depreciation' => $accumulated, 'acquisition_vat' => 0, 'status' => 'active',
+                ]);
+                $depreciation->acquire($asset, 'opening');
+            }
+        });
+
+        return 'تم استيراد '.count($records).' أصل ثابت كأصول افتتاحية بقيودها';
     }
 
     /**

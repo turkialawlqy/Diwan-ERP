@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import { computed, ref, reactive } from 'vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -42,6 +43,7 @@ const statusLabel = { active: 'نشط', fully_depreciated: 'مهلك بالكا�
         <Head title="الأصول الثابتة" />
         <PageHeader title="الأصول الثابتة" :crumbs="[{ label: 'المحاسبة' }, { label: 'الأصول الثابتة' }]">
             <template #actions>
+                <ImportButton v-if="$can('accounting.fixed_assets.create')" type="fixed_assets" title="استيراد الأصول الثابتة من Excel" hint="تُسجّل كأصول افتتاحية بتاريخ اليوم: التكلفة والمجمع السابق (opening_accumulated) مقابل الأرصدة الافتتاحية. الفئة باسمها كما في النظام." />
                 <button v-if="$can('accounting.fixed_assets.post')" @click="depreciateOpen = true" class="px-3 py-2 rounded-xl border border-amber-300 text-amber-700 text-xs font-bold">ترحيل الإهلاك الشهري</button>
                 <button v-if="$can('accounting.fixed_assets.edit')" @click="categoryOpen = true" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">فئة أصول</button>
                 <button v-if="$can('accounting.fixed_assets.create')" @click="assetOpen = true" :disabled="!categories.length" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40"><PlusIcon class="w-4 h-4" /> أصل جديد</button>
