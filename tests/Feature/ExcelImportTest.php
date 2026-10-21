@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
+use App\Models\Quotation;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
 use App\Services\TenantManager;
@@ -111,5 +112,61 @@ class ExcelImportTest extends TestCase
     {
         $this->lines('sales', "الكمية,السعر\n1,2\n")->assertStatus(422)->assertJsonValidationErrors('file');
         $this->assertStringContainsString('رمز الصنف', $this->get(route('lookup.lines.template', ['kind' => 'sales']))->assertOk()->streamedContent());
+    }
+
+    // ------------------------------------------------------------------ S3
+
+    public function test_whole_quotations_import_as_drafts_with_manual_totals(): void
+    {
+        Product::create(['name_ar' => 'كابل', 'sku' => 'CB-10', 'selling_price' => 40, 'tax_rate' => 15, 'is_active' => true]);
+        Customer::create(['code' => 'C-1', 'name' => 'شركة البناء', 'customer_type' => 'commercial', 'status' => 'active']);
+        Customer::create(['code' => 'C-2', 'name' => 'مؤسسة النور', 'customer_type' => 'commercial', 'status' => 'active']);
+
+        $csv = 'quotation_ref,customer_code,customer_name,date,valid_until,notes,code,name,quantity,unit_price,discount,tax_rate
+'
+            .'Q-OLD-1,C-1,,2026-06-01,2026-06-15,عرض توريد,CB-10,,100,35,50,15
+'
+            .'Q-OLD-1,C-1,,2026-06-01,2026-06-15,,,أعمال تركيب,1,2500,,15
+'
+            .'Q-OLD-2,,مؤسسة النور,2026-06-03,,,CB-10,,10,,,
+'
+            .'Q-OLD-2,,مؤسسة النور,2026-06-03,,,,نقل,1,300,,0
+'
+            .'Q-OLD-2,,مؤسسة النور,2026-06-03,,,CB-10,,5,40,,15
+';
+        $this->post(route('data-transfer.import', 'quotations'), ['file' => $this->csv($csv, 'q.csv')])->assertSessionHasNoErrors();
+
+        $this->assertSame(2, Quotation::count());
+        $first = Quotation::with('items')->whereHas('customer', fn ($q) => $q->where('code', 'C-1'))->first();
+        $this->assertSame('draft', $first->status);
+        $this->assertCount(2, $first->items);
+        // (100 x 35 - 50) + 2500 = 5950 net; VAT 15% = 892.5
+        $this->assertSame(5950.0, (float) $first->subtotal);
+        $this->assertSame(6842.5, (float) $first->total);
+        $this->assertStringContainsString('Q-OLD-1', $first->notes);
+
+        // The same quotation through the form gives the same totals.
+        $this->post(route('sales.quotations.store'), ['customer_id' => $first->customer_id, 'quotation_date' => '2026-06-01', 'items' => [
+            ['item_name' => 'كابل', 'quantity' => 100, 'unit_price' => 35, 'discount' => 50, 'tax_rate' => 15],
+            ['item_name' => 'أعمال تركيب', 'quantity' => 1, 'unit_price' => 2500, 'tax_rate' => 15],
+        ]])->assertRedirect();
+        $this->assertSame(6842.5, (float) Quotation::latest('id')->first()->total);
+
+        $second = Quotation::with('items')->whereHas('customer', fn ($q) => $q->where('code', 'C-2'))->first();
+        $this->assertCount(3, $second->items);
+        $this->assertSame(40.0, (float) $second->items->first()->unit_price);   // product price
+    }
+
+    public function test_a_quotation_file_with_an_unknown_customer_saves_nothing(): void
+    {
+        Customer::create(['code' => 'C-1', 'name' => 'شركة البناء', 'customer_type' => 'commercial', 'status' => 'active']);
+        $csv = 'quotation_ref,customer_code,date,name,quantity,unit_price
+A,C-1,2026-06-01,خدمة,1,100
+B,C-9,2026-06-01,خدمة,1,100
+';
+
+        $this->post(route('data-transfer.import', 'quotations'), ['file' => $this->csv($csv, 'q.csv')])->assertSessionHasErrors('file');
+        $this->assertStringContainsString('C-9', session('errors')->first('file'));
+        $this->assertSame(0, Quotation::count());
     }
 }

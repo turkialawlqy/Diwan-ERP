@@ -8,6 +8,7 @@ use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\Quotation;
 use App\Services\Sales\InvoiceService;
+use App\Services\Sales\QuotationService;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -115,69 +116,7 @@ class QuotationController extends Controller
             'items.*.tax_rate' => 'nullable|numeric|min:0',
         ]);
 
-        $tenantManager = app(TenantManager::class);
-        $company = $tenantManager->getCompany();
-
-        $quotation = DB::transaction(function () use ($validated, $company) {
-            $subtotal = 0;
-            $taxAmount = 0;
-            $discountTotal = 0;
-            $itemsToCreate = [];
-
-            foreach ($validated['items'] as $itemData) {
-                $qty = (float) $itemData['quantity'];
-                $price = (float) $itemData['unit_price'];
-                $discount = (float) ($itemData['discount'] ?? 0);
-                $taxRate = (float) ($itemData['tax_rate'] ?? 15.00);
-
-                $itemSubtotal = ($qty * $price) - $discount;
-                $itemTax = $itemSubtotal * ($taxRate / 100);
-                $itemTotal = $itemSubtotal + $itemTax;
-
-                $subtotal += $itemSubtotal;
-                $taxAmount += $itemTax;
-                $discountTotal += $discount;
-
-                $itemsToCreate[] = [
-                    'product_id' => $itemData['product_id'] ?? null,
-                    'item_name' => $itemData['item_name'],
-                    'description' => $itemData['description'] ?? null,
-                    'quantity' => $qty,
-                    'unit_price' => $price,
-                    'discount' => $discount,
-                    'tax_rate' => $taxRate,
-                    'tax_amount' => $itemTax,
-                    'subtotal' => $itemSubtotal,
-                    'total' => $itemTotal,
-                ];
-            }
-
-            $total = $subtotal + $taxAmount;
-
-            $quotation = Quotation::create([
-                'company_id' => $company->id,
-                'branch_id' => $validated['branch_id'] ?? null,
-                'customer_id' => $validated['customer_id'],
-                'user_id' => auth()->id(),
-                'quotation_number' => $this->nextNumber('quotation', $validated['quotation_date']),
-                'quotation_date' => $validated['quotation_date'],
-                'valid_until' => $validated['valid_until'] ?? null,
-                'subtotal' => $subtotal,
-                'discount_amount' => $discountTotal,
-                'tax_rate' => 15.00,
-                'tax_amount' => $taxAmount,
-                'total' => $total,
-                'status' => 'draft',
-                'notes' => $validated['notes'] ?? null,
-                'terms' => $validated['terms'] ?? null,
-            ]);
-
-            foreach ($itemsToCreate as $item) {
-                $quotation->items()->create($item);
-            }
-
-            return $quotation;
-        });
+        $quotation = app(QuotationService::class)->create($validated);
 
         return redirect()->route('sales.quotations.show', $quotation->id)
             ->with('success', 'تم إنشاء عرض السعر بنجاح');

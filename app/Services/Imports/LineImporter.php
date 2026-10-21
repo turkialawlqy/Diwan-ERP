@@ -105,7 +105,7 @@ class LineImporter
         return null;
     }
 
-    protected function items(array $header, array $rows, string $kind, ?Customer $customer): array
+    public function items(array $header, array $rows, string $kind, ?Customer $customer): array
     {
         if (! in_array('code', $header, true) && ! in_array('name', $header, true)) {
             throw ValidationException::withMessages(['file' => 'لم يُعثر على عمود الصنف: أضف عمود «رمز الصنف» أو «الصنف». حمّل القالب للاطلاع على الأعمدة.']);

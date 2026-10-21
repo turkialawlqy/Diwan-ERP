@@ -7,13 +7,16 @@ use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\JournalEntry;
 use App\Models\Product;
+use App\Models\Quotation;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\PostingService;
+use App\Services\Imports\LineImporter;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
+use App\Services\Sales\QuotationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +25,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -32,6 +36,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class DataTransferController extends Controller
 {
     public const MAX_IMPORT_ROWS = 5000;
+
+    /** Columns read as dates (Excel keeps dates as day numbers). */
+    protected const DATE_COLUMNS = ['date', 'valid_until', 'hire_date', 'acquisition_date', 'contract_end', 'birth_date', 'id_expiry'];
 
     /** Import-only columns that post an opening balance instead of being stored as-is. */
     protected const OPENING_COLUMNS = ['opening_balance', 'opening_quantity', 'opening_cost', 'warehouse_code'];
@@ -78,6 +85,14 @@ class DataTransferController extends Controller
             'accounts' => [
                 'label' => 'دليل الحسابات', 'model' => Account::class, 'permission' => ['view' => 'accounting.accounts.view', 'create' => 'accounting.accounts.create'], 'export_only' => true,
                 'columns' => ['code', 'name_ar', 'name_en', 'type', 'nature', 'is_parent', 'balance'],
+            ],
+            'quotations' => [
+                'label' => 'عروض الأسعار', 'permission' => ['view' => 'sales.quotations.create', 'create' => 'sales.quotations.create'], 'import_only' => true,
+                'columns' => ['quotation_ref', 'customer_code', 'customer_name', 'date', 'valid_until', 'notes', 'code', 'name', 'quantity', 'unit_price', 'discount', 'tax_rate'],
+                'rules' => ['quotation_ref' => 'required|string|max:50', 'customer_code' => 'nullable|string|max:50', 'customer_name' => 'nullable|string|max:255',
+                    'date' => 'required|date', 'valid_until' => 'nullable|date|after_or_equal:date', 'notes' => 'nullable|string|max:2000',
+                    'code' => 'nullable|string|max:100', 'name' => 'nullable|string|max:255', 'quantity' => 'nullable|numeric|gt:0',
+                    'unit_price' => 'nullable|numeric|min:0', 'discount' => 'nullable|numeric|min:0', 'tax_rate' => 'nullable|numeric|min:0|max:100'],
             ],
             'opening_balances' => [
                 'label' => 'ميزان المراجعة الافتتاحي', 'permission' => ['view' => 'accounting.journals.create', 'create' => 'accounting.journals.create'], 'import_only' => true,
@@ -178,6 +193,10 @@ class DataTransferController extends Controller
                 if ($index !== false) {
                     $value = $row[$index] ?? null;
                     // Spreadsheets hand codes and SKUs back as numbers; validate them as text.
+                    // Excel stores dates as day numbers.
+                    if (in_array($column, self::DATE_COLUMNS, true) && is_numeric($value) && (float) $value > 1000) {
+                        $value = ExcelDate::excelToDateTimeObject((float) $value)->format('Y-m-d');
+                    }
                     $data[$column] = is_string($value) ? trim(ltrim($value, "'")) : (is_int($value) || is_float($value) ? (string) $value : $value);
                 }
             }
@@ -201,6 +220,11 @@ class DataTransferController extends Controller
             throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
         }
 
+        if ($type === 'quotations') {
+            $quotations = $this->importQuotations($records);
+
+            return back()->with('success', 'تم إنشاء '.count($quotations).' عرض سعر كمسودة: '.implode('، ', array_map(fn ($q) => $q->quotation_number, $quotations)));
+        }
         if ($type === 'opening_balances') {
             $entry = $this->importTrialBalance($records, $openingDate);
 
@@ -293,6 +317,54 @@ class DataTransferController extends Controller
             ]);
             $poster->openingBalance($model, ['role' => 'inventory', 'side' => 'debit'], (float) $movement->total_cost, $date, 'رصيد افتتاحي للصنف '.$model->name_ar);
         }
+    }
+
+    /**
+     * Quotations from one sheet: a row per line, the rows sharing a
+     * quotation_ref form one quotation (the reference of the previous
+     * system is kept in its notes). All are created as drafts, or none.
+     *
+     * @return array<int, Quotation>
+     */
+    protected function importQuotations(array $records): array
+    {
+        $groups = collect($records)->groupBy(fn ($r) => (string) $r['quotation_ref'], true);
+        $customers = Customer::query()->get(['id', 'code', 'name', 'price_list_id']);
+        $importer = app(LineImporter::class);
+        $errors = [];
+        $documents = [];
+
+        foreach ($groups as $ref => $rows) {
+            $first = $rows->first();
+            $customer = ! empty($first['customer_code'])
+                ? $customers->first(fn ($c) => (string) $c->code === (string) $first['customer_code'])
+                : $customers->first(fn ($c) => $c->name === ($first['customer_name'] ?? null));
+            if (! $customer) {
+                $errors[] = "العرض {$ref}: العميل ".($first['customer_code'] ?? $first['customer_name'] ?? '(فارغ)').' غير موجود.';
+
+                continue;
+            }
+            $result = $importer->items(['code', 'name'], $rows->all(), 'sales', $customer);
+            foreach ($result['errors'] as $error) {
+                $errors[] = "العرض {$ref}: {$error}";
+            }
+            if (! $result['lines']) {
+                continue;
+            }
+            $documents[] = [
+                'customer_id' => $customer->id,
+                'quotation_date' => $first['date'],
+                'valid_until' => $first['valid_until'] ?? null,
+                'notes' => trim(($first['notes'] ?? '')."\nمرجع العرض السابق: {$ref}"),
+                'items' => $result['lines'],
+            ];
+        }
+
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        return DB::transaction(fn () => array_map(fn ($data) => app(QuotationService::class)->create($data), $documents));
     }
 
     /**
