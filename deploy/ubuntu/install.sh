@@ -29,6 +29,13 @@ die()  { echo "${c_err}✗ $*${c_off}" >&2; exit 1; }
 run()  { if [[ $DRY_RUN == 1 ]]; then echo "  [dry-run] $*"; else "$@"; fi; }
 as_app() { run sudo -u "$APP_USER" -H env HOME="$APP_HOME" COMPOSER_HOME="$APP_HOME/.composer" "$@"; }
 artisan() { as_app php "$APP_DIR/artisan" "$@"; }
+# PhpSpreadsheet 1.x (Excel import) declares PHP < 8.5; every other package supports 8.5.
+composer_flags() {
+    if php -r 'exit(PHP_VERSION_ID >= 80500 ? 0 : 1);' 2>/dev/null; then
+        echo "  (PHP $(php -r 'echo PHP_VERSION;'): تجاوز قيد إصدار PHP لمكتبة Excel؛ بقية المكتبات تدعمه)" >&2
+        echo "--ignore-platform-req=php"
+    fi
+}
 trap 'echo "${c_err}✗ توقف التثبيت عند السطر $LINENO. أرسل آخر الرسائل أعلاه للمساعدة، ثم أعد تشغيل السكربت (آمن للإعادة).${c_off}" >&2' ERR
 
 # Sets KEY=VALUE in a dotenv file (quoted when needed; values may hold any character).
@@ -204,7 +211,8 @@ else
     as_app git -C "$APP_DIR" checkout "$BRANCH"
     as_app git -C "$APP_DIR" pull --ff-only origin "$BRANCH"
 fi
-as_app composer install --working-dir="$APP_DIR" --no-dev --optimize-autoloader --no-interaction
+mapfile -t COMPOSER_FLAGS < <(composer_flags)
+as_app composer install --working-dir="$APP_DIR" --no-dev --optimize-autoloader --no-interaction "${COMPOSER_FLAGS[@]}"
 as_app sh -c "cd $APP_DIR && npm ci --no-audit --no-fund && npm run build && rm -rf node_modules"
 ok "الكود والواجهة جاهزان."
 
