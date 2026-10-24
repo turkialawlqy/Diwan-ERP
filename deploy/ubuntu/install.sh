@@ -211,6 +211,11 @@ else
     as_app git -C "$APP_DIR" checkout "$BRANCH"
     as_app git -C "$APP_DIR" pull --ff-only origin "$BRANCH"
 fi
+# A copy of this script run from elsewhere (e.g. /root) hands over to the one just pulled.
+if [[ $DRY_RUN != 1 && -z ${DIWAN_REEXEC:-} ]] && ! cmp -s "${BASH_SOURCE[0]}" "$APP_DIR/deploy/ubuntu/install.sh"; then
+    ok "نُسخة أحدث من سكربت التثبيت وصلت مع الكود؛ يكمل بها الآن."
+    exec env DIWAN_REEXEC=1 bash "$APP_DIR/deploy/ubuntu/install.sh"
+fi
 mapfile -t COMPOSER_FLAGS < <(composer_flags)
 as_app composer install --working-dir="$APP_DIR" --no-dev --optimize-autoloader --no-interaction "${COMPOSER_FLAGS[@]}"
 as_app sh -c "cd $APP_DIR && npm ci --no-audit --no-fund && npm run build && rm -rf node_modules"
