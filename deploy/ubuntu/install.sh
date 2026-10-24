@@ -229,7 +229,15 @@ if [[ $DRY_RUN != 1 && -z ${DIWAN_REEXEC:-} && $(sha256sum "$APP_DIR/deploy/ubun
 fi
 mapfile -t COMPOSER_FLAGS < <(composer_flags)
 as_app composer install --working-dir="$APP_DIR" --no-dev --optimize-autoloader --no-interaction "${COMPOSER_FLAGS[@]}"
-as_app env NODE_OPTIONS=--max-old-space-size=1536 sh -c "cd $APP_DIR && npm ci --no-audit --no-fund && npm run build && rm -rf node_modules"
+# The front-end build takes minutes on a small server: only when its sources changed since the last build.
+BUILD_STAMP=$APP_DIR/public/build/.source-hash
+BUILD_HASH=$(cd "$APP_DIR" && git ls-tree -r HEAD -- resources/js resources/css package.json package-lock.json vite.config.js tailwind.config.js postcss.config.js | sha256sum | cut -d' ' -f1)
+if [[ -f $APP_DIR/public/build/manifest.json && -f $BUILD_STAMP && $(cat "$BUILD_STAMP") == "$BUILD_HASH" ]]; then
+    ok "الواجهة مبنية مسبقاً ولم تتغير ملفاتها؛ تخطّي البناء."
+else
+    as_app env NODE_OPTIONS=--max-old-space-size=1536 sh -c "cd $APP_DIR && npm ci --no-audit --no-fund && npm run build && rm -rf node_modules"
+    [[ $DRY_RUN == 1 ]] || as_app sh -c "echo $BUILD_HASH > $BUILD_STAMP"
+fi
 ok "الكود والواجهة جاهزان."
 
 # ------------------------------------------------------------------ 6. .env
