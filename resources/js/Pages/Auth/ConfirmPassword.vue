@@ -1,55 +1,26 @@
 <script setup>
-import GuestLayout from '@/Layouts/GuestLayout.vue';
+import AuthLayout from '@/Layouts/AuthLayout.vue';
 import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 
-const form = useForm({
-    password: '',
-});
-
-const submit = () => {
-    form.post(route('password.confirm'), {
-        onFinish: () => form.reset(),
-    });
-};
+const form = useForm({ password: '' });
+const submit = () => form.post(route('password.confirm'), { onFinish: () => form.reset() });
 </script>
 
 <template>
-    <GuestLayout>
-        <Head title="Confirm Password" />
-
-        <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-            This is a secure area of the application. Please confirm your
-            password before continuing.
+    <AuthLayout>
+        <Head title="تأكيد كلمة المرور" />
+        <div class="text-center mb-6">
+            <h2 class="text-xl font-black text-slate-900">تأكيد كلمة المرور</h2>
+            <p class="text-xs text-slate-500 mt-1">هذه منطقة محمية، أدخل كلمة المرور للمتابعة.</p>
         </div>
-
-        <form @submit.prevent="submit">
+        <form @submit.prevent="submit" class="space-y-4">
             <div>
-                <InputLabel for="password" value="Password" />
-                <TextInput
-                    id="password"
-                    type="password"
-                    class="mt-1 block w-full"
-                    v-model="form.password"
-                    required
-                    autocomplete="current-password"
-                    autofocus
-                />
-                <InputError class="mt-2" :message="form.errors.password" />
+                <label for="password" class="block text-xs font-bold text-slate-700 mb-1">كلمة المرور</label>
+                <input id="password" v-model="form.password" type="password" required autofocus autocomplete="current-password" class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs sm:text-sm rounded-xl px-4 py-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" />
+                <InputError class="mt-1.5" :message="form.errors.password" />
             </div>
-
-            <div class="mt-4 flex justify-end">
-                <PrimaryButton
-                    class="ms-4"
-                    :class="{ 'opacity-25': form.processing }"
-                    :disabled="form.processing"
-                >
-                    Confirm
-                </PrimaryButton>
-            </div>
+            <button type="submit" :disabled="form.processing" class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl shadow-md transition disabled:opacity-50">متابعة</button>
         </form>
-    </GuestLayout>
+    </AuthLayout>
 </template>

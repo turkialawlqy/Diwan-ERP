@@ -71,6 +71,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\ZatcaController;
 use App\Models\PlatformPage;
+use App\Models\SubscriptionPlan;
 use App\Services\TenantManager;
 use Illuminate\Support\Facades\Route;
 
@@ -94,8 +95,17 @@ Route::get('/', function () {
         return redirect()->route('dashboard');
     }
 
-    return redirect()->route('login');
-});
+    // A company's own subdomain goes to its login; the platform domain shows the landing page.
+    if (app(TenantManager::class)->getCompany()) {
+        return redirect()->route('login');
+    }
+
+    return Inertia\Inertia::render('Landing', [
+        'plans' => SubscriptionPlan::where('is_active', true)->orderBy('price_monthly')
+            ->get(['id', 'name_ar', 'description_ar', 'price_monthly', 'price_yearly', 'max_users', 'max_branches', 'max_invoices_per_month', 'modules', 'is_popular', 'trial_days']),
+        'countries' => count(config('countries')),
+    ]);
+})->name('home');
 
 // Localization Switcher
 // Customer-facing signed links (no login): document PDF and account statement.

@@ -1,6 +1,9 @@
 <script setup>
 import BrandLogo from '../Components/BrandLogo.vue';
 import LanguageSwitcher from '../Components/LanguageSwitcher.vue';
+
+// wide: a larger card for long forms (company sign-up).
+defineProps({ wide: { type: Boolean, default: false } });
 </script>
 
 <template>
@@ -12,7 +15,7 @@ import LanguageSwitcher from '../Components/LanguageSwitcher.vue';
         </div>
 
         <!-- Main Auth Container -->
-        <div class="sm:mx-auto sm:w-full sm:max-w-md px-4 mt-8 sm:mt-0">
+        <div :class="wide ? 'sm:max-w-2xl' : 'sm:max-w-md'" class="sm:mx-auto sm:w-full px-4 mt-8 sm:mt-0">
             <div class="text-center mb-6">
                 <div class="flex justify-center mb-3">
                     <BrandLogo size="lg" :showSubtitle="true" />

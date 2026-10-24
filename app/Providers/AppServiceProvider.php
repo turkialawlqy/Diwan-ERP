@@ -14,9 +14,12 @@ use App\Services\Saas\PlanGuard;
 use App\Services\TenantManager;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -48,6 +51,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->arabicAuthMails();
+
         // Sum of a money column in base currency (documents with exchange_rate).
         Builder::macro('sumBase', function (string $column) {
             /** @var Builder $this */
@@ -212,5 +217,24 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(120)->by($request->user()?->id ?? $request->ip());
         });
+    }
+
+    /** Account emails (verification, password reset) in Arabic, with the product name. */
+    protected function arabicAuthMails(): void
+    {
+        VerifyEmail::toMailUsing(fn ($notifiable, string $url) => (new MailMessage)
+            ->subject('تأكيد بريدك الإلكتروني — '.config('app.name'))
+            ->greeting('مرحباً '.($notifiable->name ?? ''))
+            ->line('شكراً لتسجيلك في '.config('app.name').'. اضغط الزر التالي لتأكيد بريدك الإلكتروني وتفعيل حسابك.')
+            ->action('تأكيد البريد الإلكتروني', $url)
+            ->line('صلاحية الرابط '.config('auth.verification.expire', 60).' دقيقة. إن لم تنشئ حساباً لدينا فتجاهل هذه الرسالة.'));
+
+        ResetPassword::toMailUsing(fn ($notifiable, string $token) => (new MailMessage)
+            ->subject('إعادة تعيين كلمة المرور — '.config('app.name'))
+            ->greeting('مرحباً '.($notifiable->name ?? ''))
+            ->line('وصلنا طلب لإعادة تعيين كلمة مرور حسابك.')
+            ->action('تعيين كلمة مرور جديدة', url(route('password.reset', ['token' => $token, 'email' => $notifiable->getEmailForPasswordReset()], false)))
+            ->line('صلاحية الرابط '.config('auth.passwords.'.config('auth.defaults.passwords').'.expire', 60).' دقيقة.')
+            ->line('إن لم تطلب ذلك فتجاهل هذه الرسالة، وكلمة مرورك الحالية تبقى كما هي.'));
     }
 }

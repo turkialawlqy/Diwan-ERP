@@ -386,6 +386,7 @@ sudo bash /var/www/diwan/deploy/ubuntu/update.sh
 | خطأ 500 بعد تعديل `.env` | الإعدادات المخزنة قديمة: `cd /var/www/diwan && sudo -u www-data php artisan optimize`. |
 | الفواتير «بانتظار الإرسال» للهيئة ولا تُرسل | العمليات الخلفية متوقفة: `supervisorctl status`، ثم `supervisorctl restart 'diwan:*'`. |
 | لا تصل رسائل البريد | تحقق من إعدادات SMTP في `.env` ومن سجل النظام، وتأكد من سجلات SPF وDKIM. |
+| مستخدم عالق في صفحة «تأكيد البريد» ولم يصله الرابط | إن كان `MAIL_MAILER=log` فالرسالة تُكتب في السجل ولا تُرسل: اضبط SMTP (القسم 8)، وفي الأثناء فعّل الحساب يدوياً بالأمر `sudo -u www-data php artisan erp:verify-user EMAIL`. |
 | الموقع بطيء جداً | راقب الذاكرة بـ `free -h` والمعالج بـ `top`. غالباً يحتاج الخادم ترقية الحجم من لوحة DigitalOcean (Resize). |
 
 إن لم تجد الحل، اجمع هذه المعلومات وأرسلها:
