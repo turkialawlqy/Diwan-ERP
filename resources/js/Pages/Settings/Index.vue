@@ -29,6 +29,9 @@ const props = defineProps({
     accounts: Array,
     roles: { type: Array, default: () => [] },
     twoFactorRoles: { type: Array, default: () => [] },
+    countries: { type: Array, default: () => [] },
+    currencies: { type: Array, default: () => [] },
+    countryLocked: { type: Boolean, default: false },
 });
 
 const activeTab = ref('general');
@@ -90,6 +93,7 @@ const form = useForm({
     tax_number: props.company?.tax_number || '',
     commercial_registration: props.company?.commercial_registration || '',
     currency: props.company?.currency || 'SAR',
+    country_code: props.company?.country_code || 'SA',
     timezone: props.company?.timezone || 'Asia/Riyadh',
     language: props.company?.language || 'ar',
 
@@ -804,15 +808,7 @@ const removeLogo = async () => {
                                         disabled
                                         class="w-full text-xs rounded-xl border-slate-200 bg-slate-100/90 text-slate-600 cursor-not-allowed font-bold"
                                     >
-                                        <option value="SAR">ريال سعودي (SAR - ر.س)</option>
-                                        <option value="AED">درهم إماراتي (AED - د.إ)</option>
-                                        <option value="USD">دولار أمريكي (USD - $)</option>
-                                        <option value="EUR">يورو (EUR - €)</option>
-                                        <option value="EGP">جنيه مصري (EGP - ج.م)</option>
-                                        <option value="KWD">دينار كويتي (KWD - د.ك)</option>
-                                        <option value="BHD">دينار بحريني (BHD - د.ب)</option>
-                                        <option value="OMR">ريال عماني (OMR - ر.ع)</option>
-                                        <option value="QAR">ريال قطري (QAR - ر.ق)</option>
+                                        <option v-for="c in currencies" :key="c.code" :value="c.code">{{ c.name }} ({{ c.code }} - {{ c.symbol }})</option>
                                     </select>
                                     <p class="text-[11px] text-amber-800 bg-amber-50/70 border border-amber-200/60 rounded-xl p-2.5 mt-2 flex items-start gap-1.5 leading-relaxed font-medium">
                                         <LockClosedIcon class="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
@@ -821,14 +817,21 @@ const removeLogo = async () => {
                                 </div>
 
                                 <div>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">دولة المنشأة</label>
+                                    <select v-model="form.country_code" :disabled="countryLocked" class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 disabled:bg-slate-100" data-company-country>
+                                        <option v-for="c in countries" :key="c.code" :value="c.code">{{ c.name }}</option>
+                                    </select>
+                                    <p class="text-[11px] text-slate-500 mt-1">{{ countryLocked ? 'لا تتغير بعد إصدار فواتير. الفروع في دول أخرى تُضاف من شاشة الفروع.' : 'تحدد ضريبة المنشأة ورقمها الضريبي. الفروع في دول أخرى تُضاف من شاشة الفروع.' }}</p>
+                                    <p v-if="form.errors.country_code" class="text-[11px] text-rose-600 mt-1">{{ form.errors.country_code }}</p>
+                                </div>
+
+                                <div>
                                     <label class="block text-xs font-bold text-slate-700 mb-1">المنطقة الزمنية</label>
                                     <select 
                                         v-model="form.timezone"
                                         class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 font-mono"
                                     >
-                                        <option value="Asia/Riyadh">Asia/Riyadh (GMT+3)</option>
-                                        <option value="Asia/Dubai">Asia/Dubai (GMT+4)</option>
-                                        <option value="Africa/Cairo">Africa/Cairo (GMT+2)</option>
+                                        <option v-for="tz in [...new Set(countries.map((c) => c.timezone))]" :key="tz" :value="tz">{{ tz }}</option>
                                     </select>
                                 </div>
 

@@ -483,6 +483,8 @@ return [
         'accounting.trial-balance.index' => 'accounting.trial_balance.view',
         'branches.index' => 'admin.branches.view',
         'branches.store' => 'admin.branches.create',
+        'branches.update' => 'admin.branches.edit',
+        'branches.tax-rates' => 'admin.branches.edit',
         'branches.destroy' => 'admin.branches.delete',
         'finance.banks.index' => 'finance.banks.view',
         'finance.banks.store' => 'finance.banks.create',

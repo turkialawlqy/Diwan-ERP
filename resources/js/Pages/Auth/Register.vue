@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import AuthLayout from '@/Layouts/AuthLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
@@ -14,9 +14,12 @@ import {
     BanknotesIcon
 } from '@heroicons/vue/24/outline';
 
+const props = defineProps({ countries: { type: Array, default: () => [] }, currencies: { type: Array, default: () => [] } });
+
 const form = useForm({
     company_name: '',
     subdomain: '',
+    country_code: 'SA',
     currency: 'SAR',
     name: '',
     email: '',
@@ -25,6 +28,10 @@ const form = useForm({
     password_confirmation: '',
     terms: false,
 });
+
+// The country suggests its currency (still changeable before the company is created).
+const selectedCountry = computed(() => props.countries.find((c) => c.code === form.country_code));
+watch(() => form.country_code, () => { if (selectedCountry.value) form.currency = selectedCountry.value.currency; });
 
 // Auto-generate subdomain from company name (transliterated / cleaned)
 const updateSubdomainSuggestion = () => {
@@ -108,35 +115,32 @@ const submit = () => {
                 <InputError class="mt-1.5" :message="form.errors.subdomain" />
             </div>
 
-            <!-- Base Currency Selection -->
-            <div>
-                <label for="currency" class="block text-xs font-bold text-slate-700 mb-1">
-                    العملة الأساسية للنظام والحسابات *
-                </label>
-                <div class="relative">
-                    <div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-slate-400">
-                        <BanknotesIcon class="w-4 h-4" />
-                    </div>
-                    <select
-                        id="currency"
-                        v-model="form.currency"
-                        required
-                        class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs sm:text-sm rounded-xl ps-9 pe-4 py-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-sans font-bold"
-                    >
-                        <option value="SAR">ريال سعودي (SAR - ر.س)</option>
-                        <option value="AED">درهم إماراتي (AED - د.إ)</option>
-                        <option value="USD">دولار أمريكي (USD - $)</option>
-                        <option value="EUR">يورو (EUR - €)</option>
-                        <option value="EGP">جنيه مصري (EGP - ج.م)</option>
-                        <option value="KWD">دينار كويتي (KWD - د.ك)</option>
-                        <option value="BHD">دينار بحريني (BHD - د.ب)</option>
-                        <option value="OMR">ريال عماني (OMR - ر.ع)</option>
-                        <option value="QAR">ريال قطري (QAR - ر.ق)</option>
+            <!-- Country (tax rules) and base currency -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label for="country_code" class="block text-xs font-bold text-slate-700 mb-1">دولة المنشأة *</label>
+                    <select id="country_code" v-model="form.country_code" required class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs sm:text-sm rounded-xl px-3 py-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-bold" data-register-country>
+                        <option v-for="c in countries" :key="c.code" :value="c.code">{{ c.name }}</option>
                     </select>
+                    <p v-if="selectedCountry" class="mt-1 text-[11px] text-slate-500">{{ selectedCountry.tax }}</p>
+                    <InputError class="mt-1.5" :message="form.errors.country_code" />
                 </div>
-                <div class="mt-1.5 p-2 bg-amber-50/70 border border-amber-200/60 rounded-lg flex items-start gap-1.5 text-[11px] text-amber-800 font-medium">
+                <div>
+                    <label for="currency" class="block text-xs font-bold text-slate-700 mb-1">العملة الأساسية للحسابات *</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-slate-400">
+                            <BanknotesIcon class="w-4 h-4" />
+                        </div>
+                        <select id="currency" v-model="form.currency" required class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs sm:text-sm rounded-xl ps-9 pe-4 py-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-sans font-bold">
+                            <option v-for="c in currencies" :key="c.code" :value="c.code">{{ c.name }} ({{ c.code }} - {{ c.symbol }})</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <div class="p-2 bg-amber-50/70 border border-amber-200/60 rounded-lg flex items-start gap-1.5 text-[11px] text-amber-800 font-medium">
                     <LockClosedIcon class="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <span>تنبيه هام: يتم قفل العملة الأساسية نهائياً بعد إنشاء المنشأة ولا يمكن تغييرها لاحقاً لضمان سلامة القيود المحاسبية والفواتير.</span>
+                    <span>تنبيه هام: يتم قفل العملة الأساسية نهائياً بعد إنشاء المنشأة. الفروع في دول أخرى تُضاف لاحقاً من شاشة الفروع بعملتها وضريبتها.</span>
                 </div>
                 <InputError class="mt-1.5" :message="form.errors.currency" />
             </div>

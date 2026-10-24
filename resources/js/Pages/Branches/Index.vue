@@ -1,272 +1,151 @@
 <script setup>
-import { ref } from 'vue';
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import AppLayout from '../../Layouts/AppLayout.vue';
-import {
-    PlusIcon,
-    ArrowPathIcon,
-    HomeIcon,
-    ChevronRightIcon,
-    BuildingOfficeIcon,
-    XMarkIcon,
-    TrashIcon,
-    MapPinIcon,
-    PhoneIcon,
-    StarIcon,
-} from '@heroicons/vue/24/outline';
+import { computed, ref, watch } from 'vue';
+import { Head, router, useForm } from '@inertiajs/vue3';
+import AppLayout from '@/Layouts/AppLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
+import StatCard from '@/Components/UI/StatCard.vue';
+import Dialog from '@/Components/UI/Dialog.vue';
+import Field from '@/Components/UI/Field.vue';
+import { confirmAction } from '@/composables/useDialog';
+import { PlusIcon, PencilSquareIcon, TrashIcon, GlobeAltIcon } from '@heroicons/vue/24/outline';
 
-const props = defineProps({
-    branches: Array,
-    stats: Object,
-});
+/**
+ * Branches and the country each one operates in: the country sets the tax
+ * (rates, registration number, e-invoicing system) and the default currency.
+ */
+const props = defineProps({ branches: Array, stats: Object, countries: Array, companyCountry: String, baseCurrency: String, rateHistory: { type: Object, default: () => ({}) } });
 
-const isAddModalOpen = ref(false);
+const open = ref(false);
+const editing = ref(null);
+const blank = () => ({ name_ar: '', name_en: '', code: '', city: '', phone: '', address: '', is_main: false, country_code: props.companyCountry, currency: '', tax_number: '', tax_registered: true, commercial_registration: '' });
+const form = useForm(blank());
 
-const form = useForm({
-    name_ar: '',
-    name_en: '',
-    code: '',
-    city: 'الرياض',
-    phone: '',
-    address: '',
-    is_main: false,
-});
+const country = computed(() => props.countries.find((c) => c.code === form.country_code) || props.countries[0]);
+// The company's own country keeps its base currency; another country suggests its own.
+const suggestedCurrency = computed(() => (form.country_code === props.companyCountry ? props.baseCurrency : country.value.currency));
+watch(() => form.country_code, () => { if (!editing.value || !form.currency) form.currency = ''; });
 
-const openAddModal = () => {
-    form.reset();
-    isAddModalOpen.value = true;
+const add = () => { editing.value = null; form.defaults(blank()); form.reset(); form.clearErrors(); open.value = true; };
+const edit = (b) => {
+    editing.value = b;
+    form.defaults({ name_ar: b.name_ar, name_en: b.name_en || '', code: b.code || '', city: b.city || '', phone: b.phone || '', address: b.address || '', is_main: !!b.is_main,
+        country_code: b.profile.country, currency: b.currency || '', tax_number: b.tax_number || '', tax_registered: b.tax_registered !== false, commercial_registration: b.commercial_registration || '' });
+    form.reset(); form.clearErrors(); open.value = true;
 };
-
-const submitBranch = () => {
-    form.post(route('branches.store'), {
-        onSuccess: () => {
-            isAddModalOpen.value = false;
-            form.reset();
-        }
-    });
+const save = () => {
+    const options = { preserveScroll: true, onSuccess: () => { open.value = false; } };
+    editing.value ? form.put(route('branches.update', editing.value.id), options) : form.post(route('branches.store'), options);
 };
-
-const deleteBranch = (id, name) => {
-    if (confirm(`هل أنت متأكد من حذف الفرع "${name}"؟`)) {
-        router.delete(route('branches.destroy', id));
-    }
+const remove = async (b) => {
+    if (await confirmAction(`حذف الفرع «${b.name_ar}»؟`)) router.delete(route('branches.destroy', b.id), { preserveScroll: true });
 };
+const rates = (p) => (p.has_tax ? p.rates.map((r) => `${Number(r)}%`).join(' / ') : 'بدون ضريبة');
+
+// Countries the company works in (with tax), and a rate change from a date.
+const taxCountries = computed(() => [...new Map(props.branches.filter((b) => b.profile.has_tax).map((b) => [b.profile.country, b.profile])).values()]);
+const rateForm = useForm({ country: '', standard: '', rates: '', from: new Date().toISOString().slice(0, 10) });
+const rateOpen = ref(false);
+const editRates = (p) => { rateForm.country = p.country; rateForm.standard = p.rate; rateForm.rates = p.rates.filter((r) => r !== p.rate).join(', '); rateForm.clearErrors(); rateOpen.value = true; };
+const saveRates = () => rateForm.post(route('branches.tax-rates'), { preserveScroll: true, onSuccess: () => { rateOpen.value = false; } });
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout own-errors>
         <Head title="الفروع" />
+        <PageHeader title="الفروع" subtitle="كل فرع في دولة: ضريبته وعملته ونظام فوترته الإلكترونية تتبع تلك الدولة" :crumbs="[{ label: 'الإعدادات' }, { label: 'الفروع' }]">
+            <template #actions>
+                <button v-if="$can('admin.branches.create')" @click="add" class="inline-flex items-center gap-1 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> فرع جديد</button>
+            </template>
+        </PageHeader>
 
-        <div class="space-y-5">
-            <!-- Header Ribbon -->
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <!-- Breadcrumbs -->
-                <div class="flex items-center gap-2">
-                    <div class="inline-flex items-center bg-white border border-slate-200/80 rounded-xl px-4 py-2 text-xs sm:text-sm font-medium text-slate-600 shadow-xs">
-                        <Link :href="route('dashboard')" class="text-slate-400 hover:text-indigo-600 transition-colors flex items-center">
-                            <HomeIcon class="w-4 h-4" />
-                        </Link>
-                        <ChevronRightIcon class="w-3.5 h-3.5 text-slate-300 mx-2 rtl:rotate-180" />
-                        <span class="text-indigo-600 font-bold">الفروع</span>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+            <StatCard label="الفروع" :value="stats.total_branches" />
+            <StatCard label="الفروع النشطة" :value="stats.active_branches" />
+            <StatCard label="الدول" :value="stats.countries" />
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" data-branches>
+            <div v-for="b in branches" :key="b.id" class="bg-white border border-slate-200 rounded-2xl p-5 text-xs">
+                <div class="flex items-start justify-between gap-2">
+                    <div>
+                        <p class="font-black text-sm text-slate-800">{{ b.name_ar }} <span v-if="b.is_main" class="ms-1 px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 text-3xs">الرئيسي</span></p>
+                        <p class="text-slate-500 mt-0.5"><span class="font-mono">{{ b.code }}</span><span v-if="b.city"> · {{ b.city }}</span><span v-if="b.phone"> · <span dir="ltr">{{ b.phone }}</span></span></p>
                     </div>
-                    <Link 
-                        :href="route('branches.index')"
-                        title="تحديث البيانات"
-                        class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-xs transition-all"
-                    >
-                        <ArrowPathIcon class="w-4 h-4" />
-                    </Link>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="flex items-center gap-2">
-                    <button 
-                        @click="openAddModal"
-                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
-                    >
-                        <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>إضافة فرع</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- KPI Cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي فروع المنشأة</p>
-                    <p class="text-xl sm:text-2xl font-black text-slate-800">{{ stats?.total_branches || 0 }}</p>
-                </div>
-                <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">الفروع العاملة والنشطة</p>
-                    <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ stats?.active_branches || 0 }}</p>
-                </div>
-            </div>
-
-            <!-- Branches Cards Grid -->
-            <div v-if="branches && branches.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                <div 
-                    v-for="branch in branches" 
-                    :key="branch.id"
-                    class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs hover:shadow-md transition-shadow relative overflow-hidden flex flex-col justify-between"
-                >
-                    <div class="space-y-4">
-                        <div class="flex items-start justify-between">
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                                    <BuildingOfficeIcon class="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <div class="flex items-center gap-2">
-                                        <h4 class="font-bold text-slate-900 text-sm">{{ branch.name_ar }}</h4>
-                                        <span v-if="branch.is_main" class="px-2 py-0.5 rounded-full text-3xs font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-0.5">
-                                            <StarIcon class="w-3 h-3 fill-amber-500" />
-                                            <span>رئيسي</span>
-                                        </span>
-                                    </div>
-                                    <span class="text-3xs font-mono font-bold text-indigo-600">{{ branch.code }}</span>
-                                </div>
-                            </div>
-
-                            <button 
-                                v-if="!branch.is_main"
-                                @click="deleteBranch(branch.id, branch.name_ar)"
-                                class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
-                                title="حذف"
-                            >
-                                <TrashIcon class="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        <!-- Details -->
-                        <div class="space-y-2 p-3 bg-slate-50 rounded-xl text-3xs text-slate-600">
-                            <div class="flex items-center gap-2">
-                                <MapPinIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
-                                <span>{{ branch.city }} - {{ branch.address || 'لا يوجد عنوان مسجل' }}</span>
-                            </div>
-                            <div class="flex items-center gap-2 font-mono">
-                                <PhoneIcon class="w-4 h-4 text-slate-400 flex-shrink-0" />
-                                <span>{{ branch.phone || '-' }}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-3xs text-slate-500">
-                        <span>الحالة:</span>
-                        <span class="font-bold text-emerald-600">نشط ويعمل</span>
+                    <div class="flex gap-1">
+                        <button v-if="$can('admin.branches.edit')" @click="edit(b)" class="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600" title="تعديل"><PencilSquareIcon class="w-4 h-4" /></button>
+                        <button v-if="!b.is_main && $can('admin.branches.delete')" @click="remove(b)" class="p-1.5 rounded-lg text-slate-500 hover:text-rose-600" title="حذف"><TrashIcon class="w-4 h-4" /></button>
                     </div>
                 </div>
+                <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5" data-branch-profile>
+                    <dt class="text-slate-500">الدولة</dt><dd class="font-bold"><GlobeAltIcon class="w-3.5 h-3.5 inline text-slate-400" /> {{ b.profile.country_name }}</dd>
+                    <dt class="text-slate-500">العملة</dt><dd class="font-bold font-mono">{{ b.profile.currency }}</dd>
+                    <dt class="text-slate-500">{{ b.profile.has_tax ? b.profile.name : 'الضريبة' }}</dt><dd class="font-bold">{{ rates(b.profile) }}</dd>
+                    <dt class="text-slate-500">{{ b.profile.tax_number_label }}</dt><dd class="font-mono">{{ b.profile.seller_tax_number || '—' }}</dd>
+                    <dt class="text-slate-500">الفوترة الإلكترونية</dt><dd>{{ b.profile.einvoicing_label }}</dd>
+                    <dt class="text-slate-500">المستخدمون</dt><dd>{{ b.users_count }}</dd>
+                </dl>
             </div>
+        </div>
 
-            <div v-else class="bg-white rounded-2xl border border-slate-200/80 p-12 text-center text-slate-400 shadow-2xs">
-                <div class="flex flex-col items-center justify-center gap-2">
-                    <BuildingOfficeIcon class="w-12 h-12 text-slate-300 stroke-1" />
-                    <p class="font-semibold text-slate-600 text-sm">لا توجد فروع مسجلة حتى الآن</p>
-                    <p class="text-xs text-slate-400">يمكنك إنشاء فرع جديد بالضغط على زر "إضافة فرع" بالأعلى</p>
-                </div>
-            </div>
-
-            <!-- Add Branch Modal -->
-            <div 
-                v-if="isAddModalOpen" 
-                class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
-            >
-                <div class="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl border border-slate-100">
-                    <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-                        <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            <BuildingOfficeIcon class="w-5 h-5 text-indigo-600" />
-                            <span>إضافة فرع جديد للمنشأة</span>
-                        </h2>
-                        <button @click="isAddModalOpen = false" class="text-slate-400 hover:text-slate-600">
-                            <XMarkIcon class="w-4 h-4" />
-                        </button>
+        <div v-if="taxCountries.length" class="mt-6 bg-white border border-slate-200 rounded-2xl p-5 text-xs" data-tax-rates>
+            <h3 class="font-black text-sm text-slate-800">نسب الضريبة حسب الدولة</h3>
+            <p class="text-slate-500 mt-1">النسب الافتراضية من أنظمة كل دولة؛ إن تغيّرت النسبة فسجّل النسبة الجديدة وتاريخ سريانها، وتبقى المستندات السابقة على نسبتها.</p>
+            <div class="mt-3 divide-y divide-slate-100">
+                <div v-for="p in taxCountries" :key="p.country" class="py-2 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <p class="font-bold">{{ p.country_name }} — {{ p.name }}: <span class="font-mono">{{ rates(p) }}</span></p>
+                        <p v-for="h in rateHistory[p.country] || []" :key="h.from" class="text-slate-500">من {{ h.from }}: {{ h.standard }}%<span v-if="h.rates.length"> (و{{ h.rates.join('، ') }}%)</span></p>
                     </div>
-
-                    <form @submit.prevent="submitBranch" class="space-y-4 text-xs">
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">اسم الفرع بالعربية <span class="text-rose-500">*</span></label>
-                            <input 
-                                v-model="form.name_ar" 
-                                type="text" 
-                                required 
-                                placeholder="مثال: فرع الخبر، فرع مكة..."
-                                class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500" 
-                            />
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block font-medium text-slate-700 mb-1">رمز الفرع (الكود) <span class="text-rose-500">*</span></label>
-                                <input 
-                                    v-model="form.code" 
-                                    type="text" 
-                                    required 
-                                    placeholder="BR-04"
-                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono focus:ring-indigo-500 focus:border-indigo-500" 
-                                />
-                            </div>
-                            <div>
-                                <label class="block font-medium text-slate-700 mb-1">المدينة <span class="text-rose-500">*</span></label>
-                                <input 
-                                    v-model="form.city" 
-                                    type="text" 
-                                    required 
-                                    placeholder="الرياض، جدة..."
-                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500" 
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">رقم الهاتف / الجوال</label>
-                            <input 
-                                v-model="form.phone" 
-                                type="text" 
-                                placeholder="01XXXXXXXX"
-                                class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono" 
-                            />
-                        </div>
-
-                        <div>
-                            <label class="block font-medium text-slate-700 mb-1">العنوان التفصيلي</label>
-                            <input 
-                                v-model="form.address" 
-                                type="text" 
-                                placeholder="اسم الشارع، الحي، رقم المبنى..."
-                                class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl" 
-                            />
-                        </div>
-
-                        <div class="flex items-center gap-2 pt-2">
-                            <input 
-                                v-model="form.is_main" 
-                                id="is_main" 
-                                type="checkbox" 
-                                class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <label for="is_main" class="font-medium text-slate-700 cursor-pointer">
-                                تعيين كفرع رئيسي للمنشأة
-                            </label>
-                        </div>
-
-                        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                            <button 
-                                type="button" 
-                                @click="isAddModalOpen = false"
-                                class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium"
-                            >
-                                إلغاء
-                            </button>
-                            <button 
-                                type="submit" 
-                                :disabled="form.processing"
-                                class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-xs hover:shadow-indigo-500/20 disabled:opacity-50"
-                            >
-                                حفظ الفرع
-                            </button>
-                        </div>
-                    </form>
+                    <button v-if="$can('admin.branches.edit')" @click="editRates(p)" class="px-3 py-1.5 rounded-lg border border-slate-200 font-bold">تعديل النسب</button>
                 </div>
             </div>
         </div>
+
+        <Dialog :show="rateOpen" title="تعديل نسب الضريبة" @close="rateOpen = false">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <Field label="النسبة الأساسية %" :error="rateForm.errors.standard"><input v-model="rateForm.standard" type="number" step="0.01" min="0" max="100" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
+                <Field label="نسب مخفضة (اختياري)" :error="rateForm.errors.rates" hint="مثل: 5, 10"><input v-model="rateForm.rates" dir="ltr" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
+                <Field label="تسري من *" :error="rateForm.errors.from"><input v-model="rateForm.from" type="date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+            </div>
+            <template #footer>
+                <button type="button" @click="saveRates" :disabled="rateForm.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">حفظ</button>
+                <button type="button" @click="rateOpen = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">إلغاء</button>
+            </template>
+        </Dialog>
+
+        <Dialog :show="open" :title="editing ? `تعديل الفرع «${editing.name_ar}»` : 'فرع جديد'" size="lg" @close="open = false">
+            <form @submit.prevent="save" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs" data-branch-form>
+                <Field label="اسم الفرع *" :error="form.errors.name_ar"><input v-model="form.name_ar" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field label="الاسم بالإنجليزي" :error="form.errors.name_en"><input v-model="form.name_en" dir="ltr" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field label="رمز الفرع *" :error="form.errors.code"><input v-model="form.code" required class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
+                <Field label="المدينة" :error="form.errors.city"><input v-model="form.city" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field label="الهاتف" :error="form.errors.phone"><input v-model="form.phone" dir="ltr" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field label="العنوان" :error="form.errors.address"><input v-model="form.address" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+
+                <div class="sm:col-span-2 mt-1 pt-3 border-t border-slate-100 font-black text-slate-700">الدولة والضريبة</div>
+                <Field label="الدولة *" :error="form.errors.country_code" :hint="editing?.locked_country ? 'لا تتغير دولة فرع صدرت منه فواتير' : ''">
+                    <select v-model="form.country_code" :disabled="editing?.locked_country" class="w-full rounded-xl border-slate-200 text-xs" data-country>
+                        <option v-for="c in countries" :key="c.code" :value="c.code">{{ c.name }}</option>
+                    </select>
+                </Field>
+                <Field label="عملة الفرع" :error="form.errors.currency" :hint="`افتراضياً: ${suggestedCurrency}`">
+                    <input v-model="form.currency" maxlength="3" :placeholder="suggestedCurrency" dir="ltr" class="w-full rounded-xl border-slate-200 text-xs font-mono uppercase" />
+                </Field>
+                <div class="sm:col-span-2 p-3 rounded-xl bg-slate-50 text-slate-600 space-y-0.5" data-country-summary>
+                    <p><span class="font-bold">الضريبة:</span> {{ country.has_tax ? `${country.tax_name} — ${country.rates.map((r) => r + '%').join(' / ')}` : 'لا توجد ضريبة قيمة مضافة؛ تصدر الفواتير دون ضريبة' }}</p>
+                    <p><span class="font-bold">الفوترة الإلكترونية:</span> {{ country.einvoicing }}</p>
+                </div>
+                <Field :label="country.tax_number_label" :error="form.errors.tax_number" :hint="country.tax_number_example ? `مثال: ${country.tax_number_example} — يُترك فارغاً لاستخدام رقم المنشأة في دولتها` : ''">
+                    <input v-model="form.tax_number" dir="ltr" class="w-full rounded-xl border-slate-200 text-xs font-mono" data-tax-number />
+                </Field>
+                <Field label="السجل التجاري" :error="form.errors.commercial_registration"><input v-model="form.commercial_registration" dir="ltr" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
+                <label v-if="country.has_tax" class="sm:col-span-2 flex items-center gap-2 font-bold text-slate-700"><input v-model="form.tax_registered" type="checkbox" class="rounded" /> الفرع مسجّل في الضريبة (غير المسجّل يُصدر فواتير دون ضريبة)</label>
+                <label class="sm:col-span-2 flex items-center gap-2 text-slate-700"><input v-model="form.is_main" type="checkbox" class="rounded" /> الفرع الرئيسي</label>
+            </form>
+            <template #footer>
+                <button type="button" @click="save" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">حفظ</button>
+                <button type="button" @click="open = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">إلغاء</button>
+            </template>
+        </Dialog>
     </AppLayout>
 </template>

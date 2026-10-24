@@ -5,9 +5,12 @@ namespace App\Services\Accounting;
 use App\Models\Account;
 use App\Models\AssetCategory;
 use App\Models\BankAccount;
+use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Customer;
 use App\Models\JournalEntry;
 use App\Models\Supplier;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -588,6 +591,64 @@ class AccountingReports
     protected const EXPORT_CODES = ['VATEX-SA-32', 'VATEX-SA-33', 'VATEX-SA-34-1', 'VATEX-SA-34-2', 'VATEX-SA-34-3', 'VATEX-SA-34-4', 'VATEX-SA-34-5'];
 
     /**
+     * Tax summary per branch and currency, for branches in different
+     * countries: sales and purchases by rate with the tax on each, in the
+     * documents' own currency (the currency the return is filed in), and the
+     * net payable. Saudi branches also have the ZATCA return above.
+     *
+     * @return array<int, array{branch_id: ?int, branch: string, country: string, country_name: string, tax_name: string, currency: string, sales: array, purchases: array, output: float, input: float, net: float}>
+     */
+    public function taxByBranch(Carbon $from, Carbon $to): array
+    {
+        $companyId = $this->companyId();
+        $base = strtoupper((string) (Company::find($companyId)?->currency ?: 'SAR'));
+        $range = [$from->toDateString(), $to->toDateString().' 23:59:59'];
+        $groups = [];
+        $add = function ($branchId, $currency, string $side, float $rate, float $amount, float $tax) use (&$groups, $base) {
+            $key = ($branchId ?: 0).'|'.strtoupper((string) ($currency ?: $base));
+            $groups[$key][$side][(string) round($rate, 2)] ??= ['rate' => round($rate, 2), 'amount' => 0.0, 'tax' => 0.0];
+            $groups[$key][$side][(string) round($rate, 2)]['amount'] += $amount;
+            $groups[$key][$side][(string) round($rate, 2)]['tax'] += $tax;
+        };
+
+        DB::table('invoice_items as i')->join('invoices as v', 'v.id', '=', 'i.invoice_id')->where('v.company_id', $companyId)->whereBetween('v.invoice_date', $range)
+            ->selectRaw('v.branch_id, v.currency_code, i.tax_rate, SUM(COALESCE(NULLIF(i.subtotal, 0), i.quantity * i.unit_price - i.discount)) as amount, SUM(i.tax_amount) as tax')
+            ->groupBy('v.branch_id', 'v.currency_code', 'i.tax_rate')->get()
+            ->each(fn ($r) => $add($r->branch_id, $r->currency_code, 'sales', (float) $r->tax_rate, (float) $r->amount, (float) $r->tax));
+        // Credit and debit notes belong to the branch of the invoice they correct.
+        DB::table('credit_notes as n')->leftJoin('invoices as v', 'v.id', '=', 'n.invoice_id')->where('n.company_id', $companyId)
+            ->whereIn('n.status', ['approved', 'refunded'])->whereBetween('n.credit_note_date', $range)->get(['n.subtotal', 'n.tax_amount', 'n.currency_code', 'v.branch_id'])
+            ->each(fn ($n) => $add($n->branch_id, $n->currency_code, 'sales', (float) $n->subtotal > 0 ? round((float) $n->tax_amount / (float) $n->subtotal * 100, 2) : 0, -(float) $n->subtotal, -(float) $n->tax_amount));
+        DB::table('debit_notes as n')->leftJoin('invoices as v', 'v.id', '=', 'n.invoice_id')->where('n.company_id', $companyId)
+            ->whereNotIn('n.status', ['draft', 'cancelled'])->whereBetween('n.debit_note_date', $range)->get(['n.subtotal', 'n.tax_amount', 'n.tax_rate', 'n.currency_code', 'v.branch_id'])
+            ->each(fn ($n) => $add($n->branch_id, $n->currency_code, 'sales', (float) $n->tax_rate, (float) $n->subtotal, (float) $n->tax_amount));
+        DB::table('purchase_invoice_items as i')->join('purchase_invoices as p', 'p.id', '=', 'i.purchase_invoice_id')->where('p.company_id', $companyId)->whereBetween('p.invoice_date', $range)
+            ->selectRaw('p.branch_id, p.currency_code, i.tax_rate, SUM(i.quantity * i.unit_price - i.discount) as amount, SUM(i.tax_amount) as tax')
+            ->groupBy('p.branch_id', 'p.currency_code', 'i.tax_rate')->get()
+            ->each(fn ($r) => $add($r->branch_id, $r->currency_code, 'purchases', (float) $r->tax_amount > 0 ? (float) $r->tax_rate : 0, (float) $r->amount, (float) $r->tax));
+
+        $branches = Branch::query()->get()->keyBy('id');
+        $out = [];
+        foreach ($groups as $key => $sides) {
+            [$branchId, $currency] = explode('|', $key);
+            $branch = $branches->get((int) $branchId);
+            $profile = TaxProfile::forBranch($branch, Company::find($companyId));
+            $round = fn (array $rows) => array_values(array_map(fn ($r) => ['rate' => $r['rate'], 'amount' => round($r['amount'], 2), 'tax' => round($r['tax'], 2)], $rows));
+            $output = round(array_sum(array_column($sides['sales'] ?? [], 'tax')), 2);
+            $input = round(array_sum(array_column($sides['purchases'] ?? [], 'tax')), 2);
+            $out[] = [
+                'branch_id' => $branch?->id, 'branch' => $branch?->name_ar ?? 'بدون فرع', 'country' => $profile->countryCode, 'country_name' => $profile->country['name'],
+                'tax_name' => $profile->taxName(), 'currency' => $currency,
+                'sales' => $round($sides['sales'] ?? []), 'purchases' => $round($sides['purchases'] ?? []),
+                'output' => $output, 'input' => $input, 'net' => round($output - $input, 2),
+            ];
+        }
+        usort($out, fn ($a, $b) => [$a['country'], $a['branch']] <=> [$b['country'], $b['branch']]);
+
+        return $out;
+    }
+
+    /**
      * VAT return in the ZATCA return layout, from documents, cross-checked
      * against the VAT ledger accounts. Sales are classified line by line
      * (standard / zero-rated / export / exempt); credit notes and debit notes
@@ -599,6 +660,11 @@ class AccountingReports
     {
         $companyId = $this->companyId();
         $range = [$from->toDateString(), $to->toDateString().' 23:59:59'];
+        // Branches in other countries file their own returns (see taxByBranch()): left out of the ZATCA form.
+        $company = Company::find($companyId);
+        $foreign = Branch::query()->get()->filter(fn ($b) => TaxProfile::forBranch($b, $company)->countryCode !== 'SA')->pluck('id')->all();
+        $saudiOnly = fn ($q, string $column) => $foreign ? $q->where(fn ($w) => $w->whereNull($column)->orWhereNotIn($column, $foreign)) : $q;
+        $foreignInvoices = $foreign ? DB::table('invoices')->whereIn('branch_id', $foreign)->pluck('id')->all() : [];
         $boxes = array_fill_keys([1, 3, 4, 5, 7, 10], ['amount' => 0.0, 'adjustment' => 0.0, 'vat' => 0.0]);
         $boxOf = function (?string $category, ?string $code, float $vat): ?int {
             if ($vat > 0.0001 || ($category ?? 'S') === 'S') {
@@ -620,7 +686,7 @@ class AccountingReports
 
         // Sales, line by line (POS lines saved before the fix have no subtotal).
         DB::table('invoice_items as i')->join('invoices as v', 'v.id', '=', 'i.invoice_id')
-            ->where('v.company_id', $companyId)->whereBetween('v.invoice_date', $range)
+            ->where('v.company_id', $companyId)->whereBetween('v.invoice_date', $range)->tap(fn ($q) => $saudiOnly($q, 'v.branch_id'))
             ->selectRaw('i.vat_category as cat, i.vat_exemption_code as code,
                 SUM(COALESCE(NULLIF(i.subtotal, 0), i.quantity * i.unit_price - i.discount) * v.exchange_rate) as amount,
                 SUM(i.tax_amount * v.exchange_rate) as vat, SUM(i.tax_amount) as raw_vat')
@@ -638,7 +704,8 @@ class AccountingReports
         $add(1, 'amount', (float) $assetSales->amount, (float) $assetSales->vat);
 
         // Credit notes reduce the box of the lines they credit.
-        $notes = DB::table('credit_notes')->where('company_id', $companyId)->whereIn('status', ['approved', 'refunded'])->whereBetween('credit_note_date', $range)->get();
+        $notes = DB::table('credit_notes')->where('company_id', $companyId)->whereIn('status', ['approved', 'refunded'])->whereBetween('credit_note_date', $range)
+            ->when($foreignInvoices, fn ($q) => $q->where(fn ($w) => $w->whereNull('invoice_id')->orWhereNotIn('invoice_id', $foreignInvoices)))->get();
         $noteLines = DB::table('credit_note_items')->whereIn('credit_note_id', $notes->pluck('id'))->get()->groupBy('credit_note_id');
         foreach ($notes as $note) {
             $rate = (float) ($note->exchange_rate ?: 1);
@@ -653,14 +720,15 @@ class AccountingReports
         }
 
         // Debit notes increase the supplies they correct.
-        foreach (DB::table('debit_notes')->where('company_id', $companyId)->whereNotIn('status', ['draft', 'cancelled'])->whereBetween('debit_note_date', $range)->get() as $note) {
+        foreach (DB::table('debit_notes')->where('company_id', $companyId)->whereNotIn('status', ['draft', 'cancelled'])->whereBetween('debit_note_date', $range)
+            ->when($foreignInvoices, fn ($q) => $q->where(fn ($w) => $w->whereNull('invoice_id')->orWhereNotIn('invoice_id', $foreignInvoices)))->get() as $note) {
             $rate = (float) ($note->exchange_rate ?: 1);
             $add($boxOf(null, null, (float) $note->tax_amount), 'adjustment', (float) $note->subtotal * $rate, (float) $note->tax_amount * $rate);
         }
 
         // Purchases (taxed lines → box 7, untaxed → box 10), expenses with VAT, minus purchase returns.
         DB::table('purchase_invoice_items as i')->join('purchase_invoices as p', 'p.id', '=', 'i.purchase_invoice_id')
-            ->where('p.company_id', $companyId)->whereBetween('p.invoice_date', $range)
+            ->where('p.company_id', $companyId)->whereBetween('p.invoice_date', $range)->tap(fn ($q) => $saudiOnly($q, 'p.branch_id'))
             ->selectRaw('CASE WHEN i.tax_amount > 0 THEN 7 ELSE 10 END as box,
                 SUM((i.quantity * i.unit_price - i.discount) * p.exchange_rate) as amount, SUM(i.tax_amount * p.exchange_rate) as vat')
             ->groupBy(DB::raw('CASE WHEN i.tax_amount > 0 THEN 7 ELSE 10 END'))

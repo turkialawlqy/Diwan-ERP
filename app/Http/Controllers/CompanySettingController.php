@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Models\Account;
 use App\Models\Company;
 use App\Models\CompanySetting;
+use App\Models\Invoice;
 use App\Services\Auth\TwoFactor;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -43,6 +46,10 @@ class CompanySettingController extends Controller
             'accounts' => $accounts,
             'roles' => $roles,
             'twoFactorRoles' => app(TwoFactor::class)->requiredRoles($company),
+            'countries' => collect(config('countries'))->map(fn ($c, $code) => ['code' => $code, 'name' => $c['name'], 'timezone' => $c['timezone']])->values(),
+            'currencies' => RegisteredUserController::currencies(),
+            // The company's country can change only before its first invoice (issued documents keep their country's rules).
+            'countryLocked' => Invoice::exists(),
         ]);
     }
 
@@ -61,6 +68,7 @@ class CompanySettingController extends Controller
             'tax_number' => 'nullable|string|max:50',
             'commercial_registration' => 'nullable|string|max:50',
             'currency' => 'nullable|string|max:10',
+            'country_code' => ['nullable', Rule::in(array_keys(config('countries')))],
             'timezone' => 'nullable|string|max:50',
             'language' => 'nullable|string|in:ar,en',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:3072',
@@ -103,14 +111,20 @@ class CompanySettingController extends Controller
             $currency = $validated['currency'] ?? 'SAR';
         }
 
+        $country = strtoupper((string) ($validated['country_code'] ?? $company->country_code ?: 'SA'));
+        if ($country !== ($company->country_code ?: 'SA') && Invoice::exists()) {
+            throw ValidationException::withMessages(['country_code' => 'لا يمكن تغيير دولة المنشأة بعد إصدار فواتير؛ أضف فرعاً في الدولة الأخرى.']);
+        }
+
         $companyData = [
+            'country_code' => $country,
             'name' => $validated['name'],
             'email' => $validated['email'] ?? null,
             'phone' => $validated['phone'] ?? null,
             'tax_number' => $validated['tax_number'] ?? null,
             'commercial_registration' => $validated['commercial_registration'] ?? null,
             'currency' => $currency,
-            'timezone' => $validated['timezone'] ?? 'Asia/Riyadh',
+            'timezone' => $validated['timezone'] ?? config('countries.'.($company->country_code ?: 'SA').'.timezone'),
             'language' => $validated['language'] ?? 'ar',
         ];
 

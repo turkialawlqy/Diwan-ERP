@@ -644,6 +644,8 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'erp.auth
     // 13. Branches, Templates, Settings
     Route::get('/branches', [BranchController::class, 'index'])->name('branches.index');
     Route::post('/branches', [BranchController::class, 'store'])->name('branches.store');
+    Route::put('/branches/{branch}', [BranchController::class, 'update'])->name('branches.update');
+    Route::post('/branches/tax-rates', [BranchController::class, 'taxRates'])->name('branches.tax-rates');
     Route::delete('/branches/{branch}', [BranchController::class, 'destroy'])->name('branches.destroy');
 
     Route::get('/templates', [TemplateController::class, 'index'])->name('templates.index');

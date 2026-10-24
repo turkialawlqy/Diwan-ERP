@@ -55,7 +55,7 @@ class InvoiceService
             // The branch's country decides the tax (rates, title, e-invoicing) and the default currency.
             $branchId = $data['branch_id'] ?? auth()->user()?->branch_id ?? Branch::orderByDesc('is_main')->orderBy('id')->value('id');
             $profile = TaxProfile::forBranch($branchId ? (int) $branchId : null, $company);
-            [$items, $subtotal, $taxAmount] = $this->computeLines($lines, $profile);
+            [$items, $subtotal, $taxAmount] = $this->computeLines($lines, $profile, $data['invoice_date'] ?? null);
             $total = round($subtotal + $taxAmount, 2);
 
             [$paidAmount, $remaining, $status] = $this->payment($data, $total);
@@ -180,7 +180,7 @@ class InvoiceService
         return false;
     }
 
-    public function computeLines(array $lines, ?TaxProfile $profile = null): array
+    public function computeLines(array $lines, ?TaxProfile $profile = null, $date = null): array
     {
         $profile ??= TaxProfile::current();
         $items = [];
@@ -191,7 +191,7 @@ class InvoiceService
             $qty = (float) $line['quantity'];
             $price = (float) $line['unit_price'];
             $discount = round((float) ($line['discount'] ?? 0), 2);
-            $taxRate = isset($line['tax_rate']) && $line['tax_rate'] !== '' ? (float) $line['tax_rate'] : $profile->standardRate();
+            $taxRate = isset($line['tax_rate']) && $line['tax_rate'] !== '' ? (float) $line['tax_rate'] : $profile->standardRate($date);
 
             if ($qty <= 0 || $price < 0 || $discount < 0) {
                 throw ValidationException::withMessages(['items' => 'كميات وأسعار الأصناف يجب أن تكون موجبة.']);
@@ -209,7 +209,7 @@ class InvoiceService
                 $taxRate, $line['vat_category'] ?? null, $line['vat_exemption_code'] ?? null, $profile,
             );
             // Standard-rated lines carry a rate the branch's country allows (KSA: always 15); others carry none.
-            $taxRate = $vatCategory === 'S' ? $profile->rateFor($taxRate) : 0.0;
+            $taxRate = $vatCategory === 'S' ? $profile->rateFor($taxRate, $date) : 0.0;
 
             $lineTax = round($lineSubtotal * $taxRate / 100, 2);
 
