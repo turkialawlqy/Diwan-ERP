@@ -140,6 +140,51 @@ class EInvoiceManager
     }
 
     /**
+     * Signs a document again on the company's active device when ZATCA no
+     * longer accepts the certificate that signed it (a replaced or stopped
+     * device: HTTP 401). Allowed only while ZATCA has not accepted it. The
+     * old record stays as "superseded"; the new one continues the active
+     * device's chain (next ICV / PIH) with the same UUID and content.
+     */
+    public function restamp(ZatcaDocument $old): ZatcaDocument
+    {
+        $company = Company::findOrFail($old->company_id);
+        $device = $this->device($company, $old->documentable?->branch_id ?? null);
+        if (! $device) {
+            throw ValidationException::withMessages(['zatca' => 'لا يوجد جهاز مفعّل لإعادة التوقيع عليه.']);
+        }
+
+        return DB::transaction(function () use ($old, $company, $device) {
+            $claimed = ZatcaDocument::whereKey($old->id)->whereIn('status', ['pending', 'failed'])->lockForUpdate()->first();
+            if (! $claimed || ! $claimed->documentable) {
+                throw ValidationException::withMessages(['zatca' => 'يمكن إعادة توقيع المستندات التي لم تقبلها الهيئة بعد فقط.']);
+            }
+            $claimed->forceFill(['status' => 'superseded', 'errors' => array_merge($claimed->errors ?? [], [['message' => 'أُعيد توقيعه على الجهاز '.$device->name]])])->save();
+
+            return $this->phaseTwo($claimed->documentable, $company, $device);
+        });
+    }
+
+    /**
+     * Whether a waiting document can only go through after restamp(): ZATCA
+     * refused the certificate that signed it, and another device is active
+     * now. A stopped device whose certificate ZATCA still accepts keeps
+     * submitting its own documents; a refusal on the active device itself
+     * is a certificate to renew, not a reason to sign again.
+     */
+    public function needsRestamp(ZatcaDocument $record): bool
+    {
+        $refused = in_array($record->status, ['pending', 'failed'], true)
+            && collect($record->errors ?? [])->contains(fn ($e) => str_starts_with((string) ($e['message'] ?? ''), 'HTTP 401'));
+        if (! $refused || ! ($company = Company::find($record->company_id))) {
+            return false;
+        }
+        $active = $this->device($company, $record->documentable?->branch_id ?? null);
+
+        return $active !== null && $active->id !== $record->zatca_device_id;
+    }
+
+    /**
      * Re-signs a document that ZATCA has not accepted yet when its signature
      * no longer fits: signed with a hex certificate serial (older versions)
      * or with a certificate the device has since replaced. The invoice hash
@@ -228,7 +273,7 @@ class EInvoiceManager
         'BR-KSA-37' => 'رقم المبنى في العنوان الوطني يجب أن يكون 4 أرقام.',
         'BR-KSA-66' => 'الرمز البريدي يجب أن يكون 5 أرقام.',
         'XSD_ZATCA_INVALID' => 'خلل في بنية ملف الفاتورة. حدّث النظام ثم أعد الإرسال؛ إن تكرر أرسل الرسالة للدعم.',
-        'HTTP 401' => 'رفضت الهيئة شهادة الجهاز. جدّد الشهادة من بطاقة الجهاز، وتأكد أن الجهاز مربوط بنفس البيئة (محاكاة / إنتاج) التي أُصدرت فيها الفاتورة.',
+        'HTTP 401' => 'لم تعد الهيئة تقبل شهادة الجهاز الذي وقّع هذا المستند. إن كان جهازاً سابقاً فاضغط «إعادة التوقيع على الجهاز الحالي»؛ وإن كان جهازك الحالي فجدّد شهادته، وتأكد أن بيئته (محاكاة / إنتاج) هي التي رُبط بها في بوابة فاتورة.',
         'HTTP 5' => 'خوادم الهيئة لا تستجيب حالياً؛ ستُعاد المحاولة تلقائياً.',
     ];
 

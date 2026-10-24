@@ -39,7 +39,7 @@ const waiting = () => (props.stats.pending || 0) + (props.stats.failed || 0);
 const filter = (status) => router.get(route('zatca.index'), { status: status || undefined }, { preserveState: true, preserveScroll: true });
 
 const deviceStatus = { new: ['بانتظار OTP', 'bg-slate-100 text-slate-600'], compliance: ['فحوصات الامتثال', 'bg-amber-50 text-amber-700'], active: ['مفعل', 'bg-emerald-50 text-emerald-700'], revoked: ['موقوف', 'bg-rose-50 text-rose-700'] };
-const docStatus = { pending: ['بانتظار الإرسال', 'text-amber-600'], submitting: ['جارٍ الإرسال', 'text-sky-600'], cleared: ['معتمدة (Cleared)', 'text-emerald-600'], reported: ['مبلغ عنها', 'text-emerald-600'], warning: ['مقبولة بتحذيرات', 'text-amber-600'], rejected: ['مرفوضة', 'text-rose-600'], failed: ['تعذر الإرسال', 'text-rose-600'] };
+const docStatus = { pending: ['بانتظار الإرسال', 'text-amber-600'], submitting: ['جارٍ الإرسال', 'text-sky-600'], cleared: ['معتمدة (Cleared)', 'text-emerald-600'], reported: ['مبلغ عنها', 'text-emerald-600'], warning: ['مقبولة بتحذيرات', 'text-amber-600'], rejected: ['مرفوضة', 'text-rose-600'], failed: ['تعذر الإرسال', 'text-rose-600'], superseded: ['مُستبدل (أُعيد توقيعه)', 'text-slate-400'] };
 const envLabel = { sandbox: 'بيئة المطورين', simulation: 'المحاكاة', production: 'الإنتاج' };
 const typeLabel = { '388': 'فاتورة', '381': 'إشعار دائن', '383': 'إشعار مدين' };
 </script>
@@ -139,11 +139,12 @@ const typeLabel = { '388': 'فاتورة', '381': 'إشعار دائن', '383': 
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-xs">
-                    <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-4 py-2">المستند</th><th class="px-4 py-2">النوع</th><th class="px-4 py-2">ICV</th><th class="px-4 py-2">الإرسال</th><th class="px-4 py-2">الحالة</th><th class="px-4 py-2">المحاولات</th><th class="text-start px-4 py-2">الرسائل</th><th></th></tr></thead>
+                    <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-4 py-2">المستند</th><th class="px-4 py-2">النوع</th><th class="px-4 py-2">الجهاز</th><th class="px-4 py-2">ICV</th><th class="px-4 py-2">الإرسال</th><th class="px-4 py-2">الحالة</th><th class="px-4 py-2">المحاولات</th><th class="text-start px-4 py-2">الرسائل</th><th></th></tr></thead>
                     <tbody>
                         <tr v-for="doc in documents.data" :key="doc.id" class="border-t border-slate-100">
                             <td class="px-4 py-2 font-mono">{{ doc.document_number }}</td>
                             <td class="px-4 py-2 text-center">{{ typeLabel[doc.type_code] }} {{ doc.subtype === '0200000' ? 'مبسطة' : 'ضريبية' }}</td>
+                            <td class="px-4 py-2 text-center font-mono text-slate-500">{{ doc.device?.name }}<span v-if="doc.device && doc.device.status !== 'active'" class="block font-sans text-3xs text-rose-500">غير مفعّل</span></td>
                             <td class="px-4 py-2 text-center font-mono">{{ doc.icv }}</td>
                             <td class="px-4 py-2 text-center">{{ doc.submission === 'clearance' ? 'اعتماد مسبق' : 'إبلاغ' }}</td>
                             <td class="px-4 py-2 text-center font-bold" :class="docStatus[doc.status]?.[1]">{{ docStatus[doc.status]?.[0] || doc.status }}</td>
@@ -154,7 +155,7 @@ const typeLabel = { '388': 'فاتورة', '381': 'إشعار دائن', '383': 
                             </td>
                             <td class="px-4 py-2 text-end whitespace-nowrap">
                                 <a v-if="$can('admin.zatca.export') || $can('admin.zatca.manage')" :href="route('zatca.documents.xml', doc.id)" class="text-indigo-600 font-bold me-3">XML</a>
-                                <button v-if="['failed', 'pending'].includes(doc.status) && $can('admin.zatca.manage')" @click="resubmit(doc)" :disabled="sending" class="text-amber-600 font-bold disabled:opacity-50">{{ doc.attempts ? 'إعادة الإرسال' : 'إرسال الآن' }}</button>
+                                <button v-if="['failed', 'pending'].includes(doc.status) && $can('admin.zatca.manage')" @click="resubmit(doc)" :disabled="sending" class="text-amber-600 font-bold disabled:opacity-50">{{ doc.needs_restamp ? 'إعادة التوقيع على الجهاز الحالي' : (doc.attempts ? 'إعادة الإرسال' : 'إرسال الآن') }}</button>
                             </td>
                         </tr>
                         <tr v-if="!documents.data.length"><td colspan="8" class="py-10 text-center text-slate-400">{{ $t('ui.no_data') }}</td></tr>

@@ -34,14 +34,15 @@ class ZatcaController extends Controller
     public function index(Request $request, DocumentMapper $mapper)
     {
         $company = $this->tenantManager->getCompany();
-        $filters = $request->validate(['status' => 'nullable|in:pending,submitting,cleared,reported,warning,rejected,failed', 'search' => 'nullable|string|max:100']);
+        $filters = $request->validate(['status' => 'nullable|in:pending,submitting,cleared,reported,warning,rejected,failed,superseded', 'search' => 'nullable|string|max:100']);
 
-        $documents = ZatcaDocument::with('device:id,name')
+        $documents = ZatcaDocument::with('device:id,name,status')
             ->when($filters['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
             ->when($filters['search'] ?? null, fn ($q, $s) => $q->where('document_number', 'like', "%{$s}%"))
             ->orderByDesc('id')
             ->paginate($this->perPage($request))->withQueryString()
-            ->through(fn ($document) => $document->setAttribute('hints', EInvoiceManager::hints($document->errors)));
+            ->through(fn ($document) => $document->setAttribute('hints', EInvoiceManager::hints($document->errors))
+                ->setAttribute('needs_restamp', app(EInvoiceManager::class)->needsRestamp($document)));
 
         return Inertia::render('Zatca/Index', [
             'devices' => ZatcaDevice::with('branch:id,name_ar')->orderBy('id')->get(),
@@ -193,7 +194,7 @@ class ZatcaController extends Controller
             return back()->with('error', 'يمكن إعادة إرسال المستندات المعلقة أو المتعثرة فقط. المستند المرفوض يُصحّح بإشعار دائن/مدين.');
         }
 
-        $result = $this->submitNow($document);
+        $result = $this->deliver($document);
 
         return back()->with(in_array($result['status'], ['cleared', 'reported', 'warning'], true) ? 'success' : 'error', $document->document_number.': '.$result['message']);
     }
@@ -209,7 +210,7 @@ class ZatcaController extends Controller
             return back()->with('success', 'لا توجد مستندات بانتظار الإرسال.');
         }
 
-        $results = $documents->map(fn ($document) => $this->submitNow($document));
+        $results = $documents->map(fn ($document) => $this->deliver($document));
         $count = fn (array $statuses) => $results->whereIn('status', $statuses)->count();
         $summary = collect([
             'قُبل '.$count(['cleared', 'reported', 'warning']) => $count(['cleared', 'reported', 'warning']),
@@ -219,6 +220,32 @@ class ZatcaController extends Controller
         $problems = $results->whereNotIn('status', ['cleared', 'reported', 'warning'])->pluck('line')->take(5)->implode("\n");
 
         return back()->with($problems ? 'error' : 'success', 'أُرسل '.$documents->count().' مستند: '.$summary.($problems ? "\n".$problems : ''));
+    }
+
+    /**
+     * Sends a waiting document; one whose certificate ZATCA refuses (a
+     * replaced device) is signed again on the active device and sent.
+     *
+     * @return array{status: string, message: string, line: string}
+     */
+    protected function deliver(ZatcaDocument $document): array
+    {
+        $manager = app(EInvoiceManager::class);
+        $result = $manager->needsRestamp($document) ? null : $this->submitNow($document);
+        if ($result === null || $manager->needsRestamp($document->fresh())) {
+            try {
+                $fresh = $manager->restamp($document->fresh());
+            } catch (ValidationException $e) {
+                $message = collect($e->errors())->flatten()->first();
+
+                return ['status' => 'failed', 'message' => $message, 'line' => $document->document_number.': '.$message];
+            }
+            $result = $this->submitNow($fresh);
+            $result['message'] = 'أُعيد توقيعه على الجهاز الحالي (ICV '.$fresh->icv.') و'.$result['message'];
+            $result['line'] = $document->document_number.': '.$result['message'];
+        }
+
+        return $result;
     }
 
     /** @return array{status: string, message: string, line: string} */

@@ -41,6 +41,9 @@ class ZatcaTest extends TestCase
     /** Fatoora behaviour per endpoint (overridable per test). */
     protected array $clearance = [200, ['clearanceStatus' => 'CLEARED', 'validationResults' => ['status' => 'PASS', 'warningMessages' => [], 'errorMessages' => []]]];
 
+    /** "token:secret" credentials Fatoora no longer accepts (HTTP 401). */
+    protected ?string $refusedToken = null;
+
     protected array $reporting = [200, ['reportingStatus' => 'REPORTED', 'validationResults' => ['status' => 'PASS', 'warningMessages' => [], 'errorMessages' => []]]];
 
     protected function setUp(): void
@@ -89,6 +92,9 @@ class ZatcaTest extends TestCase
 
         Http::fake(function (Request $request) use ($token) {
             $path = parse_url($request->url(), PHP_URL_PATH);
+            if ($this->refusedToken && base64_decode(substr($request->header('Authorization')[0] ?? '', 6)) === $this->refusedToken) {
+                return Http::response([], 401);
+            }
 
             return match (true) {
                 str_ends_with($path, '/compliance') => Http::response(['requestID' => 1234567, 'binarySecurityToken' => $token($request), 'secret' => 'compliance-secret', 'dispositionMessage' => 'ISSUED']),
@@ -370,5 +376,45 @@ class ZatcaTest extends TestCase
 
         $this->get(route('zatca.index'))->assertInertia(fn ($page) => $page->where('documents.data.0.hints.0', EInvoiceManager::HINTS['BR-KSA-100']));
         $this->assertSame([EInvoiceManager::HINTS['HTTP 401']], EInvoiceManager::hints([['message' => 'HTTP 401']]));
+    }
+
+    public function test_a_document_whose_certificate_is_refused_is_signed_again_on_the_active_device(): void
+    {
+        $old = $this->onboard();
+        $invoice = $this->invoice();
+        $record = $this->waiting(ZatcaDocument::firstOrFail());
+
+        // The device was replaced: ZATCA refuses the old certificate.
+        $new = $old->replicate()->fill(['name' => 'POS-2', 'serial_number' => '1-Diwan|2-ERP1|3-new']);
+        $new->forceFill(['status' => 'active', 'icv' => 4, 'last_hash' => 'previous-hash-of-pos-2'])->save();
+        $old->forceFill(['status' => 'revoked'])->save();
+        $this->refusedToken = $old->production_token.':'.$old->production_secret;
+        $new->forceFill(['production_secret' => 'pos-2-secret'])->save(); // its own CSID (the fake reuses the certificate)
+
+        $this->post(route('zatca.documents.submit-pending'))->assertSessionHas('success');
+
+        $this->assertSame('superseded', $record->fresh()->status);
+        $fresh = ZatcaDocument::where('status', 'cleared')->firstOrFail();
+        $this->assertSame([$new->id, 5, 'previous-hash-of-pos-2', $record->uuid], [$fresh->zatca_device_id, (int) $fresh->icv, $fresh->previous_hash, $fresh->uuid]);
+        $this->assertSame(5, $new->fresh()->icv);
+        $this->assertSame('cleared', $invoice->fresh()->zatca_status);
+
+        // Nothing to do on an accepted document.
+        $this->assertFalse(app(EInvoiceManager::class)->needsRestamp($fresh));
+        $this->expectException(ValidationException::class);
+        app(EInvoiceManager::class)->restamp($fresh);
+    }
+
+    public function test_a_401_on_the_active_device_itself_is_not_signed_again(): void
+    {
+        $device = $this->onboard();
+        $this->invoice();
+        $record = $this->waiting(ZatcaDocument::firstOrFail());
+        $this->refusedToken = $device->production_token.':'.$device->production_secret;
+
+        $this->post(route('zatca.documents.resubmit', $record));
+        $this->assertStringContainsString('جدّد شهادته', session('error'));
+        $this->assertSame(['failed', 1], [$record->fresh()->status, ZatcaDocument::count()]);
+        $this->assertFalse(app(EInvoiceManager::class)->needsRestamp($record->fresh()));
     }
 }
