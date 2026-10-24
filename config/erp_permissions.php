@@ -669,6 +669,7 @@ return [
         'zatca.devices.renew' => 'admin.zatca.manage',
         'zatca.devices.revoke' => 'admin.zatca.manage',
         'zatca.documents.resubmit' => 'admin.zatca.manage',
+        'zatca.documents.submit-pending' => 'admin.zatca.manage',
         'zatca.documents.xml' => ['admin.zatca.export', 'admin.zatca.manage'],
         'templates.index' => 'admin.templates.view',
         'templates.store' => 'admin.templates.create',

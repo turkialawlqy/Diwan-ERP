@@ -256,4 +256,64 @@ class ZatcaTest extends TestCase
         $response->assertHeader('X-Signature-Valid', '1');
         $this->assertStringContainsString('<ds:SignatureValue>', $response->getContent());
     }
+
+    /** Puts a signed document back in the queue state the worker never picked up. */
+    protected function waiting(ZatcaDocument $record): ZatcaDocument
+    {
+        $record->forceFill(['status' => 'pending', 'attempts' => 0, 'errors' => null, 'created_at' => now()->subHour()])->saveQuietly();
+
+        return $record;
+    }
+
+    public function test_send_now_submits_without_a_queue_worker_and_reports_the_result(): void
+    {
+        $this->onboard();
+        $this->invoice();
+        $record = $this->waiting(ZatcaDocument::firstOrFail());
+
+        // The page warns: a document waited 15+ minutes untouched, and no scheduler heartbeat.
+        $this->get(route('zatca.index'))->assertInertia(fn ($page) => $page->where('background.stuck', 1)->where('background.scheduler_ok', false));
+
+        $this->post(route('zatca.documents.resubmit', $record))->assertSessionHas('success');
+        $this->assertSame('cleared', $record->fresh()->status);
+        $this->assertSame(1, $record->fresh()->attempts);
+
+        // A rejection comes back with ZATCA's reason.
+        $record = $this->waiting($record->fresh());
+        $this->clearance = [400, ['clearanceStatus' => 'NOT_CLEARED', 'validationResults' => ['status' => 'ERROR', 'errorMessages' => [['code' => 'BR-KSA-01', 'message' => 'invalid']], 'warningMessages' => []]]];
+        $this->post(route('zatca.documents.resubmit', $record));
+        $this->assertStringContainsString('BR-KSA-01', session('error'));
+        $this->assertSame('rejected', $record->fresh()->status);
+    }
+
+    public function test_submit_pending_sends_waiting_documents_oldest_first(): void
+    {
+        $this->onboard();
+        $this->invoice();
+        $this->invoice('simplified');
+        ZatcaDocument::all()->each(fn ($r) => $this->waiting($r));
+
+        $this->reporting = [503, ['message' => 'Service unavailable']];
+        $this->post(route('zatca.documents.submit-pending'))->assertSessionHas('error');
+        $this->assertSame(['cleared', 'failed'], ZatcaDocument::orderBy('id')->pluck('status')->all());
+        $this->assertStringContainsString('تعذّر الاتصال', session('error'));
+
+        // ZATCA is back: the failed one goes through on the next click.
+        $this->reporting = [200, ['reportingStatus' => 'REPORTED', 'validationResults' => ['status' => 'PASS', 'warningMessages' => [], 'errorMessages' => []]]];
+        $this->post(route('zatca.documents.submit-pending'))->assertSessionHas('success');
+        $this->assertSame(['cleared', 'reported'], ZatcaDocument::orderBy('id')->pluck('status')->all());
+        $this->get(route('zatca.index'))->assertInertia(fn ($page) => $page->where('background.stuck', 0));
+    }
+
+    public function test_send_now_records_an_unexpected_error_instead_of_failing_the_page(): void
+    {
+        $device = $this->onboard();
+        $this->invoice();
+        $record = $this->waiting(ZatcaDocument::firstOrFail());
+        \DB::table('zatca_devices')->where('id', $device->id)->update(['production_secret' => 'not-encrypted']);
+
+        $this->post(route('zatca.documents.resubmit', $record))->assertRedirect()->assertSessionHas('error');
+        $this->assertSame('failed', $record->fresh()->status);
+        $this->assertNotEmpty($record->fresh()->errors[0]['message']);
+    }
 }

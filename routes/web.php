@@ -716,6 +716,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'erp.auth
         Route::post('/devices/{device}/onboard', [ZatcaController::class, 'onboard'])->name('devices.onboard');
         Route::post('/devices/{device}/renew', [ZatcaController::class, 'renew'])->name('devices.renew');
         Route::post('/devices/{device}/revoke', [ZatcaController::class, 'revoke'])->name('devices.revoke');
+        Route::post('/documents/submit-pending', [ZatcaController::class, 'submitPending'])->name('documents.submit-pending');
         Route::post('/documents/{document}/resubmit', [ZatcaController::class, 'resubmit'])->name('documents.resubmit');
         Route::get('/documents/{document}/xml', [ZatcaController::class, 'xml'])->name('documents.xml');
     });

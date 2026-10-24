@@ -12,9 +12,11 @@ use App\Services\Zatca\EInvoiceManager;
 use App\Services\Zatca\InvoiceSigner;
 use App\Services\Zatca\OnboardingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Throwable;
 
 /**
  * E-invoicing compliance: seller profile, EGS devices onboarding and the
@@ -23,6 +25,9 @@ use Inertia\Inertia;
 class ZatcaController extends Controller
 {
     public const SELLER_FIELDS = ['seller_street', 'seller_building_number', 'seller_additional_number', 'seller_district', 'seller_city', 'seller_postal_code'];
+
+    /** Documents sent per click of "send now" (each one is a round trip to ZATCA). */
+    public const SUBMIT_NOW_LIMIT = 50;
 
     public function __construct(protected TenantManager $tenantManager) {}
 
@@ -57,6 +62,7 @@ class ZatcaController extends Controller
             'vatCategories' => config('zatca.vat_categories'),
             'exemptionReasons' => config('zatca.exemption_reasons'),
             'filters' => $filters,
+            'background' => $this->backgroundStatus(),
         ]);
     }
 
@@ -158,6 +164,21 @@ class ZatcaController extends Controller
         return back()->with('success', 'تم تجديد شهادة الجهاز');
     }
 
+    /**
+     * Whether submissions run on their own: documents waiting without a single
+     * attempt, or a silent scheduler, mean the queue worker / scheduler tasks
+     * are not running on this server.
+     */
+    protected function backgroundStatus(): array
+    {
+        $beat = (int) Cache::get('scheduler:heartbeat', 0);
+
+        return [
+            'stuck' => ZatcaDocument::where('status', 'pending')->where('attempts', 0)->where('created_at', '<', now()->subMinutes(15))->count(),
+            'scheduler_ok' => $beat > 0 && now()->timestamp - $beat <= 600,
+        ];
+    }
+
     public function revoke(ZatcaDevice $device)
     {
         $device->forceFill(['status' => 'revoked'])->save();
@@ -171,9 +192,57 @@ class ZatcaController extends Controller
             return back()->with('error', 'يمكن إعادة إرسال المستندات المعلقة أو المتعثرة فقط. المستند المرفوض يُصحّح بإشعار دائن/مدين.');
         }
 
-        SubmitZatcaDocument::dispatch($document->id, $document->company_id);
+        $result = $this->submitNow($document);
 
-        return back()->with('success', 'تمت جدولة إعادة الإرسال');
+        return back()->with(in_array($result['status'], ['cleared', 'reported', 'warning'], true) ? 'success' : 'error', $document->document_number.': '.$result['message']);
+    }
+
+    /**
+     * Sends the waiting documents from the page, without the queue worker
+     * (oldest first, so the hash chain reaches ZATCA in order).
+     */
+    public function submitPending()
+    {
+        $documents = ZatcaDocument::whereIn('status', ['pending', 'failed'])->orderBy('id')->limit(self::SUBMIT_NOW_LIMIT)->get();
+        if ($documents->isEmpty()) {
+            return back()->with('success', 'لا توجد مستندات بانتظار الإرسال.');
+        }
+
+        $results = $documents->map(fn ($document) => $this->submitNow($document));
+        $count = fn (array $statuses) => $results->whereIn('status', $statuses)->count();
+        $summary = collect([
+            'قُبل '.$count(['cleared', 'reported', 'warning']) => $count(['cleared', 'reported', 'warning']),
+            'رُفض '.$count(['rejected']) => $count(['rejected']),
+            'تعذّر إرسال '.$count(['failed', 'pending', 'submitting']) => $count(['failed', 'pending', 'submitting']),
+        ])->filter()->keys()->implode('، ');
+        $problems = $results->whereNotIn('status', ['cleared', 'reported', 'warning'])->pluck('line')->take(5)->implode("\n");
+
+        return back()->with($problems ? 'error' : 'success', 'أُرسل '.$documents->count().' مستند: '.$summary.($problems ? "\n".$problems : ''));
+    }
+
+    /** @return array{status: string, message: string, line: string} */
+    protected function submitNow(ZatcaDocument $document): array
+    {
+        try {
+            SubmitZatcaDocument::dispatchSync($document->id, $document->company_id);
+        } catch (Throwable $e) {
+            // An unexpected error (unreadable device keys, malformed response) must not leave the document "submitting".
+            report($e);
+            ZatcaDocument::whereKey($document->id)->where('status', 'submitting')
+                ->update(['status' => 'failed', 'errors' => json_encode([['message' => mb_substr($e->getMessage(), 0, 300)]]), 'updated_at' => now()]);
+        }
+        $document->refresh();
+        $reason = collect($document->errors ?? [])->map(fn ($e) => trim(($e['code'] ?? '').' '.($e['message'] ?? '')))->filter()->first();
+
+        $message = match ($document->status) {
+            'cleared' => 'اعتُمدت من الهيئة.',
+            'reported' => 'أُبلغت الهيئة بنجاح.',
+            'warning' => 'قُبلت مع تحذيرات.',
+            'rejected' => 'رفضتها الهيئة'.($reason ? ': '.$reason : '.'),
+            default => 'تعذّر الاتصال بالهيئة'.($reason ? ': '.$reason : '.').' سيُعاد المحاولة تلقائياً.',
+        };
+
+        return ['status' => $document->status, 'message' => $message, 'line' => $document->document_number.': '.$message];
     }
 
     public function xml(ZatcaDocument $document, InvoiceSigner $signer)

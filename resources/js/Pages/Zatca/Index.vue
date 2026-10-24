@@ -10,7 +10,7 @@ import Pagination from '@/Components/UI/Pagination.vue';
 import { date } from '@/utils/format';
 import { PlusIcon, ShieldCheckIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline';
 
-const props = defineProps({ taxDefaults: Object, vatCategories: Object, exemptionReasons: Object, devices: Array, documents: Object, stats: Object, overdue: Number, seller: Object, missing: Array, branches: Array, phase: String, filters: Object });
+const props = defineProps({ taxDefaults: Object, vatCategories: Object, exemptionReasons: Object, devices: Array, documents: Object, stats: Object, overdue: Number, background: Object, seller: Object, missing: Array, branches: Array, phase: String, filters: Object });
 
 const sellerForm = useForm({
     tax_number: props.seller.tax_number || '', commercial_registration: props.seller.commercial_registration || '',
@@ -32,7 +32,10 @@ const renew = async (device) => {
     if (code) router.post(route('zatca.devices.renew', device.id), { otp: code });
 };
 const revoke = (device) => { if (confirm('إيقاف الجهاز؟ لن تُوقّع به فواتير جديدة.')) router.post(route('zatca.devices.revoke', device.id)); };
-const resubmit = (doc) => router.post(route('zatca.documents.resubmit', doc.id), {}, { preserveScroll: true });
+const sending = ref(false);
+const resubmit = (doc) => router.post(route('zatca.documents.resubmit', doc.id), {}, { preserveScroll: true, onStart: () => { sending.value = true; }, onFinish: () => { sending.value = false; } });
+const submitPending = () => router.post(route('zatca.documents.submit-pending'), {}, { preserveScroll: true, onStart: () => { sending.value = true; }, onFinish: () => { sending.value = false; } });
+const waiting = () => (props.stats.pending || 0) + (props.stats.failed || 0);
 const filter = (status) => router.get(route('zatca.index'), { status: status || undefined }, { preserveState: true, preserveScroll: true });
 
 const deviceStatus = { new: ['بانتظار OTP', 'bg-slate-100 text-slate-600'], compliance: ['فحوصات الامتثال', 'bg-amber-50 text-amber-700'], active: ['مفعل', 'bg-emerald-50 text-emerald-700'], revoked: ['موقوف', 'bg-rose-50 text-rose-700'] };
@@ -49,6 +52,15 @@ const typeLabel = { '388': 'فاتورة', '381': 'إشعار دائن', '383': 
                 <span :class="phase === 'phase2' ? 'bg-indigo-600' : 'bg-emerald-600'" class="px-3 py-1.5 rounded-xl text-white text-xs font-bold inline-flex items-center gap-1"><ShieldCheckIcon class="w-4 h-4" /> {{ phase === 'phase2' ? 'المرحلة الثانية: الربط والتكامل' : 'المرحلة الأولى: الإصدار والحفظ' }}</span>
             </template>
         </PageHeader>
+
+        <div v-if="background && (background.stuck || (!background.scheduler_ok && waiting()))" class="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex flex-wrap items-center gap-3" data-background-warning>
+            <ExclamationTriangleIcon class="w-5 h-5 shrink-0" />
+            <div class="flex-1 min-w-[16rem] space-y-1">
+                <p class="font-bold">الإرسال التلقائي للهيئة لا يعمل على هذا الخادم<span v-if="background.stuck"> — {{ background.stuck }} مستند لم يُرسل منذ أكثر من 15 دقيقة</span>.</p>
+                <p>لتشغيله دائماً: شغّل <span class="font-mono" dir="ltr">deploy\windows\install-auto-update.ps1</span> كمسؤول (Run as administrator)، وتأكد أن <span class="font-mono" dir="ltr">QUEUE_CONNECTION=database</span> في ملف ‎.env. وإلى ذلك الحين أرسلها يدوياً من هنا.</p>
+            </div>
+            <button v-if="$can('admin.zatca.manage')" type="button" @click="submitPending" :disabled="sending" class="px-3 py-2 rounded-xl bg-amber-600 text-white font-bold disabled:opacity-50">{{ sending ? 'جارٍ الإرسال...' : 'إرسال المعلّق الآن' }}</button>
+        </div>
 
         <div v-if="overdue" class="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
             <ExclamationTriangleIcon class="w-5 h-5" /> {{ overdue }} فاتورة مبسطة تجاوزت مهلة الإبلاغ (24 ساعة). تحقق من الاتصال وأعد الإرسال.
@@ -123,6 +135,7 @@ const typeLabel = { '388': 'فاتورة', '381': 'إشعار دائن', '383': 
             <div class="flex flex-wrap gap-2 p-3 border-b border-slate-100 text-xs">
                 <button @click="filter(null)" :class="!filters.status ? 'bg-slate-800 text-white' : 'bg-slate-50'" class="px-3 py-1 rounded-lg font-bold">الكل</button>
                 <button v-for="(label, key) in docStatus" :key="key" @click="filter(key)" :class="filters.status === key ? 'bg-slate-800 text-white' : 'bg-slate-50'" class="px-3 py-1 rounded-lg font-bold">{{ label[0] }} <span class="font-mono">({{ stats[key] || 0 }})</span></button>
+                <button v-if="waiting() && $can('admin.zatca.manage')" type="button" @click="submitPending" :disabled="sending" class="ms-auto px-3 py-1 rounded-lg bg-indigo-600 text-white font-bold disabled:opacity-50" data-submit-pending>{{ sending ? 'جارٍ الإرسال...' : `إرسال المعلّق الآن (${waiting()})` }}</button>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-xs">
@@ -134,13 +147,13 @@ const typeLabel = { '388': 'فاتورة', '381': 'إشعار دائن', '383': 
                             <td class="px-4 py-2 text-center font-mono">{{ doc.icv }}</td>
                             <td class="px-4 py-2 text-center">{{ doc.submission === 'clearance' ? 'اعتماد مسبق' : 'إبلاغ' }}</td>
                             <td class="px-4 py-2 text-center font-bold" :class="docStatus[doc.status]?.[1]">{{ docStatus[doc.status]?.[0] || doc.status }}</td>
-                            <td class="px-4 py-2 text-center font-mono">{{ doc.attempts }}</td>
+                            <td class="px-4 py-2 text-center font-mono">{{ doc.attempts }}<span v-if="doc.status === 'pending' && !doc.attempts" class="block font-sans text-3xs text-slate-400">لم يُرسل بعد</span></td>
                             <td class="px-4 py-2 text-[11px] text-slate-500 max-w-xs">
                                 <div v-for="(m, i) in [...(doc.errors || []), ...(doc.warnings || [])]" :key="i">{{ m.code ? m.code + ': ' : '' }}{{ m.message }}</div>
                             </td>
                             <td class="px-4 py-2 text-end whitespace-nowrap">
                                 <a v-if="$can('admin.zatca.export') || $can('admin.zatca.manage')" :href="route('zatca.documents.xml', doc.id)" class="text-indigo-600 font-bold me-3">XML</a>
-                                <button v-if="['failed', 'pending'].includes(doc.status) && $can('admin.zatca.manage')" @click="resubmit(doc)" class="text-amber-600 font-bold">إعادة الإرسال</button>
+                                <button v-if="['failed', 'pending'].includes(doc.status) && $can('admin.zatca.manage')" @click="resubmit(doc)" :disabled="sending" class="text-amber-600 font-bold disabled:opacity-50">{{ doc.attempts ? 'إعادة الإرسال' : 'إرسال الآن' }}</button>
                             </td>
                         </tr>
                         <tr v-if="!documents.data.length"><td colspan="8" class="py-10 text-center text-slate-400">{{ $t('ui.no_data') }}</td></tr>

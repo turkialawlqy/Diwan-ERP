@@ -121,7 +121,7 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value, field
                     >
                         <div class="flex items-center gap-2">
                             <ExclamationCircleIcon class="w-5 h-5 text-red-600 flex-shrink-0" />
-                            <span>{{ flash.error }}</span>
+                            <span class="whitespace-pre-line">{{ flash.error }}</span>
                         </div>
                         <button @click="dismissFlash" class="text-red-600 hover:text-red-900">
                             <XMarkIcon class="w-4 h-4" />
