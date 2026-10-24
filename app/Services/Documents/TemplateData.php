@@ -110,6 +110,7 @@ class TemplateData
             'party' => [$party, array_values(array_filter([
                 ['party.name', 'الاسم'], ['party.code', 'الرقم / الكود'], ['party.vat', 'الرقم الضريبي'], ['party.cr', 'السجل التجاري'],
                 ['party.phone', 'الجوال'], ['party.email', 'البريد'], ['party.address', 'العنوان الكامل'],
+                $kind === 'payment' ? null : ['party.national_address', 'العنوان الوطني (منسّق)'],
                 $kind === 'payment' ? null : ['party.building_number', 'رقم المبنى'],
                 $kind === 'payment' ? null : ['party.street', 'الشارع'],
                 $kind === 'payment' ? null : ['party.district', 'الحي'],
@@ -172,6 +173,7 @@ class TemplateData
             'party.name' => $kind === 'payment' ? 'مؤسسة التوريدات المتحدة' : 'شركة مجموعة المجال العربي', 'party.code' => '5', 'party.vat' => '300231461500003',
             'party.cr' => '1010101010', 'party.phone' => '0500000000', 'party.email' => 'info@example.com',
             'party.address' => '2851، الملك عبدالله بن عبدالعزيز، الملك سلمان، الرياض 12444', 'party.building_number' => '2851',
+            'party.national_address' => 'مبنى 2851، الملك عبدالله بن عبدالعزيز، حي الملك سلمان، الرياض 12444، الرقم الإضافي 8961',
             'party.street' => 'الملك عبدالله بن عبدالعزيز سعود الفرعي', 'party.district' => 'الملك سلمان', 'party.city' => 'الرياض', 'party.postal_code' => '12444',
             'party.additional_number' => '8961', 'party.country' => 'السعودية',
             'totals.gross' => $this->money($gross), 'totals.discount' => $this->money(50), 'totals.net' => $this->money($gross - 50), 'totals.vat_rate' => '15%',
@@ -330,11 +332,18 @@ class TemplateData
             return ['party.name' => 'عميل نقدي'];
         }
 
+        // Districts are often typed with their prefix ("حي الجامعة"); templates add "حي" themselves.
+        $district = trim((string) preg_replace('/^\s*(ال)?حي\s+/u', '', (string) $customer->district)) ?: null;
+
         return [
             'party.name' => $customer->company_name ?: $customer->name, 'party.code' => $customer->code ?: (string) $customer->id, 'party.vat' => $customer->tax_number,
             'party.cr' => $customer->commercial_registration, 'party.phone' => $customer->mobile ?: $customer->phone, 'party.email' => $customer->email,
             'party.address' => collect([$customer->building_number, $customer->street_name, $customer->district, $customer->city, $customer->postal_code])->filter()->implode('، ') ?: $customer->address,
-            'party.building_number' => $customer->building_number, 'party.street' => $customer->street_name, 'party.district' => $customer->district,
+            'party.national_address' => collect([
+                $customer->building_number ? 'مبنى '.$customer->building_number : null, $customer->street_name, $district ? 'حي '.$district : null,
+                trim($customer->city.' '.$customer->postal_code) ?: null, $customer->additional_details ? 'الرقم الإضافي '.$customer->additional_details : null,
+            ])->filter()->implode('، ') ?: $customer->address,
+            'party.building_number' => $customer->building_number, 'party.street' => $customer->street_name, 'party.district' => $district,
             'party.city' => $customer->city, 'party.postal_code' => $customer->postal_code, 'party.additional_number' => $customer->additional_details,
             'party.country' => $customer->country ?: 'السعودية',
         ];
