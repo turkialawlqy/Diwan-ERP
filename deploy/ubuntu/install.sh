@@ -85,8 +85,12 @@ grep -qi ubuntu /etc/os-release || warn "السكربت مكتوب لـ Ubuntu؛
 # ------------------------------------------------------------------ questions
 # shellcheck disable=SC1090
 [[ -f $CONF ]] && source "$CONF" && ok "استُخدمت إجاباتك السابقة من $CONF"
+# DIWAN_DOMAIN switches the domain (e.g. a test domain now, the real one once its DNS is live).
+[[ -n ${DIWAN_DOMAIN:-} ]] && DOMAIN=$DIWAN_DOMAIN
 
+SERVER_IP=$(curl -fsS4 --max-time 5 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
 step "معلومات التثبيت"
+[[ -n ${DOMAIN:-} ]] || echo "للتجربة قبل ربط نطاقك استخدم: ${SERVER_IP}.sslip.io (يعمل فوراً مع النطاقات الفرعية، بلا SSL)"
 ask DOMAIN "النطاق الرئيسي (مثل diwan.example.com)"
 DOMAIN=${DOMAIN#http*://}; DOMAIN=${DOMAIN%%/*}; DOMAIN=${DOMAIN,,}
 [[ $DOMAIN =~ ^[a-z0-9.-]+\.[a-z]{2,}$ ]] || die "النطاق غير صحيح: $DOMAIN"
@@ -111,7 +115,8 @@ fi
 DB_PASS=${DB_PASS:-$(openssl rand -hex 16)}
 save_conf
 
-SERVER_IP=$(curl -fsS4 --max-time 5 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
+TEST_DOMAIN=0
+[[ $DOMAIN =~ \.(sslip|nip)\.io$ ]] && TEST_DOMAIN=1
 ok "النطاق: $DOMAIN — عنوان الخادم: $SERVER_IP"
 
 # ------------------------------------------------------------------ 1. system
@@ -226,8 +231,9 @@ ok "الكود والواجهة جاهزان."
 # ------------------------------------------------------------------ 6. .env
 step "6/11 ملف الإعدادات .env"
 ENV_FILE=$APP_DIR/.env
+# HTTPS only once a certificate exists for the domain (set again after step 9).
 HTTPS=false
-[[ -n $DO_TOKEN || -d /etc/letsencrypt/live/$DOMAIN ]] && HTTPS=true
+[[ -d /etc/letsencrypt/live/$DOMAIN ]] && HTTPS=true
 SCHEME=$([[ $HTTPS == true ]] && echo https || echo http)
 if [[ ! -f $ENV_FILE ]]; then
     run cp "$APP_DIR/.env.production.example" "$ENV_FILE"
@@ -322,17 +328,30 @@ write_nginx() {
 write_nginx http
 
 step "9/11 شهادة SSL للنطاق وكل نطاقاته الفرعية"
-if [[ -n $DO_TOKEN ]]; then
+if [[ $TEST_DOMAIN == 1 ]]; then
+    warn "نطاق تجربة ($DOMAIN): يعمل على http بلا شهادة. بعد ربط نطاقك الحقيقي: DIWAN_DOMAIN=نطاقك sudo -E bash $APP_DIR/deploy/ubuntu/install.sh"
+elif [[ -n $DO_TOKEN ]]; then
     run mkdir -p /root/.secrets
     [[ $DRY_RUN == 1 ]] || { umask 077; echo "dns_digitalocean_token = $DO_TOKEN" > /root/.secrets/digitalocean.ini; }
-    run certbot certonly --dns-digitalocean --dns-digitalocean-credentials /root/.secrets/digitalocean.ini \
+    # Fails while the registrar's nameservers still point elsewhere: the install goes on over http.
+    if run certbot certonly --dns-digitalocean --dns-digitalocean-credentials /root/.secrets/digitalocean.ini \
         --dns-digitalocean-propagation-seconds 60 -d "$DOMAIN" -d "*.$DOMAIN" \
-        --agree-tos -m "$ADMIN_EMAIL" --non-interactive --keep-until-expiring --deploy-hook "systemctl reload nginx"
-    write_nginx https
-    ok "HTTPS يعمل على $DOMAIN و *.$DOMAIN، ويتجدد تلقائياً."
+        --agree-tos -m "$ADMIN_EMAIL" --non-interactive --keep-until-expiring --deploy-hook "systemctl reload nginx"; then
+        write_nginx https
+        ok "HTTPS يعمل على $DOMAIN و *.$DOMAIN، ويتجدد تلقائياً."
+    else
+        warn "تعذر إصدار الشهادة الآن، غالباً لأن خوادم الأسماء (DNS) لم تنتشر بعد. يكمل التثبيت على http؛ أعد تشغيل السكربت لاحقاً لإضافة الشهادة."
+    fi
 else
     warn "بلا رمز DigitalOcean: يعمل النظام الآن على http فقط. لإضافة الشهادة لاحقاً أعد تشغيل السكربت بعد وضع DO_TOKEN في $CONF."
 fi
+# The site's addresses follow whether a certificate exists now.
+HTTPS=false
+[[ $DRY_RUN != 1 && -f /etc/letsencrypt/live/$DOMAIN/fullchain.pem ]] && HTTPS=true
+SCHEME=$([[ $HTTPS == true ]] && echo https || echo http)
+set_env "$ENV_FILE" APP_URL "$SCHEME://$DOMAIN"
+set_env "$ENV_FILE" FORCE_HTTPS "$HTTPS"
+set_env "$ENV_FILE" SESSION_SECURE_COOKIE "$HTTPS"
 
 # ------------------------------------------------------------------ 10. supervisor
 step "10/11 العمليات الخلفية (الطوابير والمجدول)"
