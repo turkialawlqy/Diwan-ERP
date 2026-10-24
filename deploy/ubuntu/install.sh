@@ -19,6 +19,8 @@ APP_HOME=/var/www
 CONF=/root/.diwan-install.conf
 SECRETS=/root/diwan-secrets.txt
 DRY_RUN=${DIWAN_DRY_RUN:-0}
+# Fingerprint of this script as started: step 5 may pull a newer copy over it (bash keeps reading the old one).
+SELF_SUM=$(sha256sum "${BASH_SOURCE[0]}" | cut -d' ' -f1)
 
 # ------------------------------------------------------------------ helpers
 c_info=$'\e[36m'; c_ok=$'\e[32m'; c_warn=$'\e[33m'; c_err=$'\e[31m'; c_off=$'\e[0m'
@@ -218,8 +220,8 @@ else
     as_app git -C "$APP_DIR" checkout "$BRANCH"
     as_app git -C "$APP_DIR" pull --ff-only origin "$BRANCH"
 fi
-# A copy of this script run from elsewhere (e.g. /root) hands over to the one just pulled.
-if [[ $DRY_RUN != 1 && -z ${DIWAN_REEXEC:-} ]] && ! cmp -s "${BASH_SOURCE[0]}" "$APP_DIR/deploy/ubuntu/install.sh"; then
+# An older copy of this script (run from /root, or this very file before the pull) hands over to the one just pulled.
+if [[ $DRY_RUN != 1 && -z ${DIWAN_REEXEC:-} && $(sha256sum "$APP_DIR/deploy/ubuntu/install.sh" | cut -d' ' -f1) != "$SELF_SUM" ]]; then
     ok "نُسخة أحدث من سكربت التثبيت وصلت مع الكود؛ يكمل بها الآن."
     exec env DIWAN_REEXEC=1 bash "$APP_DIR/deploy/ubuntu/install.sh"
 fi
