@@ -54,7 +54,9 @@ set_env() {
     [[ $DRY_RUN == 1 ]] && { echo "  [dry-run] $key=$value"; return; }
     KEY="$key" VAL="$value" awk 'BEGIN { k = ENVIRON["KEY"]; v = ENVIRON["VAL"]; done = 0 }
         $0 ~ "^" k "=" { if (!done) print k "=" v; done = 1; next } { print }
-        END { if (!done) print k "=" v }' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+        END { if (!done) print k "=" v }' "$file" > "$file.tmp"
+    cat "$file.tmp" > "$file" # in place: keeps the owner and mode (the app must still read .env)
+    rm -f "$file.tmp"
 }
 
 # Fills __PLACEHOLDERS__ of a template from the environment variables of the same name.
@@ -76,9 +78,9 @@ ask() { # ask VAR "السؤال" "الافتراضي"
 
 save_conf() {
     [[ $DRY_RUN == 1 ]] && return
-    umask 077
+    ( umask 077
     { for v in DOMAIN ADMIN_EMAIL REPO BRANCH DO_TOKEN MAIL_HOST MAIL_PORT MAIL_USERNAME MAIL_PASSWORD MAIL_FROM DB_PASS ADMIN_CREATED; do
-        printf '%s=%q\n' "$v" "${!v:-}"; done; } > "$CONF"
+        printf '%s=%q\n' "$v" "${!v:-}"; done; } > "$CONF" )
 }
 
 [[ $EUID -eq 0 ]] || die "شغّل السكربت بصلاحية root: sudo bash install.sh"
@@ -267,12 +269,12 @@ run chown "$APP_USER:$APP_USER" "$ENV_FILE"
 run chmod 640 "$ENV_FILE"
 grep -q '^APP_KEY=base64' "$ENV_FILE" 2>/dev/null || artisan key:generate --force
 if [[ $DRY_RUN != 1 ]]; then
-    umask 077
+    ( umask 077
     {
         echo "# أسرار «الديوان» — انسخها إلى مكان آمن خارج الخادم ثم احذف هذا الملف."
         echo "# APP_KEY يفك تشفير مفاتيح أجهزة الفوترة؛ ضياعه يعني إعادة ربط الأجهزة."
         grep -E '^(APP_KEY|DB_PASSWORD|BACKUP_PASSWORD)=' "$ENV_FILE"
-    } > "$SECRETS"
+    } > "$SECRETS" )
 fi
 ok ".env جاهز، والأسرار محفوظة في $SECRETS"
 
@@ -334,7 +336,7 @@ if [[ $TEST_DOMAIN == 1 ]]; then
     warn "نطاق تجربة ($DOMAIN): يعمل على http بلا شهادة. بعد ربط نطاقك الحقيقي: DIWAN_DOMAIN=نطاقك sudo -E bash $APP_DIR/deploy/ubuntu/install.sh"
 elif [[ -n $DO_TOKEN ]]; then
     run mkdir -p /root/.secrets
-    [[ $DRY_RUN == 1 ]] || { umask 077; echo "dns_digitalocean_token = $DO_TOKEN" > /root/.secrets/digitalocean.ini; }
+    [[ $DRY_RUN == 1 ]] || ( umask 077; echo "dns_digitalocean_token = $DO_TOKEN" > /root/.secrets/digitalocean.ini )
     # Fails while the registrar's nameservers still point elsewhere: the install goes on over http.
     if run certbot certonly --dns-digitalocean --dns-digitalocean-credentials /root/.secrets/digitalocean.ini \
         --dns-digitalocean-propagation-seconds 60 -d "$DOMAIN" -d "*.$DOMAIN" \
@@ -371,6 +373,9 @@ ok "الإرسال لهيئة الزكاة والنسخ الاحتياطي وا�
 
 # ------------------------------------------------------------------ 11. finish
 step "11/11 التهيئة النهائية ومدير المنصة"
+run chown "$APP_USER:$APP_USER" "$ENV_FILE"
+run chmod 640 "$ENV_FILE"
+artisan optimize:clear > /dev/null
 artisan optimize
 if [[ ${ADMIN_CREATED:-} != 1 ]]; then
     echo "أنشئ كلمة مرور مدير المنصة ($ADMIN_EMAIL) — 10 أحرف على الأقل:"
