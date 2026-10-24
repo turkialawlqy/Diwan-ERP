@@ -50,6 +50,7 @@ class SubmitZatcaDocument implements ShouldQueue
                 return;
             }
             $record = ZatcaDocument::with('device')->find($this->documentId);
+            $manager->resignIfStale($record);
             $client = ZatcaClient::for($record->device->environment);
             $credentials = $record->device->credentials();
 

@@ -140,6 +140,48 @@ class EInvoiceManager
     }
 
     /**
+     * Re-signs a document that ZATCA has not accepted yet when its signature
+     * no longer fits: signed with a hex certificate serial (older versions)
+     * or with a certificate the device has since replaced. The invoice hash
+     * excludes the signature and the QR, so ICV / PIH and the chain stay as
+     * they are; only the signature block and the QR are rebuilt.
+     */
+    public function resignIfStale(ZatcaDocument $record): bool
+    {
+        $device = $record->device;
+        if (in_array($record->status, ['cleared', 'reported', 'warning', 'rejected'], true) || ! $device?->certificate() || ! $device->private_key) {
+            return false;
+        }
+
+        $certificate = new Certificate($device->certificate());
+        preg_match('#<ds:X509SerialNumber[^>]*>([^<]*)<#', $record->signed_xml, $serial);
+        preg_match('#<ds:X509Certificate[^>]*>([^<]*)<#', $record->signed_xml, $embedded);
+        if (($serial[1] ?? null) === $certificate->serialNumber() && preg_replace('/\s+/', '', $embedded[1] ?? '') === $certificate->base64()) {
+            return false;
+        }
+
+        $doc = new \DOMDocument;
+        $doc->loadXML($record->signed_xml);
+        $extensions = $doc->getElementsByTagNameNS(UblInvoiceBuilder::NS['ext'], 'UBLExtensions')->item(0);
+        while ($extensions?->firstChild) {
+            $extensions->removeChild($extensions->firstChild);
+        }
+
+        $qr = Tlv::decode((string) $record->qr);
+        $signed = $this->signer->sign($doc, $device->private_key, $certificate, [
+            'seller_name' => $qr[1] ?? '', 'vat_number' => $qr[2] ?? '', 'timestamp' => $qr[3] ?? '', 'total' => $qr[4] ?? 0, 'vat' => $qr[5] ?? 0,
+        ]);
+        if ($signed['hash'] !== $record->invoice_hash) {
+            return false; // never alter the content of a chained document
+        }
+
+        $record->forceFill(['signed_xml' => $signed['xml'], 'qr' => $signed['qr']])->save();
+        $record->documentable?->forceFill(['zatca_qr' => $signed['qr']])->saveQuietly();
+
+        return true;
+    }
+
+    /**
      * Apply a clearance / reporting outcome to the record and its document.
      */
     public function applyResult(ZatcaDocument $record, int $httpStatus, array $body): void
@@ -176,6 +218,33 @@ class EInvoiceManager
             'zatca_status' => in_array($status, ['cleared', 'reported', 'warning'], true) ? ($record->submission === 'clearance' ? 'cleared' : 'reported') : $status,
             'zatca_qr' => $qr,
         ])->saveQuietly();
+    }
+
+    /** What to do about the ZATCA answers users meet most (code, or text the message starts with). */
+    public const HINTS = [
+        'BR-KSA-100' => 'الرقم الضريبي للعميل غير مسجّل لدى الهيئة أو مكتوب خطأً. تحقق منه في خدمة «التحقق من الرقم الضريبي» بموقع الهيئة، وصحّحه في بطاقة العميل، ثم أصدر إشعاراً دائناً للفاتورة المرفوضة وفاتورة جديدة.',
+        'BR-KSA-44' => 'صيغة الرقم الضريبي للعميل غير صحيحة: 15 رقماً يبدأ وينتهي بالرقم 3.',
+        'BR-KSA-63' => 'العنوان الوطني للعميل ناقص: أكمل رقم المبنى والشارع والحي والمدينة والرمز البريدي.',
+        'BR-KSA-37' => 'رقم المبنى في العنوان الوطني يجب أن يكون 4 أرقام.',
+        'BR-KSA-66' => 'الرمز البريدي يجب أن يكون 5 أرقام.',
+        'XSD_ZATCA_INVALID' => 'خلل في بنية ملف الفاتورة. حدّث النظام ثم أعد الإرسال؛ إن تكرر أرسل الرسالة للدعم.',
+        'HTTP 401' => 'رفضت الهيئة شهادة الجهاز. جدّد الشهادة من بطاقة الجهاز، وتأكد أن الجهاز مربوط بنفس البيئة (محاكاة / إنتاج) التي أُصدرت فيها الفاتورة.',
+        'HTTP 5' => 'خوادم الهيئة لا تستجيب حالياً؛ ستُعاد المحاولة تلقائياً.',
+    ];
+
+    /** The hints that apply to a document's errors. */
+    public static function hints(?array $errors): array
+    {
+        $out = [];
+        foreach ($errors ?? [] as $error) {
+            foreach (self::HINTS as $key => $hint) {
+                if (($error['code'] ?? null) === $key || str_starts_with((string) ($error['message'] ?? ''), $key)) {
+                    $out[$key] = $hint;
+                }
+            }
+        }
+
+        return array_values($out);
     }
 
     /** Simplified documents older than this must already have been reported. */

@@ -15,6 +15,7 @@ use App\Services\Sales\InvoiceService;
 use App\Services\Sales\SalesCycleService;
 use App\Services\TenantManager;
 use App\Services\Zatca\Certificate;
+use App\Services\Zatca\EInvoiceManager;
 use App\Services\Zatca\InvoiceSigner;
 use App\Services\Zatca\OnboardingService;
 use App\Services\Zatca\Tlv;
@@ -315,5 +316,59 @@ class ZatcaTest extends TestCase
         $this->post(route('zatca.documents.resubmit', $record))->assertRedirect()->assertSessionHas('error');
         $this->assertSame('failed', $record->fresh()->status);
         $this->assertNotEmpty($record->fresh()->errors[0]['message']);
+    }
+
+    public function test_long_certificate_serials_are_written_in_decimal(): void
+    {
+        // The serial ZATCA rejected as "not a valid value for integer".
+        $this->assertSame('35324383063687693374427557993377377690560003457', Certificate::hexToDecimal('6300007D8182541BD2181858560002000007D81'));
+        $this->assertSame('31', Certificate::hexToDecimal('1F'));
+        $this->assertSame('0', Certificate::hexToDecimal('0'));
+    }
+
+    public function test_a_waiting_document_with_a_stale_signature_is_resigned_without_changing_its_hash(): void
+    {
+        $device = $this->onboard();
+        $this->invoice();
+        $record = ZatcaDocument::firstOrFail();
+        $hash = $record->invoice_hash;
+
+        // As signed by older versions: the serial in hex.
+        $stale = preg_replace('#(<ds:X509SerialNumber[^>]*>)[^<]*<#', '${1}0x6300007D8182541BD2181858560002000007D81<', $record->signed_xml);
+        $record->forceFill(['signed_xml' => $stale])->saveQuietly();
+        $record = $this->waiting($record->fresh());
+
+        $this->post(route('zatca.documents.resubmit', $record))->assertSessionHas('success');
+        $record->refresh();
+        $this->assertSame('cleared', $record->status);
+        $this->assertSame($hash, $record->invoice_hash);
+        preg_match('#<ds:X509SerialNumber[^>]*>([^<]*)<#', $record->signed_xml, $serial);
+        $this->assertSame((new Certificate($device->certificate()))->serialNumber(), $serial[1]);
+        $this->assertMatchesRegularExpression('/^\d+$/', $serial[1]);
+        $this->assertTrue(app(InvoiceSigner::class)->verify($record->signed_xml));
+        $this->assertSame($hash, Tlv::decode($record->qr)[6]);
+    }
+
+    public function test_a_stopped_device_submits_its_documents_with_the_production_certificate(): void
+    {
+        $device = $this->onboard();
+        $this->invoice();
+        $record = $this->waiting(ZatcaDocument::firstOrFail());
+        $device->forceFill(['status' => 'revoked'])->save();
+
+        $this->post(route('zatca.documents.resubmit', $record))->assertSessionHas('success');
+        $this->assertSame('cleared', $record->fresh()->status);
+        Http::assertSent(fn ($request) => str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/clearance/single')
+            && $request->header('Authorization')[0] === 'Basic '.base64_encode($device->production_token.':'.$device->production_secret));
+    }
+
+    public function test_rejections_carry_an_arabic_hint(): void
+    {
+        $this->onboard();
+        $this->clearance = [400, ['clearanceStatus' => 'NOT_CLEARED', 'validationResults' => ['status' => 'ERROR', 'errorMessages' => [['code' => 'BR-KSA-100', 'message' => 'The Buyer VAT Registration Number (BT-48) is missing or invalid.']], 'warningMessages' => []]]];
+        $this->invoice();
+
+        $this->get(route('zatca.index'))->assertInertia(fn ($page) => $page->where('documents.data.0.hints.0', EInvoiceManager::HINTS['BR-KSA-100']));
+        $this->assertSame([EInvoiceManager::HINTS['HTTP 401']], EInvoiceManager::hints([['message' => 'HTTP 401']]));
     }
 }

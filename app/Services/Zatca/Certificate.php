@@ -50,9 +50,39 @@ class Certificate
         return implode(', ', array_reverse($parts));
     }
 
+    /**
+     * Decimal serial number, as xs:integer in X509SerialNumber requires.
+     * OpenSSL prints serials too long for an integer (every ZATCA CSID) in
+     * hex with a "0x" prefix.
+     */
     public function serialNumber(): string
     {
-        return (string) $this->parsed['serialNumber'];
+        $serial = (string) $this->parsed['serialNumber'];
+        if (! empty($this->parsed['serialNumberHex'])) {
+            return self::hexToDecimal($this->parsed['serialNumberHex']);
+        }
+
+        return str_starts_with(strtolower($serial), '0x') ? self::hexToDecimal(substr($serial, 2)) : $serial;
+    }
+
+    /** Arbitrary-length hex to decimal string (no gmp / bcmath needed). */
+    public static function hexToDecimal(string $hex): string
+    {
+        $digits = [0]; // decimal digits, least significant first
+        foreach (str_split(strtolower(ltrim($hex, '0')) ?: '0') as $char) {
+            $carry = hexdec($char);
+            foreach ($digits as $i => $digit) {
+                $value = $digit * 16 + $carry;
+                $digits[$i] = $value % 10;
+                $carry = intdiv($value, 10);
+            }
+            while ($carry > 0) {
+                $digits[] = $carry % 10;
+                $carry = intdiv($carry, 10);
+            }
+        }
+
+        return implode('', array_reverse($digits));
     }
 
     public function expiresAt(): ?\DateTimeImmutable

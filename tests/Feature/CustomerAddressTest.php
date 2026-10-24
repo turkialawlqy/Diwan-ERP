@@ -74,6 +74,15 @@ class CustomerAddressTest extends TestCase
         $this->assertSame('4002', Customer::latest('id')->value('building_number'));
     }
 
+    public function test_saudi_vat_number_format_is_checked_and_foreign_numbers_are_free(): void
+    {
+        $this->post(route('sales.clients.store'), $this->customer(['tax_number' => '31154781000000']))->assertSessionHasErrors('tax_number');
+        $this->post(route('sales.clients.store'), $this->customer(['tax_number' => '211547810000003']))->assertSessionHasErrors('tax_number');
+        $this->post(route('sales.clients.store'), $this->customer(['tax_number' => '٣١١ ٥٤٧ ٨١٠ ٠٠٠٠٠٣']))->assertSessionHasNoErrors();
+        $this->assertSame('311547810000003', Customer::latest('id')->value('tax_number'));
+        $this->post(route('sales.clients.store'), $this->customer(['name' => 'Gulf Co', 'tax_number' => 'AE100200300', 'country' => 'AE']))->assertSessionHasNoErrors();
+    }
+
     public function test_a_missing_building_number_names_the_customer_and_where_to_fix_it(): void
     {
         $customer = Customer::create($this->customer(['street_name' => 'الشارع العام', 'status' => 'active']));

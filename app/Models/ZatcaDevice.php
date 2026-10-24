@@ -55,10 +55,14 @@ class ZatcaDevice extends Model
         return $this->status === 'active' && $this->production_token;
     }
 
-    /** Credentials used for signing / API calls in the current stage. */
+    /**
+     * Credentials used for signing / API calls: the production CSID once the
+     * device has one (a stopped device still submits the documents it signed),
+     * the compliance CSID during onboarding.
+     */
     public function credentials(): array
     {
-        return $this->status === 'active'
+        return $this->production_token
             ? [$this->production_token, $this->production_secret]
             : [$this->compliance_token, $this->compliance_secret];
     }

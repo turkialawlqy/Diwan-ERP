@@ -99,7 +99,7 @@ class CustomerController extends Controller
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:50',
             'mobile' => 'nullable|string|max:50',
-            'tax_number' => 'nullable|string|max:50',
+            'tax_number' => ['nullable', 'string', 'max:50', $this->saudiVatRule($request)],
             'commercial_registration' => 'nullable|string|max:50',
             'address' => 'nullable|string',
             'building_number' => ['nullable', 'regex:/^\d{4}$/'],
@@ -263,7 +263,7 @@ class CustomerController extends Controller
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:50',
             'mobile' => 'nullable|string|max:50',
-            'tax_number' => 'nullable|string|max:50',
+            'tax_number' => ['nullable', 'string', 'max:50', $this->saudiVatRule($request)],
             'commercial_registration' => 'nullable|string|max:50',
             'address' => 'nullable|string',
             'building_number' => ['nullable', 'regex:/^\d{4}$/'],
@@ -333,10 +333,30 @@ class CustomerController extends Controller
      * for both) gives its leading four digits to the building number;
      * Arabic-Indic digits are read as digits.
      */
+    /**
+     * A Saudi VAT number is 15 digits starting and ending with 3 (BR-KSA-44).
+     * Customers abroad keep their own format. Whether ZATCA has the number on
+     * its register only ZATCA can tell (BR-KSA-100).
+     */
+    protected function saudiVatRule(Request $request): \Closure
+    {
+        $country = trim((string) $request->input('country'));
+        $saudi = $country === '' || in_array(mb_strtolower($country), ['sa', 'ksa', 'saudi arabia', 'السعودية', 'المملكة العربية السعودية'], true);
+
+        return function (string $attribute, $value, \Closure $fail) use ($saudi) {
+            if ($saudi && $value !== null && $value !== '' && ! preg_match('/^3\d{13}3$/', (string) $value)) {
+                $fail('الرقم الضريبي 15 رقماً يبدأ وينتهي بالرقم 3 (مثال: 310123456700003).');
+            }
+        };
+    }
+
     protected function normalizeNationalAddress(Request $request): void
     {
         $digits = fn ($v) => is_string($v) ? trim(strtr($v, ['٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9'])) : $v;
-        $values = array_map($digits, $request->only(['building_number', 'street_name', 'postal_code', 'additional_details']));
+        $values = array_map($digits, $request->only(['building_number', 'street_name', 'postal_code', 'additional_details', 'tax_number']));
+        if (isset($values['tax_number']) && is_string($values['tax_number'])) {
+            $values['tax_number'] = preg_replace('/[\s\-]+/u', '', $values['tax_number']);
+        }
         [$building, $street] = self::splitBuildingNumber($values['building_number'] ?? null, $values['street_name'] ?? null);
         $request->merge(array_merge($values, ['building_number' => $building, 'street_name' => $street]));
     }

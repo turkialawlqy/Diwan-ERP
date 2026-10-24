@@ -40,7 +40,8 @@ class ZatcaController extends Controller
             ->when($filters['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
             ->when($filters['search'] ?? null, fn ($q, $s) => $q->where('document_number', 'like', "%{$s}%"))
             ->orderByDesc('id')
-            ->paginate($this->perPage($request))->withQueryString();
+            ->paginate($this->perPage($request))->withQueryString()
+            ->through(fn ($document) => $document->setAttribute('hints', EInvoiceManager::hints($document->errors)));
 
         return Inertia::render('Zatca/Index', [
             'devices' => ZatcaDevice::with('branch:id,name_ar')->orderBy('id')->get(),
@@ -241,6 +242,9 @@ class ZatcaController extends Controller
             'rejected' => 'رفضتها الهيئة'.($reason ? ': '.$reason : '.'),
             default => 'تعذّر الاتصال بالهيئة'.($reason ? ': '.$reason : '.').' سيُعاد المحاولة تلقائياً.',
         };
+        if ($hints = EInvoiceManager::hints($document->errors)) {
+            $message .= ' — '.implode(' ', $hints);
+        }
 
         return ['status' => $document->status, 'message' => $message, 'line' => $document->document_number.': '.$message];
     }

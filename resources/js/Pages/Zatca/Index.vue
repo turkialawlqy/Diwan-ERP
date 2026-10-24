@@ -150,6 +150,7 @@ const typeLabel = { '388': 'فاتورة', '381': 'إشعار دائن', '383': 
                             <td class="px-4 py-2 text-center font-mono">{{ doc.attempts }}<span v-if="doc.status === 'pending' && !doc.attempts" class="block font-sans text-3xs text-slate-400">لم يُرسل بعد</span></td>
                             <td class="px-4 py-2 text-[11px] text-slate-500 max-w-xs">
                                 <div v-for="(m, i) in [...(doc.errors || []), ...(doc.warnings || [])]" :key="i">{{ m.code ? m.code + ': ' : '' }}{{ m.message }}</div>
+                                <div v-for="(h, i) in doc.hints || []" :key="'h' + i" class="mt-1 p-1.5 rounded-lg bg-indigo-50 text-indigo-800 font-bold" data-zatca-hint>💡 {{ h }}</div>
                             </td>
                             <td class="px-4 py-2 text-end whitespace-nowrap">
                                 <a v-if="$can('admin.zatca.export') || $can('admin.zatca.manage')" :href="route('zatca.documents.xml', doc.id)" class="text-indigo-600 font-bold me-3">XML</a>
