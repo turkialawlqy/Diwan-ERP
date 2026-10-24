@@ -88,6 +88,10 @@ class EInvoiceManager
         $previousHash = $device->last_hash ?: ZatcaDevice::INITIAL_HASH;
 
         $data = $this->mapper->map($document, $company);
+        // ZATCA rejects a document dated after today (BR-KSA-04): stop before it takes an ICV.
+        if ($data['issue_date'] > now('Asia/Riyadh')->toDateString()) {
+            throw ValidationException::withMessages(['zatca' => "تاريخ المستند {$data['number']} ({$data['issue_date']}) لاحق لتاريخ اليوم؛ الهيئة لا تقبل مستنداً ضريبياً بتاريخ مستقبلي."]);
+        }
         $signed = $this->signDocument($data, $device, $icv, $previousHash, $company);
 
         $record = ZatcaDocument::create([
@@ -268,6 +272,7 @@ class EInvoiceManager
     /** What to do about the ZATCA answers users meet most (code, or text the message starts with). */
     public const HINTS = [
         'BR-KSA-100' => 'الرقم الضريبي للعميل غير مسجّل لدى الهيئة أو مكتوب خطأً. تحقق منه في خدمة «التحقق من الرقم الضريبي» بموقع الهيئة، وصحّحه في بطاقة العميل، ثم أصدر إشعاراً دائناً للفاتورة المرفوضة وفاتورة جديدة.',
+        'BR-KSA-04' => 'تاريخ المستند لاحق لتاريخ اليوم، والهيئة لا تقبله. أصدر إشعاراً دائناً لهذه الفاتورة ثم فاتورة جديدة بتاريخ اليوم أو قبله.',
         'BR-KSA-44' => 'صيغة الرقم الضريبي للعميل غير صحيحة: 15 رقماً يبدأ وينتهي بالرقم 3.',
         'BR-KSA-63' => 'العنوان الوطني للعميل ناقص: أكمل رقم المبنى والشارع والحي والمدينة والرمز البريدي.',
         'BR-KSA-37' => 'رقم المبنى في العنوان الوطني يجب أن يكون 4 أرقام.',

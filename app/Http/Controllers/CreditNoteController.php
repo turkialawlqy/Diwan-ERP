@@ -109,7 +109,7 @@ class CreditNoteController extends Controller
             $validated = $request->validate([
                 'customer_id' => 'required|tenant_exists:customers,id',
                 'invoice_id' => 'required|tenant_exists:invoices,id',
-                'credit_note_date' => 'required|date',
+                'credit_note_date' => 'required|date|before_or_equal:today',
                 'reason' => 'required|string|max:500',
                 'refund_method' => 'nullable|in:credit,cash,bank_transfer',
                 'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
@@ -139,7 +139,7 @@ class CreditNoteController extends Controller
             // ZATCA: a credit note always references the invoice it corrects.
             'invoice_id' => 'required|tenant_exists:invoices,id',
             'credit_note_number' => 'nullable|string|max:50', // ignored: assigned by the system
-            'credit_note_date' => 'required|date',
+            'credit_note_date' => 'required|date|before_or_equal:today',
             'subtotal' => 'required|numeric|min:0.01',
             'tax_amount' => 'required|numeric|min:0',
             'total' => 'required|numeric|min:0.01',

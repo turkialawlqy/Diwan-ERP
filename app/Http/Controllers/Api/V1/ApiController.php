@@ -111,7 +111,7 @@ class ApiController extends Controller
     {
         $validated = $request->validate([
             'customer_id' => 'required|tenant_exists:customers,id',
-            'invoice_date' => 'required|date',
+            'invoice_date' => 'required|date|before_or_equal:today',
             'invoice_type' => 'nullable|in:standard,simplified',
             'warehouse_id' => 'nullable|tenant_exists:warehouses,id',
             'payment_method' => 'nullable|in:cash,card,bank_transfer,credit',

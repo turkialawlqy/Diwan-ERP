@@ -178,7 +178,7 @@ class InvoiceController extends Controller
             'branch_id' => 'nullable|tenant_exists:branches,id',
             'invoice_number' => 'nullable|string|max:50', // ignored: assigned by the system
             'reference_number' => 'nullable|string|max:50',
-            'invoice_date' => 'required|date',
+            'invoice_date' => 'required|date|before_or_equal:today',
             'due_date' => 'nullable|date',
             'supply_date' => 'nullable|date',
             'payment_method' => 'required|string|in:cash,card,bank_transfer,credit',

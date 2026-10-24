@@ -33,7 +33,7 @@ class DebitNoteController extends Controller
             'customer_id' => 'required|tenant_exists:customers,id',
             // ZATCA: a debit note always references the invoice it corrects.
             'invoice_id' => 'required|tenant_exists:invoices,id',
-            'debit_note_date' => 'required|date',
+            'debit_note_date' => 'required|date|before_or_equal:today',
             'reason' => 'required|string|max:500',
             'subtotal' => 'required|numeric|gt:0',
             'tax_rate' => 'nullable|numeric|in:0,15', // standard rate or zero-rated/exempt only

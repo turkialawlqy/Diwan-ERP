@@ -220,7 +220,7 @@ class ZatcaTest extends TestCase
         $this->assertSame('reported', $invoice->fresh()->zatca_status);
         $this->assertSame('0200000', ZatcaDocument::firstOrFail()->subtype);
 
-        $note = app(SalesCycleService::class)->returnInvoice($invoice, ['credit_note_date' => '2026-06-16', 'reason' => 'إرجاع'],
+        $note = app(SalesCycleService::class)->returnInvoice($invoice, ['credit_note_date' => '2026-06-15', 'reason' => 'إرجاع'],
             [['invoice_item_id' => $invoice->items()->first()->id, 'quantity' => 1]]);
 
         $record = ZatcaDocument::where('documentable_id', $note->id)->where('type_code', '381')->firstOrFail();
@@ -416,5 +416,27 @@ class ZatcaTest extends TestCase
         $this->assertStringContainsString('جدّد شهادته', session('error'));
         $this->assertSame(['failed', 1], [$record->fresh()->status, ZatcaDocument::count()]);
         $this->assertFalse(app(EInvoiceManager::class)->needsRestamp($record->fresh()));
+    }
+
+    public function test_future_dated_tax_documents_are_stopped_before_signing(): void
+    {
+        $device = $this->onboard();
+
+        $this->post(route('sales.invoices.store'), ['customer_id' => $this->customer->id, 'invoice_date' => '2026-06-16', 'payment_method' => 'credit',
+            'items' => [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 100, 'tax_rate' => 15]]])
+            ->assertSessionHasErrors(['invoice_date' => 'لا يصح أن يكون تاريخ الفاتورة الضريبية لاحقاً لتاريخ اليوم (شرط هيئة الزكاة BR-KSA-04).']);
+
+        // A future date that reaches signing (an older document, the API) takes no ICV.
+        $invoice = $this->invoice();
+        $icv = $device->fresh()->icv;
+        $invoice->forceFill(['invoice_date' => '2026-06-20'])->saveQuietly();
+        try {
+            app(EInvoiceManager::class)->stamp($invoice->fresh());
+            $this->fail('A future-dated document was signed.');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('لاحق لتاريخ اليوم', collect($e->errors())->flatten()->first());
+        }
+        $this->assertSame($icv, $device->fresh()->icv);
+        $this->assertSame([EInvoiceManager::HINTS['BR-KSA-04']], EInvoiceManager::hints([['code' => 'BR-KSA-04', 'message' => 'The document issue date (BT-2) must be less or equal to the current date.']]));
     }
 }

@@ -131,7 +131,7 @@ class MultiCurrencyTest extends TestCase
     {
         $invoice = $this->usdInvoice();
         $this->post(route('sales.returns.store'), [
-            'customer_id' => $this->customer->id, 'invoice_id' => $invoice->id, 'credit_note_date' => '2026-06-16',
+            'customer_id' => $this->customer->id, 'invoice_id' => $invoice->id, 'credit_note_date' => '2026-06-15',
             'subtotal' => 100, 'tax_amount' => 15, 'total' => 115, 'reason' => 'خصم', 'status' => 'approved',
         ])->assertSessionHasNoErrors();
 
