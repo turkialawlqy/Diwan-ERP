@@ -231,7 +231,8 @@ mapfile -t COMPOSER_FLAGS < <(composer_flags)
 as_app composer install --working-dir="$APP_DIR" --no-dev --optimize-autoloader --no-interaction "${COMPOSER_FLAGS[@]}"
 # The front-end build takes minutes on a small server: only when its sources changed since the last build.
 BUILD_STAMP=$APP_DIR/public/build/.source-hash
-BUILD_HASH=$(cd "$APP_DIR" && git ls-tree -r HEAD -- resources/js resources/css package.json package-lock.json vite.config.js tailwind.config.js postcss.config.js | sha256sum | cut -d' ' -f1)
+# As the repository's owner: git refuses a repository owned by another user ("dubious ownership").
+BUILD_HASH=$(sudo -u "$APP_USER" -H git -C "$APP_DIR" ls-tree -r HEAD -- resources/js resources/css package.json package-lock.json vite.config.js tailwind.config.js postcss.config.js | sha256sum | cut -d' ' -f1)
 if [[ -f $APP_DIR/public/build/manifest.json && -f $BUILD_STAMP && $(cat "$BUILD_STAMP") == "$BUILD_HASH" ]]; then
     ok "الواجهة مبنية مسبقاً ولم تتغير ملفاتها؛ تخطّي البناء."
 else
