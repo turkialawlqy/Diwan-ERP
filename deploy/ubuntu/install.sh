@@ -202,6 +202,8 @@ ok "الوصول إلى المستودع يعمل."
 
 # ------------------------------------------------------------------ 5. code
 step "5/11 سحب الكود وتثبيت المكتبات وبناء الواجهة (عدة دقائق)"
+# The front-end build needs ~1GB: Node gets a larger heap, backed by the swap file.
+[[ $DRY_RUN == 1 ]] || swapon --show | grep -q /swapfile || swapon /swapfile || warn "الـ swap غير مفعّل؛ قد يفشل بناء الواجهة لنقص الذاكرة."
 if [[ ! -d $APP_DIR/.git ]]; then
     run mkdir -p "$APP_DIR"
     run chown "$APP_USER:$APP_USER" "$APP_DIR"
@@ -218,7 +220,7 @@ if [[ $DRY_RUN != 1 && -z ${DIWAN_REEXEC:-} ]] && ! cmp -s "${BASH_SOURCE[0]}" "
 fi
 mapfile -t COMPOSER_FLAGS < <(composer_flags)
 as_app composer install --working-dir="$APP_DIR" --no-dev --optimize-autoloader --no-interaction "${COMPOSER_FLAGS[@]}"
-as_app sh -c "cd $APP_DIR && npm ci --no-audit --no-fund && npm run build && rm -rf node_modules"
+as_app env NODE_OPTIONS=--max-old-space-size=1536 sh -c "cd $APP_DIR && npm ci --no-audit --no-fund && npm run build && rm -rf node_modules"
 ok "الكود والواجهة جاهزان."
 
 # ------------------------------------------------------------------ 6. .env

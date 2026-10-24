@@ -59,7 +59,7 @@ if grep -qE '^composer\.(json|lock)$' <<< "$CHANGED"; then
 fi
 if grep -qE '^(package(-lock)?\.json|vite\.config\.js|tailwind\.config\.js|postcss\.config\.js|resources/(js|css)/)' <<< "$CHANGED"; then
     step "بناء الواجهة"
-    as_app sh -c "cd $APP_DIR && npm ci --no-audit --no-fund && npm run build && rm -rf node_modules"
+    as_app env NODE_OPTIONS=--max-old-space-size=1536 sh -c "cd $APP_DIR && npm ci --no-audit --no-fund && npm run build && rm -rf node_modules"
 fi
 
 step "ترحيلات قاعدة البيانات والتهيئة"
