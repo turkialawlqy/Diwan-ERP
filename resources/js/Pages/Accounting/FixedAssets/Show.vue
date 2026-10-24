@@ -105,7 +105,7 @@ const dispose = () => form.transform((d) => ({ ...d, vat_amount: d.taxable ? Mat
             <div class="space-y-3 text-xs">
                 <Field label="التاريخ" :error="form.errors.date"><input v-model="form.date" type="date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="مبلغ البيع (0 للإتلاف)" :error="form.errors.proceeds"><input v-model="form.proceeds" type="number" step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <label class="flex items-center gap-2"><input v-model="form.taxable" type="checkbox" class="rounded" /> بيع خاضع للضريبة 15% ({{ ((parseFloat(form.proceeds) || 0) * 0.15).toFixed(2) }})</label>
+                <label class="flex items-center gap-2"><input v-model="form.taxable" type="checkbox" class="rounded" /> بيع خاضع للضريبة {{ $taxRate() }}% ({{ ((parseFloat(form.proceeds) || 0) * $taxRate() / 100).toFixed(2) }})</label>
                 <p v-if="form.errors.vat_amount" class="text-rose-600">{{ form.errors.vat_amount }}</p>
                 <Field label="طريقة القبض"><select v-model="form.method" class="w-full rounded-xl border-slate-200 text-xs"><option value="bank_transfer">بنك</option><option value="cash">نقداً</option></select></Field>
                 <Field label="الصندوق / البنك"><select v-model="form.bank_account_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">الافتراضي</option><option v-for="b in bankAccounts" :key="b.id" :value="b.id">{{ b.name }}</option></select></Field>

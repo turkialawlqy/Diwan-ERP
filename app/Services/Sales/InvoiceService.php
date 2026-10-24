@@ -12,6 +12,7 @@ use App\Services\Accounting\ExchangeRates;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Saas\WebhookDispatcher;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Services\Zatca\EInvoiceManager;
 use App\Services\Zatca\VatClassifier;
@@ -51,12 +52,16 @@ class InvoiceService
         $company = $this->tenantManager->getCompany();
 
         return DB::transaction(function () use ($data, $lines, $options, $company) {
-            [$items, $subtotal, $taxAmount] = $this->computeLines($lines);
+            // The branch's country decides the tax (rates, title, e-invoicing) and the default currency.
+            $branchId = $data['branch_id'] ?? auth()->user()?->branch_id ?? Branch::orderByDesc('is_main')->orderBy('id')->value('id');
+            $profile = TaxProfile::forBranch($branchId ? (int) $branchId : null, $company);
+            [$items, $subtotal, $taxAmount] = $this->computeLines($lines, $profile);
             $total = round($subtotal + $taxAmount, 2);
 
             [$paidAmount, $remaining, $status] = $this->payment($data, $total);
             // Amounts are in the invoice currency; balances and the ledger use base.
-            [$currency, $rate] = app(ExchangeRates::class)->resolve($data['currency_code'] ?? null, $data['exchange_rate'] ?? null, $data['invoice_date']);
+            $currencyCode = array_key_exists('currency_code', $data) && $data['currency_code'] ? $data['currency_code'] : $profile->currency();
+            [$currency, $rate] = app(ExchangeRates::class)->resolve($currencyCode, $data['exchange_rate'] ?? null, $data['invoice_date']);
 
             $customer = Customer::lockForUpdate()->findOrFail($data['customer_id']);
             if (($options['check_credit'] ?? true) && $remaining > 0) {
@@ -65,10 +70,10 @@ class InvoiceService
 
             $date = Carbon::parse($data['invoice_date']);
             $requestedSimplified = ($data['invoice_type'] ?? null) === 'simplified';
-            $isSimplified = $requestedSimplified || $this->buyerNeedsSimplified($customer);
+            $isSimplified = $requestedSimplified || $this->buyerNeedsSimplified($customer, $profile);
 
             $invoice = Invoice::create([
-                'branch_id' => $data['branch_id'] ?? auth()->user()?->branch_id ?? Branch::orderBy('id')->value('id'),
+                'branch_id' => $branchId,
                 'customer_id' => $customer->id,
                 'user_id' => auth()->id(),
                 'salesperson_id' => $data['salesperson_id'] ?? $customer->salesperson_id ?? auth()->id(),
@@ -82,7 +87,7 @@ class InvoiceService
                 'discount_type' => 'fixed',
                 'discount_value' => 0,
                 'discount_amount' => round(array_sum(array_column($items, 'discount')), 2),
-                'tax_rate' => 15.00,
+                'tax_rate' => $profile->standardRate($date),
                 'tax_amount' => $taxAmount,
                 'total' => $total,
                 'paid_amount' => $paidAmount,
@@ -143,14 +148,22 @@ class InvoiceService
      * a simplified invoice; one with a VAT number must have a full address,
      * otherwise clearance would reject the invoice after it was posted.
      */
-    protected function buyerNeedsSimplified(Customer $customer): bool
+    protected function buyerNeedsSimplified(Customer $customer, ?TaxProfile $profile = null): bool
     {
-        $local = ! $customer->country || in_array(mb_strtolower((string) $customer->country), ['sa', 'ksa', 'المملكة العربية السعودية', 'السعودية', 'saudi arabia'], true);
+        $profile ??= TaxProfile::current();
+        if (! $profile->simplifiedInvoices() || ! $profile->chargesTax()) {
+            return $customer->code === 'WALK-IN' && $profile->simplifiedInvoices();
+        }
+        // A buyer in the branch's own country is local (the national-address rule is Saudi).
+        $local = TaxProfile::countryCodeFromName($customer->country, $profile->countryCode) === $profile->countryCode;
         if (! $local || $customer->code === 'WALK-IN') {
             return $customer->code === 'WALK-IN';
         }
         if (! $customer->tax_number) {
             return true;
+        }
+        if (! $profile->requiresNationalAddress()) {
+            return false;
         }
 
         $missing = collect([
@@ -167,8 +180,9 @@ class InvoiceService
         return false;
     }
 
-    public function computeLines(array $lines): array
+    public function computeLines(array $lines, ?TaxProfile $profile = null): array
     {
+        $profile ??= TaxProfile::current();
         $items = [];
         $subtotal = 0.0;
         $taxAmount = 0.0;
@@ -177,7 +191,7 @@ class InvoiceService
             $qty = (float) $line['quantity'];
             $price = (float) $line['unit_price'];
             $discount = round((float) ($line['discount'] ?? 0), 2);
-            $taxRate = (float) ($line['tax_rate'] ?? 15);
+            $taxRate = isset($line['tax_rate']) && $line['tax_rate'] !== '' ? (float) $line['tax_rate'] : $profile->standardRate();
 
             if ($qty <= 0 || $price < 0 || $discount < 0) {
                 throw ValidationException::withMessages(['items' => 'كميات وأسعار الأصناف يجب أن تكون موجبة.']);
@@ -192,10 +206,10 @@ class InvoiceService
             // zero-rated, exempt and out-of-scope lines carry no VAT.
             [$vatCategory, $exemptionCode] = app(VatClassifier::class)->classify(
                 ! empty($line['product_id']) ? Product::find($line['product_id']) : null,
-                $taxRate, $line['vat_category'] ?? null, $line['vat_exemption_code'] ?? null,
+                $taxRate, $line['vat_category'] ?? null, $line['vat_exemption_code'] ?? null, $profile,
             );
-            // Standard-rated lines always use the Kingdom's rate; others carry none.
-            $taxRate = $vatCategory === 'S' ? VatClassifier::standardRate() : 0.0;
+            // Standard-rated lines carry a rate the branch's country allows (KSA: always 15); others carry none.
+            $taxRate = $vatCategory === 'S' ? $profile->rateFor($taxRate) : 0.0;
 
             $lineTax = round($lineSubtotal * $taxRate / 100, 2);
 

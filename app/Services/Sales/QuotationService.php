@@ -4,6 +4,7 @@ namespace App\Services\Sales;
 
 use App\Models\Quotation;
 use App\Services\Documents\DocumentNumberService;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -30,7 +31,7 @@ class QuotationService
                 $qty = (float) $item['quantity'];
                 $price = (float) $item['unit_price'];
                 $discount = (float) ($item['discount'] ?? 0);
-                $taxRate = (float) ($item['tax_rate'] ?? 15.00);
+                $taxRate = (float) ($item['tax_rate'] ?? TaxProfile::rate());
 
                 $lineSubtotal = ($qty * $price) - $discount;
                 $lineTax = $lineSubtotal * ($taxRate / 100);
@@ -63,7 +64,7 @@ class QuotationService
                 'valid_until' => $data['valid_until'] ?? null,
                 'subtotal' => $subtotal,
                 'discount_amount' => $discountTotal,
-                'tax_rate' => 15.00,
+                'tax_rate' => TaxProfile::rate(),
                 'tax_amount' => $taxAmount,
                 'total' => $subtotal + $taxAmount,
                 'status' => 'draft',

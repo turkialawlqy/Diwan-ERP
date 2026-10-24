@@ -178,7 +178,7 @@ const formatCurrency = (val) => {
                                 <span>{{ formatCurrency(activeOrder.subtotal) }} ﷼</span>
                             </div>
                             <div class="flex justify-between">
-                                <span>ضريبة القيمة المضافة 15%:</span>
+                                <span>{{ $taxLabel() }}:</span>
                                 <span>{{ formatCurrency(activeOrder.tax_amount) }} ﷼</span>
                             </div>
                             <div class="flex justify-between font-bold text-xs pt-1 border-t border-slate-200">

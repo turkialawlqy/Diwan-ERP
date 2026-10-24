@@ -1,4 +1,5 @@
 <script setup>
+import { taxRate } from '@/utils/tax';
 import { computed, onMounted, ref } from 'vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -52,7 +53,7 @@ const toggle = (t) => router.post(route('sales.recurring.toggle', t.id), {}, { p
 const runNow = (t) => router.post(route('sales.recurring.run', t.id), {}, { preserveScroll: true });
 const remove = (t) => confirm(`حذف «${t.name}»؟ الفواتير الصادرة تبقى كما هي.`) && router.delete(route('sales.recurring.destroy', t.id), { preserveScroll: true });
 
-const perIssue = computed(() => form.lines.reduce((s, l) => s + (Number(l.quantity || 0) * Number(l.unit_price || 0) - Number(l.discount || 0)) * (1 + Number(l.tax_rate ?? 15) / 100), 0));
+const perIssue = computed(() => form.lines.reduce((s, l) => s + (Number(l.quantity || 0) * Number(l.unit_price || 0) - Number(l.discount || 0)) * (1 + Number(l.tax_rate ?? taxRate()) / 100), 0));
 
 onMounted(() => { if (props.prefill) create(props.prefill); });
 </script>
@@ -77,7 +78,7 @@ onMounted(() => { if (props.prefill) create(props.prefill); });
                             <h3 class="font-black text-slate-800 text-sm">{{ t.name }}</h3>
                             <span :class="['px-2 py-0.5 rounded-full font-bold', statuses[t.status][1]]">{{ statuses[t.status][0] }}</span>
                         </div>
-                        <p class="text-slate-500 mt-1">{{ t.customer?.name }} · {{ frequencies[t.frequency] }}{{ t.interval > 1 ? ` (كل ${t.interval})` : '' }} · {{ money(t.estimated_total) }} {{ t.currency_code || 'ر.س' }} لكل إصدار</p>
+                        <p class="text-slate-500 mt-1">{{ t.customer?.name }} · {{ frequencies[t.frequency] }}{{ t.interval > 1 ? ` (كل ${t.interval})` : '' }} · {{ money(t.estimated_total) }} {{ t.currency_code || $cur() }} لكل إصدار</p>
                         <p class="text-slate-500 mt-1">
                             صدر {{ t.generated_count }}{{ t.max_count ? ` من ${t.max_count}` : '' }}
                             <template v-if="t.status !== 'ended'"> · الإصدار التالي: <HijriDate :value="t.next_run_date" inline /></template>
@@ -127,7 +128,7 @@ onMounted(() => { if (props.prefill) create(props.prefill); });
                     <h4 class="font-black text-slate-700 mb-2">بنود الفاتورة <span class="font-normal text-slate-400">(خدمات فقط)</span></h4>
                     <LineItemsEditor v-model="form.lines" />
                     <p v-if="form.errors.lines" class="text-rose-600 mt-1">{{ form.errors.lines }}</p>
-                    <p class="mt-2 text-slate-600">الإجمالي لكل إصدار (شامل الضريبة): <b class="font-mono">{{ money(perIssue) }} {{ form.currency_code || 'ر.س' }}</b></p>
+                    <p class="mt-2 text-slate-600">الإجمالي لكل إصدار (شامل الضريبة): <b class="font-mono">{{ money(perIssue) }} {{ form.currency_code || $cur() }}</b></p>
                 </div>
 
                 <div class="grid md:grid-cols-2 gap-3">

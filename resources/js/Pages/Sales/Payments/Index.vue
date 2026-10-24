@@ -100,15 +100,15 @@ const formatCurrency = (val) => {
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">إجمالي المقبوضات</p>
-                    <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ formatCurrency(stats?.total_amount) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                    <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ formatCurrency(stats?.total_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">سداد نقدي</p>
-                    <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ formatCurrency(stats?.cash_amount) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                    <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ formatCurrency(stats?.cash_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">سداد شبكة / بنكي</p>
-                    <p class="text-xl sm:text-2xl font-black text-slate-700">{{ formatCurrency(stats?.bank_amount) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                    <p class="text-xl sm:text-2xl font-black text-slate-700">{{ formatCurrency(stats?.bank_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
             </div>
 

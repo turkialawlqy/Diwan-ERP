@@ -6,7 +6,10 @@ use App\Jobs\SubmitZatcaDocument;
 use App\Models\Company;
 use App\Models\ZatcaDevice;
 use App\Models\ZatcaDocument;
+use App\Services\EInvoicing\ProviderRegistry;
+use App\Services\EInvoicing\ZatcaProvider;
 use App\Services\Saas\WebhookDispatcher;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
@@ -30,7 +33,23 @@ class EInvoiceManager
         protected InvoiceSigner $signer,
     ) {}
 
+    /**
+     * Stamps a sales document with the e-invoicing system of its branch's
+     * country: ZATCA for Saudi branches, the country's own system elsewhere.
+     */
     public function stamp(Model $document): ?ZatcaDocument
+    {
+        $provider = app(ProviderRegistry::class)->for(TaxProfile::forDocument($document));
+        if (! $provider instanceof ZatcaProvider) {
+            $provider->stamp($document);
+
+            return null;
+        }
+
+        return $this->stampZatca($document);
+    }
+
+    public function stampZatca(Model $document): ?ZatcaDocument
     {
         $company = $this->tenantManager->getCompany() ?? Company::find($document->company_id);
         $device = $company ? $this->device($company, $document->branch_id ?? null) : null;

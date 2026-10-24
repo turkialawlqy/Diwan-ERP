@@ -7,6 +7,7 @@ use App\Models\CostCenter;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Services\Sales\PriceResolver;
+use App\Services\Tax\TaxProfile;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
@@ -167,7 +168,7 @@ class LineImporter
                 'quantity' => $quantity,
                 'unit_price' => round((float) ($price ?? 0), 4),
                 'discount' => max(0, (float) ($this->number($row['discount'] ?? null) ?? 0)),
-                'tax_rate' => $tax ?? ($product ? (float) $product->tax_rate : 15.0),
+                'tax_rate' => $tax ?? ($product ? (float) $product->tax_rate : TaxProfile::rate()),
             ];
             $product ? $matched++ : $free++;
         }

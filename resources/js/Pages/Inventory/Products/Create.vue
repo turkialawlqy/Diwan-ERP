@@ -1,4 +1,5 @@
 <script setup>
+import { taxRate } from '@/utils/tax';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import VatFields from '@/Components/Products/VatFields.vue';
@@ -27,7 +28,7 @@ const form = useForm({
     barcode: '',
     purchase_price: 0,
     selling_price: 0,
-    tax_rate: 15.00,
+    tax_rate: taxRate(),
     vat_category: 'S',
     vat_exemption_code: '',
     min_stock_alert: 5,

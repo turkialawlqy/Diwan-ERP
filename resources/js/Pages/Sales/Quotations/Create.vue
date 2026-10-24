@@ -1,4 +1,5 @@
 <script setup>
+import { taxRate, taxLabel } from '@/utils/tax';
 import ImportLines from '@/Components/Documents/ImportLines.vue';
 import { ref, computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
@@ -31,7 +32,7 @@ const form = useForm({
     quotation_number: props.suggestedNumber || 'QUO-26-1-000001',
     quotation_date: today,
     valid_until: defaultValidUntil,
-    notes: 'عرض السعر ساري حتى التاريخ المحدد أعلاه. الأسعار تشمل أو تخضع لضريبة القيمة المضافة (15%).',
+    notes: taxRate() ? `عرض السعر ساري حتى التاريخ المحدد أعلاه. الأسعار تخضع لـ${taxLabel()}.` : 'عرض السعر ساري حتى التاريخ المحدد أعلاه.',
     terms: '1. الدفع عند قبول العرض وتأكيد الطلب.\n2. مدة التوريد والتنفيذ متفق عليها وفق طبيعة الأعمال.\n3. هذا العرض وثيقة تقديرية ولا يعتبر فاتورة ضريبية.',
     items: [
         {
@@ -41,7 +42,7 @@ const form = useForm({
             quantity: 1,
             unit_price: 0,
             discount: 0,
-            tax_rate: props.defaultTaxRate || 15.00,
+            tax_rate: props.defaultTaxRate ?? taxRate(),
         }
     ]
 });
@@ -57,7 +58,7 @@ const onProductSelect = (index, event) => {
         item.product_id = prod.id;
         item.item_name = prod.name_ar || prod.name_en || '';
         item.unit_price = Number(prod.selling_price) || 0;
-        item.tax_rate = Number(prod.tax_rate) || props.defaultTaxRate || 15.00;
+        item.tax_rate = Number(prod.tax_rate ?? props.defaultTaxRate ?? taxRate());
     }
 };
 
@@ -104,7 +105,7 @@ const addItem = () => {
         quantity: 1,
         unit_price: 0,
         discount: 0,
-        tax_rate: props.defaultTaxRate || 15.00,
+        tax_rate: props.defaultTaxRate ?? taxRate(),
     });
 };
 
@@ -442,7 +443,7 @@ const importLines = (lines, replace) => {
                                 <span class="font-mono font-bold">- {{ formatCurrency(totalDiscount) }} ﷼</span>
                             </div>
                             <div class="flex justify-between text-slate-600">
-                                <span>ضريبة القيمة المضافة (15%):</span>
+                                <span>{{ $taxLabel() }}:</span>
                                 <span class="font-mono font-bold">{{ formatCurrency(totalTax) }} ﷼</span>
                             </div>
                             <div class="flex justify-between text-base font-black text-slate-900 pt-2 border-t border-slate-200">

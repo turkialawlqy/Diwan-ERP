@@ -98,15 +98,15 @@ const printReport = () => {
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <tr>
-                                <td class="py-3 px-4 font-medium text-slate-900">المبيعات الخاضعة للنسبة الأساسية (15%)</td>
+                                <td class="py-3 px-4 font-medium text-slate-900">المبيعات الخاضعة للنسبة الأساسية ({{ $taxRate() }}%)</td>
                                 <td class="py-3 px-4 font-mono text-end">{{ formatCurrency(vat?.sales_subtotal) }} ﷼</td>
-                                <td class="py-3 px-4 text-end font-mono">15%</td>
+                                <td class="py-3 px-4 text-end font-mono">{{ $taxRate() }}%</td>
                                 <td class="py-3 px-4 font-mono font-bold text-emerald-600 text-end">{{ formatCurrency(vat?.sales_tax) }} ﷼</td>
                             </tr>
                             <tr>
                                 <td class="py-3 px-4 font-medium text-slate-900">الإيرادات والخدمات المتنوعة الخاضعة للضريبة</td>
                                 <td class="py-3 px-4 font-mono text-end">-</td>
-                                <td class="py-3 px-4 text-end font-mono">15%</td>
+                                <td class="py-3 px-4 text-end font-mono">{{ $taxRate() }}%</td>
                                 <td class="py-3 px-4 font-mono font-bold text-emerald-600 text-end">{{ formatCurrency(vat?.revenues_tax) }} ﷼</td>
                             </tr>
                         </tbody>
@@ -139,15 +139,15 @@ const printReport = () => {
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <tr>
-                                <td class="py-3 px-4 font-medium text-slate-900">المشتريات الخاضعة للنسبة الأساسية (15%)</td>
+                                <td class="py-3 px-4 font-medium text-slate-900">المشتريات الخاضعة للنسبة الأساسية ({{ $taxRate() }}%)</td>
                                 <td class="py-3 px-4 font-mono text-end">{{ formatCurrency(vat?.purchases_subtotal) }} ﷼</td>
-                                <td class="py-3 px-4 text-end font-mono">15%</td>
+                                <td class="py-3 px-4 text-end font-mono">{{ $taxRate() }}%</td>
                                 <td class="py-3 px-4 font-mono font-bold text-indigo-600 text-end">{{ formatCurrency(vat?.purchases_tax) }} ﷼</td>
                             </tr>
                             <tr>
                                 <td class="py-3 px-4 font-medium text-slate-900">المصروفات التشغيلية الخاضعة للضريبة</td>
                                 <td class="py-3 px-4 font-mono text-end">-</td>
-                                <td class="py-3 px-4 text-end font-mono">15%</td>
+                                <td class="py-3 px-4 text-end font-mono">{{ $taxRate() }}%</td>
                                 <td class="py-3 px-4 font-mono font-bold text-indigo-600 text-end">{{ formatCurrency(vat?.expenses_tax) }} ﷼</td>
                             </tr>
                         </tbody>

@@ -13,6 +13,7 @@ use App\Models\Warehouse;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -148,7 +149,7 @@ class ProductController extends Controller
                 'description' => $validated['description'] ?? null,
                 'purchase_price' => $purchasePrice,
                 'selling_price' => $validated['selling_price'],
-                'tax_rate' => ($validated['vat_category'] ?? 'S') === 'S' ? ($validated['tax_rate'] ?? 15.00) : 0,
+                'tax_rate' => ($validated['vat_category'] ?? 'S') === 'S' ? ($validated['tax_rate'] ?? TaxProfile::rate()) : 0,
                 'min_stock_alert' => $validated['min_stock_alert'] ?? 5,
                 'track_inventory' => $trackInventory,
                 'tracking' => $validated['tracking'] ?? 'none',

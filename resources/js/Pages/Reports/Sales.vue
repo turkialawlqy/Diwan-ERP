@@ -72,7 +72,7 @@ const formatCurrency = (val) => {
 
                 <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs flex items-center justify-between">
                     <div class="space-y-1">
-                        <span class="text-3xs font-bold text-slate-400">ضريبة القيمة المضافة 15%</span>
+                        <span class="text-3xs font-bold text-slate-400">{{ $taxLabel() }}</span>
                         <h3 class="text-lg font-black font-mono text-slate-900">
                             {{ formatCurrency(stats?.total_tax) }} <span class="text-xs font-normal">﷼</span>
                         </h3>

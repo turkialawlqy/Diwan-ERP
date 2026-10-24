@@ -1,4 +1,5 @@
 <script setup>
+import { taxRate } from '@/utils/tax';
 import { onMounted, ref, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -13,7 +14,7 @@ const props = defineProps({ rentals: Object, filters: Object, equipment: Array, 
 const bases = { hourly: 'ساعة', daily: 'يوم', monthly: 'شهر' };
 const today = new Date().toLocaleDateString('en-CA');
 const blank = () => ({ type: 'customer', equipment_id: props.prefillEquipment || '', customer_id: null, project_id: '', billing_basis: 'hourly', rate: '', min_hours_per_day: '',
-    with_operator: false, tax_rate: 15, start_date: today, end_date: '', site: '', notes: '' });
+    with_operator: false, tax_rate: taxRate(), start_date: today, end_date: '', site: '', notes: '' });
 const form = useForm(blank());
 const open = ref(false);
 const create = () => { form.defaults(blank()).reset(); form.clearErrors(); open.value = true; suggestRate(); };

@@ -2,9 +2,12 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Branch;
 use App\Models\Currency;
 use App\Services\Saas\PlanGuard;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
+use App\Support\CurrencyNames;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -61,11 +64,18 @@ class HandleInertiaRequests extends Middleware
                 'subdomain' => $currentTenant->subdomain,
                 'logo' => $currentTenant->logo_url,
                 'currency' => $currentTenant->currency ?? 'SAR',
+                'country' => $currentTenant->country_code ?? 'SA',
+                'currency_symbol' => CurrencyNames::for($currentTenant->currency)[2],
+                // Countries the company operates in (its branches'): country-specific menus.
+                'countries' => Branch::query()->pluck('country_code')->map(fn ($c) => $c ?: ($currentTenant->country_code ?: 'SA'))
+                    ->push($currentTenant->country_code ?: 'SA')->unique()->values()->all(),
                 'language' => $currentTenant->language ?? 'ar',
                 'tax_number' => $currentTenant->tax_number,
                 'status' => $currentTenant->status,
                 'trial_ends_at' => $currentTenant->trial_ends_at?->format('Y-m-d'),
             ] : null,
+            // Tax rules of the user's branch (its country): default rate, allowed rates, currency.
+            'tax' => fn () => $currentTenant && $user ? TaxProfile::current()->toArray() : null,
             // Currencies the company uses (forms show a currency picker when > 1).
             'currencies' => fn () => $currentTenant ? Currency::orderByDesc('is_default')->orderBy('code')
                 ->get(['code', 'name_ar', 'symbol_ar', 'exchange_rate'])->toArray() : [],

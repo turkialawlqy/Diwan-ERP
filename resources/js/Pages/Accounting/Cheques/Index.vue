@@ -1,7 +1,7 @@
 <script setup>
 import { ask } from '@/composables/useDialog';
 import { ref, reactive } from 'vue';
-import { Head, useForm, router } from '@inertiajs/vue3';
+import { Head, useForm, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -25,7 +25,7 @@ const loadInvoices = async () => {
     if (form.party_type !== 'customer' || !form.party_id) return;
     try {
         const { data } = await axios.get(route('sales.payments.open-invoices'), { params: { customer_id: form.party_id } });
-        openInvoices.value = (data.data || []).filter((i) => !i.currency_code || i.currency_code === 'SAR');
+        openInvoices.value = (data.data || []).filter((i) => !i.currency_code || i.currency_code === (usePage().props.tenant?.currency || 'SAR'));
     } catch (e) {
         openInvoices.value = [];
     }

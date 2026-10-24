@@ -80,7 +80,10 @@ class CustomerAddressTest extends TestCase
         $this->post(route('sales.clients.store'), $this->customer(['tax_number' => '211547810000003']))->assertSessionHasErrors('tax_number');
         $this->post(route('sales.clients.store'), $this->customer(['tax_number' => '٣١١ ٥٤٧ ٨١٠ ٠٠٠٠٠٣']))->assertSessionHasNoErrors();
         $this->assertSame('311547810000003', Customer::latest('id')->value('tax_number'));
-        $this->post(route('sales.clients.store'), $this->customer(['name' => 'Gulf Co', 'tax_number' => 'AE100200300', 'country' => 'AE']))->assertSessionHasNoErrors();
+        // Each country checks its own format; a country outside the catalogue keeps its own.
+        $this->post(route('sales.clients.store'), $this->customer(['name' => 'Gulf Co', 'tax_number' => '311547810000003', 'country' => 'AE']))->assertSessionHasErrors('tax_number');
+        $this->post(route('sales.clients.store'), $this->customer(['name' => 'Gulf Co', 'tax_number' => '100200300400003', 'country' => 'AE']))->assertSessionHasNoErrors();
+        $this->post(route('sales.clients.store'), $this->customer(['name' => 'Berlin GmbH', 'tax_number' => 'DE123456789', 'country' => 'Germany', 'building_number' => '12', 'postal_code' => '10115']))->assertSessionHasNoErrors();
     }
 
     public function test_a_missing_building_number_names_the_customer_and_where_to_fix_it(): void

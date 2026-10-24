@@ -1,4 +1,5 @@
 <script setup>
+import { taxRate } from '@/utils/tax';
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -47,7 +48,7 @@ const form = useForm({
 
 const onAmountChange = () => {
     if (form.amount && form.taxable) {
-        form.tax_amount = (parseFloat(form.amount) * 0.15).toFixed(2);
+        form.tax_amount = (parseFloat(form.amount) * taxRate() / 100).toFixed(2);
     } else {
         form.tax_amount = '0.00';
     }
@@ -200,13 +201,13 @@ const formatCurrency = (val) => {
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">إجمالي المصروفات</p>
                     <p class="text-xl sm:text-2xl font-black text-rose-600">
-                        {{ formatCurrency(stats?.total_expenses) }} <span class="text-xs font-normal text-slate-500">ر.س</span>
+                        {{ formatCurrency(stats?.total_expenses) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span>
                     </p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">ضريبة القيمة المضافة 15%</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $taxLabel() }}</p>
                     <p class="text-xl sm:text-2xl font-black text-indigo-600">
-                        {{ formatCurrency(stats?.total_tax) }} <span class="text-xs font-normal text-slate-500">ر.س</span>
+                        {{ formatCurrency(stats?.total_tax) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span>
                     </p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
@@ -228,7 +229,7 @@ const formatCurrency = (val) => {
                                 <th class="py-4 px-6 text-start">الحساب / الخزينة</th>
                                 <th class="py-4 px-6 text-start">التاريخ</th>
                                 <th class="py-4 px-6 text-end">المبلغ</th>
-                                <th class="py-4 px-6 text-end">الضريبة 15%</th>
+                                <th class="py-4 px-6 text-end">الضريبة {{ $taxRate() }}%</th>
                                 <th class="py-4 px-6 text-end">الإجمالي</th>
                                 <th class="py-4 px-6 text-center">إجراءات</th>
                             </tr>
@@ -401,7 +402,7 @@ const formatCurrency = (val) => {
                                 />
                             </div>
                             <div>
-                                <label class="flex items-center gap-2 font-medium text-slate-700 mb-1"><input v-model="form.taxable" type="checkbox" @change="onAmountChange" class="rounded border-slate-300" /> خاضع لضريبة القيمة المضافة 15%</label>
+                                <label class="flex items-center gap-2 font-medium text-slate-700 mb-1"><input v-model="form.taxable" type="checkbox" @change="onAmountChange" class="rounded border-slate-300" /> خاضع لـ{{ $taxLabel() }}</label>
                                 <input 
                                     v-model="form.tax_amount" 
                                     :disabled="!form.taxable"

@@ -1,4 +1,5 @@
 <script setup>
+import { cur } from '@/utils/tax';
 import { computed } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -70,13 +71,13 @@ const chartOptions = computed(() => ({
     },
     yaxis: {
         labels: {
-            formatter: (val) => `${val.toLocaleString()} ر.س`,
+            formatter: (val) => `${val.toLocaleString()} ${cur()}`,
             style: { colors: '#64748B', fontSize: '11px', fontFamily: 'Cairo' }
         }
     },
     tooltip: {
         theme: 'light',
-        y: { formatter: (val) => `${val.toLocaleString()} ر.س` }
+        y: { formatter: (val) => `${val.toLocaleString()} ${cur()}` }
     },
     legend: {
         position: 'top',
@@ -202,7 +203,7 @@ const chartOptions = computed(() => ({
             <KpiCard
                 title="مبيعات اليوم"
                 :value="kpis.today_sales"
-                unit="ر.س"
+                :unit="$cur()"
                 color="indigo"
             >
                 <template #icon>
@@ -213,7 +214,7 @@ const chartOptions = computed(() => ({
             <KpiCard
                 title="مبيعات الشهر الحالي"
                 :value="kpis.month_sales"
-                unit="ر.س"
+                :unit="$cur()"
                 :trend="kpis.month_sales_trend"
                 trendText="مقارنة بالشهر الماضي"
                 color="emerald"
@@ -239,7 +240,7 @@ const chartOptions = computed(() => ({
             <KpiCard
                 title="المبالغ المستحقة (الآجل)"
                 :value="kpis.receivables"
-                unit="ر.س"
+                :unit="$cur()"
                 :trend="kpis.receivables_trend"
                 trendText="مستحقات التحصيل"
                 color="amber"
@@ -322,7 +323,7 @@ const chartOptions = computed(() => ({
                                     {{ inv.date }}
                                 </td>
                                 <td class="px-5 py-3.5 font-bold text-slate-900 font-sans">
-                                    {{ inv.total }} ر.س
+                                    {{ inv.total }} {{ $cur() }}
                                 </td>
                                 <td class="px-5 py-3.5 text-center">
                                     <StatusBadge :status="inv.status" />
@@ -357,7 +358,7 @@ const chartOptions = computed(() => ({
                         </div>
 
                         <div class="text-end">
-                            <p class="text-xs font-bold text-emerald-700 font-sans">{{ product.revenue }} ر.س</p>
+                            <p class="text-xs font-bold text-emerald-700 font-sans">{{ product.revenue }} {{ $cur() }}</p>
                             <span class="text-[10px] text-slate-500">{{ product.sold_units }} قطعة</span>
                         </div>
                     </div>

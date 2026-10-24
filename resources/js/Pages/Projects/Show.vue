@@ -1,4 +1,5 @@
 <script setup>
+import { taxRate } from '@/utils/tax';
 import { computed, ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -45,7 +46,7 @@ const variationAct = (v, action) => router.post(route(`projects.variations.${act
 const subForm = useForm({ supplier_id: null, scope: '', contract_value: 0, retention_percent: 10, start_date: '', end_date: '' });
 const selectedSub = ref(null);
 const subAdvanceForm = useForm({ date: today, amount: 0, payment_method: 'bank_transfer', bank_account_id: '' });
-const certifyForm = useForm({ date: today, cumulative_value: 0, vat_rate: 15, supplier_invoice_number: '' });
+const certifyForm = useForm({ date: today, cumulative_value: 0, vat_rate: taxRate(), supplier_invoice_number: '' });
 const openSub = (s, kind) => { selectedSub.value = s; certifyForm.cumulative_value = Number(s.certified_to_date); dialog.value = kind; };
 
 // Costs

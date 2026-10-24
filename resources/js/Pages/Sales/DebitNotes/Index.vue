@@ -1,4 +1,5 @@
 <script setup>
+import { taxRate } from '@/utils/tax';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
@@ -21,7 +22,7 @@ const columns = [
     { key: 'total', label: 'الإجمالي', type: 'money' },
 ];
 const open = ref(false);
-const form = useForm({ customer_id: null, invoice_id: '', debit_note_date: new Date().toISOString().substring(0, 10), reason: '', subtotal: 0, tax_rate: 15 });
+const form = useForm({ customer_id: null, invoice_id: '', debit_note_date: new Date().toISOString().substring(0, 10), reason: '', subtotal: 0, tax_rate: taxRate() });
 const save = () => form.post(route('sales.debit-notes.store'), { onSuccess: () => { open.value = false; form.reset(); } });
 </script>
 

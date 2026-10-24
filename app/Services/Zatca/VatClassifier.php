@@ -4,20 +4,27 @@ namespace App\Services\Zatca;
 
 use App\Models\Company;
 use App\Models\Product;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Resolves the VAT category (S/Z/E/O) and the ZATCA exemption reason of a
- * line: explicit line value, else the product's, else the company default.
+ * Resolves the VAT category (S/Z/E/O) and, in Saudi Arabia, the ZATCA
+ * exemption reason of a line: explicit line value, else the product's, else
+ * the company default. In a country without VAT every line is out of scope.
  */
 class VatClassifier
 {
     /**
      * @return array{0: string, 1: ?string} [category, exemption code]
      */
-    public function classify(?Product $product, float $rate, ?string $category = null, ?string $code = null): array
+    public function classify(?Product $product, float $rate, ?string $category = null, ?string $code = null, ?TaxProfile $profile = null): array
     {
+        $profile ??= TaxProfile::current();
+        // No tax in the branch's country (or the branch is not registered): every line is outside its scope.
+        if (! $profile->chargesTax()) {
+            return ['O', null];
+        }
         $category = strtoupper((string) ($category ?: ($product && $product->vat_category !== 'S' ? $product->vat_category : ($rate > 0 ? 'S' : $this->company()?->setting('zatca_default_zero_category', 'Z')))));
         if ($category === 'S' && $rate <= 0) {
             $category = 'Z';
@@ -28,6 +35,10 @@ class VatClassifier
         if ($category === 'S') {
             return ['S', null];
         }
+        // Exemption reason codes (VATEX-SA-…) are ZATCA's; other countries only need the category.
+        if (! $profile->isSaudi()) {
+            return [$category, null];
+        }
 
         $code = $code ?: ($product?->vat_category === $category ? $product?->vat_exemption_code : null) ?: $this->defaultCode($category);
         if ($code && ! isset(config('zatca.exemption_reasons')[$category][$code])) {
@@ -37,10 +48,10 @@ class VatClassifier
         return [$category, $code];
     }
 
-    /** The Kingdom's standard rate (%): standard-rated lines always use it. */
-    public static function standardRate(): float
+    /** The standard rate (%) of the current branch's country (KSA: 15). */
+    public static function standardRate(?TaxProfile $profile = null): float
     {
-        return round((float) config('saas.vat_rate', 0.15) * 100, 2);
+        return ($profile ?? TaxProfile::current())->standardRate();
     }
 
     public function defaultCode(string $category): ?string

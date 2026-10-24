@@ -1,4 +1,5 @@
 <script setup>
+import { taxRate } from '@/utils/tax';
 import ImportLines from '@/Components/Documents/ImportLines.vue';
 import CurrencyPicker from '@/Components/Documents/CurrencyPicker.vue';
 import { createRemoteLookup } from '@/lookup';
@@ -65,7 +66,7 @@ const form = useForm({
             quantity: 1,
             unit_price: Number(productsList.value[0]?.purchase_price) || 0,
             discount: 0,
-            tax_rate: Number(productsList.value[0]?.tax_rate) || 15.00,
+            tax_rate: Number(productsList.value[0]?.tax_rate ?? taxRate()),
             isDropdownOpen: false,
         }
     ],
@@ -222,7 +223,7 @@ const selectProductForItem = (item, product) => {
     item.product_id = product.id;
     item.item_name = product.name_ar;
     item.unit_price = Number(product.purchase_price) || 0;
-    item.tax_rate = Number(product.tax_rate ?? props.defaultTaxRate ?? 15.00);
+    item.tax_rate = Number(product.tax_rate ?? props.defaultTaxRate ?? taxRate());
     item.isDropdownOpen = false;
 };
 
@@ -234,7 +235,7 @@ const newProductForm = ref({
     unit_id: '',
     purchase_price: 0,
     selling_price: 0,
-    tax_rate: props.defaultTaxRate || 15.00,
+    tax_rate: props.defaultTaxRate ?? taxRate(),
     sku: '',
     barcode: '',
     description: '',
@@ -265,7 +266,7 @@ const openNewProductModal = (rowIndex, initialName = '') => {
         unit_id: unitsList.value[0]?.id || '',
         purchase_price: 0,
         selling_price: 0,
-        tax_rate: props.defaultTaxRate || 15.00,
+        tax_rate: props.defaultTaxRate ?? taxRate(),
         sku: suggestedSku,
         barcode: '',
         description: '',
@@ -307,7 +308,7 @@ const submitNewProduct = async () => {
                     quantity: 1,
                     unit_price: Number(created.purchase_price) || 0,
                     discount: 0,
-                    tax_rate: Number(created.tax_rate) || 15.00,
+                    tax_rate: Number(created.tax_rate ?? taxRate()),
                     isDropdownOpen: false,
                 });
             }
@@ -336,7 +337,7 @@ const addItem = () => {
         quantity: 1,
         unit_price: 0,
         discount: 0,
-        tax_rate: props.defaultTaxRate || 15.00,
+        tax_rate: props.defaultTaxRate ?? taxRate(),
         isDropdownOpen: false,
     });
 };
@@ -764,7 +765,7 @@ const importLines = (lines, replace) => {
                                         <!-- Tax Rate -->
                                         <td class="py-2.5 px-2 text-center">
                                             <span class="inline-block py-2 px-2 text-2xs font-mono font-bold text-slate-500 bg-slate-50 rounded-xl border border-slate-100">
-                                                15%
+                                                {{ $taxRate() }}%
                                             </span>
                                         </td>
 
@@ -816,7 +817,7 @@ const importLines = (lines, replace) => {
                                 <span class="font-mono font-bold">{{ formatCurrency(subtotal) }} ﷼</span>
                             </div>
                             <div class="flex justify-between py-1 text-slate-600">
-                                <span>ضريبة القيمة المضافة 15%:</span>
+                                <span>{{ $taxLabel() }}:</span>
                                 <span class="font-mono font-bold text-indigo-600">{{ formatCurrency(taxAmount) }} ﷼</span>
                             </div>
                             <div class="flex justify-between py-2 border-t border-slate-200 text-sm font-black text-slate-900">

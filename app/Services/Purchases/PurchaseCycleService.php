@@ -20,6 +20,7 @@ use App\Services\Accounting\ExchangeRates;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Services\Workflow\ApprovalService;
 use Illuminate\Support\Carbon;
@@ -96,7 +97,7 @@ class PurchaseCycleService
                 'order_date' => $data['order_date'],
                 'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
                 'subtotal' => $subtotal,
-                'tax_rate' => 15,
+                'tax_rate' => TaxProfile::rate(),
                 'tax_amount' => $tax,
                 'discount' => $discount,
                 'total' => round($subtotal + $tax, 2),
@@ -321,7 +322,7 @@ class PurchaseCycleService
                         'quantity' => $quantity,
                         'unit_price' => $unitPrice,
                         'discount' => (float) ($line['discount'] ?? 0),
-                        'tax_rate' => (float) ($line['tax_rate'] ?? 15),
+                        'tax_rate' => (float) ($line['tax_rate'] ?? TaxProfile::rate()),
                     ],
                     'grn_item' => $grnItem,
                     'stock' => $isStock,
@@ -350,7 +351,7 @@ class PurchaseCycleService
                 'payment_status' => $status,
                 'subtotal' => $subtotal,
                 'discount' => $discount,
-                'tax_rate' => 15,
+                'tax_rate' => TaxProfile::rate(),
                 'tax_amount' => $tax,
                 'total' => $total,
                 'paid_amount' => $paid,
@@ -673,7 +674,7 @@ class PurchaseCycleService
             $quantity = (float) $line['quantity'];
             $price = (float) $line['unit_price'];
             $discount = round((float) ($line['discount'] ?? 0), 2);
-            $rate = (float) ($line['tax_rate'] ?? 15);
+            $rate = (float) ($line['tax_rate'] ?? TaxProfile::rate());
             if ($quantity <= 0 || $price < 0 || $discount < 0) {
                 throw ValidationException::withMessages(['items' => 'كميات وأسعار الأصناف يجب أن تكون موجبة.']);
             }

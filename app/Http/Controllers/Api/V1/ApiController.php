@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\InventoryStock;
 use App\Models\Invoice;
 use App\Models\Product;
+use App\Rules\TaxNumber;
 use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
 use Illuminate\Http\JsonResponse;
@@ -51,7 +52,7 @@ class ApiController extends Controller
             'name' => 'required|string|max:255',
             'company_name' => 'nullable|string|max:255',
             'customer_type' => 'nullable|in:individual,commercial,government',
-            'tax_number' => ['nullable', 'regex:/^3\d{13}3$/'],
+            'tax_number' => ['nullable', 'string', 'max:50', new TaxNumber($request->input('country'))],
             'commercial_registration' => 'nullable|string|max:50',
             'phone' => 'nullable|string|max:30',
             'email' => 'nullable|email|max:255',

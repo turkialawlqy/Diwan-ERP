@@ -242,7 +242,7 @@ const formatDateArabic = (dateStr) => {
                             <span class="font-mono font-bold">- {{ formatCurrency(quotation.discount_amount) }} ﷼</span>
                         </div>
                         <div class="flex justify-between py-1 border-b border-slate-100 text-slate-600">
-                            <span>ضريبة القيمة المضافة (15%):</span>
+                            <span>{{ $taxLabel() }}:</span>
                             <span class="font-mono font-bold">{{ formatCurrency(quotation.tax_amount) }} ﷼</span>
                         </div>
                         <div class="flex justify-between py-2 border-b-2 border-slate-900 text-base font-black text-slate-900">

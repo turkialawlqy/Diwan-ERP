@@ -1,4 +1,5 @@
 <script setup>
+import { taxRate } from '@/utils/tax';
 import { computed, ref } from 'vue';
 import axios from 'axios';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -60,7 +61,7 @@ const dueCount = computed(() => props.schedules.filter((s) => s.status.state !==
 
 // --- supplier rent (hired-in)
 const supplierOpen = ref(false);
-const supplierForm = useForm({ period_from: '', period_to: '', quantity: '', tax_rate: 15, reference: '' });
+const supplierForm = useForm({ period_from: '', period_to: '', quantity: '', tax_rate: taxRate(), reference: '' });
 const supplierPreview = ref(null);
 const openSupplier = () => {
     const now = new Date();

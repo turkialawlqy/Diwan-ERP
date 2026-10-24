@@ -10,6 +10,7 @@ use App\Models\ProjectCost;
 use App\Models\Supplier;
 use App\Services\Accounting\PostingService;
 use App\Services\Sales\InvoiceService;
+use App\Services\Tax\TaxProfile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -166,8 +167,9 @@ class RentalBilling
         });
     }
 
-    public function supplierPreview(Equipment $equipment, Carbon $from, Carbon $to, float $taxRate = 15): array
+    public function supplierPreview(Equipment $equipment, Carbon $from, Carbon $to, ?float $taxRate = null): array
     {
+        $taxRate ??= TaxProfile::rate();
         $this->assertHiredIn($equipment);
         $q = $this->quantity($equipment, $equipment->supplier_rate_basis, $from->startOfDay(), $to->startOfDay());
         $amount = round($q['quantity'] * $equipment->supplier_rate, 2);
@@ -202,7 +204,7 @@ class RentalBilling
                 throw ValidationException::withMessages(['quantity' => 'لا توجد كمية للفوترة في هذه الفترة.']);
             }
             $amount = round($quantity * $equipment->supplier_rate, 2);
-            $tax = round($amount * (float) ($data['tax_rate'] ?? 15) / 100, 2);
+            $tax = round($amount * (float) ($data['tax_rate'] ?? TaxProfile::rate()) / 100, 2);
             $date = $data['date'] ?? $to->toDateString();
 
             $project = EquipmentRental::with('project')->where('equipment_id', $equipment->id)->where('type', 'project')

@@ -27,6 +27,7 @@ class Company extends Model
         'trial_ends_at',
         'subscription_plan_id',
         'currency',
+        'country_code',
         'timezone',
         'language',
         'is_verified',

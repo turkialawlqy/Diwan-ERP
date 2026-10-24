@@ -14,8 +14,8 @@ use App\Models\FixedAsset;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DepreciationService;
 use App\Services\Accounting\FixedAssetRegister;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
-use App\Services\Zatca\VatClassifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -168,8 +168,9 @@ class FixedAssetController extends Controller
             'vat_amount' => 'nullable|numeric|min:0',
         ]);
         $vat = round((float) ($validated['vat_amount'] ?? 0), 2);
-        if ($vat > 0 && abs($vat - round((float) $validated['proceeds'] * VatClassifier::standardRate() / 100, 2)) > 0.01) {
-            throw ValidationException::withMessages(['vat_amount' => 'ضريبة البيع يجب أن تساوي 15% من سعر البيع أو صفراً.']);
+        $profile = TaxProfile::forDocument($asset);
+        if ($vat > 0 && ! $profile->vatMatches((float) $validated['proceeds'], $vat)) {
+            throw ValidationException::withMessages(['vat_amount' => 'ضريبة البيع يجب أن تساوي '.$profile->ratesLabel().' من سعر البيع أو صفراً.']);
         }
 
         $depreciation->dispose($asset, Carbon::parse($validated['date']), (float) $validated['proceeds'], $validated['bank_account_id'] ?? null, $validated['method'], $vat);
@@ -238,8 +239,9 @@ class FixedAssetController extends Controller
     {
         $cost = (float) $data['cost'];
         $vat = (float) ($data['acquisition_vat'] ?? 0);
-        if ($vat > 0 && ($data['paid_from'] === 'opening' || abs($vat - round($cost * VatClassifier::standardRate() / 100, 2)) > 0.01)) {
-            throw ValidationException::withMessages(['acquisition_vat' => 'ضريبة الشراء يجب أن تساوي 15% من التكلفة أو صفراً، ولا تُسجَّل للأصول الافتتاحية.']);
+        $profile = TaxProfile::forBranch(isset($data['branch_id']) ? (int) $data['branch_id'] : null);
+        if ($vat > 0 && ($data['paid_from'] === 'opening' || ! $profile->vatMatches($cost, $vat))) {
+            throw ValidationException::withMessages(['acquisition_vat' => 'ضريبة الشراء يجب أن تساوي '.$profile->ratesLabel().' من التكلفة أو صفراً، ولا تُسجَّل للأصول الافتتاحية.']);
         }
         if ((float) ($data['opening_accumulated'] ?? 0) > 0 && ($data['paid_from'] !== 'opening'
             || (float) $data['opening_accumulated'] > $cost - (float) ($data['salvage_value'] ?? 0))) {

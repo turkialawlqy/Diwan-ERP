@@ -50,7 +50,7 @@
 </table>
 
 <div class="words small" style="margin-top: 10pt;">
-    <span class="bold">الرصيد المستحق:</span> {{ number_format($closing, 2) }} ر.س — {{ \App\Services\Documents\DocumentPdf::words(abs($closing)) }}{{ $closing < 0 ? ' (رصيد دائن للعميل)' : '' }}
+    <span class="bold">الرصيد المستحق:</span> {{ number_format($closing, 2) }} {{ \App\Support\CurrencyNames::for(\App\Models\Company::find($company['id'] ?? null)?->currency ?? app(\App\Services\TenantManager::class)->getCompany()?->currency)[2] }} — {{ \App\Services\Documents\DocumentPdf::words(abs($closing)) }}{{ $closing < 0 ? ' (رصيد دائن للعميل)' : '' }}
 </div>
 @if($footer_text)<div class="footer">{{ $footer_text }}</div>@endif
 <htmlpagefooter name="pagefooter"><div class="small muted" style="text-align: center;">{{ $company['name'] }} — كشف حساب — صفحة {PAGENO} من {nbpg}</div></htmlpagefooter>

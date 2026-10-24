@@ -40,7 +40,7 @@
 
     <div class="card">
         <div class="stats">
-            <div class="stat"><span class="muted">الرصيد المستحق</span><b>{{ number_format($statement['closing'], 2) }} ر.س</b></div>
+            <div class="stat"><span class="muted">الرصيد المستحق</span><b>{{ number_format($statement['closing'], 2) }} {{ \App\Support\CurrencyNames::for($company->currency)[2] }}</b></div>
             <div class="stat"><span class="muted">عدد الفواتير</span><b>{{ $invoices->count() }}</b></div>
             <div class="stat"><span class="muted">فواتير غير مسددة</span><b>{{ $invoices->where('remaining_amount', '>', 0)->count() }}</b></div>
         </div>

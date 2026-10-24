@@ -1,4 +1,5 @@
 <script setup>
+import { taxRate } from '@/utils/tax';
 import ImportLines from '@/Components/Documents/ImportLines.vue';
 import CurrencyPicker from '@/Components/Documents/CurrencyPicker.vue';
 import { createRemoteLookup } from '@/lookup';
@@ -78,7 +79,7 @@ const form = useForm({
             quantity: 1,
             unit_price: 1000,
             discount: 0,
-            tax_rate: props.defaultTaxRate || 15.00,
+            tax_rate: props.defaultTaxRate ?? taxRate(),
             isDropdownOpen: false,
         }
     ]
@@ -220,7 +221,7 @@ const selectProductForItem = (item, product) => {
     item.item_name = product.name_ar;
     item.description = product.description || '';
     item.unit_price = Number(product.selling_price) || 0;
-    item.tax_rate = Number(product.tax_rate ?? props.defaultTaxRate ?? 15.00);
+    item.tax_rate = Number(product.tax_rate ?? props.defaultTaxRate ?? taxRate());
     item.isDropdownOpen = false;
 };
 
@@ -233,7 +234,7 @@ const newProductForm = ref({
     unit_id: '',
     selling_price: 0,
     purchase_price: 0,
-    tax_rate: props.defaultTaxRate || 15.00,
+    tax_rate: props.defaultTaxRate ?? taxRate(),
     sku: '',
     barcode: '',
     min_stock_alert: 5,
@@ -258,7 +259,7 @@ const openNewProductModal = (rowIdx, initialName = '') => {
         unit_id: unitsList.value[0]?.id || '',
         selling_price: 0,
         purchase_price: 0,
-        tax_rate: props.defaultTaxRate || 15.00,
+        tax_rate: props.defaultTaxRate ?? taxRate(),
         sku: suggestedSku,
         barcode: '',
         min_stock_alert: 5,
@@ -358,7 +359,7 @@ const addItem = () => {
         quantity: 1,
         unit_price: 0,
         discount: 0,
-        tax_rate: props.defaultTaxRate || 15.00,
+        tax_rate: props.defaultTaxRate ?? taxRate(),
         isDropdownOpen: false,
     });
 };
@@ -929,7 +930,7 @@ const importLines = (lines, replace) => {
                             <div class="flex items-center justify-between text-slate-600">
                                 <div class="flex items-center gap-1">
                                     <span>ضريبة القيمة المضافة</span>
-                                    <span class="px-1.5 py-0.5 rounded text-3xs font-bold bg-indigo-50 text-indigo-700">15%</span>
+                                    <span class="px-1.5 py-0.5 rounded text-3xs font-bold bg-indigo-50 text-indigo-700">{{ $taxRate() }}%</span>
                                 </div>
                                 <span class="font-bold text-slate-800 font-mono">{{ formatCurrency(totalTax) }} ﷼</span>
                             </div>

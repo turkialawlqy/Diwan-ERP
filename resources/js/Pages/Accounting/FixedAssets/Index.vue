@@ -107,7 +107,7 @@ const statusLabel = { active: 'نشط', fully_depreciated: 'مهلك بالكا�
                 <Field v-if="['cash','bank_transfer'].includes(assetForm.paid_from)" label="الصندوق / البنك"><select v-model="assetForm.bank_account_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">الافتراضي</option><option v-for="b in bankAccounts" :key="b.id" :value="b.id">{{ b.name }}</option></select></Field>
                 <Field v-if="assetForm.paid_from === 'payables'" label="رقم المورد" :error="assetForm.errors.supplier_id"><input v-model="assetForm.supplier_id" type="number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field v-if="assetForm.paid_from !== 'opening'" label="ضريبة المدخلات" :error="assetForm.errors.acquisition_vat">
-                    <label class="flex items-center gap-2 py-2"><input v-model="assetForm.taxable" type="checkbox" class="rounded" /> فاتورة ضريبية 15% ({{ ((parseFloat(assetForm.cost) || 0) * 0.15).toFixed(2) }})</label>
+                    <label class="flex items-center gap-2 py-2"><input v-model="assetForm.taxable" type="checkbox" class="rounded" /> فاتورة ضريبية {{ $taxRate() }}% ({{ ((parseFloat(assetForm.cost) || 0) * $taxRate() / 100).toFixed(2) }})</label>
                 </Field>
                 <Field v-else label="مجمع الإهلاك حتى تاريخ البدء" :error="assetForm.errors.opening_accumulated"><input v-model="assetForm.opening_accumulated" type="number" step="0.01" min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
             </form>

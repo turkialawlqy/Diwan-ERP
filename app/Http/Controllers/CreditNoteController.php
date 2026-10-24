@@ -10,9 +10,9 @@ use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\SalesCycleService;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Services\Zatca\EInvoiceManager;
-use App\Services\Zatca\VatClassifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -94,7 +94,7 @@ class CreditNoteController extends Controller
             'selectedInvoice' => $selectedInvoice,
             'suggestedNumber' => $suggestedNumber,
             'company' => $company,
-            'defaultTaxRate' => 15.00,
+            'defaultTaxRate' => TaxProfile::rate(),
         ]);
     }
 
@@ -164,10 +164,10 @@ class CreditNoteController extends Controller
         if (abs(((float) $validated['subtotal'] + (float) $validated['tax_amount']) - (float) $validated['total']) > 0.01) {
             throw ValidationException::withMessages(['total' => 'الإجمالي يجب أن يساوي المبلغ قبل الضريبة + الضريبة.']);
         }
-        // VAT is reversed at the standard rate, or not at all for zero-rated / exempt supplies.
-        $expectedVat = round((float) $validated['subtotal'] * VatClassifier::standardRate() / 100, 2);
-        if ((float) $validated['tax_amount'] > 0 && abs((float) $validated['tax_amount'] - $expectedVat) > 0.011) {
-            throw ValidationException::withMessages(['tax_amount' => 'ضريبة الإشعار يجب أن تكون '.number_format($expectedVat, 2).' (15% من المبلغ) أو صفراً للتوريدات الصفرية والمعفاة.']);
+        // VAT is reversed at a rate of the invoice's country, or not at all for zero-rated / exempt supplies.
+        $profile = ! empty($validated['invoice_id']) ? TaxProfile::forDocument(Invoice::findOrFail($validated['invoice_id'])) : TaxProfile::current();
+        if ((float) $validated['tax_amount'] > 0 && ! $profile->vatMatches((float) $validated['subtotal'], (float) $validated['tax_amount'])) {
+            throw ValidationException::withMessages(['tax_amount' => 'ضريبة الإشعار يجب أن تكون '.$profile->ratesLabel().' من المبلغ، أو صفراً للتوريدات الصفرية والمعفاة.']);
         }
 
         $tenantManager = app(TenantManager::class);

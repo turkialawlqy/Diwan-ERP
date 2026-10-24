@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Rules\TaxNumber;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Sales\CustomerStatement;
+use App\Services\Tax\TaxProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -99,16 +101,16 @@ class CustomerController extends Controller
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:50',
             'mobile' => 'nullable|string|max:50',
-            'tax_number' => ['nullable', 'string', 'max:50', $this->saudiVatRule($request)],
+            'tax_number' => ['nullable', 'string', 'max:50', new TaxNumber($request->input('country'))],
             'commercial_registration' => 'nullable|string|max:50',
             'address' => 'nullable|string',
-            'building_number' => ['nullable', 'regex:/^\d{4}$/'],
+            'building_number' => ['nullable', ...$this->nationalAddressNumber($request, 4)],
             'street_name' => 'nullable|string|max:255',
             'district' => 'nullable|string|max:100',
             'city' => 'nullable|string|max:100',
             'province' => 'nullable|string|max:100',
-            'postal_code' => ['nullable', 'regex:/^\d{5}$/'],
-            'additional_details' => ['nullable', 'regex:/^\d{4}$/'],
+            'postal_code' => ['nullable', ...$this->nationalAddressNumber($request, 5)],
+            'additional_details' => ['nullable', ...$this->nationalAddressNumber($request, 4)],
             'country' => 'nullable|string|max:100',
             'credit_limit' => 'nullable|numeric|min:0',
             'opening_balance' => 'nullable|numeric',
@@ -136,7 +138,7 @@ class CustomerController extends Controller
         $validated['opening_balance'] = $openingBalance;
         $validated['current_balance'] = $openingBalance;
         $validated['status'] = $validated['status'] ?? 'active';
-        $validated['country'] = $validated['country'] ?? 'المملكة العربية السعودية';
+        $validated['country'] = $validated['country'] ?? TaxProfile::current()->country['name'];
 
         // Set address summary if individual parts are present
         if (empty($validated['address']) && (! empty($validated['building_number']) || ! empty($validated['street_name']))) {
@@ -263,16 +265,16 @@ class CustomerController extends Controller
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:50',
             'mobile' => 'nullable|string|max:50',
-            'tax_number' => ['nullable', 'string', 'max:50', $this->saudiVatRule($request)],
+            'tax_number' => ['nullable', 'string', 'max:50', new TaxNumber($request->input('country'))],
             'commercial_registration' => 'nullable|string|max:50',
             'address' => 'nullable|string',
-            'building_number' => ['nullable', 'regex:/^\d{4}$/'],
+            'building_number' => ['nullable', ...$this->nationalAddressNumber($request, 4)],
             'street_name' => 'nullable|string|max:255',
             'district' => 'nullable|string|max:100',
             'city' => 'nullable|string|max:100',
             'province' => 'nullable|string|max:100',
-            'postal_code' => ['nullable', 'regex:/^\d{5}$/'],
-            'additional_details' => ['nullable', 'regex:/^\d{4}$/'],
+            'postal_code' => ['nullable', ...$this->nationalAddressNumber($request, 5)],
+            'additional_details' => ['nullable', ...$this->nationalAddressNumber($request, 4)],
             'country' => 'nullable|string|max:100',
             'credit_limit' => 'nullable|numeric|min:0',
             'status' => 'required|in:active,inactive',
@@ -334,20 +336,15 @@ class CustomerController extends Controller
      * Arabic-Indic digits are read as digits.
      */
     /**
-     * A Saudi VAT number is 15 digits starting and ending with 3 (BR-KSA-44).
-     * Customers abroad keep their own format. Whether ZATCA has the number on
-     * its register only ZATCA can tell (BR-KSA-100).
+     * The Saudi national address has fixed-length numbers (building and
+     * additional number 4 digits, postal code 5). Customers in other
+     * countries keep their own formats.
      */
-    protected function saudiVatRule(Request $request): \Closure
+    protected function nationalAddressNumber(Request $request, int $digits): array
     {
-        $country = trim((string) $request->input('country'));
-        $saudi = $country === '' || in_array(mb_strtolower($country), ['sa', 'ksa', 'saudi arabia', 'السعودية', 'المملكة العربية السعودية'], true);
+        $country = TaxProfile::countryCodeFromName($request->input('country'), TaxProfile::current()->countryCode);
 
-        return function (string $attribute, $value, \Closure $fail) use ($saudi) {
-            if ($saudi && $value !== null && $value !== '' && ! preg_match('/^3\d{13}3$/', (string) $value)) {
-                $fail('الرقم الضريبي 15 رقماً يبدأ وينتهي بالرقم 3 (مثال: 310123456700003).');
-            }
-        };
+        return $country === 'SA' ? ['regex:/^\d{'.$digits.'}$/'] : ['string', 'max:20'];
     }
 
     protected function normalizeNationalAddress(Request $request): void

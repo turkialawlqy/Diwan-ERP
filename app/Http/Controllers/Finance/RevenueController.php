@@ -7,6 +7,7 @@ use App\Models\Account;
 use App\Models\BankAccount;
 use App\Models\Revenue;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Tax\TaxProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -73,7 +74,7 @@ class RevenueController extends Controller
 
         // No VAT unless the voucher is marked taxable (government fees, salaries,
         // unregistered vendors carry none).
-        $tax = ($validated['taxable'] ?? false) ? (float) ($validated['tax_amount'] ?? round($validated['amount'] * 0.15, 2)) : 0.0;
+        $tax = ($validated['taxable'] ?? false) ? (float) ($validated['tax_amount'] ?? round($validated['amount'] * TaxProfile::rate() / 100, 2)) : 0.0;
         $total = $validated['amount'] + $tax;
 
         $revenue = DB::transaction(function () use ($validated, $tax, $total) {

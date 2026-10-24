@@ -20,6 +20,8 @@ import {
 /**
  * Sidebar definition. Items are shown only when the user may open their route
  * (see canRoute in permissions.js); groups with no visible item are hidden.
+ * An item with `country` shows only when the company has a branch there
+ * (ZATCA, GOSI and Saudization are Saudi).
  */
 export default [
     { key: 'dashboard', label: 'nav.dashboard', icon: HomeIcon, route: 'dashboard', path: '/dashboard' },
@@ -151,8 +153,8 @@ export default [
             { label: 'nav.leaves', route: 'hr.leaves.index', path: '/hr/leaves' },
             { label: 'nav.loans', route: 'hr.loans.index', path: '/hr/loans' },
             { label: 'nav.settlements', route: 'hr.settlements.index', path: '/hr/settlements' },
-            { label: 'nav.gosi_report', route: 'hr.reports.gosi', path: '/hr/reports/gosi' },
-            { label: 'nav.saudization_report', route: 'hr.reports.saudization', path: '/hr/reports/saudization' },
+            { label: 'nav.gosi_report', route: 'hr.reports.gosi', path: '/hr/reports/gosi', country: 'SA' },
+            { label: 'nav.saudization_report', route: 'hr.reports.saudization', path: '/hr/reports/saudization', country: 'SA' },
             { label: 'nav.organization', route: 'hr.organization', path: '/hr/organization' },
             { label: 'nav.hr_settings', route: 'hr.settings', path: '/hr/settings' },
             { label: 'nav.self_service', route: 'hr.me', path: '/hr/me' },
@@ -169,7 +171,7 @@ export default [
             { label: 'nav.roles', route: 'roles.index', path: '/roles' },
             { label: 'nav.audit_log', route: 'audit.index', path: '/audit-log' },
             { label: 'nav.approval_rules', route: 'approval-rules.index', path: '/approval-rules' },
-            { label: 'nav.e_invoicing', route: 'zatca.index', path: '/zatca' },
+            { label: 'nav.e_invoicing', route: 'zatca.index', path: '/zatca', country: 'SA' },
             { label: 'nav.billing', route: 'billing.index', path: '/billing' },
             { label: 'nav.integrations', route: 'integrations.index', path: '/integrations' },
             { label: 'nav.data_transfer', route: 'data-transfer.index', path: '/data-transfer' },

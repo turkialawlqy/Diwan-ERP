@@ -14,6 +14,7 @@ use App\Models\Product;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\PostingService;
 use App\Services\Inventory\DocumentStock;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Services\Zatca\EInvoiceManager;
 use App\Services\Zatca\VatClassifier;
@@ -203,6 +204,7 @@ class PosController extends Controller
             // lines by value, VAT per line on its net (rounded per line), so the
             // invoice lines add up to the header and a return credits real value.
             $classifier = app(VatClassifier::class);
+            $profile = TaxProfile::forBranch($session->register?->branch_id ? (int) $session->register->branch_id : null);
             $lines = [];
             foreach ($validated['items'] as $item) {
                 $qty = (float) $item['quantity'];
@@ -211,9 +213,10 @@ class PosController extends Controller
                 if ($disc > round($qty * $price, 2)) {
                     throw ValidationException::withMessages(['items' => "خصم «{$item['item_name']}» أكبر من قيمته."]);
                 }
-                [$category, $code] = $classifier->classify(Product::find($item['product_id']), (float) ($item['tax_rate'] ?? VatClassifier::standardRate()));
+                $requested = (float) ($item['tax_rate'] ?? $profile->standardRate());
+                [$category, $code] = $classifier->classify(Product::find($item['product_id']), $requested, null, null, $profile);
                 $lines[] = ['item' => $item, 'qty' => $qty, 'price' => $price, 'disc' => $disc, 'net' => round($qty * $price - $disc, 2),
-                    'rate' => $category === 'S' ? VatClassifier::standardRate() : 0.0, 'category' => $category, 'code' => $code];
+                    'rate' => $category === 'S' ? $profile->rateFor($requested) : 0.0, 'category' => $category, 'code' => $code];
             }
 
             $gross = round(array_sum(array_column($lines, 'net')), 2);
@@ -278,7 +281,7 @@ class PosController extends Controller
                 'discount_type' => 'fixed',
                 'discount_value' => $totalDiscount,
                 'discount_amount' => round(array_sum(array_column($lines, 'disc')), 2),
-                'tax_rate' => 15.00,
+                'tax_rate' => $profile->standardRate(),
                 'tax_amount' => $taxAmount,
                 'total' => $total,
                 'paid_amount' => $collected,
@@ -286,8 +289,8 @@ class PosController extends Controller
                 'payment_status' => $remaining > 0 ? ($collected > 0 ? 'partially_paid' : 'unpaid') : 'paid',
                 'payment_method' => $validated['payment_method'],
                 'bank_account_id' => $validated['payment_method'] === 'card' ? null : $session->register?->bank_account_id,
-                'notes' => 'فاتورة ضريبية مبسطة - نقطة بيع',
-                'invoice_type' => 'simplified',
+                'notes' => $profile->invoiceTitle(true)[0].' - نقطة بيع',
+                'invoice_type' => $profile->simplifiedInvoices() ? 'simplified' : 'standard',
                 'zatca_uuid' => (string) Str::uuid(),
             ]);
 

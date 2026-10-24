@@ -17,6 +17,7 @@ use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Purchases\PurchaseCycleService;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -136,7 +137,7 @@ class PurchaseInvoiceController extends Controller
             'categories' => $categories,
             'units' => $units,
             'suggestedNumber' => $suggestedNumber,
-            'defaultTaxRate' => 15.00,
+            'defaultTaxRate' => TaxProfile::rate(),
         ]);
     }
 
@@ -196,7 +197,7 @@ class PurchaseInvoiceController extends Controller
                 $qty = (float) $item['quantity'];
                 $price = (float) $item['unit_price'];
                 $disc = (float) ($item['discount'] ?? 0);
-                $taxRate = (float) ($item['tax_rate'] ?? 15.00);
+                $taxRate = (float) ($item['tax_rate'] ?? TaxProfile::rate());
 
                 $lineSubtotal = ($qty * $price) - $disc;
                 $lineTax = $lineSubtotal * ($taxRate / 100);
@@ -241,7 +242,7 @@ class PurchaseInvoiceController extends Controller
                 'payment_status' => $validated['payment_status'],
                 'subtotal' => $subtotal,
                 'discount' => 0,
-                'tax_rate' => 15.00,
+                'tax_rate' => TaxProfile::rate(),
                 'tax_amount' => $taxAmount,
                 'total' => $total,
                 'paid_amount' => $paidAmount,
@@ -326,7 +327,7 @@ class PurchaseInvoiceController extends Controller
                         'open_quantity' => (float) $item->quantity - (float) $item->invoiced_quantity,
                         'po_unit_price' => $poItem ? (float) $poItem->unit_price : null,
                         'po_discount_per_unit' => $poItem && (float) $poItem->quantity > 0 ? (float) $poItem->discount / (float) $poItem->quantity : 0,
-                        'tax_rate' => $poItem ? (float) $poItem->tax_rate : 15,
+                        'tax_rate' => $poItem ? (float) $poItem->tax_rate : TaxProfile::rate(),
                     ];
                 }) : [],
             'bankAccounts' => BankAccount::where('is_active', true)->get(['id', 'name', 'type']),

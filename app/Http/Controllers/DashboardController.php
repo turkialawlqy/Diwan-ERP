@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Services\Reports\Insights;
 use App\Services\Saas\OnboardingChecklist;
 use App\Services\TenantManager;
+use App\Support\CurrencyNames;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -130,7 +131,7 @@ class DashboardController extends Controller
             'months' => $months,
             'series' => [
                 [
-                    'name' => 'المبيعات (ر.س)',
+                    'name' => 'المبيعات ('.CurrencyNames::for(app(TenantManager::class)->getCompany()?->currency)[2].')',
                     'data' => $salesData,
                 ],
             ],

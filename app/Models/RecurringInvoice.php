@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Tax\TaxProfile;
 use App\Traits\BelongsToCompany;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
@@ -45,7 +46,7 @@ class RecurringInvoice extends Model
         return round(collect($this->lines)->sum(function ($l) {
             $net = (float) $l['quantity'] * (float) $l['unit_price'] - (float) ($l['discount'] ?? 0);
 
-            return $net * (1 + (float) ($l['tax_rate'] ?? 15) / 100);
+            return $net * (1 + (float) ($l['tax_rate'] ?? TaxProfile::rate()) / 100);
         }), 2);
     }
 

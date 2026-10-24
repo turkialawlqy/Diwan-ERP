@@ -7,6 +7,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
 use App\Models\Warehouse;
 use App\Services\Purchases\PurchaseCycleService;
+use App\Services\Tax\TaxProfile;
 use App\Services\Workflow\ApprovalService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -100,7 +101,7 @@ class PurchaseRequestController extends Controller
             'item_name' => $i->item_name,
             'quantity' => (float) $i->quantity,
             'unit_price' => (float) $i->estimated_price,
-            'tax_rate' => 15,
+            'tax_rate' => TaxProfile::rate(),
         ])->all());
 
         return redirect()->route('purchases.orders.edit', $order->id)->with('success', "تم إنشاء مسودة أمر الشراء {$order->order_number}");

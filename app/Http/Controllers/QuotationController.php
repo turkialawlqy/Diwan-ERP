@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\Quotation;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\QuotationService;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -89,7 +90,7 @@ class QuotationController extends Controller
             'products' => $products,
             'suggestedNumber' => $suggestedNumber,
             'company' => $company,
-            'defaultTaxRate' => 15.00,
+            'defaultTaxRate' => TaxProfile::rate(),
         ]);
     }
 

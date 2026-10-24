@@ -12,7 +12,9 @@ use App\Models\ProgressBilling;
 use App\Models\Quotation;
 use App\Models\ZatcaDocument;
 use App\Services\Sales\CustomerStatement;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
+use App\Support\CurrencyNames;
 use App\Support\Hijri;
 use App\Support\Tafqeet;
 use Carbon\Carbon;
@@ -90,10 +92,11 @@ class DocumentPdf
     {
         $invoice->loadMissing(['items', 'customer']);
         $simplified = $invoice->invoice_type === 'simplified';
+        [$title, $titleEn] = TaxProfile::forDocument($invoice)->invoiceTitle($simplified);
 
         return [
-            'title' => $simplified ? 'فاتورة ضريبية مبسطة' : 'فاتورة ضريبية',
-            'title_en' => $simplified ? 'Simplified Tax Invoice' : 'Tax Invoice',
+            'title' => $title,
+            'title_en' => $titleEn,
             'number' => $invoice->invoice_number,
             'meta' => array_filter([
                 'رقم الفاتورة' => $invoice->invoice_number,
@@ -220,22 +223,23 @@ class DocumentPdf
         return $out;
     }
 
-    /** Currency shown on the document; foreign ones also give the SAR equivalent. */
+    /** Currency shown on the document; one other than the base also gives the base equivalent. */
     protected function currency(Model $document): array
     {
-        $code = $document->currency_code ?? null;
-        if (! $code) {
-            return ['currency_label' => 'ر.س', 'currency_words' => ['ريال سعودي', 'هللة'], 'base_equivalent' => null];
+        $base = strtoupper((string) (Company::find($document->company_id)?->currency ?: 'SAR'));
+        $code = strtoupper((string) ($document->currency_code ?: $base));
+        [$name, $fraction, $symbol] = CurrencyNames::for($code);
+        if ($code === $base) {
+            return ['currency_label' => $symbol, 'currency_words' => [$name, $fraction], 'base_equivalent' => null, 'base_currency' => $base];
         }
-        $currency = Currency::where('company_id', $document->company_id)->where('code', $code)->first();
-        $fractions = ['USD' => 'سنت', 'EUR' => 'سنت', 'GBP' => 'بنس', 'AED' => 'فلس', 'KWD' => 'فلس', 'BHD' => 'فلس', 'QAR' => 'درهم', 'OMR' => 'بيسة', 'EGP' => 'قرش', 'JOD' => 'قرش'];
         $rate = (float) ($document->exchange_rate ?: 1);
         $total = (float) ($document->total ?? $document->net_payable ?? 0);
 
         return [
             'currency_label' => $code,
-            'currency_words' => [$currency?->name_ar ?? $code, $fractions[$code] ?? 'جزء من مائة'],
+            'currency_words' => [$name, $fraction],
             'base_equivalent' => ['rate' => $rate, 'total' => round($total * $rate, 2), 'tax' => round((float) ($document->tax_amount ?? 0) * $rate, 2)],
+            'base_currency' => $base,
         ];
     }
 
@@ -256,7 +260,7 @@ class DocumentPdf
                 'phone' => $company->phone,
                 'email' => $company->email,
                 'address' => collect([$company->setting('seller_building_number'), $company->setting('seller_street'), $company->setting('seller_district'), $company->setting('seller_city'), $company->setting('seller_postal_code')])->filter()->implode('، '),
-                'currency' => 'ريال سعودي',
+                'currency' => CurrencyNames::for($company->currency)[0],
             ],
             'logo' => ($layout['logo']['show'] ?? true) && $logoPath ? Storage::disk('public')->path($logoPath) : null,
             'layout' => $layout,
@@ -329,8 +333,10 @@ class DocumentPdf
         return preg_replace('/[^A-Za-z0-9_.-]+/', '-', $number).'.pdf';
     }
 
-    public static function words(float $amount, array $currency = ['ريال سعودي', 'هللة']): string
+    public static function words(float $amount, ?array $currency = null): string
     {
+        $currency ??= CurrencyNames::for(app(TenantManager::class)->getCompany()?->currency);
+
         return Tafqeet::amount($amount, $currency[0], $currency[1]);
     }
 }

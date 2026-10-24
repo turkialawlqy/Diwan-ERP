@@ -586,7 +586,7 @@ const removeLogo = async () => {
                                     class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 leading-relaxed"
                                     placeholder="اتركه فارغاً لاستخدام النص الافتراضي"
                                 ></textarea>
-                                <p class="text-2xs text-slate-400 mt-1">المتغيرات المتاحة: {customer} {document} {number} {total} {company}</p>
+                                <p class="text-2xs text-slate-400 mt-1">المتغيرات المتاحة: {customer} {document} {number} {total} {currency} {company}</p>
                             </div>
 
                             <label class="flex items-center gap-2 text-xs font-bold text-slate-700">
@@ -710,7 +710,7 @@ const removeLogo = async () => {
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
-                                            ضريبة القيمة المضافة المحصلة (مخرجات المبيعات 15%) *
+                                            ضريبة القيمة المضافة المحصلة (مخرجات المبيعات) *
                                         </label>
                                         <select 
                                             v-model="form.acc_vat_output_id"

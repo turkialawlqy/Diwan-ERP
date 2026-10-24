@@ -86,8 +86,8 @@
             </table>
             @if($base_equivalent)
                 <div class="small muted" style="margin-top: 4pt;">
-                    سعر الصرف: <span class="num">1 {{ $currency_label }} = {{ rtrim(rtrim(number_format($base_equivalent['rate'], 6, '.', ''), '0'), '.') }} SAR</span><br>
-                    الإجمالي بالريال: <span class="num">{{ number_format($base_equivalent['total'], 2) }} SAR</span> — الضريبة بالريال: <span class="num">{{ number_format($base_equivalent['tax'], 2) }} SAR</span>
+                    سعر الصرف: <span class="num">1 {{ $currency_label }} = {{ rtrim(rtrim(number_format($base_equivalent['rate'], 6, '.', ''), '0'), '.') }} {{ $base_currency }}</span><br>
+                    الإجمالي بالعملة الأساسية: <span class="num">{{ number_format($base_equivalent['total'], 2) }} {{ $base_currency }}</span> — الضريبة: <span class="num">{{ number_format($base_equivalent['tax'], 2) }} {{ $base_currency }}</span>
                 </div>
             @endif
         </td>

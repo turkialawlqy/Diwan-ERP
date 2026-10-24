@@ -1,4 +1,5 @@
 <script setup>
+import { taxRate } from '@/utils/tax';
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import axios from 'axios';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
@@ -85,7 +86,7 @@ const cartSubtotal = computed(() => {
 });
 
 const cartTax = computed(() => {
-    return cartSubtotal.value * 0.15;
+    return cartSubtotal.value * taxRate() / 100;
 });
 
 const cartTotal = computed(() => {
@@ -107,7 +108,7 @@ const addToCart = (product) => {
             item_name: product.name_ar,
             unit_price: Number(product.selling_price) || 0,
             quantity: 1,
-            tax_rate: 15.00,
+            tax_rate: taxRate(),
             discount: 0,
         });
     }
@@ -448,7 +449,7 @@ onMounted(() => {
                         <!-- Line Total -->
                         <div class="text-end min-w-[60px]">
                             <span class="text-xs font-bold text-slate-800 font-mono">
-                                {{ formatCurrency(item.quantity * item.unit_price * 1.15) }}
+                                {{ formatCurrency(item.quantity * item.unit_price * (1 + $taxRate() / 100)) }}
                             </span>
                         </div>
                     </div>
@@ -468,7 +469,7 @@ onMounted(() => {
                             <span class="font-mono font-bold text-slate-800">{{ formatCurrency(cartSubtotal) }} ﷼</span>
                         </div>
                         <div class="flex items-center justify-between">
-                            <span>ضريبة القيمة المضافة 15%</span>
+                            <span>{{ $taxLabel() }}</span>
                             <span class="font-mono font-bold text-slate-800">{{ formatCurrency(cartTax) }} ﷼</span>
                         </div>
                         <div class="border-t border-slate-200 pt-2 flex items-center justify-between text-slate-900 font-black">
@@ -640,7 +641,7 @@ onMounted(() => {
                             <span class="font-bold">{{ formatCurrency(latestOrder.subtotal) }} ﷼</span>
                         </div>
                         <div class="flex justify-between">
-                            <span>ضريبة القيمة المضافة 15%:</span>
+                            <span>{{ $taxLabel() }}:</span>
                             <span class="font-bold">{{ formatCurrency(latestOrder.tax_amount) }} ﷼</span>
                         </div>
                         <div class="flex justify-between text-xs font-black border-t border-slate-300 pt-1">
@@ -708,7 +709,7 @@ onMounted(() => {
 
                 <form @submit.prevent="submitCloseSession" class="space-y-4 text-xs">
                     <div>
-                        <label class="block font-bold text-slate-700 mb-1">المبلغ الفعلي الموجود في الدرج (ر.س)</label>
+                        <label class="block font-bold text-slate-700 mb-1">المبلغ الفعلي الموجود في الدرج ({{ $cur() }})</label>
                         <input 
                             v-model.number="closeSessionForm.closing_cash"
                             type="number" 

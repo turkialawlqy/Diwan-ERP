@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue';
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import {
     PlusIcon,
@@ -29,7 +29,7 @@ const form = useForm({
     bank_name: '',
     account_number: '',
     iban: '',
-    currency: 'SAR',
+    currency: usePage().props.tenant?.currency || 'SAR',
     opening_balance: '0.00',
     account_id: props.chartAccounts?.[0]?.id || '',
 });

@@ -14,6 +14,8 @@ use App\Models\SalesOrder;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Models\User;
+use App\Services\Tax\TaxProfile;
+use App\Support\CurrencyNames;
 use App\Support\Hijri;
 use App\Support\Tafqeet;
 use Illuminate\Database\Eloquent\Model;
@@ -191,13 +193,14 @@ class TemplateData
     {
         $invoice->loadMissing(['items.product.unit', 'customer', 'branch', 'user', 'bankAccount']);
         $simplified = $invoice->invoice_type === 'simplified';
+        $titles = TaxProfile::forDocument($invoice)->invoiceTitle($simplified);
 
         return [
             'date' => $invoice->invoice_date?->toDateString(),
             'amount' => $invoice->total,
             'qr' => $invoice->zatca_qr,
             'items' => $this->items($invoice->items),
-            'fields' => $this->doc($simplified ? 'فاتورة ضريبية مبسطة' : 'فاتورة ضريبية', $simplified ? 'Simplified Tax Invoice' : 'Tax Invoice', $invoice->invoice_number,
+            'fields' => $this->doc($titles[0], $titles[1], $invoice->invoice_number,
                 $invoice->invoice_date ?? $invoice->created_at, $invoice->created_at) + [
                     'doc.supply_date' => $this->date($invoice->supply_date), 'doc.due_date' => $this->date($invoice->due_date),
                     'doc.reference' => $invoice->reference_number, 'doc.payment_method' => self::METHODS[$invoice->payment_method] ?? $invoice->payment_method,
@@ -399,14 +402,12 @@ class TemplateData
     /** [currency words, fraction words, short label] */
     protected function currency(Model $document): array
     {
-        $code = $document->currency_code ?? null;
-        if (! $code || $code === 'SAR') {
-            return ['ريال سعودي', 'هللة', 'ر.س'];
-        }
-        $currency = Currency::where('company_id', $document->company_id)->where('code', $code)->first();
-        $fractions = ['USD' => 'سنت', 'EUR' => 'سنت', 'AED' => 'فلس', 'KWD' => 'فلس', 'BHD' => 'فلس', 'OMR' => 'بيسة', 'QAR' => 'درهم', 'EGP' => 'قرش', 'GBP' => 'بنس'];
+        $base = strtoupper((string) (Company::find($document->company_id)?->currency ?: 'SAR'));
+        $code = strtoupper((string) ($document->currency_code ?: $base));
+        [$name, $fraction, $symbol] = CurrencyNames::for($code);
 
-        return [$currency?->name_ar ?? $code, $fractions[$code] ?? 'جزء من مائة', $code];
+        // [words, fraction words, short label]: the base currency by its symbol, others by their code.
+        return [$name, $fraction, $code === $base ? $symbol : $code];
     }
 
     protected function date($value): string

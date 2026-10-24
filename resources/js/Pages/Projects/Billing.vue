@@ -53,7 +53,7 @@ const printPage = () => window.print();
                     <div class="flex justify-between font-bold"><dt>أعمال هذه الفترة</dt><dd class="font-mono">{{ money(billing.current_value) }}</dd></div>
                     <div class="flex justify-between"><dt>يخصم: استرداد الدفعة المقدمة</dt><dd class="font-mono">({{ money(billing.advance_recovery) }})</dd></div>
                     <div class="flex justify-between"><dt>المبلغ الخاضع للضريبة</dt><dd class="font-mono">{{ money(billing.taxable_amount) }}</dd></div>
-                    <div class="flex justify-between"><dt>ضريبة القيمة المضافة 15%</dt><dd class="font-mono">{{ money(billing.vat_amount) }}</dd></div>
+                    <div class="flex justify-between"><dt>{{ $taxLabel() }}</dt><dd class="font-mono">{{ money(billing.vat_amount) }}</dd></div>
                     <div class="flex justify-between"><dt>يخصم: المحتجزات</dt><dd class="font-mono">({{ money(billing.retention) }})</dd></div>
                     <div class="flex justify-between border-t pt-1 font-black text-sm"><dt>الصافي المستحق</dt><dd class="font-mono">{{ money(billing.net_payable) }}</dd></div>
                 </dl>

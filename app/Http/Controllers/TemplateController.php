@@ -8,6 +8,7 @@ use App\Services\Documents\FreeformLayout;
 use App\Services\Documents\FreeformPresets;
 use App\Services\Documents\FreeformTemplates;
 use App\Services\Documents\TemplateData;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -90,7 +91,7 @@ class TemplateController extends Controller
                 'payment_status' => 'paid',
                 'payment_method' => 'bank_transfer',
                 'subtotal' => 11927.70,
-                'tax_rate' => 15.00,
+                'tax_rate' => TaxProfile::rate(),
                 'tax_amount' => 1789.16,
                 'total' => 13716.86,
                 'paid_amount' => 13716.86,

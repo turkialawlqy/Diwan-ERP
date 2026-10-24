@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DebitNote;
 use App\Models\Invoice;
 use App\Services\Sales\SalesCycleService;
+use App\Services\Tax\TaxProfile;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -36,7 +37,7 @@ class DebitNoteController extends Controller
             'debit_note_date' => 'required|date|before_or_equal:today',
             'reason' => 'required|string|max:500',
             'subtotal' => 'required|numeric|gt:0',
-            'tax_rate' => 'nullable|numeric|in:0,15', // standard rate or zero-rated/exempt only
+            'tax_rate' => ['nullable', 'numeric', TaxProfile::rateRule()], // a rate of the country, or zero-rated/exempt
         ], ['invoice_id.required' => 'اختر الفاتورة الأصلية التي يعدّلها الإشعار المدين.']);
 
         if (! empty($validated['invoice_id']) && (int) Invoice::find($validated['invoice_id'])->customer_id !== (int) $validated['customer_id']) {

@@ -1,4 +1,5 @@
 <script setup>
+import { taxRate } from '@/utils/tax';
 import { ref, computed, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -56,7 +57,7 @@ watch(() => form.invoice_id, (newInvoiceId) => {
         form.customer_id = inv.customer_id;
         // Calculate subtotal & tax if total is available
         const tot = Number(inv.total) || 0;
-        const sub = Math.round((tot / 1.15) * 100) / 100;
+        const sub = Math.round((tot / (1 + (props.defaultTaxRate ?? taxRate()) / 100)) * 100) / 100;
         const tax = Math.round((tot - sub) * 100) / 100;
         form.subtotal = sub;
         form.tax_amount = tax;
@@ -67,7 +68,7 @@ watch(() => form.invoice_id, (newInvoiceId) => {
 // Auto calculate tax when subtotal changes
 const onSubtotalChange = () => {
     const sub = Number(form.subtotal) || 0;
-    const rate = (props.defaultTaxRate || 15) / 100;
+    const rate = (props.defaultTaxRate ?? taxRate()) / 100;
     form.tax_amount = Math.round(sub * rate * 100) / 100;
     form.total = Math.round((sub + form.tax_amount) * 100) / 100;
 };
@@ -75,7 +76,7 @@ const onSubtotalChange = () => {
 // Auto calculate subtotal when total changes
 const onTotalChange = () => {
     const tot = Number(form.total) || 0;
-    const sub = Math.round((tot / 1.15) * 100) / 100;
+    const sub = Math.round((tot / (1 + (props.defaultTaxRate ?? taxRate()) / 100)) * 100) / 100;
     form.subtotal = sub;
     form.tax_amount = Math.round((tot - sub) * 100) / 100;
 };
@@ -307,7 +308,7 @@ const submit = () => {
                             </div>
 
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">ضريبة القيمة المضافة (15%)</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $taxLabel() }}</label>
                                 <input 
                                     v-model.number="form.tax_amount"
                                     type="number"

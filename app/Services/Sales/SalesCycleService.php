@@ -20,6 +20,7 @@ use App\Services\Documents\DocumentNumberService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
 use App\Services\Saas\WebhookDispatcher;
+use App\Services\Tax\TaxProfile;
 use App\Services\Workflow\ApprovalService;
 use App\Services\Zatca\EInvoiceManager;
 use Illuminate\Support\Carbon;
@@ -136,7 +137,7 @@ class SalesCycleService
                     'item_name' => $orderItem?->item_name ?? $line['item_name'],
                     'quantity' => $quantity,
                     'unit_price' => $orderItem?->unit_price ?? ($line['unit_price'] ?? 0),
-                    'tax_rate' => $orderItem?->tax_rate ?? ($line['tax_rate'] ?? 15),
+                    'tax_rate' => $orderItem?->tax_rate ?? ($line['tax_rate'] ?? TaxProfile::rate()),
                     'unit_cost' => $quantity > 0 ? $cost / $quantity : 0,
                     'serials' => $line['serials'] ?? null,
                 ]);
@@ -463,7 +464,7 @@ class SalesCycleService
     {
         return DB::transaction(function () use ($data) {
             $subtotal = round((float) $data['subtotal'], 2);
-            $taxRate = (float) ($data['tax_rate'] ?? 15);
+            $taxRate = (float) ($data['tax_rate'] ?? TaxProfile::rate());
             $tax = round($subtotal * $taxRate / 100, 2);
             // A debit note on an invoice is in that invoice's currency and rate; ZATCA requires the reference.
             $source = ! empty($data['invoice_id']) ? Invoice::find($data['invoice_id']) : null;

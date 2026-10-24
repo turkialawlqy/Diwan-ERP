@@ -26,10 +26,12 @@ const isCurrent = (path, exact = false) => {
     return current === path || current.startsWith(path + '/');
 };
 
-// Only items the user may open; groups without any visible child are hidden.
+// Only items the user may open (and, for country-specific ones, where the company has a branch);
+// groups without any visible child are hidden.
+const inCountry = (item) => !item.country || (page.props.tenant?.countries || ['SA']).includes(item.country);
 const visibleItems = computed(() => navigation
     .map((item) => item.children
-        ? { ...item, children: item.children.filter((child) => canRoute(child.route)) }
+        ? { ...item, children: item.children.filter((child) => canRoute(child.route) && inCountry(child)) }
         : item)
     .filter((item) => item.children ? item.children.length > 0 : canRoute(item.route)));
 

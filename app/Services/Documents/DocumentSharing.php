@@ -14,6 +14,7 @@ use App\Models\ProgressBilling;
 use App\Models\Quotation;
 use App\Models\SalesOrder;
 use App\Models\SupplierPayment;
+use App\Support\CurrencyNames;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\URL;
 
@@ -36,7 +37,7 @@ class DocumentSharing
         'statement' => ['model' => Customer::class, 'permission' => 'sales.clients.view', 'label' => 'كشف الحساب', 'number' => 'code', 'total' => 'current_balance'],
     ];
 
-    public const DEFAULT_MESSAGE = "السلام عليكم {customer}،\n\nنرفق لكم {document} رقم {number} بمبلغ {total} ر.س.\n\nمع خالص التحية،\n{company}";
+    public const DEFAULT_MESSAGE = "السلام عليكم {customer}،\n\nنرفق لكم {document} رقم {number} بمبلغ {total} {currency}.\n\nمع خالص التحية،\n{company}";
 
     public function find(string $type, int $id): Model
     {
@@ -107,6 +108,7 @@ class DocumentSharing
             '{document}' => $def['label'],
             '{number}' => $this->number($document),
             '{total}' => number_format((float) $document->{$def['total']}, 2),
+            '{currency}' => $document->currency_code ?: CurrencyNames::for(Company::find($document->company_id)?->currency)[2],
             '{company}' => $company?->name ?? '',
         ]);
     }

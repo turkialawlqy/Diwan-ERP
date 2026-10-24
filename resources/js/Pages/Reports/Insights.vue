@@ -1,4 +1,5 @@
 <script setup>
+import { cur } from '@/utils/tax';
 import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -35,7 +36,7 @@ const baseOptions = {
     grid: { borderColor: '#eef0f3', strokeDashArray: 0, yaxis: { lines: { show: true } }, xaxis: { lines: { show: false } } },
     xaxis: { categories: [], labels: { rotate: -45, rotateAlways: true, hideOverlappingLabels: true, style: { colors: '#64748b', fontSize: '10px' } }, axisBorder: { color: '#e2e8f0' }, axisTicks: { show: false } },
     yaxis: { labels: { style: { colors: '#64748b', fontSize: '11px' }, formatter: (v) => Math.round(v).toLocaleString('en-US') } },
-    tooltip: { shared: true, intersect: false, y: { formatter: (v) => `${money(v)} ر.س` } },
+    tooltip: { shared: true, intersect: false, y: { formatter: (v) => `${money(v)} ${cur()}` } },
     legend: { position: 'top', horizontalAlign: 'right', fontSize: '12px', markers: { size: 6 } },
 };
 

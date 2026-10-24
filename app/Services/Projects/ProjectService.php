@@ -20,6 +20,7 @@ use App\Services\Documents\DocumentNumberService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
 use App\Services\Sales\InvoiceService;
+use App\Services\Tax\TaxProfile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -205,7 +206,7 @@ class ProjectService
                 'item_name' => "دفعة مقدمة على عقد مشروع {$project->code} - {$project->name}",
                 'quantity' => 1,
                 'unit_price' => $net,
-                'tax_rate' => 15,
+                'tax_rate' => TaxProfile::rate(),
             ]], ['issue_stock' => false, 'post' => false, 'check_credit' => false]);
 
             $this->posting->post([
@@ -288,7 +289,7 @@ class ProjectService
             $recovery = round(min($advanceOpen, $current * (float) $project->advance_percent / 100), 2);
             $retention = round($current * (float) $project->retention_percent / 100, 2);
             $taxable = round($current - $recovery, 2);
-            $vat = round($taxable * 0.15, 2);
+            $vat = round($taxable * TaxProfile::rate() / 100, 2);
 
             $billing->update([
                 'previous_value' => round($previous, 2),
@@ -330,7 +331,7 @@ class ProjectService
                     'quantity' => (float) $item->current_quantity,
                     'unit_price' => (float) $item->unit_price,
                     'discount' => $share,
-                    'tax_rate' => 15,
+                    'tax_rate' => TaxProfile::rate(),
                 ];
                 ProjectBoqItem::whereKey($item->boq_item_id)->increment('billed_quantity', (float) $item->current_quantity);
             }
@@ -467,7 +468,7 @@ class ProjectService
             $advanceShare = (float) $subcontract->contract_value > 0 ? (float) $subcontract->advance_paid / (float) $subcontract->contract_value : 0;
             $recovery = round(min((float) $subcontract->advance_paid - (float) $subcontract->advance_recovered, $current * $advanceShare), 2);
             $retention = round($current * (float) $subcontract->retention_percent / 100, 2);
-            $vatRate = (float) ($data['vat_rate'] ?? 15);
+            $vatRate = (float) ($data['vat_rate'] ?? TaxProfile::rate());
             $vat = round($current * $vatRate / 100, 2);
             $net = round($current + $vat - $recovery - $retention, 2);
 

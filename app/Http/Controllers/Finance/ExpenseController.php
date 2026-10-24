@@ -7,6 +7,7 @@ use App\Models\Account;
 use App\Models\BankAccount;
 use App\Models\Expense;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Tax\TaxProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -65,7 +66,7 @@ class ExpenseController extends Controller
             'amount' => 'required|numeric|min:0.01',
             'tax_amount' => 'nullable|numeric|min:0',
             'taxable' => 'boolean',
-            'vendor_tax_number' => ['nullable', 'regex:/^3\d{13}3$/'],
+            'vendor_tax_number' => ['nullable', 'string', 'max:30', fn ($attribute, $value, $fail) => TaxProfile::current()->validTaxNumber($value) ? null : $fail(TaxProfile::current()->taxNumberHint())],
             'expense_date' => 'required|date',
             'payment_method' => 'required|string',
             'reference_number' => 'nullable|string|max:100',
@@ -75,9 +76,9 @@ class ExpenseController extends Controller
 
         // No VAT unless the voucher is marked taxable (government fees, salaries,
         // unregistered vendors carry none).
-        $tax = ($validated['taxable'] ?? false) ? (float) ($validated['tax_amount'] ?? round($validated['amount'] * 0.15, 2)) : 0.0;
+        $tax = ($validated['taxable'] ?? false) ? (float) ($validated['tax_amount'] ?? round($validated['amount'] * TaxProfile::rate() / 100, 2)) : 0.0;
         if ($tax > 0 && empty($validated['vendor_tax_number'])) {
-            throw ValidationException::withMessages(['vendor_tax_number' => 'ضريبة المدخلات تُسترد فقط بفاتورة ضريبية من مورد مسجل: أدخل الرقم الضريبي للمورد (15 رقماً).']);
+            throw ValidationException::withMessages(['vendor_tax_number' => 'ضريبة المدخلات تُسترد فقط بفاتورة ضريبية من مورد مسجل: أدخل الرقم الضريبي للمورد.']);
         }
         $total = $validated['amount'] + $tax;
 

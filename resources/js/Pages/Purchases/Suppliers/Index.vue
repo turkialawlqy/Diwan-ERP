@@ -224,7 +224,7 @@ const formatCurrency = (val) => {
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">المستحقات الحالية للموردين</p>
-                    <p class="text-xl sm:text-2xl font-black text-rose-500">{{ formatCurrency(stats?.total_payable) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                    <p class="text-xl sm:text-2xl font-black text-rose-500">{{ formatCurrency(stats?.total_payable) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">الموردين النشطين</p>

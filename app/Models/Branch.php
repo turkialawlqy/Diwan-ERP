@@ -23,7 +23,15 @@ class Branch extends Model
         'city',
         'is_main',
         'is_active',
+        'country_code',
+        'currency',
+        'tax_number',
+        'tax_registered',
+        'commercial_registration',
+        'timezone',
     ];
+
+    protected $casts = ['is_main' => 'boolean', 'is_active' => 'boolean', 'tax_registered' => 'boolean'];
 
     protected $appends = ['name'];
 

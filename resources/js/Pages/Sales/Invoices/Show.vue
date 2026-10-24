@@ -1,4 +1,5 @@
 <script setup>
+import { cur } from '@/utils/tax';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -41,7 +42,7 @@ const isFreeform = computed(() => currentTemplate.value?.layout_data?.mode === '
 const freeformPdf = computed(() => route('documents.pdf', { type: 'invoice', id: props.invoice.id, template: currentTemplate.value?.id }));
 
 // Foreign-currency invoices show their currency and the base equivalent.
-const curSymbol = computed(() => props.invoice?.currency_code || 'ر.س');
+const curSymbol = computed(() => props.invoice?.currency_code || cur());
 const baseTotal = computed(() => props.invoice?.currency_code ? Number(props.invoice.total) * Number(props.invoice.exchange_rate || 1) : null);
 const isLogoBroken = ref(false);
 const companyLogoUrl = computed(() => {
@@ -648,7 +649,7 @@ const resolveTag = (tag) => {
                             <span class="font-mono">-{{ formatCurrency(invoice.discount_amount) }} {{ curSymbol }}</span>
                         </div>
                         <div class="flex justify-between items-center text-slate-600">
-                            <span>ضريبة القيمة المضافة (15%):</span>
+                            <span>{{ $taxLabel() }}:</span>
                             <span class="font-mono">{{ formatCurrency(invoice.tax_amount) }} {{ curSymbol }}</span>
                         </div>
                         
@@ -656,7 +657,7 @@ const resolveTag = (tag) => {
                         <div class="border-y-2 border-dashed border-slate-800 py-1.5 my-1 flex justify-between items-center text-xs font-black">
                             <span>الإجمالي شامل الضريبة:</span>
                             <span class="font-mono text-sm font-black">{{ formatCurrency(invoice.total ?? invoice.total_amount) }} {{ curSymbol }}</span>
-                            <span v-if="baseTotal !== null" class="block text-2xs text-slate-500 font-mono">≈ {{ formatCurrency(baseTotal) }} ر.س (سعر {{ Number(invoice.exchange_rate).toFixed(4) }})</span>
+                            <span v-if="baseTotal !== null" class="block text-2xs text-slate-500 font-mono">≈ {{ formatCurrency(baseTotal) }} {{ $cur() }} (سعر {{ Number(invoice.exchange_rate).toFixed(4) }})</span>
                         </div>
 
                         <div v-if="Number(invoice.paid_amount) > 0" class="flex justify-between items-center text-slate-600 pt-0.5">
@@ -967,7 +968,7 @@ const resolveTag = (tag) => {
                         </div>
 
                         <div v-if="layout.footer.show_vat_15" class="flex justify-between items-center text-slate-600">
-                            <span>ضريبة القيمة المضافة 15%:</span>
+                            <span>{{ $taxLabel() }}:</span>
                             <span class="font-mono font-semibold">{{ formatCurrency(invoice.tax_amount) }} {{ curSymbol }}</span>
                         </div>
 
@@ -979,7 +980,7 @@ const resolveTag = (tag) => {
                         </div>
                         <div v-if="baseTotal !== null" class="flex items-center justify-between text-2xs text-slate-500 font-mono px-1">
                             <span>ما يعادل بالريال (سعر {{ Number(invoice.exchange_rate).toFixed(4) }})</span>
-                            <span>{{ formatCurrency(baseTotal) }} ر.س</span>
+                            <span>{{ formatCurrency(baseTotal) }} {{ $cur() }}</span>
                         </div>
 
                         <div v-if="layout.footer.show_paid" class="flex justify-between items-center text-emerald-700 text-3xs font-semibold pt-1">

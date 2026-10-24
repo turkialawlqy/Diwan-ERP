@@ -1,4 +1,5 @@
 <script setup>
+import { taxRate } from '@/utils/tax';
 import ImportLines from '@/Components/Documents/ImportLines.vue';
 import { computed, ref } from 'vue';
 import axios from 'axios';
@@ -25,7 +26,7 @@ const items = computed(() => props.modelValue);
 const { term, results, status, search, reset, messages } = useLookup('lookup.products');
 
 const add = async (p) => {
-    const line = { product_id: p.id, item_name: p.name_ar, quantity: 1, [props.priceKey]: Number(p[props.priceField] ?? 0), discount: 0, tax_rate: Number(p.tax_rate ?? 15) };
+    const line = { product_id: p.id, item_name: p.name_ar, quantity: 1, [props.priceKey]: Number(p[props.priceField] ?? 0), discount: 0, tax_rate: Number(p.tax_rate ?? taxRate()) };
     if (props.priceRoute && props.customerId) {
         try {
             const { data } = await axios.get(route(props.priceRoute), { params: { product_id: p.id, customer_id: props.customerId, quantity: 1 } });
@@ -35,7 +36,7 @@ const add = async (p) => {
     items.value.push(line);
     reset();
 };
-const addFree = () => items.value.push({ product_id: null, item_name: '', quantity: 1, [props.priceKey]: 0, discount: 0, tax_rate: 15 });
+const addFree = () => items.value.push({ product_id: null, item_name: '', quantity: 1, [props.priceKey]: 0, discount: 0, tax_rate: taxRate() });
 
 const lineNet = (l) => Math.max(0, Number(l.quantity || 0) * Number(l[props.priceKey] || 0) - Number(l.discount || 0));
 const lineTax = (l) => Math.round(lineNet(l) * Number(l.tax_rate ?? 0)) / 100;

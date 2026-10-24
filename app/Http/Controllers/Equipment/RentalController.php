@@ -8,6 +8,7 @@ use App\Models\EquipmentRental;
 use App\Models\Project;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Equipment\RentalBilling;
+use App\Services\Tax\TaxProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -127,7 +128,7 @@ class RentalController extends Controller
     {
         $data = $request->validate(['period_from' => 'required|date', 'period_to' => 'required|date|after_or_equal:period_from', 'tax_rate' => 'nullable|numeric|min:0|max:100']);
 
-        return response()->json($billing->supplierPreview($equipment, Carbon::parse($data['period_from']), Carbon::parse($data['period_to']), (float) ($data['tax_rate'] ?? 15)));
+        return response()->json($billing->supplierPreview($equipment, Carbon::parse($data['period_from']), Carbon::parse($data['period_to']), (float) ($data['tax_rate'] ?? TaxProfile::rate())));
     }
 
     public function supplierBill(Request $request, Equipment $equipment, RentalBilling $billing)
@@ -136,7 +137,7 @@ class RentalController extends Controller
             'period_from' => 'required|date',
             'period_to' => 'required|date|after_or_equal:period_from',
             'quantity' => 'nullable|numeric|min:0',
-            'tax_rate' => 'nullable|numeric|in:0,15',
+            'tax_rate' => ['nullable', 'numeric', TaxProfile::rateRule()],
             'reference' => 'nullable|string|max:60',
             'date' => 'nullable|date',
         ]);
@@ -156,7 +157,7 @@ class RentalController extends Controller
             'rate' => 'required|numeric|min:0',
             'min_hours_per_day' => 'nullable|numeric|min:0|max:24',
             'with_operator' => 'boolean',
-            'tax_rate' => 'nullable|numeric|in:0,15',
+            'tax_rate' => ['nullable', 'numeric', TaxProfile::rateRule()],
             'start_date' => 'required|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'site' => 'nullable|string|max:191',
@@ -172,7 +173,7 @@ class RentalController extends Controller
             $data['customer_id'] = null;
             $data['tax_rate'] = 0;
         }
-        $data['tax_rate'] = (float) ($data['tax_rate'] ?? 15);
+        $data['tax_rate'] = (float) ($data['tax_rate'] ?? TaxProfile::rate());
         $data['min_hours_per_day'] = ($data['min_hours_per_day'] ?? '') === '' ? null : $data['min_hours_per_day'];
 
         return $data;

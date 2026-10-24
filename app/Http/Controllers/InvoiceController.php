@@ -14,6 +14,7 @@ use App\Models\Warehouse;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\Documents\FreeformTemplates;
 use App\Services\Sales\InvoiceService;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
 use Illuminate\Http\Request;
@@ -164,7 +165,7 @@ class InvoiceController extends Controller
             'bankAccounts' => $bankAccounts,
             'suggestedNumber' => $suggestedNumber,
             'company' => $company,
-            'defaultTaxRate' => 15.00,
+            'defaultTaxRate' => TaxProfile::rate(),
         ]);
     }
 

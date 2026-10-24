@@ -13,6 +13,7 @@ use App\Models\Product;
 use App\Models\Quotation;
 use App\Models\Supplier;
 use App\Models\Warehouse;
+use App\Rules\TaxNumber;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DepreciationService;
 use App\Services\Accounting\DocumentPoster;
@@ -22,6 +23,7 @@ use App\Services\Imports\LineImporter;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
 use App\Services\Sales\QuotationService;
+use App\Services\Tax\TaxProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -61,7 +63,7 @@ class DataTransferController extends Controller
             'customers' => [
                 'label' => 'العملاء', 'model' => Customer::class, 'permission' => ['view' => 'sales.clients.view', 'create' => 'sales.clients.create'],
                 'columns' => ['code', 'name', 'company_name', 'customer_type', 'tax_number', 'commercial_registration', 'phone', 'email', 'street_name', 'building_number', 'district', 'city', 'postal_code', 'credit_limit', 'opening_balance'],
-                'rules' => ['name' => 'required|string|max:255', 'customer_type' => 'nullable|in:individual,commercial,government', 'tax_number' => ['nullable', 'regex:/^3\d{13}3$/'],
+                'rules' => ['name' => 'required|string|max:255', 'customer_type' => 'nullable|in:individual,commercial,government', 'tax_number' => ['nullable', 'string', 'max:50', new TaxNumber],
                     'email' => 'nullable|email', 'credit_limit' => 'nullable|numeric|min:0', 'opening_balance' => 'nullable|numeric'],
                 'defaults' => ['customer_type' => 'commercial', 'status' => 'active'],
                 'key' => 'code', 'number' => 'customer',
@@ -69,7 +71,7 @@ class DataTransferController extends Controller
             'suppliers' => [
                 'label' => 'الموردون', 'model' => Supplier::class, 'permission' => ['view' => 'purchases.suppliers.view', 'create' => 'purchases.suppliers.create'],
                 'columns' => ['name', 'company_name', 'tax_number', 'phone', 'email', 'address', 'opening_balance'],
-                'rules' => ['name' => 'required|string|max:255', 'tax_number' => ['nullable', 'regex:/^3\d{13}3$/'], 'email' => 'nullable|email', 'opening_balance' => 'nullable|numeric'],
+                'rules' => ['name' => 'required|string|max:255', 'tax_number' => ['nullable', 'string', 'max:50', new TaxNumber], 'email' => 'nullable|email', 'opening_balance' => 'nullable|numeric'],
                 'defaults' => ['status' => 'active'],
                 'key' => null, 'number' => null,
             ],
@@ -80,7 +82,7 @@ class DataTransferController extends Controller
                     'purchase_price' => 'nullable|numeric|min:0', 'tax_rate' => 'nullable|numeric|min:0|max:100', 'reorder_level' => 'nullable|numeric|min:0',
                     'vat_category' => 'nullable|in:S,Z,E,O', 'vat_exemption_code' => ['nullable', Rule::in(collect(config('zatca.exemption_reasons'))->flatMap(fn ($r) => array_keys($r))->all())],
                     'opening_quantity' => 'nullable|numeric|min:0', 'opening_cost' => 'nullable|numeric|min:0', 'warehouse_code' => 'nullable|string|max:50'],
-                'defaults' => ['type' => 'product', 'track_inventory' => true, 'is_active' => true, 'tax_rate' => 15],
+                'defaults' => ['type' => 'product', 'track_inventory' => true, 'is_active' => true, 'tax_rate' => TaxProfile::rate()],
                 'key' => 'sku', 'number' => 'product',
             ],
             'employees' => [
@@ -204,7 +206,7 @@ class DataTransferController extends Controller
         if (count($rows) > self::MAX_IMPORT_ROWS) {
             throw ValidationException::withMessages(['file' => 'الحد الأقصى '.self::MAX_IMPORT_ROWS.' صف في الملف الواحد.']);
         }
-        $required = array_keys(array_filter($definition['rules'], fn ($r) => str_contains(is_array($r) ? implode('|', $r) : $r, 'required')));
+        $required = array_keys(array_filter($definition['rules'], fn ($r) => in_array('required', is_array($r) ? $r : explode('|', $r), true)));
         if ($missing = array_diff($required, $header)) {
             throw ValidationException::withMessages(['file' => 'أعمدة إلزامية ناقصة: '.implode(', ', $missing).'. حمّل القالب للاطلاع على الأعمدة.']);
         }
