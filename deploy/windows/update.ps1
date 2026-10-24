@@ -213,6 +213,14 @@ try {
     }
 
     # MAMP has no Redis: jobs (ZATCA reporting, e-mail) would never run.
+    # The framework's default name (or the old brand) shows in the sidebar and the PDFs: use the product name.
+    if ((Test-Path $envFile) -and (@('Laravel', 'AlOstaz', 'Alostaz', 'الأستاذ') -contains (Get-EnvValue 'APP_NAME'))) {
+        $utf8 = New-Object System.Text.UTF8Encoding($false)
+        $raw = [IO.File]::ReadAllText($envFile, $utf8)
+        [IO.File]::WriteAllText($envFile, ($raw -replace '(?m)^\s*APP_NAME\s*=.*$', 'APP_NAME="الديوان"'), $utf8)
+        Write-Log '    اسم النظام في .env أصبح «الديوان».' 'DarkGray'
+    }
+
     $redisDrivers = @('QUEUE_CONNECTION', 'SESSION_DRIVER', 'CACHE_STORE') | Where-Object { (Get-EnvValue $_) -eq 'redis' }
     if ($redisDrivers -and -not (@(& $php -m 2>$null) -contains 'redis')) {
         Write-Log ('تنبيه: ملف .env يستخدم Redis في: ' + ($redisDrivers -join '، ') + ' بينما Redis غير متوفر. غيّرها إلى database (انظر .env.windows.example).') 'Red' -Always

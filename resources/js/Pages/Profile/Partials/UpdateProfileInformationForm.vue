@@ -1,18 +1,11 @@
 <script setup>
 import { computed } from 'vue';
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
 import { Link, useForm, usePage } from '@inertiajs/vue3';
+import Field from '@/Components/UI/Field.vue';
 
 defineProps({
-    mustVerifyEmail: {
-        type: Boolean,
-    },
-    status: {
-        type: String,
-    },
+    mustVerifyEmail: { type: Boolean },
+    status: { type: String },
 });
 
 const user = usePage().props.auth.user;
@@ -31,47 +24,29 @@ const submit = () => form.patch(route('profile.update'), { preserveScroll: true,
 
 <template>
     <section>
-        <header>
-            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">بيانات الحساب</h2>
-            <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">حدّث اسمك والبريد الإلكتروني الذي تدخل به.</p>
-        </header>
+        <h2 class="font-black text-sm text-slate-800">بيانات الحساب</h2>
+        <p class="mt-1 text-xs text-slate-500">حدّث اسمك والبريد الإلكتروني الذي تدخل به.</p>
 
-        <form @submit.prevent="submit" class="mt-6 space-y-6">
-            <div>
-                <InputLabel for="name" value="الاسم" />
-                <TextInput id="name" type="text" class="mt-1 block w-full" v-model="form.name" required autofocus autocomplete="name" />
-                <InputError class="mt-2" :message="form.errors.name" />
+        <form @submit.prevent="submit" class="mt-4 space-y-3">
+            <Field label="الاسم" :error="form.errors.name">
+                <input id="name" v-model="form.name" type="text" required autocomplete="name" class="w-full rounded-xl border-slate-200 text-xs" />
+            </Field>
+            <Field label="البريد الإلكتروني" :error="form.errors.email">
+                <input id="email" v-model="form.email" type="email" required autocomplete="username" dir="ltr" class="w-full rounded-xl border-slate-200 text-xs text-right" />
+            </Field>
+            <Field v-if="emailChanged" label="كلمة المرور الحالية (لتأكيد تغيير البريد)" :error="form.errors.current_password">
+                <input id="current_password" v-model="form.current_password" type="password" required autocomplete="current-password" class="w-full rounded-xl border-slate-200 text-xs" />
+            </Field>
+
+            <div v-if="mustVerifyEmail && user.email_verified_at === null" class="text-xs text-slate-700">
+                بريدك الإلكتروني غير مؤكد.
+                <Link :href="route('verification.send')" method="post" as="button" class="text-indigo-600 underline font-bold">أعد إرسال رسالة التأكيد</Link>
+                <p v-show="status === 'verification-link-sent'" class="mt-1 font-bold text-emerald-600">أُرسل رابط تأكيد جديد إلى بريدك الإلكتروني.</p>
             </div>
 
-            <div>
-                <InputLabel for="email" value="البريد الإلكتروني" />
-                <TextInput id="email" type="email" class="mt-1 block w-full" v-model="form.email" required autocomplete="username" />
-                <InputError class="mt-2" :message="form.errors.email" />
-            </div>
-
-            <div v-if="emailChanged">
-                <InputLabel for="current_password" value="كلمة المرور الحالية (لتأكيد تغيير البريد)" />
-                <TextInput id="current_password" type="password" class="mt-1 block w-full" v-model="form.current_password" required autocomplete="current-password" />
-                <InputError class="mt-2" :message="form.errors.current_password" />
-            </div>
-
-            <div v-if="mustVerifyEmail && user.email_verified_at === null">
-                <p class="mt-2 text-sm text-gray-800 dark:text-gray-200">
-                    بريدك الإلكتروني غير مؤكد.
-                    <Link :href="route('verification.send')" method="post" as="button" class="rounded-md text-sm text-indigo-600 underline hover:text-indigo-800">
-                        أعد إرسال رسالة التأكيد
-                    </Link>
-                </p>
-                <div v-show="status === 'verification-link-sent'" class="mt-2 text-sm font-medium text-green-600">
-                    أُرسل رابط تأكيد جديد إلى بريدك الإلكتروني.
-                </div>
-            </div>
-
-            <div class="flex items-center gap-4">
-                <PrimaryButton :disabled="form.processing">حفظ</PrimaryButton>
-                <Transition enter-active-class="transition ease-in-out" enter-from-class="opacity-0" leave-active-class="transition ease-in-out" leave-to-class="opacity-0">
-                    <p v-if="form.recentlySuccessful" class="text-sm text-gray-600">تم الحفظ.</p>
-                </Transition>
+            <div class="flex items-center gap-3">
+                <button type="submit" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">حفظ</button>
+                <p v-if="form.recentlySuccessful" class="text-xs font-bold text-emerald-600">تم الحفظ.</p>
             </div>
         </form>
     </section>

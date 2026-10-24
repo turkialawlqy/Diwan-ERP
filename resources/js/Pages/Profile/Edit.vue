@@ -1,62 +1,43 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { Head } from '@inertiajs/vue3';
+import AppLayout from '@/Layouts/AppLayout.vue';
+import PageHeader from '@/Components/UI/PageHeader.vue';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm.vue';
 import TwoFactorForm from './Partials/TwoFactorForm.vue';
-import { Head } from '@inertiajs/vue3';
+import { ShieldExclamationIcon } from '@heroicons/vue/24/outline';
 
-defineProps({
-    mustVerifyEmail: {
-        type: Boolean,
-    },
-    status: {
-        type: String,
-    },
-    twoFactor: {
-        type: Object,
-        default: () => ({ enabled: false, required: false, recoveryRemaining: 0 }),
-    },
+const props = defineProps({
+    mustVerifyEmail: { type: Boolean },
+    status: { type: String },
+    twoFactor: { type: Object, default: () => ({ enabled: false, required: false, recoveryRemaining: 0 }) },
 });
+// Until a mandatory 2FA is set up every other screen leads back here: that card comes first.
+const mustEnrol = props.twoFactor.required && !props.twoFactor.enabled;
 </script>
 
 <template>
-    <Head title="الملف الشخصي" />
+    <AppLayout own-errors>
+        <Head title="الملف الشخصي" />
+        <PageHeader title="الملف الشخصي" subtitle="بيانات حسابك وكلمة المرور والتحقق الثنائي" :crumbs="[{ label: 'حسابي' }, { label: 'الملف الشخصي' }]" />
 
-    <AuthenticatedLayout>
-        <template #header>
-            <h2
-                class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200"
-            >
-                الملف الشخصي
-            </h2>
-        </template>
+        <div v-if="mustEnrol" class="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2" data-2fa-required>
+            <ShieldExclamationIcon class="w-5 h-5 shrink-0" />
+            <p><span class="font-bold">التحقق الثنائي إلزامي لحسابك.</span> فعّله من البطاقة أدناه لتفتح بقية شاشات النظام.</p>
+        </div>
 
-        <div class="py-12">
-            <div class="mx-auto max-w-7xl space-y-6 sm:px-6 lg:px-8">
-                <div
-                    class="bg-white p-4 shadow sm:rounded-lg sm:p-8 dark:bg-gray-800"
-                >
-                    <UpdateProfileInformationForm
-                        :must-verify-email="mustVerifyEmail"
-                        :status="status"
-                        class="max-w-xl"
-                    />
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+            <div :class="mustEnrol ? 'lg:order-first' : 'lg:order-last'" id="two-factor" class="bg-white border border-slate-200 rounded-2xl p-5">
+                <TwoFactorForm :state="twoFactor" />
+            </div>
+            <div class="space-y-4">
+                <div class="bg-white border border-slate-200 rounded-2xl p-5">
+                    <UpdateProfileInformationForm :must-verify-email="mustVerifyEmail" :status="status" />
                 </div>
-
-                <div
-                    id="two-factor"
-                    class="bg-white p-4 shadow sm:rounded-lg sm:p-8 dark:bg-gray-800"
-                >
-                    <TwoFactorForm :state="twoFactor" class="max-w-xl" />
+                <div class="bg-white border border-slate-200 rounded-2xl p-5">
+                    <UpdatePasswordForm />
                 </div>
-
-                <div
-                    class="bg-white p-4 shadow sm:rounded-lg sm:p-8 dark:bg-gray-800"
-                >
-                    <UpdatePasswordForm class="max-w-xl" />
-                </div>
-
             </div>
         </div>
-    </AuthenticatedLayout>
+    </AppLayout>
 </template>
