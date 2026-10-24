@@ -291,8 +291,9 @@ ok ".env جاهز، والأسرار محفوظة في $SECRETS"
 step "7/11 جداول قاعدة البيانات"
 artisan migrate --force --seed
 [[ -L $APP_DIR/public/storage ]] || artisan storage:link
-run chown -R "$APP_USER:$APP_USER" "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
-run chmod -R ug+rwX "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
+# Trailing slashes: storage is a link to the shared folder once releases are in use.
+run chown -R "$APP_USER:$APP_USER" "$APP_DIR/storage/" "$APP_DIR/bootstrap/cache/"
+run chmod -R ug+rwX "$APP_DIR/storage/" "$APP_DIR/bootstrap/cache/"
 ok "قاعدة البيانات جاهزة."
 
 # ------------------------------------------------------------------ 8-9. nginx & SSL
@@ -392,6 +393,8 @@ if [[ ${ADMIN_CREATED:-} != 1 ]]; then
     ADMIN_CREATED=1
     save_conf
 fi
+# Releases layout (shared .env and storage, $APP_DIR as a link) so updates never stop the system.
+[[ $DRY_RUN == 1 ]] || bash "$APP_DIR/deploy/ubuntu/update.sh" --adopt
 artisan erp:preflight || warn "راجع ملاحظات الفحص أعلاه (البريد والنسخة الخارجية مقبولة في التجربة)."
 
 echo
@@ -401,5 +404,5 @@ echo "  تسجيل منشأة جديدة:   $SCHEME://$DOMAIN/register"
 echo "  دخول مدير المنصة:     $SCHEME://$DOMAIN/login  ($ADMIN_EMAIL، ويُطلب التحقق الثنائي)"
 echo "  كل منشأة على:          $SCHEME://<اسم-المنشأة>.$DOMAIN"
 echo "  الأسرار:                $SECRETS  ← انسخها لمكان آمن ثم احذفها"
-echo "  التحديث لاحقاً:        sudo bash $APP_DIR/deploy/ubuntu/update.sh"
+echo "  التحديث لاحقاً:        sudo bash $APP_DIR/deploy/ubuntu/update.sh  (دون إيقاف النظام)"
 echo "${c_ok}══════════════════════════════════════════════════════${c_off}"
