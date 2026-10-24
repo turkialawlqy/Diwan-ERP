@@ -408,7 +408,7 @@ const importLines = (lines, replace) => {
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout own-errors>
         <Head title="إنشاء فاتورة مبيعات جديدة" />
 
         <!-- Floating Toast Message -->

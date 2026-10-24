@@ -89,6 +89,7 @@ class CustomerController extends Controller
      */
     public function store(Request $request)
     {
+        $this->normalizeNationalAddress($request);
         $validated = $request->validate([
             'customer_type' => 'nullable|in:individual,commercial',
             'code' => 'nullable|string|max:50',
@@ -101,13 +102,13 @@ class CustomerController extends Controller
             'tax_number' => 'nullable|string|max:50',
             'commercial_registration' => 'nullable|string|max:50',
             'address' => 'nullable|string',
-            'building_number' => 'nullable|string|max:50',
+            'building_number' => ['nullable', 'regex:/^\d{4}$/'],
             'street_name' => 'nullable|string|max:255',
             'district' => 'nullable|string|max:100',
             'city' => 'nullable|string|max:100',
             'province' => 'nullable|string|max:100',
-            'postal_code' => 'nullable|string|max:20',
-            'additional_details' => 'nullable|string|max:255',
+            'postal_code' => ['nullable', 'regex:/^\d{5}$/'],
+            'additional_details' => ['nullable', 'regex:/^\d{4}$/'],
             'country' => 'nullable|string|max:100',
             'credit_limit' => 'nullable|numeric|min:0',
             'opening_balance' => 'nullable|numeric',
@@ -252,6 +253,7 @@ class CustomerController extends Controller
      */
     public function update(Request $request, Customer $client)
     {
+        $this->normalizeNationalAddress($request);
         $validated = $request->validate([
             'customer_type' => 'nullable|in:individual,commercial',
             'code' => 'nullable|string|max:50',
@@ -264,13 +266,13 @@ class CustomerController extends Controller
             'tax_number' => 'nullable|string|max:50',
             'commercial_registration' => 'nullable|string|max:50',
             'address' => 'nullable|string',
-            'building_number' => 'nullable|string|max:50',
+            'building_number' => ['nullable', 'regex:/^\d{4}$/'],
             'street_name' => 'nullable|string|max:255',
             'district' => 'nullable|string|max:100',
             'city' => 'nullable|string|max:100',
             'province' => 'nullable|string|max:100',
-            'postal_code' => 'nullable|string|max:20',
-            'additional_details' => 'nullable|string|max:255',
+            'postal_code' => ['nullable', 'regex:/^\d{5}$/'],
+            'additional_details' => ['nullable', 'regex:/^\d{4}$/'],
             'country' => 'nullable|string|max:100',
             'credit_limit' => 'nullable|numeric|min:0',
             'status' => 'required|in:active,inactive',
@@ -323,5 +325,29 @@ class CustomerController extends Controller
         $client->delete();
 
         return redirect()->route('sales.clients.index')->with('success', 'تم حذف العميل بنجاح');
+    }
+
+    /**
+     * National address as ZATCA needs it: the building number on its own.
+     * A street typed as "4002, King Fahd Road" (the form once had one field
+     * for both) gives its leading four digits to the building number;
+     * Arabic-Indic digits are read as digits.
+     */
+    protected function normalizeNationalAddress(Request $request): void
+    {
+        $digits = fn ($v) => is_string($v) ? trim(strtr($v, ['٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9'])) : $v;
+        $values = array_map($digits, $request->only(['building_number', 'street_name', 'postal_code', 'additional_details']));
+        [$building, $street] = self::splitBuildingNumber($values['building_number'] ?? null, $values['street_name'] ?? null);
+        $request->merge(array_merge($values, ['building_number' => $building, 'street_name' => $street]));
+    }
+
+    /** [building number, street] from a street that starts with the 4-digit building number. */
+    public static function splitBuildingNumber(?string $building, ?string $street): array
+    {
+        if (blank($building) && $street && preg_match('/^\s*(\d{4})\s*[,،\-\s]\s*(.+)$/u', $street, $m)) {
+            return [$m[1], trim($m[2])];
+        }
+
+        return [$building ?: null, $street];
     }
 }

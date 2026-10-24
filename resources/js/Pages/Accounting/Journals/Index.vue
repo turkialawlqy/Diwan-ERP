@@ -135,7 +135,7 @@ const importLines = (lines, replace) => {
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout own-errors>
         <Head title="القيود اليومية" />
 
         <div class="space-y-5">

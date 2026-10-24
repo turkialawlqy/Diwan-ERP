@@ -560,26 +560,44 @@ const saveCustomer = async () => {
 
                             <!-- Address Sub-fields (National Address Format) -->
                             <div v-if="showAddressSection" class="space-y-4 animate-in fade-in duration-150">
-                                <!-- Building Number & Street Name -->
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">رقم المبنى و اسم الشارع</label>
-                                    <input
-                                        v-model="form.street_name"
-                                        type="text"
-                                        placeholder="مثال: 4002 طريق الملك فهد"
-                                        class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                                    />
+                                <p v-if="form.tax_number" class="text-3xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">العميل مسجل ضريبياً: رقم المبنى والشارع والحي والمدينة والرمز البريدي مطلوبة لإصدار الفاتورة الضريبية (كما في العنوان الوطني - سبل).</p>
+                                <!-- National address: building number, street, additional number -->
+                                <div class="grid grid-cols-3 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">رقم المبنى</label>
+                                        <input
+                                            v-model="form.building_number"
+                                            type="text"
+                                            inputmode="numeric"
+                                            maxlength="4"
+                                            placeholder="4002"
+                                            data-field="building_number"
+                                            class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 font-mono transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                        />
+                                        <p v-if="formErrors.building_number" class="text-3xs text-rose-600 mt-1">{{ formErrors.building_number[0] }}</p>
+                                    </div>
+                                    <div class="col-span-2">
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">اسم الشارع</label>
+                                        <input
+                                            v-model="form.street_name"
+                                            type="text"
+                                            placeholder="مثال: طريق الملك فهد"
+                                            class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                        />
+                                    </div>
                                 </div>
 
-                                <!-- Additional Details (Secondary Number) -->
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">تفاصيل إضافية</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">الرقم الإضافي</label>
                                     <input
                                         v-model="form.additional_details"
                                         type="text"
-                                        placeholder="الرقم الإضافي أو تفاصيل الوحدة (مثال: 7007)"
-                                        class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                        inputmode="numeric"
+                                        maxlength="4"
+                                        placeholder="7007"
+                                        class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 font-mono transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                     />
+                                    <p v-if="formErrors.additional_details" class="text-3xs text-rose-600 mt-1">{{ formErrors.additional_details[0] }}</p>
                                 </div>
 
                                 <!-- District & City -->
@@ -614,6 +632,7 @@ const saveCustomer = async () => {
                                             placeholder="مثال: 22254"
                                             class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 font-mono transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                         />
+                                        <p v-if="formErrors.postal_code" class="text-3xs text-rose-600 mt-1">{{ formErrors.postal_code[0] }}</p>
                                     </div>
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1">محافظة</label>

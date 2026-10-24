@@ -161,7 +161,11 @@ return [
     // Project rule: like "exists" but scoped to the current company.
     'tenant_exists' => 'قيمة :attribute المختارة غير موجودة في منشأتك.',
 
-    'custom' => [],
+    'custom' => [
+        'building_number' => ['regex' => 'رقم المبنى في العنوان الوطني 4 أرقام.'],
+        'additional_details' => ['regex' => 'الرقم الإضافي في العنوان الوطني 4 أرقام.'],
+        'postal_code' => ['regex' => 'الرمز البريدي 5 أرقام.'],
+    ],
 
     'attributes' => [
         'account_code' => 'رمز الحساب',

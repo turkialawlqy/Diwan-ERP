@@ -161,7 +161,7 @@ class InvoiceService
             'الرمز البريدي' => $customer->postal_code,
         ])->filter(fn ($v) => blank($v))->keys();
         if ($missing->isNotEmpty()) {
-            throw ValidationException::withMessages(['customer_id' => 'أكمل العنوان الوطني للعميل قبل إصدار فاتورة ضريبية: '.$missing->implode('، ').'.']);
+            throw ValidationException::withMessages(['customer_id' => "أكمل العنوان الوطني للعميل «{$customer->name}» قبل إصدار فاتورة ضريبية (العملاء ← تعديل العميل ← العنوان): ".$missing->implode('، ').'.']);
         }
 
         return false;

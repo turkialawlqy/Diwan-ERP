@@ -18,7 +18,7 @@ const save = () => {
 </script>
 
 <template>
-    <AppLayout>
+    <AppLayout own-errors>
         <Head title="مشروع جديد" />
         <PageHeader title="مشروع / عقد جديد" :subtitle="`الرمز المتوقع: ${suggestedCode}`" :crumbs="[{ label: 'المقاولات' }, { label: 'المشاريع', href: route('projects.index') }, { label: 'جديد' }]" />
         <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">

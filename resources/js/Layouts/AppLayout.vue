@@ -6,6 +6,8 @@ import AppTopBar from '../Components/AppTopBar.vue';
 import ImpersonationBanner from '../Components/ImpersonationBanner.vue';
 import { CheckCircleIcon, ExclamationCircleIcon, XMarkIcon } from '@heroicons/vue/24/outline';
 
+// Pages that list their own form errors set own-errors so they are not shown twice.
+const props = defineProps({ ownErrors: { type: Boolean, default: false } });
 const page = usePage();
 const isSidebarOpen = ref(false);
 
@@ -23,7 +25,7 @@ const generalError = computed(() => page.props.errors?.accounting || page.props.
 
 // Every other validation error, so a rejected save is never silent on a form
 // that has no slot for that field (nested lines, hidden fields...).
-const fieldErrors = computed(() => Object.entries(page.props.errors || {})
+const fieldErrors = computed(() => props.ownErrors ? [] : Object.entries(page.props.errors || {})
     .filter(([key]) => !['accounting', 'plan'].includes(key))
     .flatMap(([, message]) => String(message).split('\n'))
     .filter((message, i, all) => message && all.indexOf(message) === i));
