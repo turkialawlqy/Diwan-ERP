@@ -11,12 +11,14 @@ use App\Models\PrintTemplate;
 use App\Models\Product;
 use App\Models\Unit;
 use App\Models\Warehouse;
+use App\Rules\AllowedBranch;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\Documents\FreeformTemplates;
 use App\Services\Sales\InvoiceService;
 use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
+use App\Support\BranchOptions;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -161,7 +163,7 @@ class InvoiceController extends Controller
             'categories' => $categories,
             'units' => $units,
             'warehouses' => $warehouses,
-            'branches' => $branches,
+            ...BranchOptions::forUser(),
             'bankAccounts' => $bankAccounts,
             'suggestedNumber' => $suggestedNumber,
             'company' => $company,
@@ -176,7 +178,7 @@ class InvoiceController extends Controller
     {
         $validated = $request->validate([
             'customer_id' => 'required|tenant_exists:customers,id',
-            'branch_id' => 'nullable|tenant_exists:branches,id',
+            'branch_id' => ['nullable', 'tenant_exists:branches,id', new AllowedBranch],
             'invoice_number' => 'nullable|string|max:50', // ignored: assigned by the system
             'reference_number' => 'nullable|string|max:50',
             'invoice_date' => 'required|date|before_or_equal:today',

@@ -2,15 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\Quotation;
+use App\Rules\AllowedBranch;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\QuotationService;
 use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
+use App\Support\BranchOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -75,8 +76,6 @@ class QuotationController extends Controller
             ->limit(500)
             ->get(['id', 'name', 'company_name', 'tax_number', 'phone']);
 
-        $branches = Branch::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
-
         $products = Product::where('is_active', true)
             ->orderBy('name_ar')
             ->limit(500)
@@ -86,7 +85,7 @@ class QuotationController extends Controller
 
         return Inertia::render('Sales/Quotations/Create', [
             'customers' => $customers,
-            'branches' => $branches,
+            ...BranchOptions::forUser(),
             'products' => $products,
             'suggestedNumber' => $suggestedNumber,
             'company' => $company,
@@ -101,7 +100,7 @@ class QuotationController extends Controller
     {
         $validated = $request->validate([
             'customer_id' => 'required|tenant_exists:customers,id',
-            'branch_id' => 'nullable|tenant_exists:branches,id',
+            'branch_id' => ['nullable', 'tenant_exists:branches,id', new AllowedBranch],
             'quotation_number' => 'nullable|string|max:50', // ignored: assigned by the system
             'quotation_date' => 'required|date',
             'valid_until' => 'nullable|date',

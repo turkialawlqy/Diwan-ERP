@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\SalesOrder;
 use App\Models\Warehouse;
+use App\Rules\AllowedBranch;
 use App\Services\Sales\SalesCycleService;
 use App\Services\Workflow\ApprovalService;
+use App\Support\BranchOptions;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -34,6 +36,7 @@ class SalesOrderController extends Controller
         return Inertia::render('Sales/Orders/Create', [
             'warehouses' => Warehouse::where('is_active', true)->get(['id', 'name_ar']),
             'suggestedNumber' => $this->peekNumber('sales_order'),
+            ...BranchOptions::forUser(),
         ]);
     }
 
@@ -41,6 +44,7 @@ class SalesOrderController extends Controller
     {
         $validated = $request->validate([
             'customer_id' => 'required|tenant_exists:customers,id',
+            'branch_id' => ['nullable', 'tenant_exists:branches,id', new AllowedBranch],
             'warehouse_id' => 'nullable|tenant_exists:warehouses,id',
             'quotation_id' => 'nullable|tenant_exists:quotations,id',
             'order_date' => 'required|date',

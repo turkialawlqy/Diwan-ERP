@@ -46,10 +46,12 @@ class SalesCycleService
     public function createOrder(array $data, array $lines): SalesOrder
     {
         return DB::transaction(function () use ($data, $lines) {
-            [$items, $subtotal, $tax] = $this->invoices->computeLines($lines);
+            $branchId = $data['branch_id'] ?? auth()->user()?->defaultBranchId();
+            // Lines follow the tax rules of the order's branch (its country).
+            [$items, $subtotal, $tax] = $this->invoices->computeLines($lines, TaxProfile::current($branchId ? (int) $branchId : null), $data['order_date'] ?? null);
 
             $order = SalesOrder::create([
-                'branch_id' => $data['branch_id'] ?? auth()->user()?->branch_id,
+                'branch_id' => $branchId,
                 'warehouse_id' => $data['warehouse_id'] ?? null,
                 'customer_id' => $data['customer_id'],
                 'quotation_id' => $data['quotation_id'] ?? null,
@@ -93,7 +95,7 @@ class SalesCycleService
             }
 
             $note = DeliveryNote::create([
-                'branch_id' => $order?->branch_id ?? auth()->user()?->branch_id,
+                'branch_id' => $order?->branch_id ?? auth()->user()?->defaultBranchId(),
                 'warehouse_id' => $this->documentStock->warehouse($data['warehouse_id'] ?? $order?->warehouse_id),
                 'customer_id' => $order?->customer_id ?? $data['customer_id'],
                 'sales_order_id' => $order?->id,

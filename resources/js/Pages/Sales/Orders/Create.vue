@@ -5,10 +5,11 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import Field from '@/Components/UI/Field.vue';
 import PartyPicker from '@/Components/Documents/PartyPicker.vue';
 import LineItemsEditor from '@/Components/Documents/LineItemsEditor.vue';
+import BranchSelect from '@/Components/BranchSelect.vue';
 
-defineProps({ warehouses: Array, suggestedNumber: String });
+const props = defineProps({ warehouses: Array, suggestedNumber: String, branches: Array, defaultBranchId: Number });
 const today = new Date().toISOString().substring(0, 10);
-const form = useForm({ customer_id: null, warehouse_id: '', order_date: today, delivery_date: '', notes: '', items: [] });
+const form = useForm({ customer_id: null, branch_id: props.defaultBranchId || props.branches?.[0]?.id || '', warehouse_id: '', order_date: today, delivery_date: '', notes: '', items: [] });
 const save = () => form.post(route('sales.orders.store'));
 </script>
 
@@ -19,6 +20,7 @@ const save = () => form.post(route('sales.orders.store'));
         <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
             <div class="grid md:grid-cols-4 gap-3">
                 <Field label="العميل" :error="form.errors.customer_id" class="md:col-span-2"><PartyPicker v-model="form.customer_id" /></Field>
+                <BranchSelect v-if="branches?.length > 1" v-model="form.branch_id" :branches="branches" :error="form.errors.branch_id" />
                 <Field label="تاريخ الأمر" :error="form.errors.order_date"><input v-model="form.order_date" type="date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="تاريخ التسليم المتوقع" :error="form.errors.delivery_date"><input v-model="form.delivery_date" type="date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="المستودع"><select v-model="form.warehouse_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">الافتراضي</option><option v-for="w in warehouses" :key="w.id" :value="w.id">{{ w.name_ar }}</option></select></Field>

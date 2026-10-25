@@ -5,11 +5,13 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import Field from '@/Components/UI/Field.vue';
 import PartyPicker from '@/Components/Documents/PartyPicker.vue';
 import LineItemsEditor from '@/Components/Documents/LineItemsEditor.vue';
+import BranchSelect from '@/Components/BranchSelect.vue';
 
-const props = defineProps({ order: Object, warehouses: Array, suggestedNumber: String });
+const props = defineProps({ order: Object, warehouses: Array, suggestedNumber: String, branches: Array, defaultBranchId: Number });
 const o = props.order;
 const form = useForm({
     supplier_id: o?.supplier_id ?? null,
+    branch_id: o?.branch_id ?? (props.defaultBranchId || props.branches?.[0]?.id || ''),
     warehouse_id: o?.warehouse_id ?? '',
     order_date: o?.order_date?.substring(0, 10) ?? new Date().toISOString().substring(0, 10),
     expected_delivery_date: o?.expected_delivery_date?.substring(0, 10) ?? '',
@@ -32,6 +34,7 @@ const save = (submit) => {
         <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
             <div class="grid md:grid-cols-4 gap-3">
                 <Field label="المورد" :error="form.errors.supplier_id" class="md:col-span-2"><PartyPicker v-model="form.supplier_id" route-name="lookup.suppliers" :initial="o?.supplier" /></Field>
+                <BranchSelect v-if="branches?.length > 1" v-model="form.branch_id" :branches="branches" :error="form.errors.branch_id" />
                 <Field label="تاريخ الأمر"><input v-model="form.order_date" type="date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="التوريد المتوقع"><input v-model="form.expected_delivery_date" type="date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="مستودع الاستلام"><select v-model="form.warehouse_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">الافتراضي</option><option v-for="w in warehouses" :key="w.id" :value="w.id">{{ w.name_ar }}</option></select></Field>

@@ -51,7 +51,7 @@ class TaxProfile
     public static function current(?int $branchId = null): self
     {
         $company = app(TenantManager::class)->getCompany();
-        $branchId ??= auth()->user()?->branch_id;
+        $branchId ??= auth()->user()?->defaultBranchId();
 
         return self::forBranch($branchId ? (int) $branchId : self::mainBranch($company), $company);
     }

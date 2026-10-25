@@ -49,7 +49,7 @@ class PurchaseCycleService
     {
         return DB::transaction(function () use ($data, $lines) {
             $request = PurchaseRequest::create([
-                'branch_id' => $data['branch_id'] ?? auth()->user()?->branch_id,
+                'branch_id' => $data['branch_id'] ?? auth()->user()?->defaultBranchId(),
                 'request_number' => $this->numbers->next('purchase_request', Carbon::parse($data['request_date'])),
                 'request_date' => $data['request_date'],
                 'required_date' => $data['required_date'] ?? null,
@@ -87,12 +87,13 @@ class PurchaseCycleService
                 throw ValidationException::withMessages(['order' => 'لا يمكن تعديل أمر شراء بعد إرساله للاعتماد.']);
             }
 
-            [$items, $subtotal, $tax, $discount] = $this->computeLines($lines);
+            $branchId = $data['branch_id'] ?? auth()->user()?->defaultBranchId();
+            [$items, $subtotal, $tax, $discount] = $this->computeLines($lines, TaxProfile::current($branchId ? (int) $branchId : null));
 
             $attributes = [
                 'supplier_id' => $data['supplier_id'],
                 'warehouse_id' => $data['warehouse_id'] ?? null,
-                'branch_id' => $data['branch_id'] ?? auth()->user()?->branch_id,
+                'branch_id' => $branchId,
                 'purchase_request_id' => $data['purchase_request_id'] ?? $order?->purchase_request_id,
                 'order_date' => $data['order_date'],
                 'expected_delivery_date' => $data['expected_delivery_date'] ?? null,
@@ -172,7 +173,7 @@ class PurchaseCycleService
             }
 
             $receipt = GoodsReceipt::create([
-                'branch_id' => $order?->branch_id ?? auth()->user()?->branch_id,
+                'branch_id' => $order?->branch_id ?? auth()->user()?->defaultBranchId(),
                 'warehouse_id' => $this->documentStock->warehouse($data['warehouse_id'] ?? $order?->warehouse_id),
                 'supplier_id' => $order?->supplier_id ?? $data['supplier_id'],
                 'purchase_order_id' => $order?->id,
@@ -341,7 +342,7 @@ class PurchaseCycleService
                 'supplier_id' => $data['supplier_id'],
                 'purchase_order_id' => $data['purchase_order_id'] ?? GoodsReceipt::whereIn('id', array_keys($receiptIds))->value('purchase_order_id'),
                 'warehouse_id' => GoodsReceipt::whereIn('id', array_keys($receiptIds))->value('warehouse_id'),
-                'branch_id' => $data['branch_id'] ?? auth()->user()?->branch_id,
+                'branch_id' => $data['branch_id'] ?? auth()->user()?->defaultBranchId(),
                 'invoice_number' => $this->numbers->next('purchase_invoice', Carbon::parse($data['invoice_date'])),
                 'supplier_invoice_number' => $data['supplier_invoice_number'] ?? null,
                 'invoice_date' => $data['invoice_date'],
@@ -663,7 +664,7 @@ class PurchaseCycleService
 
     // ----- helpers -----
 
-    public function computeLines(array $lines): array
+    public function computeLines(array $lines, ?TaxProfile $profile = null): array
     {
         $items = [];
         $subtotal = 0.0;
@@ -675,6 +676,11 @@ class PurchaseCycleService
             $price = (float) $line['unit_price'];
             $discount = round((float) ($line['discount'] ?? 0), 2);
             $rate = (float) ($line['tax_rate'] ?? TaxProfile::rate());
+            // With the document's branch known, a taxed line carries a rate its country allows
+            // (zero-rated and exempt lines stay at 0; a country without VAT charges none).
+            if ($profile && ($rate > 0 || ! isset($line['tax_rate']) || $line['tax_rate'] === '')) {
+                $rate = $profile->chargesTax() ? $profile->rateFor($rate) : 0.0;
+            }
             if ($quantity <= 0 || $price < 0 || $discount < 0) {
                 throw ValidationException::withMessages(['items' => 'كميات وأسعار الأصناف يجب أن تكون موجبة.']);
             }

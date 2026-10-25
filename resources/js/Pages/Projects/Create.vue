@@ -5,9 +5,10 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import Field from '@/Components/UI/Field.vue';
 import PartyPicker from '@/Components/Documents/PartyPicker.vue';
 import BoqEditor from '@/Components/Projects/BoqEditor.vue';
+import BranchSelect from '@/Components/BranchSelect.vue';
 
-defineProps({ managers: Array, warehouses: Array, suggestedCode: String });
-const form = useForm({ customer_id: null, name: '', contract_number: '', manager_id: '', warehouse_id: '', start_date: '', end_date: '', contract_value: 0, advance_percent: 0, retention_percent: 5, location: '', description: '', boq: [] });
+const props = defineProps({ managers: Array, warehouses: Array, suggestedCode: String, branches: Array, defaultBranchId: Number });
+const form = useForm({ customer_id: null, branch_id: props.defaultBranchId || props.branches?.[0]?.id || '', name: '', contract_number: '', manager_id: '', warehouse_id: '', start_date: '', end_date: '', contract_value: 0, advance_percent: 0, retention_percent: 5, location: '', description: '', boq: [] });
 const save = () => {
     form.clearErrors();
     if (!form.name) form.setError('name', 'أدخل اسم المشروع.');
@@ -25,6 +26,7 @@ const save = () => {
             <div class="grid md:grid-cols-4 gap-3">
                 <Field label="اسم المشروع" :error="form.errors.name" class="md:col-span-2"><input v-model="form.name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="العميل (المالك)" :error="form.errors.customer_id" class="md:col-span-2"><PartyPicker v-model="form.customer_id" /></Field>
+                <BranchSelect v-if="branches?.length > 1" v-model="form.branch_id" :branches="branches" :error="form.errors.branch_id" />
                 <Field label="رقم العقد"><input v-model="form.contract_number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="مدير المشروع"><select v-model="form.manager_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">—</option><option v-for="m in managers" :key="m.id" :value="m.id">{{ m.name }}</option></select></Field>
                 <Field label="مستودع الموقع"><select v-model="form.warehouse_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">الافتراضي</option><option v-for="w in warehouses" :key="w.id" :value="w.id">{{ w.name_ar }}</option></select></Field>

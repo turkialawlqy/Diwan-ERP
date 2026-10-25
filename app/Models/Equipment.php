@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
+use App\Traits\BranchScoped;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Equipment extends Model
 {
-    use Auditable, BelongsToCompany, SoftDeletes;
+    use Auditable, BelongsToCompany, BranchScoped, SoftDeletes;
 
     protected $table = 'equipment';
 

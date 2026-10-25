@@ -64,7 +64,7 @@ class ProjectService
             $costCenter = CostCenter::create(['parent_id' => $root->id, 'code' => $code, 'name_ar' => $data['name'], 'is_active' => true]);
 
             $project = Project::create([
-                'branch_id' => $data['branch_id'] ?? auth()->user()?->branch_id,
+                'branch_id' => $data['branch_id'] ?? auth()->user()?->defaultBranchId(),
                 'customer_id' => $data['customer_id'],
                 'cost_center_id' => $costCenter->id,
                 'manager_id' => $data['manager_id'] ?? null,

@@ -29,6 +29,7 @@ import {
     TagIcon,
 } from '@heroicons/vue/24/outline';
 import CustomerModal from '../Clients/CustomerModal.vue';
+import BranchSelect from '@/Components/BranchSelect.vue';
 
 const props = defineProps({
     customers: Array,
@@ -41,9 +42,15 @@ const props = defineProps({
     suggestedNumber: String,
     company: Object,
     defaultTaxRate: Number,
+    defaultBranchId: Number,
 });
 
 const today = new Date().toISOString().split('T')[0];
+
+// Tax rules of the chosen branch (its country): default rate of new lines and the totals label.
+const selectedBranchId = ref(props.defaultBranchId || props.branches?.[0]?.id || '');
+const branchTax = computed(() => props.branches?.find((b) => Number(b.id) === Number(selectedBranchId.value))?.tax);
+const lineRate = () => Number(branchTax.value?.rate ?? props.defaultTaxRate ?? taxRate());
 
 // Local state for dynamic lookup lists
 const customersList = ref([...(props.customers || [])]);
@@ -57,7 +64,7 @@ const unitsList = ref([...(props.units || [])]);
 // Main Invoice Form
 const form = useForm({
     customer_id: customersList.value[0]?.id || '',
-    branch_id: props.branches?.[0]?.id || '',
+    branch_id: selectedBranchId.value,
     invoice_number: props.suggestedNumber || 'INV-26-1-000001',
     reference_number: '',
     invoice_date: today,
@@ -79,10 +86,20 @@ const form = useForm({
             quantity: 1,
             unit_price: 1000,
             discount: 0,
-            tax_rate: props.defaultTaxRate ?? taxRate(),
+            tax_rate: lineRate(),
             isDropdownOpen: false,
         }
     ]
+});
+
+// A new branch moves lines still on the old standard rate to the new one (reduced or zero rates stay).
+watch(() => form.branch_id, (id) => {
+    const oldRate = lineRate();
+    selectedBranchId.value = id;
+    const newRate = lineRate();
+    form.items.forEach((item) => {
+        if (Number(item.tax_rate) === oldRate) item.tax_rate = newRate;
+    });
 });
 
 // Toast notification
@@ -221,7 +238,7 @@ const selectProductForItem = (item, product) => {
     item.item_name = product.name_ar;
     item.description = product.description || '';
     item.unit_price = Number(product.selling_price) || 0;
-    item.tax_rate = Number(product.tax_rate ?? props.defaultTaxRate ?? taxRate());
+    item.tax_rate = Number(product.tax_rate ?? lineRate());
     item.isDropdownOpen = false;
 };
 
@@ -234,7 +251,7 @@ const newProductForm = ref({
     unit_id: '',
     selling_price: 0,
     purchase_price: 0,
-    tax_rate: props.defaultTaxRate ?? taxRate(),
+    tax_rate: lineRate(),
     sku: '',
     barcode: '',
     min_stock_alert: 5,
@@ -259,7 +276,7 @@ const openNewProductModal = (rowIdx, initialName = '') => {
         unit_id: unitsList.value[0]?.id || '',
         selling_price: 0,
         purchase_price: 0,
-        tax_rate: props.defaultTaxRate ?? taxRate(),
+        tax_rate: lineRate(),
         sku: suggestedSku,
         barcode: '',
         min_stock_alert: 5,
@@ -359,7 +376,7 @@ const addItem = () => {
         quantity: 1,
         unit_price: 0,
         discount: 0,
-        tax_rate: props.defaultTaxRate ?? taxRate(),
+        tax_rate: lineRate(),
         isDropdownOpen: false,
     });
 };
@@ -561,6 +578,10 @@ const importLines = (lines, replace) => {
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <div v-if="branches?.length > 1" class="sm:col-span-2">
+                                <BranchSelect v-model="form.branch_id" :branches="branches" :error="form.errors.branch_id" />
                             </div>
 
                             <!-- Invoice Number -->
@@ -930,7 +951,7 @@ const importLines = (lines, replace) => {
                             <div class="flex items-center justify-between text-slate-600">
                                 <div class="flex items-center gap-1">
                                     <span>ضريبة القيمة المضافة</span>
-                                    <span class="px-1.5 py-0.5 rounded text-3xs font-bold bg-indigo-50 text-indigo-700">{{ $taxRate() }}%</span>
+                                    <span class="px-1.5 py-0.5 rounded text-3xs font-bold bg-indigo-50 text-indigo-700">{{ lineRate() }}%</span>
                                 </div>
                                 <span class="font-bold text-slate-800 font-mono">{{ formatCurrency(totalTax) }} ﷼</span>
                             </div>

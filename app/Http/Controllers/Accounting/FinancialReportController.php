@@ -83,7 +83,8 @@ class FinancialReportController extends Controller
 
         return Inertia::render('Accounting/Reports/VatReturn', [
             'report' => $this->reports->vatReturn($from, $to),
-            'byBranch' => $this->reports->taxByBranch($from, $to),
+            // A user limited to some branches sees those branches' rows only.
+            'byBranch' => array_values(array_filter($this->reports->taxByBranch($from, $to), fn ($row) => auth()->user()?->canUseBranch($row['branch_id']) ?? true)),
             'filters' => ['start_date' => $from->toDateString(), 'end_date' => $to->toDateString()],
         ]);
     }

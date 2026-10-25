@@ -12,9 +12,11 @@ use App\Models\ProjectVariation;
 use App\Models\Subcontract;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Rules\AllowedBranch;
 use App\Services\Projects\ProjectReport;
 use App\Services\Projects\ProjectService;
 use App\Services\TenantManager;
+use App\Support\BranchOptions;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -50,7 +52,7 @@ class ProjectController extends Controller
             'contract_number' => 'nullable|string|max:100',
             'manager_id' => 'nullable|tenant_exists:users,id',
             'warehouse_id' => 'nullable|tenant_exists:warehouses,id',
-            'branch_id' => 'nullable|tenant_exists:branches,id',
+            'branch_id' => ['nullable', 'tenant_exists:branches,id', new AllowedBranch],
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'contract_value' => 'nullable|numeric|min:0',
@@ -210,6 +212,7 @@ class ProjectController extends Controller
         return [
             'managers' => User::where('company_id', app(TenantManager::class)->getTenantId())->where('status', 'active')->orderBy('name')->get(['id', 'name']),
             'warehouses' => Warehouse::where('is_active', true)->get(['id', 'name_ar']),
+            ...BranchOptions::forUser(),
         ];
     }
 }

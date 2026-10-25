@@ -53,7 +53,7 @@ class InvoiceService
 
         return DB::transaction(function () use ($data, $lines, $options, $company) {
             // The branch's country decides the tax (rates, title, e-invoicing) and the default currency.
-            $branchId = $data['branch_id'] ?? auth()->user()?->branch_id ?? Branch::orderByDesc('is_main')->orderBy('id')->value('id');
+            $branchId = $data['branch_id'] ?? auth()->user()?->defaultBranchId() ?? Branch::orderByDesc('is_main')->orderBy('id')->value('id');
             $profile = TaxProfile::forBranch($branchId ? (int) $branchId : null, $company);
             [$items, $subtotal, $taxAmount] = $this->computeLines($lines, $profile, $data['invoice_date'] ?? null);
             $total = round($subtotal + $taxAmount, 2);

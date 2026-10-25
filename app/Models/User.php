@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
@@ -79,6 +80,77 @@ class User extends Authenticatable implements MustVerifyEmail
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /**
+     * Branches the user may work in. users.branch_id is the default among them.
+     */
+    public function branches(): BelongsToMany
+    {
+        return $this->belongsToMany(Branch::class);
+    }
+
+    /** @var array<int>|false|null memoised branch rows of a restricted user (false: not loaded yet) */
+    protected array|false|null $allowedBranchIdsCache = false;
+
+    /**
+     * Works in every branch: the company owner, the platform admin and holders
+     * of "admin.data_scope.manage".
+     */
+    public function hasAllBranches(): bool
+    {
+        return $this->isCompanyOwner() || $this->isSuperAdmin() || $this->can('admin.data_scope.manage');
+    }
+
+    /**
+     * Branch ids the user may create in and see, or null for all branches.
+     *
+     * @return array<int>|null
+     */
+    public function allowedBranchIds(): ?array
+    {
+        if ($this->hasAllBranches()) {
+            return null;
+        }
+        if ($this->allowedBranchIdsCache === false) {
+            $ids = $this->branches()->withoutGlobalScopes()->pluck('branches.id')->map(fn ($id) => (int) $id)->all();
+            // No branches assigned yet: their default branch, else the company's main branch
+            // (a company without branches has nothing to restrict).
+            if ($ids === []) {
+                $fallback = $this->branch_id ?: Branch::withoutGlobalScopes()->where('company_id', $this->company_id)->orderByDesc('is_main')->orderBy('id')->value('id');
+                $ids = $fallback ? [(int) $fallback] : null;
+            }
+            $this->allowedBranchIdsCache = $ids;
+        }
+
+        return $this->allowedBranchIdsCache;
+    }
+
+    public function canUseBranch(?int $branchId): bool
+    {
+        $allowed = $this->allowedBranchIds();
+
+        return $allowed === null || ($branchId !== null && in_array($branchId, $allowed, true));
+    }
+
+    /**
+     * Branch pre-selected on new documents: the user's default when allowed,
+     * else their first allowed branch (null for an all-branches user without a default).
+     */
+    public function defaultBranchId(): ?int
+    {
+        $allowed = $this->allowedBranchIds();
+        if ($this->branch_id && $this->canUseBranch((int) $this->branch_id)) {
+            return (int) $this->branch_id;
+        }
+
+        // All branches and no default: null, so callers fall back to the main branch.
+        return $allowed[0] ?? null;
+    }
+
+    public function forgetAllowedBranches(): void
+    {
+        $this->allowedBranchIdsCache = false;
     }
 
     public function hasTwoFactorEnabled(): bool

@@ -8,6 +8,7 @@ use App\Models\Equipment;
 use App\Models\EquipmentMaintenanceSchedule;
 use App\Models\FixedAsset;
 use App\Models\Warehouse;
+use App\Rules\AllowedBranch;
 use App\Services\Equipment\EquipmentReports;
 use App\Services\Equipment\MaintenanceService;
 use App\Services\Equipment\MaintenanceTracker;
@@ -158,7 +159,7 @@ class EquipmentController extends Controller
             'monthly_rate' => 'nullable|numeric|min:0',
             'internal_hourly_cost' => 'nullable|numeric|min:0',
             'cost_center_id' => 'nullable|tenant_exists:cost_centers,id',
-            'branch_id' => 'nullable|tenant_exists:branches,id',
+            'branch_id' => ['nullable', 'tenant_exists:branches,id', new AllowedBranch],
             'notes' => 'nullable|string|max:2000',
         ], [
             'code.unique' => 'رمز المعدة مستخدم لمعدة أخرى.',

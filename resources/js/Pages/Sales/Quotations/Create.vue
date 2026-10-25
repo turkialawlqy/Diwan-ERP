@@ -1,7 +1,7 @@
 <script setup>
 import { taxRate, taxLabel } from '@/utils/tax';
 import ImportLines from '@/Components/Documents/ImportLines.vue';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import {
@@ -13,6 +13,7 @@ import {
     CheckIcon,
     UserPlusIcon,
 } from '@heroicons/vue/24/outline';
+import BranchSelect from '@/Components/BranchSelect.vue';
 
 const props = defineProps({
     customers: Array,
@@ -21,14 +22,21 @@ const props = defineProps({
     suggestedNumber: String,
     company: Object,
     defaultTaxRate: Number,
+    defaultBranchId: Number,
 });
 
 const today = new Date().toISOString().split('T')[0];
 const defaultValidUntil = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+
+// Tax rules of the chosen branch (its country): default rate of new lines.
+const selectedBranchId = ref(props.defaultBranchId || props.branches?.[0]?.id || '');
+const branchTax = computed(() => props.branches?.find((b) => Number(b.id) === Number(selectedBranchId.value))?.tax);
+const lineRate = () => Number(branchTax.value?.rate ?? lineRate());
+
 const form = useForm({
     customer_id: props.customers?.[0]?.id || '',
-    branch_id: props.branches?.[0]?.id || '',
+    branch_id: selectedBranchId.value,
     quotation_number: props.suggestedNumber || 'QUO-26-1-000001',
     quotation_date: today,
     valid_until: defaultValidUntil,
@@ -42,9 +50,19 @@ const form = useForm({
             quantity: 1,
             unit_price: 0,
             discount: 0,
-            tax_rate: props.defaultTaxRate ?? taxRate(),
+            tax_rate: lineRate(),
         }
     ]
+});
+
+// A new branch moves lines still on the old standard rate to the new one (reduced or zero rates stay).
+watch(() => form.branch_id, (id) => {
+    const oldRate = lineRate();
+    selectedBranchId.value = id;
+    const newRate = lineRate();
+    form.items.forEach((item) => {
+        if (Number(item.tax_rate) === oldRate) item.tax_rate = newRate;
+    });
 });
 
 // Auto-fill item from product selection
@@ -58,7 +76,7 @@ const onProductSelect = (index, event) => {
         item.product_id = prod.id;
         item.item_name = prod.name_ar || prod.name_en || '';
         item.unit_price = Number(prod.selling_price) || 0;
-        item.tax_rate = Number(prod.tax_rate ?? props.defaultTaxRate ?? taxRate());
+        item.tax_rate = Number(prod.tax_rate ?? lineRate());
     }
 };
 
@@ -105,7 +123,7 @@ const addItem = () => {
         quantity: 1,
         unit_price: 0,
         discount: 0,
-        tax_rate: props.defaultTaxRate ?? taxRate(),
+        tax_rate: lineRate(),
     });
 };
 
@@ -224,18 +242,7 @@ const importLines = (lines, replace) => {
                             </p>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">الفرع</label>
-                            <select 
-                                v-model="form.branch_id"
-                                class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 py-2.5 bg-slate-50/50"
-                            >
-                                <option value="">الفرع الرئيسي</option>
-                                <option v-for="b in branches" :key="b.id" :value="b.id">
-                                    {{ b.name_ar || b.name_en }}
-                                </option>
-                            </select>
-                        </div>
+                        <BranchSelect v-if="branches?.length > 1" v-model="form.branch_id" :branches="branches" :error="form.errors.branch_id" />
                     </div>
 
                     <!-- Quotation Meta Info Card -->

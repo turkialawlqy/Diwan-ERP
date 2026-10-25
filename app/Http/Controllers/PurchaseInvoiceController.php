@@ -13,12 +13,14 @@ use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Models\Unit;
 use App\Models\Warehouse;
+use App\Rules\AllowedBranch;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Purchases\PurchaseCycleService;
 use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
+use App\Support\BranchOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -103,7 +105,7 @@ class PurchaseInvoiceController extends Controller
 
         $branches = Branch::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
 
-        $warehouses = Warehouse::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
+        $warehouses = Warehouse::where('is_active', true)->get(['id', 'name_ar', 'name_en', 'branch_id']);
         if ($warehouses->isEmpty() && $company) {
             Warehouse::firstOrCreate(
                 ['company_id' => $company->id, 'code' => 'WH-01'],
@@ -115,7 +117,7 @@ class PurchaseInvoiceController extends Controller
                     'is_active' => true,
                 ]
             );
-            $warehouses = Warehouse::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
+            $warehouses = Warehouse::where('is_active', true)->get(['id', 'name_ar', 'name_en', 'branch_id']);
         }
 
         // First slice only; the form searches the rest via /lookup/*.
@@ -132,7 +134,7 @@ class PurchaseInvoiceController extends Controller
         return Inertia::render('Purchases/Invoices/Create', [
             'suppliers' => $suppliers,
             'warehouses' => $warehouses,
-            'branches' => $branches,
+            ...BranchOptions::forUser(),
             'products' => $products,
             'categories' => $categories,
             'units' => $units,
@@ -149,7 +151,7 @@ class PurchaseInvoiceController extends Controller
         $validated = $request->validate([
             'supplier_id' => 'required|tenant_exists:suppliers,id',
             'warehouse_id' => 'required|tenant_exists:warehouses,id',
-            'branch_id' => 'nullable|tenant_exists:branches,id',
+            'branch_id' => ['nullable', 'tenant_exists:branches,id', new AllowedBranch],
             'invoice_number' => 'nullable|string|max:50', // ignored: assigned by the system
             'supplier_invoice_number' => 'nullable|string|max:50',
             'invoice_date' => 'required|date',

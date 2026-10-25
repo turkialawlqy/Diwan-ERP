@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PermissionMatrix from '@/Components/PermissionMatrix.vue';
@@ -51,6 +51,7 @@ const form = useForm({
     password: '',
     phone: '',
     branch_id: '',
+    branch_ids: [],
     role: 'sales',
     status: 'active',
 });
@@ -59,6 +60,7 @@ const openAddModal = () => {
     editingUser.value = null;
     form.reset();
     form.branch_id = props.branches?.[0]?.id || '';
+    form.branch_ids = form.branch_id ? [form.branch_id] : [];
     form.role = props.roles?.[0]?.name || 'sales';
     form.status = 'active';
     isModalOpen.value = true;
@@ -71,10 +73,19 @@ const openEditModal = (u) => {
     form.password = '';
     form.phone = u.phone || '';
     form.branch_id = u.branch_id || '';
+    form.branch_ids = u.branches?.length ? u.branches.map((b) => b.id) : (u.branch_id ? [u.branch_id] : []);
     form.role = u.roles?.[0]?.name || 'sales';
     form.status = u.status || 'active';
     isModalOpen.value = true;
 };
+
+// The owner role works in every branch; other users work in the ticked ones.
+const isOwnerRole = computed(() => !!props.roles?.find((r) => r.name === form.role)?.is_owner);
+const allowedBranches = computed(() => (props.branches || []).filter((b) => form.branch_ids.includes(b.id)));
+watch(() => [...form.branch_ids], (ids) => {
+    if (!ids.includes(form.branch_id)) form.branch_id = ids[0] || '';
+});
+const userIsOwner = (u) => !!props.roles?.find((r) => r.name === u.roles?.[0]?.name)?.is_owner;
 
 const submitUser = () => {
     if (editingUser.value) {
@@ -208,11 +219,11 @@ const getRoleBadge = (roleName) => {
                                     {{ u.email }}
                                 </td>
                                 <td class="py-4 px-6 text-slate-600">
-                                    <span v-if="u.branch" class="inline-flex items-center gap-1 font-semibold">
-                                        <BuildingOfficeIcon class="w-3.5 h-3.5 text-slate-400" />
-                                        <span>{{ u.branch.name_ar }}</span>
+                                    <span v-if="userIsOwner(u) || !(u.branches?.length || u.branch)" class="text-slate-400">كل الفروع</span>
+                                    <span v-else class="inline-flex items-start gap-1 font-semibold">
+                                        <BuildingOfficeIcon class="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                                        <span>{{ (u.branches?.length ? u.branches : [u.branch]).map((b) => b.name_ar).join('، ') }}</span>
                                     </span>
-                                    <span v-else class="text-slate-400">كافة الفروع</span>
                                 </td>
                                 <td class="py-4 px-6 text-center">
                                     <span 
@@ -400,17 +411,31 @@ const getRoleBadge = (roleName) => {
                                 <option v-for="r in roles" :key="r.id" :value="r.name">{{ r.label }}</option>
                             </select>
                         </div>
+                    </div>
 
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">الفرع المخصص</label>
-                            <select 
-                                v-model="form.branch_id"
-                                class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600"
-                            >
-                                <option value="">-- كافة الفروع --</option>
-                                <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name_ar }}</option>
-                            </select>
-                        </div>
+                    <!-- Branches the user works in -->
+                    <div class="rounded-xl border border-slate-200 p-3 space-y-3">
+                        <p v-if="isOwnerRole" class="text-xs text-slate-600">مدير المنشأة يعمل على <b>كل الفروع</b> ويرى مستنداتها جميعاً.</p>
+                        <template v-else>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">الفروع المسموح بها *</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <label v-for="b in branches" :key="b.id" class="flex items-center gap-2 text-xs rounded-lg border border-slate-100 px-2 py-1.5 cursor-pointer hover:bg-slate-50">
+                                        <input type="checkbox" :value="b.id" v-model="form.branch_ids" class="rounded border-slate-300 text-indigo-600" data-branch-option />
+                                        <span>{{ b.name_ar }}</span>
+                                    </label>
+                                </div>
+                                <p class="text-[11px] text-slate-500 mt-1">ينشئ المستندات ويرى مستندات وتقارير هذه الفروع فقط. لرؤية كل الفروع امنحه صلاحية «الوصول لكل الفروع».</p>
+                                <p v-if="form.errors.branch_ids" class="text-[11px] text-rose-600 mt-1">{{ form.errors.branch_ids }}</p>
+                            </div>
+                            <div v-if="allowedBranches.length > 1">
+                                <label class="block text-xs font-bold text-slate-700 mb-1">الفرع الافتراضي للمستندات الجديدة</label>
+                                <select v-model="form.branch_id" class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600">
+                                    <option v-for="b in allowedBranches" :key="b.id" :value="b.id">{{ b.name_ar }}</option>
+                                </select>
+                            </div>
+                            <p v-if="form.errors.branch_id" class="text-[11px] text-rose-600">{{ form.errors.branch_id }}</p>
+                        </template>
                     </div>
 
                     <div>

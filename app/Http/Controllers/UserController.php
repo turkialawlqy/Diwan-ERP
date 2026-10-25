@@ -30,7 +30,7 @@ class UserController extends Controller
     {
         $companyId = $this->tenantManager->getTenantId();
 
-        $users = User::with(['branch', 'roles:id,name'])
+        $users = User::with(['branch', 'branches:id,name_ar', 'roles:id,name'])
             ->where('company_id', $companyId)
             ->where('is_super_admin', false)
             ->when($request->query('search'), function ($q, $search) {
@@ -82,12 +82,15 @@ class UserController extends Controller
             'password' => ['required', 'string', Password::defaults()],
             'phone' => 'nullable|string|max:20',
             'branch_id' => 'nullable|tenant_exists:branches,id',
+            'branch_ids' => 'nullable|array',
+            'branch_ids.*' => 'integer|tenant_exists:branches,id',
             'role' => ['required', 'string', $this->companyRoleRule()],
             'status' => 'required|string|in:active,inactive',
         ]);
 
         $this->assertMayAssignRole($request, $validated['role']);
         $this->enforceUserLimit();
+        $validated = $this->resolveBranches($validated);
 
         $user = DB::transaction(function () use ($validated, $companyId) {
             $user = (new User)->forceFill([
@@ -105,6 +108,7 @@ class UserController extends Controller
             $user->save();
 
             $user->assignRole($validated['role']);
+            $user->branches()->sync($validated['branch_ids']);
 
             return $user;
         });
@@ -126,12 +130,15 @@ class UserController extends Controller
             'password' => ['nullable', 'string', Password::defaults()],
             'phone' => 'nullable|string|max:20',
             'branch_id' => 'nullable|tenant_exists:branches,id',
+            'branch_ids' => 'nullable|array',
+            'branch_ids.*' => 'integer|tenant_exists:branches,id',
             'role' => ['required', 'string', $this->companyRoleRule()],
             'status' => 'required|string|in:active,inactive',
         ]);
 
         $this->assertMayManageUser($request, $user);
         $this->assertMayAssignRole($request, $validated['role']);
+        $validated = $this->resolveBranches($validated);
 
         $owner = $this->registry->ownerRole();
         $losingOwnership = $user->hasRole($owner)
@@ -159,6 +166,8 @@ class UserController extends Controller
             }
 
             $user->syncRoles([$validated['role']]);
+            $user->branches()->sync($validated['branch_ids']);
+            $user->forgetAllowedBranches();
 
             // A new password or a deactivation ends the user's other sessions and API tokens.
             if (! empty($validated['password']) || $validated['status'] !== 'active') {
@@ -341,5 +350,34 @@ class UserController extends Controller
     protected function flushCache(): void
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    /**
+     * Branches the user may work in, and their default among them. The owner
+     * works in every branch (no rows). Others need at least one: the ticked
+     * ones, else their default, else the main branch.
+     */
+    protected function resolveBranches(array $validated): array
+    {
+        if ($validated['role'] === $this->registry->ownerRole()) {
+            $validated['branch_ids'] = [];
+
+            return $validated;
+        }
+
+        $ids = array_values(array_unique(array_map('intval', $validated['branch_ids'] ?? [])));
+        $default = ! empty($validated['branch_id']) ? (int) $validated['branch_id'] : null;
+        if ($ids === []) {
+            $default ??= Branch::orderByDesc('is_main')->orderBy('id')->value('id');
+            $ids = $default ? [$default] : [];
+        }
+        if ($default !== null && ! in_array($default, $ids, true)) {
+            throw ValidationException::withMessages(['branch_id' => 'الفرع الافتراضي يجب أن يكون من الفروع المسموح بها للمستخدم.']);
+        }
+
+        $validated['branch_ids'] = $ids;
+        $validated['branch_id'] = $default ?? ($ids[0] ?? null);
+
+        return $validated;
     }
 }

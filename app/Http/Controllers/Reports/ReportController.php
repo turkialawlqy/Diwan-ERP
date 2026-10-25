@@ -46,6 +46,18 @@ class ReportController extends Controller
             'gross_profit' => $income['gross_profit'],
         ];
 
+        // A user limited to some branches sees their branches' invoices, not the company-wide ledger.
+        if (($allowed = $request->user()?->allowedBranchIds()) !== null) {
+            $invoices = Invoice::whereIn('branch_id', $allowed)->whereBetween('invoice_date', [$filters['start_date'], $filters['end_date'].' 23:59:59']);
+            $stats = [
+                'total_sales' => (clone $invoices)->sumBase('subtotal'),
+                'total_tax' => (clone $invoices)->sumBase('tax_amount'),
+                'invoices_count' => (clone $invoices)->count(),
+                'total_payments_received' => (clone $invoices)->sumBase('paid_amount'),
+                'gross_profit' => null,
+            ];
+        }
+
         return Inertia::render('Reports/Sales', [
             'stats' => $stats,
             'filters' => $filters,

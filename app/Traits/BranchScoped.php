@@ -2,46 +2,62 @@
 
 namespace App\Traits;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\ValidationException;
 
 /**
- * Branch data scope: a user tied to a branch only sees documents of that
- * branch (and documents without a branch), unless they hold
- * "admin.data_scope.manage". Jobs and console commands are not restricted.
+ * Branch data scope: a user restricted to some branches only sees documents
+ * of those branches (and documents without a branch), and cannot file one in
+ * another branch. The owner and holders of "admin.data_scope.manage" see all.
+ * Jobs and console commands are not restricted.
  */
 trait BranchScoped
 {
     public static function bootBranchScoped(): void
     {
         static::addGlobalScope('branch', function (Builder $builder) {
-            $branchId = static::restrictedBranchId();
-            if ($branchId === null) {
+            $branchIds = static::restrictedBranchIds();
+            if ($branchIds === null) {
                 return;
             }
 
             $column = $builder->getModel()->qualifyColumn('branch_id');
-            $builder->where(fn ($q) => $q->where($column, $branchId)->orWhereNull($column));
+            $builder->where(fn ($q) => $q->whereIn($column, $branchIds)->orWhereNull($column));
         });
 
         static::creating(function ($model) {
-            if (empty($model->branch_id) && ($branchId = static::restrictedBranchId()) !== null) {
-                $model->branch_id = $branchId;
+            $user = static::scopedUser();
+            if (! $user) {
+                return;
+            }
+            if (empty($model->branch_id)) {
+                $model->branch_id = $user->defaultBranchId();
+            }
+            if (! $user->canUseBranch($model->branch_id ? (int) $model->branch_id : null)) {
+                throw ValidationException::withMessages(['branch_id' => 'لا تملك صلاحية العمل على هذا الفرع.']);
             }
         });
     }
 
-    protected static function restrictedBranchId(): ?int
+    /**
+     * The signed-in user whose branches apply, or null outside a user request.
+     */
+    protected static function scopedUser(): ?User
     {
         if (app()->runningInConsole() && ! app()->runningUnitTests()) {
             return null;
         }
-
         $user = auth()->user();
-        if (! $user || ! $user->branch_id || $user->isCompanyOwner() || $user->isSuperAdmin()) {
-            return null;
-        }
 
-        // Spatie caches the user's permissions in memory, so this stays cheap.
-        return $user->can('admin.data_scope.manage') ? null : (int) $user->branch_id;
+        return $user instanceof User && $user->company_id ? $user : null;
+    }
+
+    /**
+     * @return array<int>|null null: no restriction
+     */
+    protected static function restrictedBranchIds(): ?array
+    {
+        return static::scopedUser()?->allowedBranchIds();
     }
 }

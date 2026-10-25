@@ -56,6 +56,9 @@ class HandleInertiaRequests extends Middleware
                     'permissions' => $currentTenant ? $user->getAllPermissions()->pluck('name')->values() : [],
                     'company_id' => $user->company_id,
                     'branch_id' => $user->branch_id,
+                    // Branches the user works in (null: all) and the one new documents start on.
+                    'branch_ids' => $currentTenant && $user->company_id ? $user->allowedBranchIds() : null,
+                    'default_branch_id' => $currentTenant && $user->company_id ? $user->defaultBranchId() : null,
                 ] : null,
             ],
             'tenant' => $currentTenant ? [

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\RecurringInvoice;
+use App\Rules\AllowedBranch;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\Sales\RecurringInvoiceRunner;
 use Illuminate\Http\Request;
@@ -90,7 +91,7 @@ class RecurringInvoiceController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'customer_id' => 'required|tenant_exists:customers,id',
-            'branch_id' => 'nullable|tenant_exists:branches,id',
+            'branch_id' => ['nullable', 'tenant_exists:branches,id', new AllowedBranch],
             'frequency' => 'required|in:monthly,quarterly,yearly',
             'interval' => 'nullable|integer|min:1|max:12',
             'start_date' => 'required|date',

@@ -86,7 +86,8 @@ const formatCurrency = (val) => {
                     <div class="space-y-1">
                         <span class="text-3xs font-bold text-slate-400">تقدير مجمل الأرباح</span>
                         <h3 class="text-lg font-black font-mono text-emerald-600">
-                            {{ formatCurrency(stats?.gross_profit) }} <span class="text-xs font-normal">﷼</span>
+                            <template v-if="stats?.gross_profit === null">—</template>
+                            <template v-else>{{ formatCurrency(stats?.gross_profit) }} <span class="text-xs font-normal">﷼</span></template>
                         </h3>
                     </div>
                     <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">

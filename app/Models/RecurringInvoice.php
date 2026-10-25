@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\Tax\TaxProfile;
 use App\Traits\BelongsToCompany;
+use App\Traits\BranchScoped;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class RecurringInvoice extends Model
 {
-    use BelongsToCompany;
+    use BelongsToCompany, BranchScoped;
 
     protected $fillable = ['company_id', 'customer_id', 'branch_id', 'name', 'lines', 'frequency', 'interval', 'start_date', 'end_date', 'max_count', 'generated_count',
         'next_run_date', 'currency_code', 'due_days', 'invoice_type', 'auto_send', 'send_to', 'notes', 'status', 'last_error', 'created_by'];

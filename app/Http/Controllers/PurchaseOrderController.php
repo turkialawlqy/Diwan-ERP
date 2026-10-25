@@ -7,11 +7,13 @@ use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\Warehouse;
+use App\Rules\AllowedBranch;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Purchases\PurchaseCycleService;
 use App\Services\TenantManager;
 use App\Services\Workflow\ApprovalService;
+use App\Support\BranchOptions;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -167,6 +169,7 @@ class PurchaseOrderController extends Controller
             'order' => null,
             'warehouses' => Warehouse::where('is_active', true)->get(['id', 'name_ar']),
             'suggestedNumber' => $this->peekNumber('purchase_order'),
+            ...BranchOptions::forUser(),
         ]);
     }
 
@@ -201,6 +204,7 @@ class PurchaseOrderController extends Controller
             'order' => $order->load(['items', 'supplier:id,name']),
             'warehouses' => Warehouse::where('is_active', true)->get(['id', 'name_ar']),
             'suggestedNumber' => $order->order_number,
+            ...BranchOptions::forUser(),
         ]);
     }
 
@@ -244,6 +248,7 @@ class PurchaseOrderController extends Controller
     {
         $validated = $request->validate([
             'supplier_id' => 'required|tenant_exists:suppliers,id',
+            'branch_id' => ['nullable', 'tenant_exists:branches,id', new AllowedBranch],
             'warehouse_id' => 'nullable|tenant_exists:warehouses,id',
             'order_date' => 'required|date',
             'expected_delivery_date' => 'nullable|date',
