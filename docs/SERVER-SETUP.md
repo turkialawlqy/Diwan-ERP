@@ -149,16 +149,16 @@ nslookup test.vatrix.app
 ## 6. الدخول إلى الخادم ونقل سكربت التثبيت
 
 ### أ. حدّث نسختك المحلية من المشروع
-على جهازك، في مجلد المشروع (مثل `C:\MAMP\htdocs\alostaz`):
+على جهازك، في مجلد المشروع (مثل `C:\MAMP\htdocs\diwan`):
 ```powershell
-cd C:\MAMP\htdocs\alostaz
+cd C:\MAMP\htdocs\diwan
 git pull
 ```
 تأكد أن الملف موجود: `deploy\ubuntu\install.sh`.
 
 ### ب. انقل السكربت إلى الخادم
 ```powershell
-scp "C:\MAMP\htdocs\alostaz\deploy\ubuntu\install.sh" root@IP-الخادم:/root/
+scp "C:\MAMP\htdocs\diwan\deploy\ubuntu\install.sh" root@IP-الخادم:/root/
 ```
 
 > **بديل إن لم ينجح `scp`:** افتح الملف على GitHub (الفرع المستخدم ← `deploy/ubuntu/install.sh` ← **Raw**) وانسخ محتواه. ثم على الخادم نفّذ `nano /root/install.sh`، والصق بالزر الأيمن، واحفظ بـ `Ctrl+O` ثم `Enter`، واخرج بـ `Ctrl+X`.
@@ -328,8 +328,8 @@ cd /var/www/diwan && sudo -u www-data php artisan erp:preflight
 
 ### تسجيل منشأة
 1. افتح `https://vatrix.app/register`.
-2. أدخل اسم المنشأة، والنطاق الفرعي (مثل `alostaz`)، والدولة، والعملة، وبيانات المدير.
-3. تعمل المنشأة على `https://alostaz.vatrix.app`.
+2. أدخل اسم المنشأة، والنطاق الفرعي (مثل `diwan`)، والدولة، والعملة، وبيانات المدير.
+3. تعمل المنشأة على `https://diwan.vatrix.app`.
 
 ### إعدادات المنشأة الأولى (داخلها)
 1. **الإعدادات العامة:** الشعار، والرقم الضريبي، والسجل التجاري.
