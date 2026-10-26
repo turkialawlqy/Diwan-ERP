@@ -1,6 +1,8 @@
 <script setup>
+import { taxRate } from '@/utils/tax';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
+import VatFields from '@/Components/Products/VatFields.vue';
 import {
     HomeIcon,
     ChevronRightIcon,
@@ -13,6 +15,8 @@ const props = defineProps({
     units: Array,
     warehouses: Array,
     suggestedSku: String,
+    vatCategories: Object,
+    exemptionReasons: Object,
 });
 
 const form = useForm({
@@ -24,7 +28,9 @@ const form = useForm({
     barcode: '',
     purchase_price: 0,
     selling_price: 0,
-    tax_rate: 15.00,
+    tax_rate: taxRate(),
+    vat_category: 'S',
+    vat_exemption_code: '',
     min_stock_alert: 5,
     track_inventory: true,
     type: 'product',
@@ -230,6 +236,8 @@ const submit = () => {
                             </select>
                         </div>
                     </div>
+
+                    <VatFields v-model:category="form.vat_category" v-model:code="form.vat_exemption_code" v-model:tax-rate="form.tax_rate" :categories="vatCategories" :reasons="exemptionReasons" :errors="form.errors" />
 
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">الوصف أو الملاحظات</label>

@@ -385,10 +385,10 @@ const getStatusBadge = (status) => {
 
                             <!-- Building Number & Street Name -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">رقم المبنى و اسم الشارع</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">رقم المبنى - اسم الشارع</label>
                                 <input
                                     readonly
-                                    :value="customer.building_number || customer.street_name || customer.address || '-'"
+                                    :value="[customer.building_number, customer.street_name].filter(Boolean).join(' - ') || customer.address || '-'"
                                     type="text"
                                     class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 text-slate-700"
                                 />
@@ -396,7 +396,7 @@ const getStatusBadge = (status) => {
 
                             <!-- Additional Details -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">تفاصيل إضافية</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">الرقم الإضافي</label>
                                 <input
                                     readonly
                                     :value="customer.additional_details || '-'"
@@ -468,6 +468,7 @@ const getStatusBadge = (status) => {
                     <div class="flex items-center justify-between">
                         <h3 class="text-sm font-bold text-slate-800">فواتير العميل</h3>
                         <Link
+                            v-if="$canRoute('sales.invoices.create')"
                             :href="route('sales.invoices.create')"
                             class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors"
                         >

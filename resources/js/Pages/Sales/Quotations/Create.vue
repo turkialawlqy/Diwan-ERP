@@ -1,5 +1,7 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { taxRate, taxLabel } from '@/utils/tax';
+import ImportLines from '@/Components/Documents/ImportLines.vue';
+import { ref, computed, watch } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import {
@@ -11,6 +13,7 @@ import {
     CheckIcon,
     UserPlusIcon,
 } from '@heroicons/vue/24/outline';
+import BranchSelect from '@/Components/BranchSelect.vue';
 
 const props = defineProps({
     customers: Array,
@@ -19,18 +22,25 @@ const props = defineProps({
     suggestedNumber: String,
     company: Object,
     defaultTaxRate: Number,
+    defaultBranchId: Number,
 });
 
 const today = new Date().toISOString().split('T')[0];
 const defaultValidUntil = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+
+// Tax rules of the chosen branch (its country): default rate of new lines.
+const selectedBranchId = ref(props.defaultBranchId || props.branches?.[0]?.id || '');
+const branchTax = computed(() => props.branches?.find((b) => Number(b.id) === Number(selectedBranchId.value))?.tax);
+const lineRate = () => Number(branchTax.value?.rate ?? lineRate());
+
 const form = useForm({
     customer_id: props.customers?.[0]?.id || '',
-    branch_id: props.branches?.[0]?.id || '',
+    branch_id: selectedBranchId.value,
     quotation_number: props.suggestedNumber || 'QUO-26-1-000001',
     quotation_date: today,
     valid_until: defaultValidUntil,
-    notes: 'عرض السعر ساري حتى التاريخ المحدد أعلاه. الأسعار تشمل أو تخضع لضريبة القيمة المضافة (15%).',
+    notes: taxRate() ? `عرض السعر ساري حتى التاريخ المحدد أعلاه. الأسعار تخضع لـ${taxLabel()}.` : 'عرض السعر ساري حتى التاريخ المحدد أعلاه.',
     terms: '1. الدفع عند قبول العرض وتأكيد الطلب.\n2. مدة التوريد والتنفيذ متفق عليها وفق طبيعة الأعمال.\n3. هذا العرض وثيقة تقديرية ولا يعتبر فاتورة ضريبية.',
     items: [
         {
@@ -40,9 +50,19 @@ const form = useForm({
             quantity: 1,
             unit_price: 0,
             discount: 0,
-            tax_rate: props.defaultTaxRate || 15.00,
+            tax_rate: lineRate(),
         }
     ]
+});
+
+// A new branch moves lines still on the old standard rate to the new one (reduced or zero rates stay).
+watch(() => form.branch_id, (id) => {
+    const oldRate = lineRate();
+    selectedBranchId.value = id;
+    const newRate = lineRate();
+    form.items.forEach((item) => {
+        if (Number(item.tax_rate) === oldRate) item.tax_rate = newRate;
+    });
 });
 
 // Auto-fill item from product selection
@@ -56,7 +76,7 @@ const onProductSelect = (index, event) => {
         item.product_id = prod.id;
         item.item_name = prod.name_ar || prod.name_en || '';
         item.unit_price = Number(prod.selling_price) || 0;
-        item.tax_rate = Number(prod.tax_rate) || props.defaultTaxRate || 15.00;
+        item.tax_rate = Number(prod.tax_rate ?? lineRate());
     }
 };
 
@@ -103,7 +123,7 @@ const addItem = () => {
         quantity: 1,
         unit_price: 0,
         discount: 0,
-        tax_rate: props.defaultTaxRate || 15.00,
+        tax_rate: lineRate(),
     });
 };
 
@@ -126,6 +146,12 @@ const selectedCustomer = computed(() => {
 
 const submit = () => {
     form.post(route('sales.quotations.store'));
+};
+
+// Lines read from a spreadsheet (bill of quantities): appended, or replacing the current ones.
+const importLines = (lines, replace) => {
+    const rows = lines.map((l) => ({ product_id: l.product_id || '', item_name: l.item_name, description: l.description || '', quantity: l.quantity, unit_price: l.unit_price, discount: l.discount, tax_rate: l.tax_rate }));
+    form.items = replace ? rows : [...form.items.filter((i) => i.item_name || i.product_id), ...rows];
 };
 </script>
 
@@ -180,6 +206,7 @@ const submit = () => {
                                 <span>بيانات العميل</span>
                             </h3>
                             <Link 
+                                v-if="$canRoute('sales.clients.create')"
                                 :href="route('sales.clients.create')" 
                                 target="_blank"
                                 class="text-2xs text-indigo-600 hover:text-indigo-700 font-bold"
@@ -215,18 +242,7 @@ const submit = () => {
                             </p>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">الفرع</label>
-                            <select 
-                                v-model="form.branch_id"
-                                class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 py-2.5 bg-slate-50/50"
-                            >
-                                <option value="">الفرع الرئيسي</option>
-                                <option v-for="b in branches" :key="b.id" :value="b.id">
-                                    {{ b.name_ar || b.name_en }}
-                                </option>
-                            </select>
-                        </div>
+                        <BranchSelect v-if="branches?.length > 1" v-model="form.branch_id" :branches="branches" :error="form.errors.branch_id" />
                     </div>
 
                     <!-- Quotation Meta Info Card -->
@@ -299,6 +315,8 @@ const submit = () => {
                 <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
                     <div class="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between">
                         <h3 class="text-sm font-black text-slate-800">الأصناف والخدمات المقدمة</h3>
+                        <div class="flex flex-wrap items-center gap-2">
+                        <ImportLines kind="sales" :customer-id="form.customer_id" @imported="importLines" />
                         <button 
                             type="button"
                             @click="addItem"
@@ -307,6 +325,7 @@ const submit = () => {
                             <PlusIcon class="w-3.5 h-3.5 stroke-2" />
                             <span>إضافة بند جديد</span>
                         </button>
+                        </div>
                     </div>
 
                     <div class="overflow-x-auto">
@@ -431,7 +450,7 @@ const submit = () => {
                                 <span class="font-mono font-bold">- {{ formatCurrency(totalDiscount) }} ﷼</span>
                             </div>
                             <div class="flex justify-between text-slate-600">
-                                <span>ضريبة القيمة المضافة (15%):</span>
+                                <span>{{ $taxLabel() }}:</span>
                                 <span class="font-mono font-bold">{{ formatCurrency(totalTax) }} ﷼</span>
                             </div>
                             <div class="flex justify-between text-base font-black text-slate-900 pt-2 border-t border-slate-200">

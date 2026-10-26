@@ -1,4 +1,7 @@
 <script setup>
+import CancelDocument from '@/Components/CancelDocument.vue';
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
+import CurrencyPicker from '@/Components/Documents/CurrencyPicker.vue';
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -32,6 +35,8 @@ const form = useForm({
     payment_method: 'bank_transfer',
     reference_number: '',
     notes: '',
+    currency_code: '',
+    exchange_rate: '',
 });
 
 const filteredInvoices = ref([]);
@@ -73,7 +78,7 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="سندات صرف الموردين - الأستاذ" />
+        <Head title="سندات صرف الموردين" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
@@ -137,6 +142,7 @@ const formatCurrency = (val) => {
                                 <th class="py-4 px-6">طريقة الصرف</th>
                                 <th class="py-4 px-6">رقم المرجع / التحويل</th>
                                 <th class="py-4 px-6 text-end">المبلغ المصروف</th>
+                                <th class="py-4 px-6"></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 text-slate-700">
@@ -171,9 +177,10 @@ const formatCurrency = (val) => {
                                 <td class="py-4 px-6 font-mono font-black text-slate-900 text-end">
                                     {{ formatCurrency(pay.amount) }} <span class="text-xs font-normal">﷼</span>
                                 </td>
+                                <td class="py-4 px-6"><div class="flex items-center gap-3"><ShareDocument v-if="$can('purchases.payments.print') && pay.status !== 'cancelled'" type="payment" :id="pay.id" compact /><CancelDocument v-if="$can('purchases.payments.cancel') || pay.status === 'cancelled'" :url="route('purchases.payments.cancel', pay.id)" label="سند الصرف" :status="pay.status" /></div></td>
                             </tr>
                             <tr v-if="!payments.data || payments.data.length === 0">
-                                <td colspan="7" class="py-12 text-center text-slate-400">
+                                <td colspan="8" class="py-12 text-center text-slate-400">
                                     لا توجد سندات صرف مسجلة.
                                 </td>
                             </tr>
@@ -241,7 +248,8 @@ const formatCurrency = (val) => {
                         <div>
                             <label class="block font-bold text-slate-700 mb-1">فاتورة الشراء (اختياري)</label>
                             <select 
-                                v-model="form.purchase_invoice_id" 
+                                v-model="form.purchase_invoice_id"
+                                @change="() => { const inv = filteredInvoices.find((i) => i.id === form.purchase_invoice_id); form.currency_code = inv?.currency_code || ''; form.exchange_rate = ''; }" 
                                 class="w-full rounded-xl border border-slate-200 px-3 py-2 font-medium"
                             >
                                 <option value="">سداد عام على رصيد الحساب</option>
@@ -250,6 +258,8 @@ const formatCurrency = (val) => {
                                 </option>
                             </select>
                         </div>
+
+                        <CurrencyPicker v-model:code="form.currency_code" v-model:rate="form.exchange_rate" :errors="form.errors" />
 
                         <div class="grid grid-cols-2 gap-3">
                             <div>

@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import PermissionMatrix from '@/Components/PermissionMatrix.vue';
 import {
     PlusIcon,
     ArrowPathIcon,
@@ -23,7 +24,23 @@ const props = defineProps({
     branches: Array,
     roles: Array,
     stats: Object,
+    matrix: Object,
 });
+
+// Extra (direct) permissions for a single user, on top of their role.
+const permissionsUser = ref(null);
+const permissionsForm = useForm({ permissions: [] });
+const openPermissions = (u) => {
+    permissionsUser.value = u;
+    permissionsForm.permissions = [...(u.direct_permissions ?? [])];
+    permissionsForm.clearErrors();
+};
+const savePermissions = () => {
+    permissionsForm.put(route('users.permissions', permissionsUser.value.id), {
+        preserveScroll: true,
+        onSuccess: () => { permissionsUser.value = null; },
+    });
+};
 
 const isModalOpen = ref(false);
 const editingUser = ref(null);
@@ -34,6 +51,7 @@ const form = useForm({
     password: '',
     phone: '',
     branch_id: '',
+    branch_ids: [],
     role: 'sales',
     status: 'active',
 });
@@ -42,6 +60,7 @@ const openAddModal = () => {
     editingUser.value = null;
     form.reset();
     form.branch_id = props.branches?.[0]?.id || '';
+    form.branch_ids = form.branch_id ? [form.branch_id] : [];
     form.role = props.roles?.[0]?.name || 'sales';
     form.status = 'active';
     isModalOpen.value = true;
@@ -54,10 +73,19 @@ const openEditModal = (u) => {
     form.password = '';
     form.phone = u.phone || '';
     form.branch_id = u.branch_id || '';
+    form.branch_ids = u.branches?.length ? u.branches.map((b) => b.id) : (u.branch_id ? [u.branch_id] : []);
     form.role = u.roles?.[0]?.name || 'sales';
     form.status = u.status || 'active';
     isModalOpen.value = true;
 };
+
+// The owner role works in every branch; other users work in the ticked ones.
+const isOwnerRole = computed(() => !!props.roles?.find((r) => r.name === form.role)?.is_owner);
+const allowedBranches = computed(() => (props.branches || []).filter((b) => form.branch_ids.includes(b.id)));
+watch(() => [...form.branch_ids], (ids) => {
+    if (!ids.includes(form.branch_id)) form.branch_id = ids[0] || '';
+});
+const userIsOwner = (u) => !!props.roles?.find((r) => r.name === u.roles?.[0]?.name)?.is_owner;
 
 const submitUser = () => {
     if (editingUser.value) {
@@ -84,6 +112,10 @@ const deleteUser = (id, name) => {
 };
 
 const getRoleBadge = (roleName) => {
+    const role = props.roles?.find((r) => r.name === roleName);
+    if (role?.is_owner) {
+        return { label: role.label, class: 'bg-rose-50 text-rose-700 border-rose-200' };
+    }
     const rolesMap = {
         admin: { label: 'مدير نظام', class: 'bg-rose-50 text-rose-700 border-rose-200' },
         accountant: { label: 'محاسب', class: 'bg-blue-50 text-blue-700 border-blue-200' },
@@ -91,13 +123,14 @@ const getRoleBadge = (roleName) => {
         cashier: { label: 'كاشير POS', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
         employee: { label: 'موظف', class: 'bg-slate-100 text-slate-700 border-slate-200' },
     };
-    return rolesMap[roleName] || { label: roleName, class: 'bg-slate-100 text-slate-700 border-slate-200' };
+    const style = rolesMap[roleName]?.class || 'bg-slate-100 text-slate-700 border-slate-200';
+    return { label: role?.label || rolesMap[roleName]?.label || roleName, class: style };
 };
 </script>
 
 <template>
     <AppLayout>
-        <Head title="إدارة المستخدمين - الأستاذ" />
+        <Head title="إدارة المستخدمين" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
@@ -186,11 +219,11 @@ const getRoleBadge = (roleName) => {
                                     {{ u.email }}
                                 </td>
                                 <td class="py-4 px-6 text-slate-600">
-                                    <span v-if="u.branch" class="inline-flex items-center gap-1 font-semibold">
-                                        <BuildingOfficeIcon class="w-3.5 h-3.5 text-slate-400" />
-                                        <span>{{ u.branch.name_ar }}</span>
+                                    <span v-if="userIsOwner(u) || !(u.branches?.length || u.branch)" class="text-slate-400">كل الفروع</span>
+                                    <span v-else class="inline-flex items-start gap-1 font-semibold">
+                                        <BuildingOfficeIcon class="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
+                                        <span>{{ (u.branches?.length ? u.branches : [u.branch]).map((b) => b.name_ar).join('، ') }}</span>
                                     </span>
-                                    <span v-else class="text-slate-400">كافة الفروع</span>
                                 </td>
                                 <td class="py-4 px-6 text-center">
                                     <span 
@@ -210,7 +243,16 @@ const getRoleBadge = (roleName) => {
                                 </td>
                                 <td class="py-4 px-6 text-center">
                                     <div class="flex items-center justify-center gap-1">
+                                        <button
+                                            v-if="$can('admin.users.edit')"
+                                            @click="openPermissions(u)"
+                                            class="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                            :title="$t('permissions.extra_permissions')"
+                                        >
+                                            <KeyIcon class="w-4 h-4" />
+                                        </button>
                                         <button 
+                                            v-if="$can('admin.users.edit')"
                                             @click="openEditModal(u)"
                                             class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                                             title="تعديل"
@@ -218,6 +260,7 @@ const getRoleBadge = (roleName) => {
                                             <PencilSquareIcon class="w-4 h-4" />
                                         </button>
                                         <button 
+                                            v-if="$can('admin.users.delete')"
                                             @click="deleteUser(u.id, u.name)"
                                             class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                             title="حذف"
@@ -365,20 +408,34 @@ const getRoleBadge = (roleName) => {
                                 required
                                 class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 font-bold"
                             >
-                                <option v-for="r in roles" :key="r.id" :value="r.name">{{ getRoleBadge(r.name).label }}</option>
+                                <option v-for="r in roles" :key="r.id" :value="r.name">{{ r.label }}</option>
                             </select>
                         </div>
+                    </div>
 
-                        <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">الفرع المخصص</label>
-                            <select 
-                                v-model="form.branch_id"
-                                class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600"
-                            >
-                                <option value="">-- كافة الفروع --</option>
-                                <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name_ar }}</option>
-                            </select>
-                        </div>
+                    <!-- Branches the user works in -->
+                    <div class="rounded-xl border border-slate-200 p-3 space-y-3">
+                        <p v-if="isOwnerRole" class="text-xs text-slate-600">مدير المنشأة يعمل على <b>كل الفروع</b> ويرى مستنداتها جميعاً.</p>
+                        <template v-else>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">الفروع المسموح بها *</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <label v-for="b in branches" :key="b.id" class="flex items-center gap-2 text-xs rounded-lg border border-slate-100 px-2 py-1.5 cursor-pointer hover:bg-slate-50">
+                                        <input type="checkbox" :value="b.id" v-model="form.branch_ids" class="rounded border-slate-300 text-indigo-600" data-branch-option />
+                                        <span>{{ b.name_ar }}</span>
+                                    </label>
+                                </div>
+                                <p class="text-[11px] text-slate-500 mt-1">ينشئ المستندات ويرى مستندات وتقارير هذه الفروع فقط. لرؤية كل الفروع امنحه صلاحية «الوصول لكل الفروع».</p>
+                                <p v-if="form.errors.branch_ids" class="text-[11px] text-rose-600 mt-1">{{ form.errors.branch_ids }}</p>
+                            </div>
+                            <div v-if="allowedBranches.length > 1">
+                                <label class="block text-xs font-bold text-slate-700 mb-1">الفرع الافتراضي للمستندات الجديدة</label>
+                                <select v-model="form.branch_id" class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600">
+                                    <option v-for="b in allowedBranches" :key="b.id" :value="b.id">{{ b.name_ar }}</option>
+                                </select>
+                            </div>
+                            <p v-if="form.errors.branch_id" class="text-[11px] text-rose-600">{{ form.errors.branch_id }}</p>
+                        </template>
                     </div>
 
                     <div>
@@ -409,6 +466,28 @@ const getRoleBadge = (roleName) => {
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+        <!-- Extra permissions modal -->
+        <div v-if="permissionsUser" class="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+            <div class="bg-white rounded-2xl shadow-xl w-full max-w-5xl my-8">
+                <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                    <div>
+                        <h3 class="font-bold text-slate-800">{{ $t('permissions.extra_permissions') }} — {{ permissionsUser.name }}</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">{{ $t('permissions.extra_hint') }}</p>
+                    </div>
+                    <button @click="permissionsUser = null" class="text-slate-400 hover:text-slate-700"><XMarkIcon class="w-5 h-5" /></button>
+                </div>
+                <div class="p-5 max-h-[65vh] overflow-y-auto">
+                    <div v-if="permissionsForm.errors.permissions" class="mb-3 text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-xl p-3">
+                        {{ permissionsForm.errors.permissions }}
+                    </div>
+                    <PermissionMatrix v-model="permissionsForm.permissions" :matrix="matrix" />
+                </div>
+                <div class="flex justify-end gap-2 px-5 py-4 border-t border-slate-100">
+                    <button @click="permissionsUser = null" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">{{ $t('common.cancel') }}</button>
+                    <button @click="savePermissions" :disabled="permissionsForm.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-50">{{ $t('common.save') }}</button>
+                </div>
             </div>
         </div>
     </AppLayout>

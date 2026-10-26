@@ -27,9 +27,14 @@ const props = defineProps({
 const showCreateModal = ref(false);
 const createForm = useForm({
     name: '',
-    template_type: 'invoice_a4',
+    mode: 'freeform',
+    template_type: 'invoice',
     primary_color: '#1e293b',
 });
+// Free-form templates exist for every printable document kind.
+const kinds = { invoice: 'فاتورة مبيعات', quotation: 'عرض سعر', sales_order: 'أمر بيع', credit_note: 'إشعار دائن / مرتجع', debit_note: 'إشعار مدين', receipt: 'سند قبض', payment: 'سند صرف لمورد' };
+const setMode = (mode) => { createForm.mode = mode; createForm.template_type = mode === 'freeform' ? 'invoice' : 'invoice_a4'; };
+const isFreeform = (t) => t.layout_data?.mode === 'freeform';
 
 const submitCreate = () => {
     createForm.post(route('templates.store'), {
@@ -65,14 +70,14 @@ const getTypeName = (type) => {
         case 'voucher':
             return 'سند قبض / صرف';
         default:
-            return type;
+            return kinds[type] ? `تصميم حر — ${kinds[type]}` : type;
     }
 };
 </script>
 
 <template>
     <AppLayout>
-        <Head title="تصاميم قوالب الفواتير والطباعة - الأستاذ" />
+        <Head title="تصاميم قوالب الفواتير والطباعة" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
@@ -167,8 +172,12 @@ const getTypeName = (type) => {
                                 </span>
                             </div>
 
+                            <div v-if="isFreeform(tmpl)" class="bg-indigo-50/60 p-3 rounded-xl border border-indigo-100 text-3xs text-indigo-800 leading-5">
+                                تصميم حر: {{ tmpl.layout_data?.freeform?.elements?.length || 0 }} عنصر على صفحة {{ tmpl.layout_data?.freeform?.page?.size === 'custom' ? 'بمقاس مخصص' : tmpl.layout_data?.freeform?.page?.size }}.
+                                <template v-if="tmpl.is_default"> يُستخدم عند طباعة {{ kinds[tmpl.template_type] }}.</template>
+                            </div>
                             <!-- Features checklist summary -->
-                            <div class="bg-slate-50/80 p-3 rounded-xl border border-slate-100 grid grid-cols-2 gap-2 text-3xs text-slate-600">
+                            <div v-else class="bg-slate-50/80 p-3 rounded-xl border border-slate-100 grid grid-cols-2 gap-2 text-3xs text-slate-600">
                                 <div class="flex items-center gap-1.5">
                                     <span :class="tmpl.show_logo ? 'text-emerald-600' : 'text-slate-300'">●</span>
                                     <span>الشعار الرسمي</span>
@@ -259,7 +268,27 @@ const getTypeName = (type) => {
                             />
                         </div>
 
-                        <div>
+                        <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="طريقة التصميم">
+                            <button type="button" role="radio" :aria-checked="createForm.mode === 'freeform'" @click="setMode('freeform')" :class="['p-3 rounded-xl border text-start', createForm.mode === 'freeform' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200']">
+                                <span class="block font-black text-slate-800">تصميم حر</span>
+                                <span class="block text-slate-500 mt-1">ضع أي عنصر في أي مكان بالسحب والإفلات</span>
+                            </button>
+                            <button type="button" role="radio" :aria-checked="createForm.mode === 'quick'" @click="setMode('quick')" :class="['p-3 rounded-xl border text-start', createForm.mode === 'quick' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200']">
+                                <span class="block font-black text-slate-800">تصميم سريع</span>
+                                <span class="block text-slate-500 mt-1">أقسام جاهزة تختار ما يظهر منها</span>
+                            </button>
+                        </div>
+
+                        <div v-if="createForm.mode === 'freeform'">
+                            <label class="block font-medium text-slate-700 mb-1" for="ff-kind">المستند</label>
+                            <select id="ff-kind" v-model="createForm.template_type" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800">
+                                <option v-for="(l, k) in kinds" :key="k" :value="k">{{ l }}</option>
+                            </select>
+                            <p v-if="createForm.errors.template_type" class="text-rose-600 mt-1">{{ createForm.errors.template_type }}</p>
+                            <p class="text-slate-400 mt-1">يبدأ بتصميم جاهز يمكنك تغيير كل شيء فيه.</p>
+                        </div>
+
+                        <div v-else>
                             <label class="block font-medium text-slate-700 mb-1">نوع المستند</label>
                             <select 
                                 v-model="createForm.template_type" 
@@ -272,7 +301,7 @@ const getTypeName = (type) => {
                             </select>
                         </div>
 
-                        <div>
+                        <div v-if="createForm.mode === 'quick'">
                             <label class="block font-medium text-slate-700 mb-1">اللون الرئيسي المميز</label>
                             <div class="flex items-center gap-3">
                                 <input 

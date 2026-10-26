@@ -18,8 +18,8 @@ class AccountController extends Controller
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('code', 'like', "%{$search}%")
-                  ->orWhere('name_ar', 'like', "%{$search}%")
-                  ->orWhere('name_en', 'like', "%{$search}%");
+                    ->orWhere('name_ar', 'like', "%{$search}%")
+                    ->orWhere('name_en', 'like', "%{$search}%");
             });
         }
 
@@ -54,16 +54,17 @@ class AccountController extends Controller
             'code' => 'required|string|max:50',
             'name_ar' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
-            'parent_id' => 'nullable|exists:accounts,id',
+            'parent_id' => 'nullable|tenant_exists:accounts,id',
             'type' => 'required|in:asset,liability,equity,revenue,expense',
             'nature' => 'required|in:debit,credit',
             'is_parent' => 'boolean',
-            'balance' => 'nullable|numeric',
+            'cash_flow_category' => 'nullable|in:operating,investing,financing',
+            'requires_cost_center' => 'boolean',
         ]);
 
-        if (!empty($validated['parent_id'])) {
+        if (! empty($validated['parent_id'])) {
             $parent = Account::find($validated['parent_id']);
-            if ($parent && !$parent->is_parent) {
+            if ($parent && ! $parent->is_parent) {
                 $parent->update(['is_parent' => true]);
             }
         }
@@ -76,8 +77,11 @@ class AccountController extends Controller
             'type' => $validated['type'],
             'nature' => $validated['nature'],
             'is_parent' => $validated['is_parent'] ?? false,
-            'balance' => $validated['balance'] ?? 0.00,
+            // Opening balances are entered as opening journal entries, never typed in.
+            'balance' => 0.00,
             'is_active' => true,
+            'cash_flow_category' => $validated['cash_flow_category'] ?? null,
+            'requires_cost_center' => $validated['requires_cost_center'] ?? false,
         ]);
 
         return redirect()->route('accounting.accounts.index')
@@ -90,16 +94,29 @@ class AccountController extends Controller
             'code' => 'required|string|max:50',
             'name_ar' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
-            'parent_id' => 'nullable|exists:accounts,id',
+            'parent_id' => 'nullable|tenant_exists:accounts,id',
             'type' => 'required|in:asset,liability,equity,revenue,expense',
             'nature' => 'required|in:debit,credit',
             'is_parent' => 'boolean',
-            'balance' => 'nullable|numeric',
             'is_active' => 'boolean',
+            'cash_flow_category' => 'nullable|in:operating,investing,financing',
+            'requires_cost_center' => 'boolean',
         ]);
 
+        // An account that already has postings cannot become a group account.
+        if (! empty($validated['is_parent']) && ! $account->is_parent && $account->journalLines()->exists()) {
+            return back()->with('error', 'لا يمكن تحويل حساب عليه حركات إلى حساب رئيسي.');
+        }
+
+        // Postings were classified under the current type and nature; changing them would move history between statements.
+        if (($validated['type'] !== $account->type || $validated['nature'] !== $account->nature) && $account->journalLines()->exists()) {
+            return back()->with('error', 'لا يمكن تغيير نوع أو طبيعة حساب عليه حركات. أنشئ حساباً جديداً وانقل الرصيد بقيد تسوية.');
+        }
+
+        // The balance is derived from posted journal lines and is never edited directly.
+
         // Prevent making account its own parent
-        if (!empty($validated['parent_id']) && (int)$validated['parent_id'] === (int)$account->id) {
+        if (! empty($validated['parent_id']) && (int) $validated['parent_id'] === (int) $account->id) {
             return back()->with('error', 'لا يمكن جعل الحساب تابعاً لنفسه');
         }
 

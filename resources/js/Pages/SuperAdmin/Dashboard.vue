@@ -1,6 +1,7 @@
 <script setup>
+import { ask } from '@/composables/useDialog';
 import { ref, watch } from 'vue';
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import SuperAdminLayout from '@/Layouts/SuperAdminLayout.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
 import { 
@@ -30,8 +31,10 @@ const handleFilter = () => {
     }, { preserveState: true, replace: true });
 };
 
-const impersonate = (companyId) => {
-    router.post(route('super-admin.impersonate.enter', companyId));
+const impersonate = async (companyId) => {
+    const reason = await ask('سبب الدخول على بيانات المنشأة (يُسجّل في سجل التدقيق):', { title: 'الدخول كمدير المنشأة', type: 'textarea', required: true, minLength: 5 });
+    if (!reason) return;
+    router.post(route('super-admin.impersonate.enter', companyId), { reason });
 };
 </script>
 
@@ -149,7 +152,7 @@ const impersonate = (companyId) => {
                                         {{ company.name.charAt(0) }}
                                     </div>
                                     <div>
-                                        <p class="font-bold text-slate-900 text-xs sm:text-sm">{{ company.name }}</p>
+                                        <Link :href="route('super-admin.companies.show', company.id)" class="font-bold text-slate-900 text-xs sm:text-sm hover:text-indigo-600">{{ company.name }}</Link>
                                         <p class="text-[11px] text-slate-400 font-mono" dir="ltr">{{ company.email || company.phone }}</p>
                                     </div>
                                 </div>
@@ -158,7 +161,7 @@ const impersonate = (companyId) => {
                             <!-- Subdomain -->
                             <td class="px-6 py-4">
                                 <span class="inline-flex items-center gap-1 font-mono text-xs font-bold text-indigo-600 bg-indigo-50/70 px-2.5 py-1 rounded-lg border border-indigo-100" dir="ltr">
-                                    {{ company.subdomain }}.alostaz.io
+                                    {{ company.subdomain }}.{{ $page.props.brand?.domain }}
                                 </span>
                             </td>
 

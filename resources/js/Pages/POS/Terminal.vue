@@ -1,7 +1,9 @@
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { taxRate } from '@/utils/tax';
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import axios from 'axios';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import AlOstazLogo from '../../Components/AlOstazLogo.vue';
+import BrandLogo from '../../Components/BrandLogo.vue';
 import QRCode from 'qrcode';
 import {
     MagnifyingGlassIcon,
@@ -23,6 +25,7 @@ import {
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
+    boxes: { type: Array, default: () => [] },
     session: Object,
     products: Array,
     categories: Array,
@@ -45,23 +48,37 @@ const tenderAmount = ref(0);
 const latestOrder = ref(null);
 const receiptQrUrl = ref('');
 
-// Filtered Products
-const filteredProducts = computed(() => {
-    let list = props.products || [];
-    if (selectedCategoryId.value !== 'all') {
-        list = list.filter(p => p.category_id === selectedCategoryId.value);
+// Products are searched on the server (the catalogue can hold millions of items);
+// the page only ever keeps one bounded result set.
+const products = ref(props.products || []);
+const isSearching = ref(false);
+let searchTimer = null;
+let searchSeq = 0;
+
+const fetchProducts = async (params = {}) => {
+    const seq = ++searchSeq;
+    isSearching.value = true;
+    try {
+        const { data } = await axios.get(route('pos.products.search'), {
+            params: {
+                q: searchQuery.value.trim() || undefined,
+                category_id: selectedCategoryId.value !== 'all' ? selectedCategoryId.value : undefined,
+                ...params,
+            },
+        });
+        if (seq === searchSeq) products.value = data.data;
+        return data.data;
+    } finally {
+        if (seq === searchSeq) isSearching.value = false;
     }
-    if (searchQuery.value.trim()) {
-        const q = searchQuery.value.toLowerCase().trim();
-        list = list.filter(p => 
-            p.name_ar.toLowerCase().includes(q) ||
-            (p.name_en && p.name_en.toLowerCase().includes(q)) ||
-            (p.sku && p.sku.toLowerCase().includes(q)) ||
-            (p.barcode && p.barcode.toLowerCase().includes(q))
-        );
-    }
-    return list;
+};
+
+watch([searchQuery, selectedCategoryId], () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => fetchProducts(), 250);
 });
+
+const filteredProducts = computed(() => products.value);
 
 // Cart Calculations
 const cartSubtotal = computed(() => {
@@ -69,7 +86,7 @@ const cartSubtotal = computed(() => {
 });
 
 const cartTax = computed(() => {
-    return cartSubtotal.value * 0.15;
+    return cartSubtotal.value * taxRate() / 100;
 });
 
 const cartTotal = computed(() => {
@@ -91,21 +108,25 @@ const addToCart = (product) => {
             item_name: product.name_ar,
             unit_price: Number(product.selling_price) || 0,
             quantity: 1,
-            tax_rate: 15.00,
+            tax_rate: taxRate(),
             discount: 0,
         });
     }
 };
 
 // Barcode Scan / Enter handler
-const handleBarcodeEnter = () => {
+const handleBarcodeEnter = async () => {
     const query = searchQuery.value.trim();
     if (!query) return;
 
-    const matched = props.products.find(p => 
-        (p.barcode && p.barcode === query) || 
-        (p.sku && p.sku.toLowerCase() === query.toLowerCase())
-    );
+    const isExact = (p) => (p.barcode && p.barcode === query) || (p.sku && p.sku.toLowerCase() === query.toLowerCase());
+    let matched = products.value.find(isExact);
+
+    if (!matched) {
+        clearTimeout(searchTimer);
+        const results = await fetchProducts({ q: query, exact: 1, category_id: undefined });
+        matched = results.find(isExact);
+    }
 
     if (matched) {
         addToCart(matched);
@@ -144,7 +165,19 @@ const openCashCheckout = () => {
     isCashModalOpen.value = true;
 };
 
-const submitOrder = (paymentMethod, paid) => {
+// Split tender: part cash, part card.
+const isSplitModalOpen = ref(false);
+const splitCard = ref(0);
+const splitCash = ref(0);
+const openSplitCheckout = () => {
+    if (cart.value.length === 0) return;
+    splitCard.value = 0;
+    splitCash.value = Math.ceil(cartTotal.value);
+    isSplitModalOpen.value = true;
+};
+const submitSplit = () => submitOrder('multiple', (Number(splitCash.value) || 0) + (Number(splitCard.value) || 0), { cash_amount: Number(splitCash.value) || 0, card_amount: Number(splitCard.value) || 0 });
+
+const submitOrder = (paymentMethod, paid, tender = {}) => {
     if (cart.value.length === 0) return;
 
     router.post(route('pos.order.process'), {
@@ -152,12 +185,14 @@ const submitOrder = (paymentMethod, paid) => {
         customer_id: selectedCustomerId.value,
         payment_method: paymentMethod,
         paid_amount: paid,
+        ...tender,
         discount: 0,
         items: cart.value,
     }, {
         preserveScroll: true,
         onSuccess: (page) => {
             isCashModalOpen.value = false;
+            isSplitModalOpen.value = false;
             const ord = page.props.flash?.latest_order;
             if (ord) {
                 latestOrder.value = ord;
@@ -189,6 +224,7 @@ const printReceipt = () => {
 // Close Session Form
 const closeSessionForm = useForm({
     closing_cash: 0,
+    deposit_bank_account_id: '',
     notes: '',
 });
 
@@ -212,7 +248,7 @@ onMounted(() => {
 
 <template>
     <div class="h-screen flex flex-col bg-slate-100 text-slate-800 font-sans select-none overflow-hidden">
-        <Head title="نقطة البيع - AlOstaz POS" />
+        <Head title="نقطة البيع" />
 
         <!-- 1. Top Navbar Header -->
         <header class="bg-indigo-700 text-white px-4 py-2.5 flex items-center justify-between shadow-md z-20 flex-shrink-0">
@@ -224,7 +260,7 @@ onMounted(() => {
                     </span>
                     <div>
                         <h1 class="text-sm font-black leading-tight">نقطة البيع (POS)</h1>
-                        <p class="text-3xs text-indigo-200">نظام الأستاذ - {{ props.session.register?.name || 'جهاز افتراضي' }}</p>
+                        <p class="text-3xs text-indigo-200">{{ $page.props.brand?.name }} - {{ props.session.register?.name || 'جهاز افتراضي' }}</p>
                     </div>
                 </div>
                 <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-2xs font-bold border border-emerald-400/30">
@@ -413,7 +449,7 @@ onMounted(() => {
                         <!-- Line Total -->
                         <div class="text-end min-w-[60px]">
                             <span class="text-xs font-bold text-slate-800 font-mono">
-                                {{ formatCurrency(item.quantity * item.unit_price * 1.15) }}
+                                {{ formatCurrency(item.quantity * item.unit_price * (1 + $taxRate() / 100)) }}
                             </span>
                         </div>
                     </div>
@@ -433,7 +469,7 @@ onMounted(() => {
                             <span class="font-mono font-bold text-slate-800">{{ formatCurrency(cartSubtotal) }} ﷼</span>
                         </div>
                         <div class="flex items-center justify-between">
-                            <span>ضريبة القيمة المضافة 15%</span>
+                            <span>{{ $taxLabel() }}</span>
                             <span class="font-mono font-bold text-slate-800">{{ formatCurrency(cartTax) }} ﷼</span>
                         </div>
                         <div class="border-t border-slate-200 pt-2 flex items-center justify-between text-slate-900 font-black">
@@ -462,6 +498,13 @@ onMounted(() => {
                         >
                             <CreditCardIcon class="w-4 h-4 stroke-2" />
                             <span>مدى / بطاقة</span>
+                        </button>
+                        <button
+                            @click="openSplitCheckout"
+                            :disabled="cart.length === 0"
+                            class="col-span-2 py-2 px-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs disabled:opacity-40"
+                        >
+                            دفع مجزأ (نقد + بطاقة)
                         </button>
                     </div>
                 </div>
@@ -562,7 +605,7 @@ onMounted(() => {
                 <div id="thermal-receipt" class="p-4 border border-dashed border-slate-300 rounded-xl text-center text-xs space-y-3 bg-white text-slate-900 font-mono">
                     <!-- Company Logo & Name -->
                     <div class="space-y-1">
-                        <h2 class="font-black text-sm text-slate-900">{{ company?.name || 'الأستاذ' }}</h2>
+                        <h2 class="font-black text-sm text-slate-900">{{ company?.name || $page.props.brand?.name }}</h2>
                         <p class="text-3xs text-slate-500">فاتورة ضريبية مبسطة | SIMPLIFIED TAX INVOICE</p>
                         <p class="text-3xs text-slate-600 font-bold">الرقم الضريبي: {{ company?.tax_number || '300000000000003' }}</p>
                     </div>
@@ -570,11 +613,11 @@ onMounted(() => {
                     <div class="border-t border-slate-200 pt-2 text-3xs text-start space-y-0.5">
                         <p>رقم الفاتورة: <strong>{{ latestOrder.order_number }}</strong></p>
                         <p>التاريخ: {{ new Date(latestOrder.created_at).toLocaleString('ar-SA') }}</p>
-                        <p>طريقة الدفع: {{ latestOrder.payment_method === 'cash' ? 'نقداً' : 'بطاقة مدى' }}</p>
+                        <p>طريقة الدفع: {{ ({ cash: 'نقداً', card: 'بطاقة مدى', multiple: 'مجزأ (نقد + بطاقة)' })[latestOrder.payment_method] || latestOrder.payment_method }}</p>
                     </div>
 
                     <!-- Items Table -->
-                    <table class="w-full text-right text-3xs border-y border-slate-200 py-1 my-1">
+                    <div class="overflow-x-auto"><table class="w-full text-right text-3xs border-y border-slate-200 py-1 my-1">
                         <thead>
                             <tr class="font-bold border-b border-slate-100">
                                 <th class="py-1">البند</th>
@@ -589,7 +632,7 @@ onMounted(() => {
                                 <td class="text-end font-bold">{{ formatCurrency(item.total) }} ﷼</td>
                             </tr>
                         </tbody>
-                    </table>
+                    </table></div>
 
                     <!-- Totals -->
                     <div class="space-y-1 text-3xs pt-1 border-t border-slate-200 text-start">
@@ -598,7 +641,7 @@ onMounted(() => {
                             <span class="font-bold">{{ formatCurrency(latestOrder.subtotal) }} ﷼</span>
                         </div>
                         <div class="flex justify-between">
-                            <span>ضريبة القيمة المضافة 15%:</span>
+                            <span>{{ $taxLabel() }}:</span>
                             <span class="font-bold">{{ formatCurrency(latestOrder.tax_amount) }} ﷼</span>
                         </div>
                         <div class="flex justify-between text-xs font-black border-t border-slate-300 pt-1">
@@ -635,6 +678,22 @@ onMounted(() => {
             </div>
         </div>
 
+        <!-- Split tender modal -->
+        <div v-if="isSplitModalOpen" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-100 text-xs">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="text-sm font-black text-slate-800">دفع مجزأ — الإجمالي {{ formatCurrency(cartTotal) }} ﷼</h3>
+                    <button @click="isSplitModalOpen = false" class="text-slate-400 hover:text-slate-600"><XMarkIcon class="w-4 h-4" /></button>
+                </div>
+                <label class="block font-bold text-slate-700">بطاقة / مدى</label>
+                <input v-model.number="splitCard" type="number" step="0.01" min="0" :max="cartTotal" @input="splitCash = Math.max(0, Math.round((cartTotal - (Number(splitCard) || 0)) * 100) / 100)" class="w-full text-center text-lg font-mono font-bold rounded-xl border border-slate-200 py-2" />
+                <label class="block font-bold text-slate-700">نقداً</label>
+                <input v-model.number="splitCash" type="number" step="0.01" min="0" class="w-full text-center text-lg font-mono font-bold rounded-xl border border-slate-200 py-2" />
+                <p class="text-slate-500">الباقي للعميل: <strong class="font-mono">{{ formatCurrency(Math.max(0, (Number(splitCash) || 0) + (Number(splitCard) || 0) - cartTotal)) }}</strong> ﷼</p>
+                <button @click="submitSplit" :disabled="(Number(splitCash) || 0) + (Number(splitCard) || 0) < cartTotal - 0.001 || (Number(splitCard) || 0) > cartTotal" class="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-40">إتمام الدفع</button>
+            </div>
+        </div>
+
         <!-- 5. Close Session Modal -->
         <div 
             v-if="isCloseSessionModalOpen"
@@ -650,7 +709,7 @@ onMounted(() => {
 
                 <form @submit.prevent="submitCloseSession" class="space-y-4 text-xs">
                     <div>
-                        <label class="block font-bold text-slate-700 mb-1">المبلغ الفعلي الموجود في الدرج (ر.س)</label>
+                        <label class="block font-bold text-slate-700 mb-1">المبلغ الفعلي الموجود في الدرج ({{ $cur() }})</label>
                         <input 
                             v-model.number="closeSessionForm.closing_cash"
                             type="number" 
@@ -658,6 +717,16 @@ onMounted(() => {
                             required
                             class="w-full text-center text-lg font-mono font-bold rounded-xl border border-slate-200 py-2.5 focus:border-indigo-500"
                         />
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">توريد النقدية إلى (اختياري)</label>
+                        <select v-model="closeSessionForm.deposit_bank_account_id" class="w-full rounded-xl border border-slate-200 p-2 text-xs">
+                            <option value="">تبقى في درج نقطة البيع</option>
+                            <option v-for="b in boxes" :key="b.id" :value="b.id">{{ b.name }}</option>
+                        </select>
+                        <p v-if="closeSessionForm.errors.deposit_bank_account_id" class="text-rose-600 mt-1">{{ closeSessionForm.errors.deposit_bank_account_id }}</p>
+                        <p class="text-3xs text-slate-500 mt-1">أي عجز أو زيادة عن المتوقع يُقيَّد تلقائياً في حساب «عجز وزيادة الصندوق».</p>
                     </div>
 
                     <div>

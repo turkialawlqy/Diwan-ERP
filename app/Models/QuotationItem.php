@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class QuotationItem extends Model
 {
-    use HasFactory;
+    use BelongsToCompany, HasFactory;
 
     protected $fillable = [
         'quotation_id',
@@ -25,7 +26,7 @@ class QuotationItem extends Model
     ];
 
     protected $casts = [
-        'quantity' => 'decimal:2',
+        'quantity' => 'decimal:4',
         'unit_price' => 'decimal:2',
         'discount' => 'decimal:2',
         'tax_rate' => 'decimal:2',
@@ -37,5 +38,18 @@ class QuotationItem extends Model
     public function quotation(): BelongsTo
     {
         return $this->belongsTo(Quotation::class);
+    }
+
+    /**
+     * Parent document the line inherits its company from outside a tenant context.
+     */
+    public function tenantParent(): ?Model
+    {
+        return $this->quotation;
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
     }
 }

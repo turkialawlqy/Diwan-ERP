@@ -54,6 +54,7 @@ const formatCurrency = (val) => {
 
                 <div class="flex items-center gap-2">
                     <Link 
+                        v-if="$canRoute('sales.returns.create')"
                         :href="route('sales.returns.create')"
                         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >
@@ -71,7 +72,7 @@ const formatCurrency = (val) => {
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">إجمالي المبالغ المستردة</p>
-                    <p class="text-xl sm:text-2xl font-black text-rose-600">{{ formatCurrency(stats?.total_amount) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                    <p class="text-xl sm:text-2xl font-black text-rose-600">{{ formatCurrency(stats?.total_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
             </div>
 

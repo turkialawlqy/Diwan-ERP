@@ -17,7 +17,7 @@ class HRAndSettingsDemoSeeder extends Seeder
     public function run(): void
     {
         $company = Company::first();
-        if (!$company) {
+        if (! $company) {
             return;
         }
 
@@ -69,7 +69,7 @@ class HRAndSettingsDemoSeeder extends Seeder
                 'name' => 'أنس عبد الله القرني',
                 'national_id' => '1089283741',
                 'phone' => '0501112233',
-                'email' => 'anas.q@alostaz.io',
+                'email' => 'anas.q@diwan.io',
                 'job_title' => 'الرئيس التنفيذي / المدير العام',
                 'department' => 'الإدارة التنفيذية',
                 'branch_id' => $mainBranch->id,
@@ -87,7 +87,7 @@ class HRAndSettingsDemoSeeder extends Seeder
                 'name' => 'خالد محمد الغامدي',
                 'national_id' => '1074829103',
                 'phone' => '0552223344',
-                'email' => 'khalid.g@alostaz.io',
+                'email' => 'khalid.g@diwan.io',
                 'job_title' => 'مدير قطاع المبيعات والتسويق',
                 'department' => 'المبيعات',
                 'branch_id' => $mainBranch->id,
@@ -105,7 +105,7 @@ class HRAndSettingsDemoSeeder extends Seeder
                 'name' => 'سارة أحمد العتيبي',
                 'national_id' => '1093847291',
                 'phone' => '0543334455',
-                'email' => 'sara.o@alostaz.io',
+                'email' => 'sara.o@diwan.io',
                 'job_title' => 'أخصائية محاسبة ومالية أولى',
                 'department' => 'المالية والمحاسبة',
                 'branch_id' => $mainBranch->id,
@@ -123,7 +123,7 @@ class HRAndSettingsDemoSeeder extends Seeder
                 'name' => 'فهد عبد الرحمن الدوسري',
                 'national_id' => '1062947192',
                 'phone' => '0564445566',
-                'email' => 'fahad.d@alostaz.io',
+                'email' => 'fahad.d@diwan.io',
                 'job_title' => 'مسؤول نقطة بيع وكاشير',
                 'department' => 'نقاط البيع والتجزئة',
                 'branch_id' => $mainBranch->id,
@@ -141,7 +141,7 @@ class HRAndSettingsDemoSeeder extends Seeder
                 'name' => 'ريم سلطان الشهري',
                 'national_id' => '1058291048',
                 'phone' => '0595556677',
-                'email' => 'reem.s@alostaz.io',
+                'email' => 'reem.s@diwan.io',
                 'job_title' => 'أخصائية موارد بشرية وعلاقات موظفين',
                 'department' => 'الموارد البشرية',
                 'branch_id' => $mainBranch->id,
@@ -168,7 +168,7 @@ class HRAndSettingsDemoSeeder extends Seeder
 
         // 3. مسير رواتب سبتمبر 2026 (Payroll)
         $totalBasic = collect($employeeModels)->sum('basic_salary');
-        $totalAllowances = collect($employeeModels)->sum(fn($e) => $e->housing_allowance + $e->transport_allowance + $e->other_allowances);
+        $totalAllowances = collect($employeeModels)->sum(fn ($e) => $e->housing_allowance + $e->transport_allowance + $e->other_allowances);
         $netTotal = $totalBasic + $totalAllowances;
 
         $payroll = Payroll::firstOrCreate(
@@ -236,7 +236,7 @@ class HRAndSettingsDemoSeeder extends Seeder
                 'show_stamp' => true,
                 'show_bank_details' => true,
                 'terms_and_conditions' => 'عرض السعر ساري لمدة 15 يوماً من تاريخ الإصدار، وتعتبر الأسعار شاملة لضريبة القيمة المضافة 15%.',
-                'footer_text' => 'يسعدنا تواصلكم لأي استفسار عبر sales@alostaz.io',
+                'footer_text' => 'يسعدنا تواصلكم لأي استفسار عبر sales@diwan.io',
                 'is_default' => true,
             ],
         ];

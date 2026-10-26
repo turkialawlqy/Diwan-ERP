@@ -3,8 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Rules\TaxNumber;
+use App\Services\Accounting\DocumentPoster;
+use App\Services\Sales\CustomerStatement;
+use App\Services\Tax\TaxProfile;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class CustomerController extends Controller
@@ -14,8 +18,7 @@ class CustomerController extends Controller
      */
     protected function getNextCustomerCode(): string
     {
-        $count = Customer::count() + 1;
-        return '1-' . str_pad($count, 6, '0', STR_PAD_LEFT);
+        return $this->nextNumber('customer');
     }
 
     /**
@@ -32,14 +35,14 @@ class CustomerController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('code', 'like', "%{$search}%")
-                  ->orWhere('company_name', 'like', "%{$search}%")
-                  ->orWhere('contact_name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('mobile', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('tax_number', 'like', "%{$search}%")
-                  ->orWhere('commercial_registration', 'like', "%{$search}%");
+                    ->orWhere('code', 'like', "%{$search}%")
+                    ->orWhere('company_name', 'like', "%{$search}%")
+                    ->orWhere('contact_name', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('mobile', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('tax_number', 'like', "%{$search}%")
+                    ->orWhere('commercial_registration', 'like', "%{$search}%");
             });
         }
 
@@ -52,7 +55,7 @@ class CustomerController extends Controller
         }
 
         $customers = $query->orderBy('created_at', 'desc')
-            ->paginate($request->input('per_page', 20))
+            ->paginate($this->perPage($request))
             ->withQueryString();
 
         $stats = [
@@ -69,7 +72,7 @@ class CustomerController extends Controller
                 'customer_type' => $type,
             ],
             'stats' => $stats,
-            'nextCode' => $this->getNextCustomerCode(),
+            'nextCode' => $this->peekNumber('customer'),
         ]);
     }
 
@@ -79,7 +82,7 @@ class CustomerController extends Controller
     public function create()
     {
         return Inertia::render('Sales/Clients/Create', [
-            'nextCode' => $this->getNextCustomerCode(),
+            'nextCode' => $this->peekNumber('customer'),
         ]);
     }
 
@@ -88,6 +91,7 @@ class CustomerController extends Controller
      */
     public function store(Request $request)
     {
+        $this->normalizeNationalAddress($request);
         $validated = $request->validate([
             'customer_type' => 'nullable|in:individual,commercial',
             'code' => 'nullable|string|max:50',
@@ -97,16 +101,16 @@ class CustomerController extends Controller
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:50',
             'mobile' => 'nullable|string|max:50',
-            'tax_number' => 'nullable|string|max:50',
+            'tax_number' => ['nullable', 'string', 'max:50', new TaxNumber($request->input('country'))],
             'commercial_registration' => 'nullable|string|max:50',
             'address' => 'nullable|string',
-            'building_number' => 'nullable|string|max:50',
+            'building_number' => ['nullable', ...$this->nationalAddressNumber($request, 4)],
             'street_name' => 'nullable|string|max:255',
             'district' => 'nullable|string|max:100',
             'city' => 'nullable|string|max:100',
             'province' => 'nullable|string|max:100',
-            'postal_code' => 'nullable|string|max:20',
-            'additional_details' => 'nullable|string|max:255',
+            'postal_code' => ['nullable', ...$this->nationalAddressNumber($request, 5)],
+            'additional_details' => ['nullable', ...$this->nationalAddressNumber($request, 4)],
             'country' => 'nullable|string|max:100',
             'credit_limit' => 'nullable|numeric|min:0',
             'opening_balance' => 'nullable|numeric',
@@ -117,7 +121,12 @@ class CustomerController extends Controller
             'additional_contacts.*.phone' => 'nullable|string|max:50',
             'additional_contacts.*.email' => 'nullable|email|max:255',
             'additional_contacts.*.role' => 'nullable|string|max:100',
-            'attachments' => 'nullable|array',
+            'attachments' => 'nullable|array|max:50',
+            'attachments.*.name' => 'nullable|string|max:255',
+            // Only links to files we serve ourselves (private /files/ or legacy uploads).
+            'attachments.*.url' => ['required', 'string', 'max:2048', 'regex:#^/(files/|storage/customers/attachments/)#'],
+            'attachments.*.size' => 'nullable|integer',
+            'attachments.*.type' => 'nullable|string|max:150',
         ]);
 
         $validated['customer_type'] = $validated['customer_type'] ?? 'commercial';
@@ -129,12 +138,12 @@ class CustomerController extends Controller
         $validated['opening_balance'] = $openingBalance;
         $validated['current_balance'] = $openingBalance;
         $validated['status'] = $validated['status'] ?? 'active';
-        $validated['country'] = $validated['country'] ?? 'المملكة العربية السعودية';
+        $validated['country'] = $validated['country'] ?? TaxProfile::current()->country['name'];
 
         // Set address summary if individual parts are present
-        if (empty($validated['address']) && (!empty($validated['building_number']) || !empty($validated['street_name']))) {
+        if (empty($validated['address']) && (! empty($validated['building_number']) || ! empty($validated['street_name']))) {
             $parts = array_filter([
-                $validated['building_number'] ? ('مبنى ' . $validated['building_number']) : null,
+                $validated['building_number'] ? ('مبنى '.$validated['building_number']) : null,
                 $validated['street_name'],
                 $validated['district'],
                 $validated['city'],
@@ -142,9 +151,22 @@ class CustomerController extends Controller
             $validated['address'] = implode(' - ', $parts);
         }
 
-        $customer = Customer::create($validated);
+        $customer = DB::transaction(function () use ($validated) {
+            $customer = Customer::create($validated);
 
-        if ($request->wantsJson() || $request->ajax()) {
+            // Opening receivable (positive) or advance (negative) in the ledger.
+            app(DocumentPoster::class)->openingBalance(
+                $customer,
+                ['role' => 'receivables', 'side' => 'debit', 'party_type' => 'customer', 'party_id' => $customer->id],
+                (float) $validated['opening_balance'],
+                now(),
+                'رصيد افتتاحي للعميل '.$customer->name,
+            );
+
+            return $customer;
+        });
+
+        if ($this->wantsJsonResponse($request)) {
             return response()->json([
                 'success' => true,
                 'customer' => $customer,
@@ -161,13 +183,12 @@ class CustomerController extends Controller
     public function uploadAttachment(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|max:10240', // 10MB max
+            'file' => 'required|file|max:10240|mimes:'.FileController::DOCUMENT_MIMES,
         ]);
 
         $file = $request->file('file');
         $originalName = $file->getClientOriginalName();
-        $path = $file->store('customers/attachments', 'public');
-        $url = Storage::url($path);
+        $url = FileController::storeForTenant($file, 'customers/attachments')['url'];
 
         return response()->json([
             'success' => true,
@@ -192,7 +213,7 @@ class CustomerController extends Controller
             'quotations' => fn ($q) => $q->latest()->take(30),
         ]);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if ($this->wantsJsonResponse($request)) {
             return response()->json([
                 'success' => true,
                 'client' => $client,
@@ -207,105 +228,15 @@ class CustomerController extends Controller
     /**
      * Show statement for customer.
      */
-    public function statement(Customer $client)
+    public function statement(Customer $client, CustomerStatement $statements)
     {
-        $client->load([
-            'invoices' => fn ($q) => $q->orderBy('invoice_date', 'asc'),
-            'payments' => fn ($q) => $q->orderBy('payment_date', 'asc'),
-        ]);
-
-        $rawTransactions = collect();
-
-        // 1. Process Invoices (Debit) and their immediate checkout payments (Credit)
-        foreach ($client->invoices as $inv) {
-            $invDate = $inv->invoice_date ? $inv->invoice_date->format('Y-m-d') : ($inv->created_at ? $inv->created_at->format('Y-m-d') : now()->format('Y-m-d'));
-            $invTotal = (float) ($inv->total ?? $inv->total_amount ?? 0);
-
-            $rawTransactions->push([
-                'date' => $invDate,
-                'created_at' => $inv->created_at ? $inv->created_at->toIso8601String() : $invDate,
-                'order_key' => 1,
-                'type' => 'invoice',
-                'type_ar' => 'فاتورة ضريبية',
-                'reference' => $inv->invoice_number,
-                'debit' => $invTotal,
-                'credit' => 0.00,
-                'notes' => $inv->notes ?: ('فاتورة مبيعات ' . $inv->invoice_number),
-            ]);
-
-            // Account for any immediate payments at checkout not recorded in customer payments table
-            $linkedPaymentsSum = (float) $client->payments->where('invoice_id', $inv->id)->sum('amount');
-            $immediatePaid = max(0, (float) $inv->paid_amount - $linkedPaymentsSum);
-
-            if ($immediatePaid > 0) {
-                $rawTransactions->push([
-                    'date' => $invDate,
-                    'created_at' => $inv->created_at ? $inv->created_at->toIso8601String() : $invDate,
-                    'order_key' => 2,
-                    'type' => 'payment',
-                    'type_ar' => 'سداد فوري للفاتورة',
-                    'reference' => 'سداد ' . $inv->invoice_number,
-                    'debit' => 0.00,
-                    'credit' => $immediatePaid,
-                    'notes' => 'سداد فوري عند إصدار الفاتورة (' . ($inv->payment_method === 'cash' ? 'نقداً' : ($inv->payment_method === 'card' ? 'بطاقة/مدى' : 'تحويل')) . ')',
-                ]);
-            }
-        }
-
-        // 2. Process Customer Payments (Credit)
-        foreach ($client->payments as $pmt) {
-            $pmtDate = $pmt->payment_date ? $pmt->payment_date->format('Y-m-d') : ($pmt->created_at ? $pmt->created_at->format('Y-m-d') : now()->format('Y-m-d'));
-            $rawTransactions->push([
-                'date' => $pmtDate,
-                'created_at' => $pmt->created_at ? $pmt->created_at->toIso8601String() : $pmtDate,
-                'order_key' => 2,
-                'type' => 'payment',
-                'type_ar' => 'سند قبض',
-                'reference' => $pmt->payment_number ?: ('PAY-' . $pmt->id),
-                'debit' => 0.00,
-                'credit' => (float) $pmt->amount,
-                'notes' => $pmt->notes ?: ('سند قبض عبر ' . ($pmt->payment_method === 'cash' ? 'نقداً' : ($pmt->payment_method === 'card' ? 'بطاقة/مدى' : 'تحويل'))),
-            ]);
-        }
-
-        // 3. Sort transactions chronologically
-        $sorted = $rawTransactions->sortBy(function ($item) {
-            return $item['date'] . '_' . $item['order_key'] . '_' . ($item['created_at'] ?? '');
-        })->values();
-
-        // 4. Calculate Progressive Running Balance
-        $openingBalance = (float) ($client->opening_balance ?? 0);
-        $runningBalance = $openingBalance;
-        $finalTransactions = collect();
-
-        // First date for opening balance
-        $firstDate = $sorted->first()['date'] ?? ($client->created_at ? $client->created_at->format('Y-m-d') : now()->format('Y-m-d'));
-
-        // Always show opening balance at the very top if non-zero or if no other transactions exist
-        if ($openingBalance != 0 || $sorted->isEmpty()) {
-            $finalTransactions->push([
-                'date' => $firstDate,
-                'type' => 'opening_balance',
-                'type_ar' => 'رصيد افتتاحي',
-                'reference' => 'افتتاحي',
-                'debit' => $openingBalance > 0 ? $openingBalance : 0.00,
-                'credit' => $openingBalance < 0 ? abs($openingBalance) : 0.00,
-                'balance' => $runningBalance,
-                'notes' => 'الرصيد الافتتاحي للعميل',
-            ]);
-        }
-
-        foreach ($sorted as $item) {
-            $runningBalance += ($item['debit'] - $item['credit']);
-            $item['balance'] = round($runningBalance, 2);
-            $finalTransactions->push($item);
-        }
+        $statement = $statements->build($client);
 
         return Inertia::render('Sales/Clients/Statement', [
-            'client' => $client,
-            'transactions' => $finalTransactions,
-            'openingBalance' => $openingBalance,
-            'closingBalance' => round($runningBalance, 2),
+            'client' => $client->setRelations([]),
+            'transactions' => $statement['transactions'],
+            'openingBalance' => $statement['opening'],
+            'closingBalance' => $statement['closing'],
         ]);
     }
 
@@ -324,6 +255,7 @@ class CustomerController extends Controller
      */
     public function update(Request $request, Customer $client)
     {
+        $this->normalizeNationalAddress($request);
         $validated = $request->validate([
             'customer_type' => 'nullable|in:individual,commercial',
             'code' => 'nullable|string|max:50',
@@ -333,16 +265,16 @@ class CustomerController extends Controller
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:50',
             'mobile' => 'nullable|string|max:50',
-            'tax_number' => 'nullable|string|max:50',
+            'tax_number' => ['nullable', 'string', 'max:50', new TaxNumber($request->input('country'))],
             'commercial_registration' => 'nullable|string|max:50',
             'address' => 'nullable|string',
-            'building_number' => 'nullable|string|max:50',
+            'building_number' => ['nullable', ...$this->nationalAddressNumber($request, 4)],
             'street_name' => 'nullable|string|max:255',
             'district' => 'nullable|string|max:100',
             'city' => 'nullable|string|max:100',
             'province' => 'nullable|string|max:100',
-            'postal_code' => 'nullable|string|max:20',
-            'additional_details' => 'nullable|string|max:255',
+            'postal_code' => ['nullable', ...$this->nationalAddressNumber($request, 5)],
+            'additional_details' => ['nullable', ...$this->nationalAddressNumber($request, 4)],
             'country' => 'nullable|string|max:100',
             'credit_limit' => 'nullable|numeric|min:0',
             'status' => 'required|in:active,inactive',
@@ -352,12 +284,17 @@ class CustomerController extends Controller
             'additional_contacts.*.phone' => 'nullable|string|max:50',
             'additional_contacts.*.email' => 'nullable|email|max:255',
             'additional_contacts.*.role' => 'nullable|string|max:100',
-            'attachments' => 'nullable|array',
+            'attachments' => 'nullable|array|max:50',
+            'attachments.*.name' => 'nullable|string|max:255',
+            // Only links to files we serve ourselves (private /files/ or legacy uploads).
+            'attachments.*.url' => ['required', 'string', 'max:2048', 'regex:#^/(files/|storage/customers/attachments/)#'],
+            'attachments.*.size' => 'nullable|integer',
+            'attachments.*.type' => 'nullable|string|max:150',
         ]);
 
-        if (empty($validated['address']) && (!empty($validated['building_number']) || !empty($validated['street_name']))) {
+        if (empty($validated['address']) && (! empty($validated['building_number']) || ! empty($validated['street_name']))) {
             $parts = array_filter([
-                $validated['building_number'] ? ('مبنى ' . $validated['building_number']) : null,
+                $validated['building_number'] ? ('مبنى '.$validated['building_number']) : null,
                 $validated['street_name'],
                 $validated['district'],
                 $validated['city'],
@@ -367,7 +304,7 @@ class CustomerController extends Controller
 
         $client->update($validated);
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if ($this->wantsJsonResponse($request)) {
             return response()->json([
                 'success' => true,
                 'customer' => $client,
@@ -390,5 +327,44 @@ class CustomerController extends Controller
         $client->delete();
 
         return redirect()->route('sales.clients.index')->with('success', 'تم حذف العميل بنجاح');
+    }
+
+    /**
+     * National address as ZATCA needs it: the building number on its own.
+     * A street typed as "4002, King Fahd Road" (the form once had one field
+     * for both) gives its leading four digits to the building number;
+     * Arabic-Indic digits are read as digits.
+     */
+    /**
+     * The Saudi national address has fixed-length numbers (building and
+     * additional number 4 digits, postal code 5). Customers in other
+     * countries keep their own formats.
+     */
+    protected function nationalAddressNumber(Request $request, int $digits): array
+    {
+        $country = TaxProfile::countryCodeFromName($request->input('country'), TaxProfile::current()->countryCode);
+
+        return $country === 'SA' ? ['regex:/^\d{'.$digits.'}$/'] : ['string', 'max:20'];
+    }
+
+    protected function normalizeNationalAddress(Request $request): void
+    {
+        $digits = fn ($v) => is_string($v) ? trim(strtr($v, ['٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9'])) : $v;
+        $values = array_map($digits, $request->only(['building_number', 'street_name', 'postal_code', 'additional_details', 'tax_number']));
+        if (isset($values['tax_number']) && is_string($values['tax_number'])) {
+            $values['tax_number'] = preg_replace('/[\s\-]+/u', '', $values['tax_number']);
+        }
+        [$building, $street] = self::splitBuildingNumber($values['building_number'] ?? null, $values['street_name'] ?? null);
+        $request->merge(array_merge($values, ['building_number' => $building, 'street_name' => $street]));
+    }
+
+    /** [building number, street] from a street that starts with the 4-digit building number. */
+    public static function splitBuildingNumber(?string $building, ?string $street): array
+    {
+        if (blank($building) && $street && preg_match('/^\s*(\d{4})\s*[,،\-\s]\s*(.+)$/u', $street, $m)) {
+            return [$m[1], trim($m[2])];
+        }
+
+        return [$building ?: null, $street];
     }
 }

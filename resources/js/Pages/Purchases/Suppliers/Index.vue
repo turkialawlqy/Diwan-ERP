@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -115,7 +116,7 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="إدارة الموردين - الأستاذ" />
+        <Head title="إدارة الموردين" />
 
         <div class="space-y-5" @click="activeMenu = null">
             <!-- Header Ribbon -->
@@ -131,6 +132,7 @@ const formatCurrency = (val) => {
                         <ChevronRightIcon class="w-3.5 h-3.5 text-slate-300 mx-2 rtl:rotate-180" />
                         <span class="text-indigo-600 font-bold">الموردين</span>
                     </div>
+                    <ImportButton v-if="$can('purchases.suppliers.create')" type="suppliers" title="استيراد الموردين من Excel" hint="عمود opening_balance اختياري: الرصيد الدائن الافتتاحي (للموردين الجدد فقط)." />
                     <button 
                         @click="handleSearch"
                         title="تحديث البيانات"
@@ -222,7 +224,7 @@ const formatCurrency = (val) => {
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">المستحقات الحالية للموردين</p>
-                    <p class="text-xl sm:text-2xl font-black text-rose-500">{{ formatCurrency(stats?.total_payable) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                    <p class="text-xl sm:text-2xl font-black text-rose-500">{{ formatCurrency(stats?.total_payable) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">الموردين النشطين</p>

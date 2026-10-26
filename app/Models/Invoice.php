@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
+use App\Traits\BranchScoped;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,9 +12,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Invoice extends Model
 {
-    use HasFactory, BelongsToCompany;
+    use Auditable, BelongsToCompany, BranchScoped, HasFactory;
 
     protected $fillable = [
+        'currency_code',
+        'exchange_rate',
+        'salesperson_id',
+        'sales_order_id',
+        'delivery_note_id',
+        'invoice_type',
         'company_id',
         'branch_id',
         'customer_id',
@@ -34,6 +42,7 @@ class Invoice extends Model
         'payment_status',
         'payment_method',
         'bank_account_id',
+        'warehouse_id',
         'notes',
         'terms',
         'zatca_uuid',

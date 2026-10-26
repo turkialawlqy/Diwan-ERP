@@ -2,16 +2,22 @@
 
 namespace App\Models;
 
+use App\Services\Documents\DocumentNumberService;
+use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Customer extends Model
 {
-    use HasFactory, BelongsToCompany;
+    use Auditable, BelongsToCompany, HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'price_list_id',
+        'salesperson_id',
+        'payment_terms_days',
         'company_id',
         'customer_type',
         'code',
@@ -52,16 +58,27 @@ class Customer extends Model
     protected static function booted()
     {
         static::creating(function ($customer) {
-            if (empty($customer->code) && !empty($customer->company_id)) {
-                $count = static::where('company_id', $customer->company_id)->count() + 1;
-                $customer->code = '1-' . str_pad($count, 6, '0', STR_PAD_LEFT);
+            if (empty($customer->code) && ! empty($customer->company_id)) {
+                $customer->code = app(DocumentNumberService::class)
+                    ->next('customer', null, (int) $customer->company_id);
             }
         });
     }
 
+    /**
+     * The company's walk-in (cash) customer used for anonymous POS sales.
+     */
+    public static function walkIn(): self
+    {
+        return static::firstOrCreate(
+            ['code' => 'WALK-IN'],
+            ['name' => 'عميل نقدي', 'customer_type' => 'individual', 'status' => 'active'],
+        );
+    }
+
     public function getFormattedCodeAttribute(): string
     {
-        return $this->code ?: ('1-' . str_pad($this->id, 6, '0', STR_PAD_LEFT));
+        return $this->code ?: ('1-'.str_pad($this->id, 6, '0', STR_PAD_LEFT));
     }
 
     public function invoices(): HasMany

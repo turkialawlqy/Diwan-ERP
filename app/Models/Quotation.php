@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
+use App\Traits\BranchScoped;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Quotation extends Model
 {
-    use HasFactory, BelongsToCompany;
+    use Auditable, BelongsToCompany, BranchScoped, HasFactory;
 
     protected $fillable = [
         'company_id',

@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import { ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -111,8 +112,10 @@ const formatCurrency = (val) => {
                         <span>البحث والتصفية</span>
                     </button>
 
+                    <ImportButton v-if="$can('inventory.products.create')" type="products" title="استيراد الأصناف من Excel" hint="الأصناف الموجودة (بنفس SKU) تُحدّث. opening_quantity و opening_cost و warehouse_code للرصيد الافتتاحي." />
                     <!-- Add Product Button -->
                     <Link 
+                        v-if="$canRoute('inventory.products.create')"
                         :href="route('inventory.products.create')"
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >
@@ -222,7 +225,7 @@ const formatCurrency = (val) => {
                                 <td class="py-4 px-6">
                                     <div class="flex items-center gap-2">
                                         <Link 
-                                            :href="route('inventory.products.edit', p.id)"
+                                            :href="route('inventory.products.show', p.id)"
                                             class="font-bold text-slate-800 hover:text-indigo-600 transition-colors"
                                         >
                                             {{ p.name_ar }}

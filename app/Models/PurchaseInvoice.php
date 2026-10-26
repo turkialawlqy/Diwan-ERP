@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
+use App\Traits\BranchScoped;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,9 +12,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PurchaseInvoice extends Model
 {
-    use HasFactory, BelongsToCompany;
+    use Auditable, BelongsToCompany, BranchScoped, HasFactory;
 
     protected $fillable = [
+        'currency_code',
+        'exchange_rate',
+        'source',
+        'bank_account_id',
         'company_id',
         'supplier_id',
         'purchase_order_id',
@@ -76,5 +82,15 @@ class PurchaseInvoice extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(SupplierPayment::class);
+    }
+
+    public function returns(): HasMany
+    {
+        return $this->hasMany(PurchaseReturn::class);
+    }
+
+    public function landedCosts(): HasMany
+    {
+        return $this->hasMany(LandedCost::class);
     }
 }

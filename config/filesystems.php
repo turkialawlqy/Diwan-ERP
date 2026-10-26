@@ -33,9 +33,31 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            'serve' => false, // private files are only served by FileController (permission checked)
             'throw' => false,
             'report' => false,
+        ],
+
+        // Encrypted backups (erp:backup). Point BACKUP_DISK at an S3-compatible
+        // disk to keep copies off the server.
+        'backups' => [
+            'driver' => 'local',
+            'root' => storage_path('app/backups'),
+            'throw' => true,
+        ],
+
+        // Off-site copy of every backup (BACKUP_OFFSITE_DISK=offsite): any
+        // S3-compatible storage (AWS, Wasabi, Backblaze B2, MinIO...).
+        'offsite' => [
+            'driver' => 's3',
+            'key' => env('BACKUP_S3_KEY'),
+            'secret' => env('BACKUP_S3_SECRET'),
+            'region' => env('BACKUP_S3_REGION', 'me-south-1'),
+            'bucket' => env('BACKUP_S3_BUCKET'),
+            'endpoint' => env('BACKUP_S3_ENDPOINT'),
+            'use_path_style_endpoint' => (bool) env('BACKUP_S3_PATH_STYLE', false),
+            'root' => env('BACKUP_S3_ROOT', 'diwan-backups'),
+            'throw' => true,
         ],
 
         'public' => [

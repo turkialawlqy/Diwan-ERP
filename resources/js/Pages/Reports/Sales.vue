@@ -1,4 +1,5 @@
 <script setup>
+import DateRangeFilter from '@/Components/UI/DateRangeFilter.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
+    filters: { type: Object, default: () => ({}) },
     stats: Object,
 });
 
@@ -24,7 +26,7 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="تقارير المبيعات - الأستاذ" />
+        <Head title="تقارير المبيعات" />
 
         <div class="space-y-6">
             <!-- Breadcrumb Navigation -->
@@ -39,6 +41,8 @@ const formatCurrency = (val) => {
                     <span class="text-slate-900 font-semibold">المبيعات</span>
                 </nav>
             </div>
+
+            <DateRangeFilter route-name="reports.sales" :filters="filters" />
 
             <!-- Live KPI Overview Banner -->
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -68,7 +72,7 @@ const formatCurrency = (val) => {
 
                 <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs flex items-center justify-between">
                     <div class="space-y-1">
-                        <span class="text-3xs font-bold text-slate-400">ضريبة القيمة المضافة 15%</span>
+                        <span class="text-3xs font-bold text-slate-400">{{ $taxLabel() }}</span>
                         <h3 class="text-lg font-black font-mono text-slate-900">
                             {{ formatCurrency(stats?.total_tax) }} <span class="text-xs font-normal">﷼</span>
                         </h3>
@@ -82,7 +86,8 @@ const formatCurrency = (val) => {
                     <div class="space-y-1">
                         <span class="text-3xs font-bold text-slate-400">تقدير مجمل الأرباح</span>
                         <h3 class="text-lg font-black font-mono text-emerald-600">
-                            {{ formatCurrency(stats?.gross_profit) }} <span class="text-xs font-normal">﷼</span>
+                            <template v-if="stats?.gross_profit === null">—</template>
+                            <template v-else>{{ formatCurrency(stats?.gross_profit) }} <span class="text-xs font-normal">﷼</span></template>
                         </h3>
                     </div>
                     <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -91,7 +96,7 @@ const formatCurrency = (val) => {
                 </div>
             </div>
 
-            <!-- 3 Main Report Blocks (Exact Match to anas.alostaz.io) -->
+            <!-- 3 Main Report Blocks (Exact Match to anas.diwan.io) -->
             <div class="space-y-4">
                 <!-- 1. تقارير المبيعات -->
                 <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:shadow-md transition">

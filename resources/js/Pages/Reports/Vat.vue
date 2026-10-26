@@ -1,4 +1,5 @@
 <script setup>
+import DateRangeFilter from '@/Components/UI/DateRangeFilter.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@heroicons/vue/24/outline';
 
 const props = defineProps({
+    filters: { type: Object, default: () => ({}) },
     vat: Object,
 });
 
@@ -28,9 +30,10 @@ const printReport = () => {
 
 <template>
     <AppLayout>
-        <Head title="إقرار ضريبة القيمة المضافة ZATCA - الأستاذ" />
+        <Head title="إقرار ضريبة القيمة المضافة ZATCA" />
 
         <div class="space-y-5">
+            <DateRangeFilter route-name="reports.vat" :filters="filters" />
             <!-- Header Ribbon -->
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
                 <div class="flex items-center gap-2">
@@ -84,7 +87,7 @@ const printReport = () => {
                         <span>ضريبة القيمة المضافة على المبيعات (المخرجات)</span>
                     </h3>
 
-                    <table class="w-full text-xs">
+                    <div class="overflow-x-auto"><table class="w-full text-xs">
                         <thead>
                             <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold">
                                 <th class="py-2.5 px-4 text-start">البند الضريبي</th>
@@ -95,15 +98,15 @@ const printReport = () => {
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <tr>
-                                <td class="py-3 px-4 font-medium text-slate-900">المبيعات الخاضعة للنسبة الأساسية (15%)</td>
+                                <td class="py-3 px-4 font-medium text-slate-900">المبيعات الخاضعة للنسبة الأساسية ({{ $taxRate() }}%)</td>
                                 <td class="py-3 px-4 font-mono text-end">{{ formatCurrency(vat?.sales_subtotal) }} ﷼</td>
-                                <td class="py-3 px-4 text-end font-mono">15%</td>
+                                <td class="py-3 px-4 text-end font-mono">{{ $taxRate() }}%</td>
                                 <td class="py-3 px-4 font-mono font-bold text-emerald-600 text-end">{{ formatCurrency(vat?.sales_tax) }} ﷼</td>
                             </tr>
                             <tr>
                                 <td class="py-3 px-4 font-medium text-slate-900">الإيرادات والخدمات المتنوعة الخاضعة للضريبة</td>
                                 <td class="py-3 px-4 font-mono text-end">-</td>
-                                <td class="py-3 px-4 text-end font-mono">15%</td>
+                                <td class="py-3 px-4 text-end font-mono">{{ $taxRate() }}%</td>
                                 <td class="py-3 px-4 font-mono font-bold text-emerald-600 text-end">{{ formatCurrency(vat?.revenues_tax) }} ﷼</td>
                             </tr>
                         </tbody>
@@ -115,7 +118,7 @@ const printReport = () => {
                                 </td>
                             </tr>
                         </tfoot>
-                    </table>
+                    </table></div>
                 </div>
 
                 <!-- 2. ضريبة المدخلات (المشتريات والمصروفات) -->
@@ -125,7 +128,7 @@ const printReport = () => {
                         <span>ضريبة القيمة المضافة على المشتريات (المدخلات القابلة للخصم)</span>
                     </h3>
 
-                    <table class="w-full text-xs">
+                    <div class="overflow-x-auto"><table class="w-full text-xs">
                         <thead>
                             <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold">
                                 <th class="py-2.5 px-4 text-start">البند الضريبي</th>
@@ -136,15 +139,15 @@ const printReport = () => {
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <tr>
-                                <td class="py-3 px-4 font-medium text-slate-900">المشتريات الخاضعة للنسبة الأساسية (15%)</td>
+                                <td class="py-3 px-4 font-medium text-slate-900">المشتريات الخاضعة للنسبة الأساسية ({{ $taxRate() }}%)</td>
                                 <td class="py-3 px-4 font-mono text-end">{{ formatCurrency(vat?.purchases_subtotal) }} ﷼</td>
-                                <td class="py-3 px-4 text-end font-mono">15%</td>
+                                <td class="py-3 px-4 text-end font-mono">{{ $taxRate() }}%</td>
                                 <td class="py-3 px-4 font-mono font-bold text-indigo-600 text-end">{{ formatCurrency(vat?.purchases_tax) }} ﷼</td>
                             </tr>
                             <tr>
                                 <td class="py-3 px-4 font-medium text-slate-900">المصروفات التشغيلية الخاضعة للضريبة</td>
                                 <td class="py-3 px-4 font-mono text-end">-</td>
-                                <td class="py-3 px-4 text-end font-mono">15%</td>
+                                <td class="py-3 px-4 text-end font-mono">{{ $taxRate() }}%</td>
                                 <td class="py-3 px-4 font-mono font-bold text-indigo-600 text-end">{{ formatCurrency(vat?.expenses_tax) }} ﷼</td>
                             </tr>
                         </tbody>
@@ -156,7 +159,7 @@ const printReport = () => {
                                 </td>
                             </tr>
                         </tfoot>
-                    </table>
+                    </table></div>
                 </div>
 
                 <!-- 3. النتيجة الصافية -->

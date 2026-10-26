@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,9 +11,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Payroll extends Model
 {
-    use HasFactory, BelongsToCompany;
+    use Auditable, BelongsToCompany, HasFactory;
 
     protected $fillable = [
+        'bank_account_id',
         'company_id',
         'payroll_number',
         'month',
@@ -25,6 +27,7 @@ class Payroll extends Model
         'payment_date',
         'notes',
         'created_by',
+        'total_overtime', 'total_gosi_employee', 'total_gosi_employer', 'total_loans', 'approved_by', 'approved_at', 'paid_at',
     ];
 
     protected $casts = [

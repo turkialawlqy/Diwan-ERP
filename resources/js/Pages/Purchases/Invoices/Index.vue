@@ -63,7 +63,7 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="فواتير المشتريات - الأستاذ" />
+        <Head title="فواتير المشتريات" />
 
         <div class="space-y-5" @click="activeMenu = null">
             <!-- Header Ribbon -->
@@ -108,6 +108,7 @@ const formatCurrency = (val) => {
 
                     <!-- Add Invoice Button -->
                     <Link 
+                        v-if="$canRoute('purchases.invoices.create')"
                         :href="route('purchases.invoices.create')"
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >
@@ -193,15 +194,15 @@ const formatCurrency = (val) => {
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">إجمالي المشتريات</p>
-                    <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ formatCurrency(stats?.total_purchases_amount) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                    <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ formatCurrency(stats?.total_purchases_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">المسدد للموردين</p>
-                    <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ formatCurrency(stats?.total_paid_amount) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                    <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ formatCurrency(stats?.total_paid_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">المستحق المتبقي</p>
-                    <p class="text-xl sm:text-2xl font-black text-rose-500">{{ formatCurrency(stats?.total_due_amount) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                    <p class="text-xl sm:text-2xl font-black text-rose-500">{{ formatCurrency(stats?.total_due_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
             </div>
 

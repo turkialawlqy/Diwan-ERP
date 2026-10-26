@@ -73,6 +73,17 @@ return [
             'after_commit' => false,
         ],
 
+        // Long jobs (company data exports, up to an hour): retry_after must exceed the
+        // worker timeout or a second worker would pick the same job up mid-run.
+        'redis-long' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'exports',
+            'retry_after' => (int) env('REDIS_LONG_QUEUE_RETRY_AFTER', 3700),
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
         'deferred' => [
             'driver' => 'deferred',
         ],

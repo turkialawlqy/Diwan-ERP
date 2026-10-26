@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
+use App\Services\TenantManager;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -38,11 +40,25 @@ class LoginRequest extends FormRequest
      *
      * @throws ValidationException
      */
-    public function authenticate(): void
+    /**
+     * Checks the credentials. Users with two-factor enabled are not logged in
+     * here: the user is returned so the second step can finish the login.
+     */
+    public function authenticate(): ?User
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        $guard = Auth::guard('web');
+        $credentials = $this->credentials();
+        $user = $guard->getProvider()->retrieveByCredentials($credentials);
+
+        if ($user instanceof User && $user->hasTwoFactorEnabled() && $guard->validate($credentials)) {
+            RateLimiter::clear($this->throttleKey());
+
+            return $user;
+        }
+
+        if (! Auth::attempt($credentials, $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -51,6 +67,28 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+
+        return null;
+    }
+
+    /**
+     * Credentials for the attempt. On a company's subdomain only that company's
+     * users can sign in; inactive users can never sign in.
+     */
+    protected function credentials(): array
+    {
+        $credentials = $this->only('email', 'password');
+        $tenantId = app(TenantManager::class)->getTenantId();
+
+        $credentials[] = function ($query) use ($tenantId) {
+            $query->where(fn ($q) => $q->whereNull('status')->orWhere('status', 'active'));
+
+            if ($tenantId) {
+                $query->where('company_id', $tenantId);
+            }
+        };
+
+        return $credentials;
     }
 
     /**

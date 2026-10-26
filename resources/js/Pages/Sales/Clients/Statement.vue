@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { computed } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -72,6 +73,8 @@ const printStatement = () => {
                         <ChevronRightIcon class="w-3.5 h-3.5 text-slate-300 mx-2 rtl:rotate-180" />
                         <span class="text-indigo-600 font-bold">كشف حساب: {{ client.name }}</span>
                     </div>
+
+                    <ShareDocument type="statement" :id="client.id" />
 
                     <button 
                         @click="router.reload()" 

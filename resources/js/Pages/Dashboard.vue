@@ -1,4 +1,5 @@
 <script setup>
+import { cur } from '@/utils/tax';
 import { computed } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -24,6 +25,8 @@ const props = defineProps({
     recentInvoices: Array,
     topProducts: Array,
     salesChart: Object,
+    cashOutlook: { type: Object, default: null },
+    onboarding: { type: Object, default: null },
 });
 
 const page = usePage();
@@ -68,13 +71,13 @@ const chartOptions = computed(() => ({
     },
     yaxis: {
         labels: {
-            formatter: (val) => `${val.toLocaleString()} ر.س`,
+            formatter: (val) => `${val.toLocaleString()} ${cur()}`,
             style: { colors: '#64748B', fontSize: '11px', fontFamily: 'Cairo' }
         }
     },
     tooltip: {
         theme: 'light',
-        y: { formatter: (val) => `${val.toLocaleString()} ر.س` }
+        y: { formatter: (val) => `${val.toLocaleString()} ${cur()}` }
     },
     legend: {
         position: 'top',
@@ -88,6 +91,22 @@ const chartOptions = computed(() => ({
 <template>
     <AppLayout>
         <Head title="لوحة التحكم الرئيسية" />
+
+        <!-- First-run setup checklist (owner) -->
+        <div v-if="onboarding" class="mb-6 bg-white border border-indigo-100 rounded-2xl p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="font-black text-slate-800 text-sm">إعداد منشأتك للبدء ({{ onboarding.done }} من {{ onboarding.total }})</h2>
+                <div class="w-40 h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-indigo-600" :style="{ width: (onboarding.done / onboarding.total * 100) + '%' }"></div></div>
+            </div>
+            <ul class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+                <li v-for="s in onboarding.steps" :key="s.key">
+                    <Link :href="s.url" class="flex items-center gap-2 p-2 rounded-xl border" :class="s.done ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : 'border-slate-200 hover:border-indigo-300 text-slate-700'">
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-3xs font-black" :class="s.done ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500'">{{ s.done ? '✓' : '' }}</span>
+                        <span :class="s.done ? 'line-through' : 'font-bold'">{{ s.label }}</span>
+                    </Link>
+                </li>
+            </ul>
+        </div>
 
         <!-- Welcome Banner & Top Header -->
         <div class="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -112,6 +131,7 @@ const chartOptions = computed(() => ({
             <!-- Header Action Buttons -->
             <div class="flex items-center gap-2.5">
                 <Link
+                    v-if="$canRoute('sales.invoices.create')"
                     :href="route('sales.invoices.create')"
                     class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-sm hover:shadow transition active:scale-95"
                 >
@@ -131,6 +151,7 @@ const chartOptions = computed(() => ({
         <!-- 1. Quick Actions Row -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
             <QuickActionButton 
+                v-if="$canRoute('sales.invoices.create')"
                 :href="route('sales.invoices.create')"
                 title="فاتورة مبيعات جديدة"
                 subtitle="إصدار فاتورة إلكترونية معتمدة"
@@ -142,6 +163,7 @@ const chartOptions = computed(() => ({
             </QuickActionButton>
 
             <QuickActionButton 
+                v-if="$canRoute('sales.clients.create')"
                 :href="route('sales.clients.create')"
                 title="إضافة عميل جديد"
                 subtitle="تسجيل بيانات عميل جديد"
@@ -153,6 +175,7 @@ const chartOptions = computed(() => ({
             </QuickActionButton>
 
             <QuickActionButton 
+                v-if="$canRoute('inventory.products.create')"
                 :href="route('inventory.products.create')"
                 title="إضافة منتج جديد"
                 subtitle="إدراج صنف وتكلفة ومخزون"
@@ -180,7 +203,7 @@ const chartOptions = computed(() => ({
             <KpiCard
                 title="مبيعات اليوم"
                 :value="kpis.today_sales"
-                unit="ر.س"
+                :unit="$cur()"
                 color="indigo"
             >
                 <template #icon>
@@ -191,7 +214,7 @@ const chartOptions = computed(() => ({
             <KpiCard
                 title="مبيعات الشهر الحالي"
                 :value="kpis.month_sales"
-                unit="ر.س"
+                :unit="$cur()"
                 :trend="kpis.month_sales_trend"
                 trendText="مقارنة بالشهر الماضي"
                 color="emerald"
@@ -217,7 +240,7 @@ const chartOptions = computed(() => ({
             <KpiCard
                 title="المبالغ المستحقة (الآجل)"
                 :value="kpis.receivables"
-                unit="ر.س"
+                :unit="$cur()"
                 :trend="kpis.receivables_trend"
                 trendText="مستحقات التحصيل"
                 color="amber"
@@ -227,6 +250,14 @@ const chartOptions = computed(() => ({
                 </template>
             </KpiCard>
         </div>
+
+        <!-- Cash outlook (from the insights dashboards) -->
+        <Link v-if="cashOutlook" :href="route('reports.insights')" class="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-3 bg-white border border-slate-200 rounded-2xl p-4 text-xs hover:border-indigo-300">
+            <div><div class="text-slate-500">النقدية اليوم</div><div class="text-base font-black font-mono mt-1">{{ Number(cashOutlook.now).toLocaleString('en-US', { maximumFractionDigits: 0 }) }}</div></div>
+            <div><div class="text-slate-500">المتوقع بعد 30 يوماً</div><div class="text-base font-black font-mono mt-1">{{ Number(cashOutlook.in30).toLocaleString('en-US', { maximumFractionDigits: 0 }) }}</div></div>
+            <div><div class="text-slate-500">أدنى رصيد متوقع</div><div class="text-base font-black font-mono mt-1" :class="cashOutlook.lowest < 0 ? 'text-rose-700' : ''">{{ Number(cashOutlook.lowest).toLocaleString('en-US', { maximumFractionDigits: 0 }) }}</div></div>
+            <div><div class="text-slate-500">ذمم عملاء متأخرة</div><div class="text-base font-black font-mono mt-1">{{ Number(cashOutlook.overdue).toLocaleString('en-US', { maximumFractionDigits: 0 }) }}</div></div>
+        </Link>
 
         <!-- 3. Performance Chart & Analytics -->
         <div class="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs mb-8">
@@ -292,7 +323,7 @@ const chartOptions = computed(() => ({
                                     {{ inv.date }}
                                 </td>
                                 <td class="px-5 py-3.5 font-bold text-slate-900 font-sans">
-                                    {{ inv.total }} ر.س
+                                    {{ inv.total }} {{ $cur() }}
                                 </td>
                                 <td class="px-5 py-3.5 text-center">
                                     <StatusBadge :status="inv.status" />
@@ -327,7 +358,7 @@ const chartOptions = computed(() => ({
                         </div>
 
                         <div class="text-end">
-                            <p class="text-xs font-bold text-emerald-700 font-sans">{{ product.revenue }} ر.س</p>
+                            <p class="text-xs font-bold text-emerald-700 font-sans">{{ product.revenue }} {{ $cur() }}</p>
                             <span class="text-[10px] text-slate-500">{{ product.sold_units }} قطعة</span>
                         </div>
                     </div>

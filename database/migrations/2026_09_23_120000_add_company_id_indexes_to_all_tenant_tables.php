@@ -8,7 +8,7 @@ return new class extends Migration
 {
     /**
      * Add performance indexes on company_id for all tenant-scoped tables.
-     * These composite indexes dramatically improve query performance 
+     * These composite indexes dramatically improve query performance
      * when multiple companies share the same database.
      */
     public function up(): void
@@ -41,9 +41,9 @@ return new class extends Migration
         foreach ($tables as $table => $columns) {
             if (Schema::hasTable($table)) {
                 Schema::table($table, function (Blueprint $blueprint) use ($columns, $table) {
-                    $indexName = $table . '_' . implode('_', $columns) . '_index';
+                    $indexName = $table.'_'.implode('_', $columns).'_index';
                     // Only add if index doesn't exist
-                    if (!Schema::hasIndex($table, $indexName)) {
+                    if (! Schema::hasIndex($table, $indexName)) {
                         $blueprint->index($columns, $indexName);
                     }
                 });
@@ -72,8 +72,8 @@ return new class extends Migration
             'supplier_payments' => ['company_id'],
             'accounts' => ['company_id'],
             'journal_entries' => ['company_id', 'date'],
-            'expenses' => ['company_id', 'date'],
-            'revenues' => ['company_id', 'date'],
+            'expenses' => ['company_id', 'expense_date'],
+            'revenues' => ['company_id', 'revenue_date'],
             'bank_accounts' => ['company_id'],
             'pos_sessions' => ['company_id', 'user_id'],
             'pos_orders' => ['company_id', 'created_at'],
@@ -84,7 +84,7 @@ return new class extends Migration
         foreach ($tables as $table => $columns) {
             if (Schema::hasTable($table)) {
                 Schema::table($table, function (Blueprint $blueprint) use ($columns, $table) {
-                    $indexName = $table . '_' . implode('_', $columns) . '_index';
+                    $indexName = $table.'_'.implode('_', $columns).'_index';
                     $blueprint->dropIndex($indexName);
                 });
             }

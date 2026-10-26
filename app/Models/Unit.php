@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Unit extends Model
 {
-    use HasFactory, BelongsToCompany;
+    use BelongsToCompany, HasFactory;
 
     protected $fillable = [
         'company_id',

@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import { ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -104,7 +105,9 @@ const formatDateArabic = (dateStr) => {
                         <span>البحث والتصفية</span>
                     </button>
 
+                    <ImportButton v-if="$can('sales.quotations.create')" type="quotations" title="استيراد عروض أسعار من Excel" hint="سطر لكل بند؛ الأسطر التي تحمل نفس quotation_ref تكوّن عرضاً واحداً. العميل برمزه (customer_code) أو اسمه. تُنشأ العروض كمسودات." />
                     <Link 
+                        v-if="$canRoute('sales.quotations.create')"
                         :href="route('sales.quotations.create')"
                         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >
@@ -130,7 +133,7 @@ const formatDateArabic = (dateStr) => {
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">إجمالي القيمة التقديرية</p>
-                    <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ formatCurrency(stats?.total_value) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                    <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ formatCurrency(stats?.total_value) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
             </div>
 

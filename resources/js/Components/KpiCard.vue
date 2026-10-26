@@ -12,7 +12,7 @@ defineProps({
     },
     unit: {
         type: String,
-        default: 'ر.س',
+        default: undefined, // the company's currency
     },
     trend: {
         type: Number,
@@ -58,8 +58,8 @@ defineProps({
             <span class="text-2xl font-black text-slate-900 tracking-tight font-sans">
                 {{ value }}
             </span>
-            <span v-if="unit" class="text-xs font-bold text-slate-500">
-                {{ unit }}
+            <span v-if="unit !== ''" class="text-xs font-bold text-slate-500">
+                {{ unit ?? $cur() }}
             </span>
         </div>
 

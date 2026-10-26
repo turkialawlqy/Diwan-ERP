@@ -130,6 +130,7 @@ const formatDateArabic = (dateStr) => {
 
                     <!-- Add Invoice Button -->
                     <Link 
+                        v-if="$canRoute('sales.invoices.create')"
                         :href="route('sales.invoices.create')"
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >
@@ -232,15 +233,15 @@ const formatDateArabic = (dateStr) => {
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">إجمالي المبيعات</p>
-                    <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ formatCurrency(stats?.total_amount) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                    <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ formatCurrency(stats?.total_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">المبالغ المحصلة</p>
-                    <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ formatCurrency(stats?.paid_amount) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                    <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ formatCurrency(stats?.paid_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
                     <p class="text-xs text-slate-400 font-medium mb-1">المستحقات المتبقية</p>
-                    <p class="text-xl sm:text-2xl font-black text-rose-500">{{ formatCurrency(stats?.unpaid_amount) }} <span class="text-xs font-normal text-slate-500">ر.س</span></p>
+                    <p class="text-xl sm:text-2xl font-black text-rose-500">{{ formatCurrency(stats?.unpaid_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
             </div>
 
@@ -355,6 +356,7 @@ const formatDateArabic = (dateStr) => {
                                         <DocumentTextIcon class="w-10 h-10 text-slate-300 stroke-1" />
                                         <p class="font-semibold text-slate-500">لا توجد فواتير مطابقة للبحث</p>
                                         <Link 
+                                            v-if="$canRoute('sales.invoices.create')"
                                             :href="route('sales.invoices.create')"
                                             class="mt-2 text-xs font-bold text-indigo-600 hover:text-indigo-800"
                                         >

@@ -1,8 +1,9 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref, onMounted } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
-import AlOstazLogo from '../../../Components/AlOstazLogo.vue';
+import BrandLogo from '../../../Components/BrandLogo.vue';
 import QRCode from 'qrcode';
 import {
     PrinterIcon,
@@ -98,6 +99,8 @@ const formatDateArabic = (dateStr) => {
                         <span>عرض الفاتورة الأصلية</span>
                     </Link>
 
+                    <ShareDocument v-if="$can('sales.returns.print')" type="credit_note" :id="creditNote.id" />
+
                     <button 
                         @click="triggerPrint"
                         class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all"
@@ -114,12 +117,12 @@ const formatDateArabic = (dateStr) => {
                 <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 border-b-2 border-slate-800 pb-8">
                     <div class="space-y-3 max-w-md">
                         <div class="flex items-center gap-3">
-                            <AlOstazLogo size="lg" />
+                            <BrandLogo size="lg" />
                             <div>
                                 <h2 class="text-xl font-black text-slate-900 leading-tight">
-                                    {{ company?.name || 'شركة الأستاذ للتجارة والحلول البرمجية' }}
+                                    {{ company?.name || $page.props.brand?.name }}
                                 </h2>
-                                <p class="text-xs text-slate-500 font-medium">نظام الأستاذ المحاسبي الشامل - المملكة العربية السعودية</p>
+                                <p class="text-xs text-slate-500 font-medium">{{ $page.props.brand?.name }} — نظام محاسبي متكامل - المملكة العربية السعودية</p>
                             </div>
                         </div>
 
@@ -227,7 +230,7 @@ const formatDateArabic = (dateStr) => {
                             <span class="font-mono font-bold">{{ formatCurrency(creditNote.subtotal) }} ﷼</span>
                         </div>
                         <div class="flex justify-between py-1 border-b border-slate-100 text-slate-600">
-                            <span>ضريبة القيمة المضافة (15%):</span>
+                            <span>{{ $taxLabel() }}:</span>
                             <span class="font-mono font-bold">{{ formatCurrency(creditNote.tax_amount) }} ﷼</span>
                         </div>
                         <div class="flex justify-between py-2 border-b-2 border-slate-900 text-base font-black text-slate-900">

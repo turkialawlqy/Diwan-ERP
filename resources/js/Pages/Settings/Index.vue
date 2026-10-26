@@ -27,6 +27,11 @@ const props = defineProps({
     company: Object,
     settings: Object,
     accounts: Array,
+    roles: { type: Array, default: () => [] },
+    twoFactorRoles: { type: Array, default: () => [] },
+    countries: { type: Array, default: () => [] },
+    currencies: { type: Array, default: () => [] },
+    countryLocked: { type: Boolean, default: false },
 });
 
 const activeTab = ref('general');
@@ -88,6 +93,7 @@ const form = useForm({
     tax_number: props.company?.tax_number || '',
     commercial_registration: props.company?.commercial_registration || '',
     currency: props.company?.currency || 'SAR',
+    country_code: props.company?.country_code || 'SA',
     timezone: props.company?.timezone || 'Asia/Riyadh',
     language: props.company?.language || 'ar',
 
@@ -95,6 +101,9 @@ const form = useForm({
     vat_rate: props.settings?.vat_rate ? Number(props.settings.vat_rate) : 15,
     invoice_prefix: props.settings?.invoice_prefix || 'INV',
     invoice_terms: props.settings?.invoice_terms || 'تطبق الشروط والأحكام الخاصة بالمبيعات.',
+    document_message: props.settings?.document_message || '',
+    show_hijri: props.settings?.show_hijri !== '0',
+    two_factor_required_roles: [...(props.twoFactorRoles || [])],
     pos_auto_print: props.settings?.pos_auto_print === '1',
 
     // ZATCA Settings
@@ -134,7 +143,7 @@ const triggerOnboard = () => {
     });
 };
 
-const currentLogo = ref(props.company?.logo || null);
+const currentLogo = ref(props.company?.logo_url || props.company?.logo || null);
 const isUploadingLogo = ref(false);
 const logoError = ref('');
 const fileInputRef = ref(null);
@@ -144,7 +153,7 @@ const handleLogoUpload = async (event) => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-        logoError.value = 'يرجى اختيار ملف صورة صالح (PNG, JPG, SVG, WebP).';
+        logoError.value = 'يرجى اختيار ملف صورة صالح (PNG, JPG, WebP, GIF).';
         return;
     }
 
@@ -195,7 +204,7 @@ const removeLogo = async () => {
 
 <template>
     <AppLayout>
-        <Head title="إعدادات المنشأة والزكاة - الأستاذ" />
+        <Head title="إعدادات المنشأة والزكاة" />
 
         <div class="space-y-5 w-full pb-12">
             <!-- Top Breadcrumbs & Action Bar -->
@@ -340,7 +349,7 @@ const removeLogo = async () => {
                                             <input 
                                                 ref="fileInputRef" 
                                                 type="file" 
-                                                accept="image/png,image/jpeg,image/webp,image/svg+xml" 
+                                                accept="image/png,image/jpeg,image/webp,image/gif" 
                                                 class="hidden" 
                                                 @change="handleLogoUpload"
                                             />
@@ -368,7 +377,7 @@ const removeLogo = async () => {
                                         </div>
 
                                         <p class="text-3xs text-slate-400 leading-relaxed">
-                                            الصيغ المدعومة: PNG, JPG, WebP, SVG (حتى 3 ميجابايت).<br>
+                                            الصيغ المدعومة: PNG, JPG, WebP, GIF (حتى 3 ميجابايت).<br>
                                             يظهر الشعار تلقائياً في ترويسة الفواتير الضريبية المطبوعة، قوالب الـ POS الحرارية، وعروض الأسعار.
                                         </p>
 
@@ -526,84 +535,10 @@ const removeLogo = async () => {
                                 </div>
                             </div>
 
-                            <!-- Phase 2 Extended Configuration (Shows only when Phase 2 is selected) -->
-                            <div v-show="form.zatca_phase === 'phase2'" class="space-y-4 pt-3 border-t border-slate-100">
-                                <h3 class="text-xs font-black text-indigo-900 flex items-center gap-2">
-                                    <KeyIcon class="w-4 h-4 text-indigo-600" />
-                                    <span>إعدادات وشهادات الربط (Phase 2 Integration)</span>
-                                </h3>
-
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-xs font-bold text-slate-700 mb-1">بيئة الربط (ZATCA Environment) *</label>
-                                        <select 
-                                            v-model="form.zatca_environment"
-                                            class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 font-bold bg-slate-50/50"
-                                        >
-                                            <option value="sandbox">بيئة المحاكاة والاختبار (Sandbox / Simulation)</option>
-                                            <option value="production">بيئة الإنتاج الحقيقية المباشرة (Production Portal)</option>
-                                        </select>
-                                        <p class="text-2xs text-slate-400 mt-1">يُوصى بالبدء ببيئة Sandbox لاختبار التوافق قبل الانتقال للإنتاج.</p>
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-xs font-bold text-slate-700 mb-1">حالة توثيق الجهاز (CSID Status)</label>
-                                        <div class="flex items-center gap-2 pt-1.5">
-                                            <span 
-                                                v-if="settings?.zatca_compliance_status === 'active'"
-                                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                            >
-                                                <CheckBadgeIcon class="w-4 h-4 text-emerald-600" />
-                                                <span>موثق ومعتمد بشهادة CSID</span>
-                                            </span>
-                                            <span 
-                                                v-else
-                                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200"
-                                            >
-                                                <span>بانتظار إدخال رمز التحقق OTP للربط</span>
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Onboarding Box -->
-                                <div class="bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-5 space-y-4">
-                                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-indigo-200/60 pb-3">
-                                        <div>
-                                            <h4 class="text-xs font-black text-indigo-900">ربط وتوثيق جهاز الفوترة عبر رمز التحقق (OTP)</h4>
-                                            <p class="text-2xs text-indigo-700 mt-0.5">قم بالدخول لبوابة "فاتورة" لهيئة الزكاة واستخراج رمز OTP المكون من 6 أرقام للربط الفوري.</p>
-                                        </div>
-                                    </div>
-
-                                    <div class="flex flex-col sm:flex-row items-center gap-3">
-                                        <div class="w-full sm:w-64">
-                                            <input 
-                                                v-model="onboardForm.otp"
-                                                type="text" 
-                                                placeholder="أدخل رمز OTP (مثال: 123456)"
-                                                class="w-full text-xs font-mono text-center tracking-widest rounded-xl border-indigo-200 focus:border-indigo-600 focus:ring-indigo-600 bg-white"
-                                                dir="ltr"
-                                                maxlength="10"
-                                            />
-                                        </div>
-                                        <button 
-                                            type="button"
-                                            @click="triggerOnboard"
-                                            :disabled="onboardForm.processing || !onboardForm.otp"
-                                            class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-all disabled:opacity-50"
-                                        >
-                                            <ArrowPathIcon v-if="onboardForm.processing" class="w-4 h-4 animate-spin" />
-                                            <KeyIcon v-else class="w-4 h-4" />
-                                            <span>توثيق وربط الجهاز مع ZATCA</span>
-                                        </button>
-                                    </div>
-
-                                    <div v-if="settings?.zatca_csid" class="p-3 bg-white/80 rounded-xl border border-indigo-100 text-2xs space-y-1">
-                                        <p class="text-slate-500 font-medium">الشهادة الرقمية المعتمدة (CSID Token):</p>
-                                        <p class="font-mono text-slate-700 break-all">{{ settings.zatca_csid }}</p>
-                                        <p v-if="settings?.zatca_onboarded_at" class="text-slate-400 mt-1">تاريخ الاعتماد: {{ settings.zatca_onboarded_at }}</p>
-                                    </div>
-                                </div>
+                            <div v-show="form.zatca_phase === 'phase2'" class="bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-5 text-xs space-y-2">
+                                <h4 class="font-black text-indigo-900">الربط والتكامل (المرحلة الثانية)</h4>
+                                <p class="text-indigo-700">تُدار أجهزة الفوترة (EGS) والشهادات وفحوصات الامتثال ومتابعة الاعتماد والإبلاغ من شاشة الفوترة الإلكترونية. تتفعل المرحلة الثانية تلقائياً عند ربط جهاز.</p>
+                                <Link :href="route('zatca.index')" class="inline-block px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold">فتح شاشة الفوترة الإلكترونية</Link>
                             </div>
                         </div>
 
@@ -615,15 +550,15 @@ const removeLogo = async () => {
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">نسبة ضريبة القيمة المضافة (%) *</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">نسبة ضريبة القيمة المضافة (%)</label>
                                     <input 
-                                        v-model.number="form.vat_rate" 
+                                        :value="15"
                                         type="number" 
-                                        step="0.01"
-                                        min="0"
-                                        max="100"
-                                        class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 font-mono font-bold"
+                                        readonly
+                                        disabled
+                                        class="w-full text-xs rounded-xl border-slate-200 bg-slate-50 font-mono font-bold"
                                     />
+                                    <p class="text-3xs text-slate-500 mt-1">النسبة النظامية في المملكة. البنود الصفرية والمعفاة تُحدَّد من بطاقة الصنف.</p>
                                 </div>
 
                                 <div>
@@ -646,6 +581,22 @@ const removeLogo = async () => {
                                     placeholder="تظهر هذه الشروط في أسفل جميع الفواتير الصادرة للعملاء..."
                                 ></textarea>
                             </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">نص رسالة إرسال المستندات للعملاء (بريد / واتساب)</label>
+                                <textarea
+                                    v-model="form.document_message"
+                                    rows="5"
+                                    class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 leading-relaxed"
+                                    placeholder="اتركه فارغاً لاستخدام النص الافتراضي"
+                                ></textarea>
+                                <p class="text-2xs text-slate-400 mt-1">المتغيرات المتاحة: {customer} {document} {number} {total} {currency} {company}</p>
+                            </div>
+
+                            <label class="flex items-center gap-2 text-xs font-bold text-slate-700">
+                                <input v-model="form.show_hijri" type="checkbox" class="rounded border-slate-300 text-indigo-600" />
+                                إظهار التاريخ الهجري (أم القرى) في ملفات PDF للمستندات
+                            </label>
                         </div>
 
                         <!-- Accounting Tab (الربط والتوجيه المحاسبي) -->
@@ -763,7 +714,7 @@ const removeLogo = async () => {
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
-                                            ضريبة القيمة المضافة المحصلة (مخرجات المبيعات 15%) *
+                                            ضريبة القيمة المضافة المحصلة (مخرجات المبيعات) *
                                         </label>
                                         <select 
                                             v-model="form.acc_vat_output_id"
@@ -857,15 +808,7 @@ const removeLogo = async () => {
                                         disabled
                                         class="w-full text-xs rounded-xl border-slate-200 bg-slate-100/90 text-slate-600 cursor-not-allowed font-bold"
                                     >
-                                        <option value="SAR">ريال سعودي (SAR - ر.س)</option>
-                                        <option value="AED">درهم إماراتي (AED - د.إ)</option>
-                                        <option value="USD">دولار أمريكي (USD - $)</option>
-                                        <option value="EUR">يورو (EUR - €)</option>
-                                        <option value="EGP">جنيه مصري (EGP - ج.م)</option>
-                                        <option value="KWD">دينار كويتي (KWD - د.ك)</option>
-                                        <option value="BHD">دينار بحريني (BHD - د.ب)</option>
-                                        <option value="OMR">ريال عماني (OMR - ر.ع)</option>
-                                        <option value="QAR">ريال قطري (QAR - ر.ق)</option>
+                                        <option v-for="c in currencies" :key="c.code" :value="c.code">{{ c.name }} ({{ c.code }} - {{ c.symbol }})</option>
                                     </select>
                                     <p class="text-[11px] text-amber-800 bg-amber-50/70 border border-amber-200/60 rounded-xl p-2.5 mt-2 flex items-start gap-1.5 leading-relaxed font-medium">
                                         <LockClosedIcon class="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
@@ -874,14 +817,21 @@ const removeLogo = async () => {
                                 </div>
 
                                 <div>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">دولة المنشأة</label>
+                                    <select v-model="form.country_code" :disabled="countryLocked" class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 disabled:bg-slate-100" data-company-country>
+                                        <option v-for="c in countries" :key="c.code" :value="c.code">{{ c.name }}</option>
+                                    </select>
+                                    <p class="text-[11px] text-slate-500 mt-1">{{ countryLocked ? 'لا تتغير بعد إصدار فواتير. الفروع في دول أخرى تُضاف من شاشة الفروع.' : 'تحدد ضريبة المنشأة ورقمها الضريبي. الفروع في دول أخرى تُضاف من شاشة الفروع.' }}</p>
+                                    <p v-if="form.errors.country_code" class="text-[11px] text-rose-600 mt-1">{{ form.errors.country_code }}</p>
+                                </div>
+
+                                <div>
                                     <label class="block text-xs font-bold text-slate-700 mb-1">المنطقة الزمنية</label>
                                     <select 
                                         v-model="form.timezone"
                                         class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 font-mono"
                                     >
-                                        <option value="Asia/Riyadh">Asia/Riyadh (GMT+3)</option>
-                                        <option value="Asia/Dubai">Asia/Dubai (GMT+4)</option>
-                                        <option value="Africa/Cairo">Africa/Cairo (GMT+2)</option>
+                                        <option v-for="tz in [...new Set(countries.map((c) => c.timezone))]" :key="tz" :value="tz">{{ tz }}</option>
                                     </select>
                                 </div>
 
@@ -896,7 +846,22 @@ const removeLogo = async () => {
                                     </select>
                                 </div>
                             </div>
+                            <h2 class="text-sm font-black text-slate-900 border-b border-slate-100 pb-3 mb-2 mt-6">
+                                الأمان: التحقق الثنائي الإلزامي
+                            </h2>
+                            <p class="text-xs text-slate-500">المستخدمون في الأدوار المختارة يجب أن يفعّلوا التحقق الثنائي (تطبيق المصادقة) قبل استخدام النظام.</p>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                                <label class="flex items-center gap-2 font-bold text-indigo-700">
+                                    <input v-model="form.two_factor_required_roles" type="checkbox" value="*" class="rounded border-slate-300 text-indigo-600" />
+                                    جميع المستخدمين
+                                </label>
+                                <label v-for="r in roles" :key="r.name" class="flex items-center gap-2" :class="form.two_factor_required_roles.includes('*') ? 'opacity-50' : ''">
+                                    <input v-model="form.two_factor_required_roles" type="checkbox" :value="r.name" :disabled="form.two_factor_required_roles.includes('*')" class="rounded border-slate-300 text-indigo-600" />
+                                    {{ r.label }}
+                                </label>
+                            </div>
                         </div>
+
 
                         <!-- 5. POS Tab -->
                         <div v-show="activeTab === 'pos'" class="space-y-4">

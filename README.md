@@ -1,59 +1,128 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# الديوان (Diwan ERP)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+نظام تخطيط موارد مؤسسات عربي يعمل كخدمة سحابية (SaaS) متعددة المنشآت: لكل منشأة نطاق فرعي خاص وبيانات معزولة تماماً، مع محاسبة متكاملة، ومبيعات ومشتريات ومستودعات، وفوترة إلكترونية متوافقة مع هيئة الزكاة والضريبة والجمارك (المرحلتان)، ومقاولات، وموارد بشرية ورواتب وفق نظام العمل السعودي.
 
-## About Laravel
+## الوحدات
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+| الوحدة | أبرز ما تشمله |
+|---|---|
+| **المحاسبة** | شجرة حسابات متوافقة مع SOCPA، قيود مزدوجة إلزامية التوازن، سنوات وفترات مالية، مراكز تكلفة، ميزان مراجعة وقوائم مالية وتدفقات نقدية، أعمار الديون، إقرار ضريبة القيمة المضافة، الأصول الثابتة والإهلاك، الشيكات، التسويات البنكية، الموازنات، القيود المتكررة، إقفال السنة |
+| **المبيعات** | عروض أسعار ← أوامر بيع (باعتماد) ← أذونات تسليم ← فواتير ضريبية/مبسطة، مرتجعات بالأصناف، إشعارات دائنة ومدينة، قوائم أسعار وشرائح كميات، حد ائتماني، توزيع سندات القبض |
+| **المشتريات** | طلبات شراء ← أوامر شراء (باعتماد) ← استلام بضاعة GRN ← فاتورة مورد بمطابقة ثلاثية، مرتجعات، تكاليف إضافية (شحن وجمارك) |
+| **المستودعات** | سجل حركات مخزنية، متوسط مرجح أو FIFO، وحدات متعددة، دفعات وتواريخ انتهاء، أرقام تسلسلية، تحويل بمرحلتين، جرد، تجميع وقوائم مواد، تقارير كارت صنف وتقييم وراكد |
+| **نقاط البيع** | ورديات، فواتير مبسطة، قيد تكلفة فوري |
+| **الفوترة الإلكترونية** | المرحلة 1 (QR) والمرحلة 2 بتطبيق PHP أصلي: CSR بمفتاح secp256k1، شهادات الامتثال والإنتاج، UBL 2.1، توقيع XAdES، سلسلة ICV/PIH، اعتماد مسبق وإبلاغ مع إعادة المحاولة |
+| **المقاولات** | مشاريع بمركز تكلفة، جداول كميات WBS/BOQ، أوامر تغيير، دفعات مقدمة ومستخلصات بمحتجزات، مقاولو الباطن، صرف مواد وتكاليف مباشرة، ربحية المشروع، خطابات الضمان، تقارير يومية |
+| **المعدات والصيانة** | تأجير المعدات بالساعة/اليوم/الشهر للعملاء (فاتورة ضريبية) أو تحميلها على المشاريع، معدات مستأجرة من موردين، قراءات العدادات اليومية، صيانة دورية لكل صنف بالساعات/الكيلومترات/الأيام، صرف قطع الغيار من أمين المستودع، تنبيهات ولوحة صيانة، تقارير الربحية ونسبة التشغيل والالتزام بالصيانة واستهلاك القطع |
+| **قوالب الطباعة** | مصمم حر بالسحب والإفلات (نصوص وحقول وإطارات وخطوط وصور وQR وجدول أصناف في أي مكان بالمليمتر، صورة نموذج ورقي كخلفية، تكرار التصميم في كل صفحة عند كثرة البنود) للفواتير وعروض الأسعار وأوامر البيع والإشعارات وسندات القبض والصرف، مع التصميم السريع بالأقسام |
+| **الموارد البشرية** | ملف الموظف ووثائقه وتنبيهات انتهائها، الهيكل التنظيمي، الورديات والحضور، الإجازات (سنوية/مرضية بشرائح...)، السلف، مسير الرواتب مع التأمينات الاجتماعية والإضافي والغياب، ملف حماية الأجور WPS، نهاية الخدمة والمخالصات، الخدمة الذاتية، وإعدادات لكل منشأة (نسب التأمينات، الإجازات، الإضافي، نهاية الخدمة) مع القيم النظامية افتراضياً |
+| **المنصة** | باقات ووحدات وحدود، فوترة الاشتراكات، لوحة مالك المنصة، الدخول للمساندة بسبب ومدة محددة، نطاقات خاصة بتحقق DNS، REST API، Webhooks موقعة، إشعارات، CRM، استيراد وتصدير، نسخة كاملة من بيانات المنشأة |
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## إرسال المستندات للعملاء
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- **PDF رسمي** للفاتورة والإشعار الدائن وعرض السعر والمستخلص وكشف الحساب:
+  - يتبع ألوان قالب الطباعة وشعار المنشأة.
+  - يتضمن المبلغ كتابةً ورمز QR.
+  - فواتير الزكاة بصيغة PDF/A-3 مع ملف XML مضمّن.
+- **إرسال للعميل:**
+  - **بريد إلكتروني:** المستند مرفق PDF، والرد يصل لبريد المنشأة.
+  - **واتساب:** رابط PDF موقّع ومؤقت.
+  - كل عملية إرسال تُسجَّل في سجل الإرسال.
+- **رابط كشف حساب للعميل:** يفتح بلا تسجيل دخول، وفيه الرصيد والفواتير وتنزيلها. الرابط موقّع ومقيّد بالعميل نفسه، وينتهي بعد المدة المحددة في `DOCUMENT_LINK_DAYS`.
+- **ما يحتاج ضبطاً في `.env`:**
+  - إعدادات البريد (`MAIL_*`).
+  - تشغيل الطابور (`queue:work`).
 
-## Learning Laravel
+## العملات المتعددة والتاريخ الهجري
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### العملات المتعددة
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+- **أين تُستخدم:** فواتير البيع والشراء وسندات القبض والصرف. تُعرَّف العملات وأسعار صرفها المؤرخة من «الإعدادات ← العملات وأسعار الصرف».
+- **سعر الصرف:** يأخذ المستند آخر سعر في تاريخه، ويمكن تعديله يدوياً في المستند نفسه.
+- **القيود المحاسبية:**
+  - تُرحَّل دائماً بالعملة الأساسية.
+  - تُقيَّم البضاعة المستوردة بالريال بسعر فاتورة الشراء.
+  - عند السداد بسعر مختلف عن سعر الفاتورة، يُرحَّل فرق العملة المحقق تلقائياً.
+- **المرتجعات والإشعارات:** تتبع عملة الفاتورة الأصلية وسعرها.
+- **الفوترة الإلكترونية:** فاتورة الزكاة بعملة أجنبية تُبلَّغ بعملتها، مع إجمالي الضريبة بالريال كما تشترط الهيئة.
+- **عروض الأسعار وأوامر البيع والشراء:** ما زالت بالعملة الأساسية.
 
-## Laravel Sponsors
+### التاريخ الهجري
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+- **مكان الظهور:** يظهر هجري أم القرى بجانب تواريخ انتهاء الهوية والإقامة والجواز والوثائق وخطابات الضمان، وفي ملفات PDF للمستندات.
+- **إيقافه:** يمكن إيقافه في ملفات PDF من الإعدادات.
 
-### Premium Partners
+## الفواتير الدورية ولوحات القيادة
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+### الفواتير الدورية
 
-## Contributing
+- **الاستخدام:** عقود الخدمات، مثل الإيجار والصيانة والاشتراكات.
+- **الإصدار:** تُصدر الفاتورة تلقائياً كل شهر أو ربع سنة أو سنة، عبر المجدول (`erp:accounting-schedules recurring`).
+- **الإرسال:** يمكن إرسالها للعميل بالبريد عند إصدارها.
+- **منع التكرار:** كل فترة تُصدر مرة واحدة فقط، حتى لو شُغّل الأمر أكثر من مرة. وإذا توقف المجدول، تُستكمل الفترات الفائتة عند تشغيله.
+- **الإنشاء:** من شاشة «الفواتير الدورية»، أو من زر «فاتورة دورية» في صفحة أي فاتورة.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### لوحات القيادة (التقارير ← لوحات القيادة والتحليلات)
 
-## Code of Conduct
+- **التدفق النقدي المتوقع لـ 13 أسبوعاً:** يجمع الذمم حسب الاستحقاق، والفواتير الدورية، والشيكات، والموردين، والرواتب.
+- **أعمار الذمم:** للعملاء والموردين، مع أكثر المتأخرين وإرسال كشف الحساب لهم.
+- **الربحية:** حسب الصنف والعميل والمشروع.
+- **الموازنة:** الموازنة المعتمدة مقابل الفعلي.
+- **العملة:** كل المبالغ بالعملة الأساسية، ومنها أيضاً إقرار ضريبة القيمة المضافة وأعمار الذمم.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## الأمان والعزل
 
-## Security Vulnerabilities
+- **العزل:** نطاق عام يفشل مغلقاً (fail-closed) على كل جداول المنشأة، والتحقق من المعرفات المرسلة بقاعدة `tenant_exists`.
+- **الجلسات:** لكل نطاق فرعي جلسته، ويُرفض أي مستخدم على نطاق منشأة أخرى.
+- **الصلاحيات:** مصفوفة لكل منشأة (`module.resource.action`) مربوطة بكل مسار، والمسار غير المربوط مرفوض. رموز API لا تتجاوز صلاحيات صاحبها.
+- **الملفات:** على قرص خاص وتُخدم برمز مشفر.
+- **التدقيق:** سجلات تدقيق لكل منشأة، وسجل منفصل لعمليات المنصة.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## البدء السريع (تطوير)
 
-## License
+```bash
+composer install && npm ci && npm run build
+cp .env.example .env && php artisan key:generate
+php artisan migrate --seed      # منشأة تجريبية: anas / مدير المنصة: admin@diwan.io
+php artisan serve               # افتح http://localhost:8000/?tenant=anas
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## الاختبارات
+
+```bash
+php artisan test                       # SQLite في الذاكرة
+php artisan test -c phpunit.mysql.xml  # MySQL 8 (قاعدة diwan_test)
+vendor/bin/pint --test
+```
+
+### اختبارات المتصفح (E2E)
+
+اختبارات Playwright في `tests/e2e/` تشغّل النظام في متصفح حقيقي وتنفّذ ما يفعله المستخدم بالنقر:
+
+- فاتورة بيع ثم طباعتها
+- مشروع بجدول كميات
+- أمر شراء
+- صنف بفئة ضريبية
+- إعدادات الموارد البشرية
+- الشعار في الطباعة
+- مرور على كل شاشات النظام للتأكد من خلوها من الأخطاء
+
+```bash
+npm run build
+npx playwright install chromium   # مرة واحدة
+npm run test:e2e
+```
+
+- **قاعدة البيانات:** تُنشأ قاعدة SQLite مستقلة (`database/e2e.sqlite`) من البيانات التجريبية في كل تشغيل، ولا تُمسّ قاعدة التطوير.
+- **متصفح مثبّت مسبقاً:** إن وُجد، مرّر مساره عبر `PLAYWRIGHT_CHROMIUM_PATH`.
+
+## التشغيل على ويندوز (MAMP)
+
+انقر على `deploy\windows\update.bat` لتحديث النسخة المحلية من GitHub، و`install-auto-update.bat` لتحديثها تلقائياً كل ساعة. التفاصيل في [docs/WINDOWS-LOCAL.md](docs/WINDOWS-LOCAL.md).
+
+## الوثائق
+
+- [النشر والتشغيل](docs/DEPLOYMENT.md)
+- [المعمارية والقيود المحاسبية](docs/ARCHITECTURE.md)
+- [الواجهة البرمجية API و Webhooks](docs/API.md)
+- [الفوترة الإلكترونية ZATCA](docs/ZATCA.md)

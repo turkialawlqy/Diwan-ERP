@@ -13,7 +13,18 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'الديوان'),
+
+    /*
+    | Product brand shown across the interface (logo, titles, legal pages).
+    | "Diwan": the first register of stipends and public funds (Umar ibn
+    | al-Khattab), covering accounts, payroll and administration.
+    */
+    'brand' => [
+        'name_en' => env('APP_NAME_EN', 'Diwan'),
+        'subtitle' => env('APP_SUBTITLE', 'نظام إدارة الأعمال المتكامل'),
+        'tagline' => env('APP_TAGLINE', 'ديوان منشأتك: المحاسبة والرواتب والإدارة في مكان واحد'),
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -65,7 +76,7 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'Asia/Riyadh'),
 
     /*
     |--------------------------------------------------------------------------
@@ -78,7 +89,10 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    // Show the seeded demo accounts on the login page (never in production).
+    'demo_login' => (bool) env('DEMO_LOGIN', false),
+
+    'locale' => env('APP_LOCALE', 'ar'),
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 

@@ -35,7 +35,7 @@ return new class extends Migration
             $table->string('payment_method')->default('cash'); // cash, card, bank_transfer, credit
             $table->text('notes')->nullable();
             $table->text('terms')->nullable();
-            
+
             // ZATCA Fatoora (Saudi E-Invoicing) Fields
             $table->uuid('zatca_uuid')->nullable();
             $table->string('zatca_hash')->nullable();

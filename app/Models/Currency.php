@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Currency extends Model
 {
-    use HasFactory, BelongsToCompany;
+    use BelongsToCompany, HasFactory;
 
     protected $fillable = [
         'company_id',

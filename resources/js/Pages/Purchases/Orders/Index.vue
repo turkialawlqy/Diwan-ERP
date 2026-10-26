@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
+import StatusBadge from '@/Components/Documents/StatusBadge.vue';
 import {
     PlusIcon,
     MagnifyingGlassIcon,
@@ -57,7 +58,7 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="أوامر الشراء - الأستاذ" />
+        <Head title="أوامر الشراء" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
@@ -86,6 +87,7 @@ const formatCurrency = (val) => {
 
                 <!-- Action & Filter Buttons -->
                 <div class="flex items-center gap-2">
+                    <Link v-if="$can('purchases.orders.create')" :href="route('purchases.orders.create')" class="px-3.5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold flex items-center gap-2"><PlusIcon class="w-4 h-4" /><span>أمر شراء</span></Link>
                     <button 
                         @click="isFilterOpen = !isFilterOpen"
                         :class="[
@@ -137,6 +139,11 @@ const formatCurrency = (val) => {
                                 <option value="pending">قيد الانتظار</option>
                                 <option value="approved">معتمد</option>
                                 <option value="converted_to_invoice">تم التحويل لفاتورة</option>
+                                <option value="draft">مسودة</option>
+                                <option value="pending_approval">بانتظار الاعتماد</option>
+                                <option value="partially_received">مستلم جزئياً</option>
+                                <option value="received">مستلم</option>
+                                <option value="cancelled">ملغى</option>
                             </select>
                         </div>
 
@@ -217,40 +224,18 @@ const formatCurrency = (val) => {
                                     {{ formatCurrency(order.total) }} <span class="text-xs font-normal">﷼</span>
                                 </td>
                                 <td class="py-4 px-6 text-center">
-                                    <span 
-                                        v-if="order.status === 'converted_to_invoice'"
-                                        class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 bg-purple-50 text-purple-700 border border-purple-200/60"
-                                    >
-                                        <CheckCircleIcon class="w-3.5 h-3.5" />
-                                        <span>تم التحويل لفاتورة</span>
-                                    </span>
-                                    <span 
-                                        v-else-if="order.status === 'approved'"
-                                        class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                                    >
-                                        <CheckCircleIcon class="w-3.5 h-3.5" />
-                                        <span>معتمد</span>
-                                    </span>
-                                    <span 
-                                        v-else
-                                        class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200/60"
-                                    >
-                                        <ClockIcon class="w-3.5 h-3.5" />
-                                        <span>قيد الانتظار</span>
-                                    </span>
+                                    <StatusBadge :status="order.status" />
                                 </td>
                                 <td class="py-4 px-6 text-center">
+                                    <Link :href="route('purchases.orders.show', order.id)" class="px-3 py-1 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs me-1">فتح</Link>
                                     <button 
-                                        v-if="order.status !== 'converted_to_invoice'"
+                                        v-if="['pending', 'approved'].includes(order.status) && $can('purchases.orders.convert')"
                                         @click="convertToInvoice(order)"
                                         class="px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition-colors inline-flex items-center gap-1"
                                     >
                                         <ArrowRightCircleIcon class="w-3.5 h-3.5 rtl:rotate-180" />
                                         <span>تحويل لفاتورة شراء</span>
                                     </button>
-                                    <span v-else class="text-xs text-slate-400">
-                                        مكتمل
-                                    </span>
                                 </td>
                             </tr>
                             <tr v-if="!orders.data || orders.data.length === 0">

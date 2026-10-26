@@ -1,8 +1,10 @@
 <script setup>
+import { cur } from '@/utils/tax';
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
-import AlOstazLogo from '../../../Components/AlOstazLogo.vue';
+import BrandLogo from '../../../Components/BrandLogo.vue';
 import QRCode from 'qrcode';
 import {
     PrinterIcon,
@@ -34,6 +36,14 @@ const currentTemplate = computed(() => {
     return props.templates?.find(t => t.id === currentTemplateId.value) || props.template || {};
 });
 
+// Free-form designs print from the server PDF, which is laid out exactly as designed.
+const invoiceTemplates = computed(() => (props.templates || []).filter((t) => ['invoice', 'invoice_a4', 'invoice_thermal_80mm'].includes(t.template_type)));
+const isFreeform = computed(() => currentTemplate.value?.layout_data?.mode === 'freeform');
+const freeformPdf = computed(() => route('documents.pdf', { type: 'invoice', id: props.invoice.id, template: currentTemplate.value?.id }));
+
+// Foreign-currency invoices show their currency and the base equivalent.
+const curSymbol = computed(() => props.invoice?.currency_code || cur());
+const baseTotal = computed(() => props.invoice?.currency_code ? Number(props.invoice.total) * Number(props.invoice.exchange_rate || 1) : null);
 const isLogoBroken = ref(false);
 const companyLogoUrl = computed(() => {
     return props.company?.logo_url || props.company?.logo || null;
@@ -309,12 +319,20 @@ const switchTemplate = (id) => {
 };
 
 const triggerPrint = () => {
+    if (isFreeform.value) {
+        window.open(freeformPdf.value, '_blank');
+        return;
+    }
     window.print();
 };
 
 const printWithTemplate = (id) => {
     currentTemplateId.value = Number(id);
     showPrintModal.value = false;
+    if (isFreeform.value) {
+        window.open(freeformPdf.value, '_blank');
+        return;
+    }
     setTimeout(() => {
         window.print();
     }, 200);
@@ -431,7 +449,7 @@ const resolveTag = (tag) => {
                             @change="switchTemplate($event.target.value)"
                             class="bg-transparent text-xs font-semibold text-slate-800 border-none p-0 focus:ring-0 cursor-pointer"
                         >
-                            <option v-for="t in templates" :key="t.id" :value="t.id">
+                            <option v-for="t in invoiceTemplates" :key="t.id" :value="t.id">
                                 {{ t.name }} {{ t.is_default ? '★ (الافتراضي)' : '' }}
                             </option>
                         </select>
@@ -450,12 +468,22 @@ const resolveTag = (tag) => {
 
                     <!-- Issue Credit Note / Return Button -->
                     <Link 
+                        v-if="$canRoute('sales.returns.create')"
                         :href="route('sales.returns.create', { invoice_id: invoice.id })"
                         class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold text-xs transition"
                     >
                         <ArrowUturnLeftIcon class="w-4 h-4 stroke-2" />
                         <span class="hidden sm:inline">مرتجع</span>
                     </Link>
+
+                    <Link
+                        v-if="$canRoute('sales.recurring.store')"
+                        :href="route('sales.recurring.index', { from_invoice: invoice.id })"
+                        class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50"
+                        title="فوترة نفس البنود تلقائياً كل شهر / ربع / سنة"
+                    >فاتورة دورية</Link>
+
+                    <ShareDocument v-if="$can('sales.invoices.print')" type="invoice" :id="invoice.id" />
 
                     <!-- Split / Quick Print Button with Dropdown Trigger -->
                     <div class="inline-flex rounded-xl shadow-xs">
@@ -479,8 +507,13 @@ const resolveTag = (tag) => {
                 </div>
             </div>
 
+            <div v-if="isFreeform" class="max-w-4xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden print:hidden">
+                <iframe :src="freeformPdf" title="معاينة الفاتورة بالتصميم الحر" class="w-full" style="height: 1150px"></iframe>
+            </div>
+
             <!-- Dynamic Invoice Sheet Container (Matches Designer layout_data) -->
             <div 
+                v-else
                 id="printable-invoice" 
                 dir="rtl"
                 :class="[
@@ -515,7 +548,7 @@ const resolveTag = (tag) => {
                             />
                         </div>
                         <h2 class="text-sm font-black tracking-tight leading-tight">
-                            {{ company?.name || 'مؤسسة الأستاذ' }}
+                            {{ company?.name || $page.props.brand?.name }}
                         </h2>
                         
                         <!-- Simplified Tax Invoice Badge -->
@@ -596,7 +629,7 @@ const resolveTag = (tag) => {
                                     {{ Number(item.quantity) }} × {{ formatCurrency(item.unit_price) }}
                                 </span>
                                 <span class="font-mono font-bold text-slate-900">
-                                    {{ formatCurrency(item.total || item.subtotal || (item.quantity * item.unit_price)) }} ر.س
+                                    {{ formatCurrency(item.total || item.subtotal || (item.quantity * item.unit_price)) }} {{ curSymbol }}
                                 </span>
                             </div>
                         </div>
@@ -609,30 +642,31 @@ const resolveTag = (tag) => {
                     <div class="text-3xs space-y-1">
                         <div class="flex justify-between items-center text-slate-600">
                             <span>المجموع الخاضع للضريبة:</span>
-                            <span class="font-mono">{{ formatCurrency(invoice.subtotal) }} ر.س</span>
+                            <span class="font-mono">{{ formatCurrency(invoice.subtotal) }} {{ curSymbol }}</span>
                         </div>
                         <div v-if="Number(invoice.discount_amount) > 0" class="flex justify-between items-center text-rose-600">
                             <span>الخصم:</span>
-                            <span class="font-mono">-{{ formatCurrency(invoice.discount_amount) }} ر.س</span>
+                            <span class="font-mono">-{{ formatCurrency(invoice.discount_amount) }} {{ curSymbol }}</span>
                         </div>
                         <div class="flex justify-between items-center text-slate-600">
-                            <span>ضريبة القيمة المضافة (15%):</span>
-                            <span class="font-mono">{{ formatCurrency(invoice.tax_amount) }} ر.س</span>
+                            <span>{{ $taxLabel() }}:</span>
+                            <span class="font-mono">{{ formatCurrency(invoice.tax_amount) }} {{ curSymbol }}</span>
                         </div>
                         
                         <!-- Grand Total Highlighted -->
                         <div class="border-y-2 border-dashed border-slate-800 py-1.5 my-1 flex justify-between items-center text-xs font-black">
                             <span>الإجمالي شامل الضريبة:</span>
-                            <span class="font-mono text-sm font-black">{{ formatCurrency(invoice.total ?? invoice.total_amount) }} ر.س</span>
+                            <span class="font-mono text-sm font-black">{{ formatCurrency(invoice.total ?? invoice.total_amount) }} {{ curSymbol }}</span>
+                            <span v-if="baseTotal !== null" class="block text-2xs text-slate-500 font-mono">≈ {{ formatCurrency(baseTotal) }} {{ $cur() }} (سعر {{ Number(invoice.exchange_rate).toFixed(4) }})</span>
                         </div>
 
                         <div v-if="Number(invoice.paid_amount) > 0" class="flex justify-between items-center text-slate-600 pt-0.5">
                             <span>المبلغ المدفوع:</span>
-                            <span class="font-mono font-bold">{{ formatCurrency(invoice.paid_amount) }} ر.س</span>
+                            <span class="font-mono font-bold">{{ formatCurrency(invoice.paid_amount) }} {{ curSymbol }}</span>
                         </div>
                         <div v-if="Number(invoice.remaining_amount) > 0" class="flex justify-between items-center text-amber-700 font-bold">
                             <span>المبلغ المتبقي:</span>
-                            <span class="font-mono">{{ formatCurrency(invoice.remaining_amount) }} ر.س</span>
+                            <span class="font-mono">{{ formatCurrency(invoice.remaining_amount) }} {{ curSymbol }}</span>
                         </div>
                     </div>
 
@@ -666,7 +700,7 @@ const resolveTag = (tag) => {
                             {{ currentTemplate.terms_and_conditions || invoice.terms }}
                         </p>
                         <p class="text-3xs text-slate-400 pt-1">
-                            نظام الأستاذ المحاسبي
+                            {{ $page.props.brand?.name }}
                         </p>
                     </div>
                 </div>
@@ -841,7 +875,7 @@ const resolveTag = (tag) => {
                             <span class="text-3xs text-slate-500 font-normal">المورد / البائع</span>
                         </div>
                         <div v-if="layout.company.show_name" class="font-bold text-slate-900 text-xs">
-                            {{ company?.name || 'شركة الأستاذ للتجارة والحلول البرمجية' }}
+                            {{ company?.name || $page.props.brand?.name }}
                         </div>
                         <div v-if="layout.company.show_vat" class="text-slate-600 text-3xs font-mono">
                             <span>الرقم الضريبي (VAT):</span>
@@ -912,13 +946,13 @@ const resolveTag = (tag) => {
                                     <div v-if="item.description && item.item_name" class="text-3xs text-slate-500">{{ item.description }}</div>
                                 </td>
                                 <td v-if="layout.table.columns.find(c => c.key === 'unit_price')?.visible" class="py-3 px-3 text-center font-mono">
-                                    {{ formatCurrency(item.unit_price) }} ﷼
+                                    {{ formatCurrency(item.unit_price) }} {{ curSymbol }}
                                 </td>
                                 <td v-if="layout.table.columns.find(c => c.key === 'quantity')?.visible" class="py-3 px-3 text-center font-mono font-bold">
                                     {{ item.quantity }}
                                 </td>
                                 <td v-if="layout.table.columns.find(c => c.key === 'total')?.visible" class="py-3 px-3 text-center font-mono font-bold text-slate-900">
-                                    {{ formatCurrency(item.total || (item.unit_price * item.quantity)) }} ﷼
+                                    {{ formatCurrency(item.total || (item.unit_price * item.quantity)) }} {{ curSymbol }}
                                 </td>
                             </tr>
                         </tbody>
@@ -930,29 +964,33 @@ const resolveTag = (tag) => {
                     <div class="w-80 bg-slate-50/80 rounded-xl border border-slate-200 p-4 space-y-2.5 text-xs">
                         <div v-if="layout.footer.show_subtotal" class="flex justify-between items-center text-slate-600">
                             <span>المجموع غير شامل الضريبة:</span>
-                            <span class="font-mono font-semibold">{{ formatCurrency(invoice.subtotal) }} ﷼</span>
+                            <span class="font-mono font-semibold">{{ formatCurrency(invoice.subtotal) }} {{ curSymbol }}</span>
                         </div>
 
                         <div v-if="layout.footer.show_vat_15" class="flex justify-between items-center text-slate-600">
-                            <span>ضريبة القيمة المضافة 15%:</span>
-                            <span class="font-mono font-semibold">{{ formatCurrency(invoice.tax_amount) }} ﷼</span>
+                            <span>{{ $taxLabel() }}:</span>
+                            <span class="font-mono font-semibold">{{ formatCurrency(invoice.tax_amount) }} {{ curSymbol }}</span>
                         </div>
 
                         <div v-if="layout.footer.show_grand_total" class="flex justify-between items-center text-slate-900 font-bold border-t border-slate-200 pt-2.5 text-sm">
                             <span>الإجمالي شامل الضريبة:</span>
                             <span class="font-mono" :style="{ color: layout.design.primary_color || '#4F46E5' }">
-                                {{ formatCurrency(invoice.total) }} ﷼
+                                {{ formatCurrency(invoice.total) }} {{ curSymbol }}
                             </span>
+                        </div>
+                        <div v-if="baseTotal !== null" class="flex items-center justify-between text-2xs text-slate-500 font-mono px-1">
+                            <span>ما يعادل بالريال (سعر {{ Number(invoice.exchange_rate).toFixed(4) }})</span>
+                            <span>{{ formatCurrency(baseTotal) }} {{ $cur() }}</span>
                         </div>
 
                         <div v-if="layout.footer.show_paid" class="flex justify-between items-center text-emerald-700 text-3xs font-semibold pt-1">
                             <span>المبلغ المدفوع:</span>
-                            <span class="font-mono">{{ formatCurrency(invoice.paid_amount) }} ﷼</span>
+                            <span class="font-mono">{{ formatCurrency(invoice.paid_amount) }} {{ curSymbol }}</span>
                         </div>
 
                         <div v-if="layout.footer.show_due" class="flex justify-between items-center text-slate-700 text-3xs font-semibold border-t border-dashed border-slate-200 pt-1">
                             <span>المبلغ المتبقي:</span>
-                            <span class="font-mono font-bold">{{ formatCurrency(invoice.remaining_amount) }} ﷼</span>
+                            <span class="font-mono font-bold">{{ formatCurrency(invoice.remaining_amount) }} {{ curSymbol }}</span>
                         </div>
                     </div>
                 </div>
@@ -1022,7 +1060,7 @@ const resolveTag = (tag) => {
                 <!-- Template Choices Grid -->
                 <div class="space-y-2.5 max-h-80 overflow-y-auto pr-1">
                     <div 
-                        v-for="tmpl in templates" 
+                        v-for="tmpl in invoiceTemplates" 
                         :key="tmpl.id"
                         @click="switchTemplate(tmpl.id)"
                         :class="[

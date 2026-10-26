@@ -1,7 +1,8 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
-import AlOstazLogo from '../../../Components/AlOstazLogo.vue';
+import BrandLogo from '../../../Components/BrandLogo.vue';
 import {
     PrinterIcon,
     ArrowRightIcon,
@@ -81,6 +82,8 @@ const formatDateArabic = (dateStr) => {
                 </div>
 
                 <div class="flex items-center gap-2">
+                    <ShareDocument v-if="$can('sales.quotations.print')" type="quotation" :id="quotation.id" />
+
                     <!-- Convert to Invoice Button -->
                     <button 
                         v-if="quotation.status !== 'converted'"
@@ -108,12 +111,12 @@ const formatDateArabic = (dateStr) => {
                 <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 border-b-2 border-slate-800 pb-8">
                     <div class="space-y-3 max-w-md">
                         <div class="flex items-center gap-3">
-                            <AlOstazLogo size="lg" />
+                            <BrandLogo size="lg" />
                             <div>
                                 <h2 class="text-xl font-black text-slate-900 leading-tight">
-                                    {{ company?.name || 'شركة الأستاذ للتجارة والحلول البرمجية' }}
+                                    {{ company?.name || $page.props.brand?.name }}
                                 </h2>
-                                <p class="text-xs text-slate-500 font-medium">نظام الأستاذ المحاسبي الشامل - المملكة العربية السعودية</p>
+                                <p class="text-xs text-slate-500 font-medium">{{ $page.props.brand?.name }} — نظام محاسبي متكامل - المملكة العربية السعودية</p>
                             </div>
                         </div>
 
@@ -239,7 +242,7 @@ const formatDateArabic = (dateStr) => {
                             <span class="font-mono font-bold">- {{ formatCurrency(quotation.discount_amount) }} ﷼</span>
                         </div>
                         <div class="flex justify-between py-1 border-b border-slate-100 text-slate-600">
-                            <span>ضريبة القيمة المضافة (15%):</span>
+                            <span>{{ $taxLabel() }}:</span>
                             <span class="font-mono font-bold">{{ formatCurrency(quotation.tax_amount) }} ﷼</span>
                         </div>
                         <div class="flex justify-between py-2 border-b-2 border-slate-900 text-base font-black text-slate-900">

@@ -36,7 +36,7 @@ class WarehouseController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'branch_id' => 'nullable|exists:branches,id',
+            'branch_id' => 'nullable|tenant_exists:branches,id',
             'name_ar' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'code' => 'required|string|max:50',
@@ -49,7 +49,7 @@ class WarehouseController extends Controller
         $companyId = $tenantManager->getTenantId() ?? auth()->user()?->company_id;
 
         // If marked as main, unset any other main warehouse for this company
-        if (!empty($validated['is_main'])) {
+        if (! empty($validated['is_main'])) {
             Warehouse::where('is_main', true)->update(['is_main' => false]);
         }
 
@@ -70,7 +70,7 @@ class WarehouseController extends Controller
         }
 
         $validated = $request->validate([
-            'branch_id' => 'nullable|exists:branches,id',
+            'branch_id' => 'nullable|tenant_exists:branches,id',
             'name_ar' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'code' => 'required|string|max:50',
@@ -80,7 +80,7 @@ class WarehouseController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        if (!empty($validated['is_main'])) {
+        if (! empty($validated['is_main'])) {
             Warehouse::where('id', '!=', $warehouse->id)->where('is_main', true)->update(['is_main' => false]);
         }
 

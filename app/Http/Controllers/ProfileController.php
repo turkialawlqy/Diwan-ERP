@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Services\Auth\TwoFactor;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,9 +19,16 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): Response
     {
+        $user = $request->user();
+
         return Inertia::render('Profile/Edit', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
+            'mustVerifyEmail' => $user instanceof MustVerifyEmail,
             'status' => session('status'),
+            'twoFactor' => [
+                'enabled' => $user->hasTwoFactorEnabled(),
+                'required' => app(TwoFactor::class)->required($user),
+                'recoveryRemaining' => $user->hasTwoFactorEnabled() ? count((array) $user->two_factor_recovery_codes) : 0,
+            ],
         ]);
     }
 
@@ -29,7 +37,7 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $request->user()->fill(collect($request->validated())->only(['name', 'email'])->all());
 
         if ($request->user()->isDirty('email')) {
             $request->user()->email_verified_at = null;
@@ -51,8 +59,15 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
+        // Company accounts are closed by an owner from Users (kept when they have activity);
+        // the platform admin and the last company owner can never remove themselves.
+        if ($user->isSuperAdmin() || $user->company_id) {
+            return back()->withErrors(['password' => 'لا يمكن حذف هذا الحساب من الملف الشخصي. اطلب من مدير المنشأة إيقافه من شاشة المستخدمين.']);
+        }
+
         Auth::logout();
 
+        $user->revokeAccess();
         $user->delete();
 
         $request->session()->invalidate();

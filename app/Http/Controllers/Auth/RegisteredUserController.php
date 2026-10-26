@@ -8,7 +8,10 @@ use App\Models\Company;
 use App\Models\Currency;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Services\Accounting\AccountingSetupService;
+use App\Services\Permissions\PermissionRegistry;
 use App\Services\TenantManager;
+use App\Support\CurrencyNames;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,7 +23,6 @@ use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use Spatie\Permission\Models\Role;
 
 class RegisteredUserController extends Controller
 {
@@ -29,7 +31,19 @@ class RegisteredUserController extends Controller
      */
     public function create(): Response
     {
-        return Inertia::render('Auth/Register');
+        return Inertia::render('Auth/Register', [
+            // The country sets the base currency, the tax and the time zone.
+            'countries' => collect(config('countries'))->map(fn ($c, $code) => ['code' => $code, 'name' => $c['name'], 'currency' => $c['currency'],
+                'currency_name' => $c['currency_name'], 'symbol' => $c['symbol'], 'tax' => $c['tax']['has'] ? $c['tax']['name'].' '.$c['tax']['standard'].'%' : 'بدون ضريبة قيمة مضافة'])->values(),
+            'currencies' => self::currencies(),
+        ]);
+    }
+
+    /** Currencies a company can keep its books in: the Arab currencies plus USD / EUR. */
+    public static function currencies(): array
+    {
+        return collect(config('countries'))->pluck('currency')->merge(['USD', 'EUR'])->unique()
+            ->map(fn ($code) => ['code' => $code, 'name' => CurrencyNames::for($code)[0], 'symbol' => CurrencyNames::for($code)[2]])->values()->all();
     }
 
     /**
@@ -39,7 +53,7 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $reservedSubdomains = ['admin', 'api', 'www', 'mail', 'app', 'dashboard', 'localhost', '127'];
+        $reservedSubdomains = config('tenancy.reserved_subdomains', []);
 
         $request->validate([
             'company_name' => 'required|string|max:255',
@@ -55,30 +69,26 @@ class RegisteredUserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'phone' => 'required|string|max:20',
-            'currency' => ['nullable', 'string', Rule::in(['SAR', 'AED', 'USD', 'EUR', 'EGP', 'KWD', 'BHD', 'OMR', 'QAR'])],
+            'country_code' => ['nullable', Rule::in(array_keys(config('countries')))],
+            'currency' => ['nullable', 'string', Rule::in(array_column(self::currencies(), 'code'))],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'terms' => 'accepted',
         ], [
+            'terms.accepted' => 'يجب الموافقة على الشروط والأحكام وسياسة الخصوصية.',
             'subdomain.regex' => 'النطاق الفرعي يجب أن يحتوي على أحرف إنجليزية وأرقام وعلامة (-) فقط ولا يبدأ أو ينتهي بشرطة.',
             'subdomain.not_in' => 'هذا النطاق الفرعي محجوز من قبل إدارة النظام.',
             'subdomain.unique' => 'هذا النطاق الفرعي مسجل بالفعل، يرجى اختيار نطاق آخر.',
         ]);
 
         $user = DB::transaction(function () use ($request) {
-            $basicPlan = SubscriptionPlan::where('slug', 'basic')->first();
+            // New companies try the most popular plan; they choose a plan when subscribing.
+            $basicPlan = SubscriptionPlan::where('is_active', true)->where('is_popular', true)->first()
+                ?? SubscriptionPlan::where('slug', 'basic')->first();
 
-            $currenciesMeta = [
-                'SAR' => ['name_ar' => 'ريال سعودي', 'name_en' => 'Saudi Riyal', 'symbol_ar' => 'ر.س', 'symbol_en' => 'SAR'],
-                'AED' => ['name_ar' => 'درهم إماراتي', 'name_en' => 'UAE Dirham', 'symbol_ar' => 'د.إ', 'symbol_en' => 'AED'],
-                'USD' => ['name_ar' => 'دولار أمريكي', 'name_en' => 'US Dollar', 'symbol_ar' => '$', 'symbol_en' => 'USD'],
-                'EUR' => ['name_ar' => 'يورو', 'name_en' => 'Euro', 'symbol_ar' => '€', 'symbol_en' => 'EUR'],
-                'EGP' => ['name_ar' => 'جنيه مصري', 'name_en' => 'Egyptian Pound', 'symbol_ar' => 'ج.م', 'symbol_en' => 'EGP'],
-                'KWD' => ['name_ar' => 'دينار كويتي', 'name_en' => 'Kuwaiti Dinar', 'symbol_ar' => 'د.ك', 'symbol_en' => 'KWD'],
-                'BHD' => ['name_ar' => 'دينار بحريني', 'name_en' => 'Bahraini Dinar', 'symbol_ar' => 'د.ب', 'symbol_en' => 'BHD'],
-                'OMR' => ['name_ar' => 'ريال عماني', 'name_en' => 'Omani Rial', 'symbol_ar' => 'ر.ع', 'symbol_en' => 'OMR'],
-                'QAR' => ['name_ar' => 'ريال قطري', 'name_en' => 'Qatari Rial', 'symbol_ar' => 'ر.ق', 'symbol_en' => 'QAR'],
-            ];
-            $selectedCurrencyCode = $request->input('currency', 'SAR');
-            $currencyInfo = $currenciesMeta[$selectedCurrencyCode] ?? $currenciesMeta['SAR'];
+            $countryCode = $request->input('country_code', 'SA');
+            $country = config("countries.{$countryCode}");
+            $selectedCurrencyCode = $request->input('currency') ?: $country['currency'];
+            [$currencyName, , $currencySymbol] = CurrencyNames::for($selectedCurrencyCode);
 
             // 1. Create Tenant Company
             $company = Company::create([
@@ -87,10 +97,11 @@ class RegisteredUserController extends Controller
                 'email' => $request->email,
                 'phone' => $request->phone,
                 'status' => 'trial',
-                'trial_ends_at' => now()->addDays(14),
+                'trial_ends_at' => now()->addDays($basicPlan?->trial_days ?: 14),
                 'subscription_plan_id' => $basicPlan?->id,
                 'currency' => $selectedCurrencyCode,
-                'timezone' => 'Asia/Riyadh',
+                'country_code' => $countryCode,
+                'timezone' => $country['timezone'],
                 'language' => 'ar',
                 'is_verified' => false,
             ]);
@@ -115,22 +126,22 @@ class RegisteredUserController extends Controller
             // 3. Create Default Currency Record
             Currency::create([
                 'company_id' => $company->id,
-                'name_ar' => $currencyInfo['name_ar'],
-                'name_en' => $currencyInfo['name_en'],
+                'name_ar' => $currencyName,
+                'name_en' => $selectedCurrencyCode,
                 'code' => $selectedCurrencyCode,
-                'symbol_ar' => $currencyInfo['symbol_ar'],
-                'symbol_en' => $currencyInfo['symbol_en'],
+                'symbol_ar' => $currencySymbol,
+                'symbol_en' => $selectedCurrencyCode,
                 'exchange_rate' => 1.000000,
                 'is_default' => true,
             ]);
 
             // 4. Default Settings
-            $company->setSetting('tax_rate', '15', 'finance', 'integer');
-            $company->setSetting('tax_enabled', '1', 'finance', 'boolean');
+            $company->setSetting('tax_rate', (string) $country['tax']['standard'], 'finance', 'string');
+            $company->setSetting('tax_enabled', $country['tax']['has'] ? '1' : '0', 'finance', 'boolean');
             $company->setSetting('invoice_prefix', 'INV-', 'sales', 'string');
 
             // 5. Create Administrator User
-            $user = User::create([
+            $user = (new User)->forceFill([
                 'company_id' => $company->id,
                 'name' => $request->name,
                 'email' => $request->email,
@@ -138,10 +149,17 @@ class RegisteredUserController extends Controller
                 'branch_id' => $branch->id,
                 'password' => Hash::make($request->password),
                 'status' => 'active',
+                'terms_accepted_at' => now(), // PDPL: consent to terms and privacy policy
             ]);
+            $user->save();
 
-            $adminRole = Role::firstOrCreate(['name' => 'admin']);
-            $user->assignRole($adminRole);
+            // Chart of accounts, account mappings and fiscal year.
+            app(AccountingSetupService::class)->provision($company);
+
+            // Per-company roles (owner + defaults) and owner assignment.
+            $registry = app(PermissionRegistry::class);
+            $registry->seedCompanyRoles($company);
+            $user->assignRole($registry->ownerRole());
 
             return $user;
         });
@@ -150,6 +168,6 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        return redirect(route('dashboard', absolute: false))->with('success', 'تم إنشاء منشأتك بنجاح! مرحباً بك في نظام الأستاذ.');
+        return redirect(route('dashboard', absolute: false))->with('success', 'تم إنشاء منشأتك بنجاح! مرحباً بك في '.config('app.name').'.');
     }
 }

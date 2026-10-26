@@ -1,5 +1,9 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { taxRate } from '@/utils/tax';
+import ImportLines from '@/Components/Documents/ImportLines.vue';
+import CurrencyPicker from '@/Components/Documents/CurrencyPicker.vue';
+import { createRemoteLookup } from '@/lookup';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -22,6 +26,7 @@ import {
     ChevronUpDownIcon,
     InformationCircleIcon,
 } from '@heroicons/vue/24/outline';
+import BranchSelect from '@/Components/BranchSelect.vue';
 
 const props = defineProps({
     suppliers: Array,
@@ -32,6 +37,7 @@ const props = defineProps({
     units: Array,
     suggestedNumber: String,
     defaultTaxRate: Number,
+    defaultBranchId: Number,
 });
 
 // Reactive Lists for Local Updates
@@ -40,16 +46,24 @@ const productsList = ref([...(props.products || [])]);
 const categoriesList = ref([...(props.categories || [])]);
 const unitsList = ref([...(props.units || [])]);
 
+
+// Tax rules of the chosen branch (its country): default rate of new lines.
+const selectedBranchId = ref(props.defaultBranchId || props.branches?.[0]?.id || '');
+const branchTax = computed(() => props.branches?.find((b) => Number(b.id) === Number(selectedBranchId.value))?.tax);
+const lineRate = () => Number(branchTax.value?.rate ?? lineRate());
+
 const form = useForm({
     supplier_id: suppliersList.value[0]?.id || '',
     warehouse_id: props.warehouses?.[0]?.id || '',
-    branch_id: props.branches?.[0]?.id || '',
+    branch_id: selectedBranchId.value,
     invoice_number: props.suggestedNumber || '',
     supplier_invoice_number: '',
     invoice_date: new Date().toISOString().split('T')[0],
     due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     supply_date: new Date().toISOString().split('T')[0],
     payment_method: 'bank_transfer',
+    currency_code: '',
+    exchange_rate: '',
     payment_status: 'unpaid',
     paid_amount: 0,
     notes: '',
@@ -60,10 +74,29 @@ const form = useForm({
             quantity: 1,
             unit_price: Number(productsList.value[0]?.purchase_price) || 0,
             discount: 0,
-            tax_rate: Number(productsList.value[0]?.tax_rate) || 15.00,
+            tax_rate: Number(productsList.value[0]?.tax_rate ?? taxRate()),
             isDropdownOpen: false,
         }
     ],
+});
+
+// Warehouses of the chosen branch (and shared ones without a branch); all of them if none match.
+const branchWarehouses = computed(() => {
+    const own = (props.warehouses || []).filter((w) => !w.branch_id || Number(w.branch_id) === Number(selectedBranchId.value));
+    return own.length ? own : props.warehouses || [];
+});
+watch(branchWarehouses, (list) => {
+    if (!list.some((w) => w.id === form.warehouse_id)) form.warehouse_id = list[0]?.id || '';
+}, { immediate: true });
+
+// A new branch moves lines still on the old standard rate to the new one (reduced or zero rates stay).
+watch(() => form.branch_id, (id) => {
+    const oldRate = lineRate();
+    selectedBranchId.value = id;
+    const newRate = lineRate();
+    form.items.forEach((item) => {
+        if (Number(item.tax_rate) === oldRate) item.tax_rate = newRate;
+    });
 });
 
 // ==========================================
@@ -80,6 +113,11 @@ const selectedSupplier = computed(() => {
 if (selectedSupplier.value) {
     supplierSearch.value = selectedSupplier.value.name;
 }
+
+// Lists hold only a first slice; typing fetches more matches from the server.
+const searchSuppliersRemote = createRemoteLookup('lookup.suppliers', suppliersList);
+const searchProductsRemote = createRemoteLookup('lookup.products', productsList);
+watch(supplierSearch, (q) => searchSuppliersRemote(q));
 
 const filteredSuppliers = computed(() => {
     const q = supplierSearch.value.trim().toLowerCase();
@@ -197,6 +235,7 @@ const isNonExistingProduct = (name) => {
 };
 
 const getFilteredProducts = (query) => {
+    searchProductsRemote(query);
     const q = (query || '').trim().toLowerCase();
     if (!q) return productsList.value.slice(0, 15);
     return productsList.value.filter(p => 
@@ -211,7 +250,7 @@ const selectProductForItem = (item, product) => {
     item.product_id = product.id;
     item.item_name = product.name_ar;
     item.unit_price = Number(product.purchase_price) || 0;
-    item.tax_rate = Number(product.tax_rate ?? props.defaultTaxRate ?? 15.00);
+    item.tax_rate = Number(product.tax_rate ?? lineRate());
     item.isDropdownOpen = false;
 };
 
@@ -223,7 +262,7 @@ const newProductForm = ref({
     unit_id: '',
     purchase_price: 0,
     selling_price: 0,
-    tax_rate: props.defaultTaxRate || 15.00,
+    tax_rate: lineRate(),
     sku: '',
     barcode: '',
     description: '',
@@ -254,7 +293,7 @@ const openNewProductModal = (rowIndex, initialName = '') => {
         unit_id: unitsList.value[0]?.id || '',
         purchase_price: 0,
         selling_price: 0,
-        tax_rate: props.defaultTaxRate || 15.00,
+        tax_rate: lineRate(),
         sku: suggestedSku,
         barcode: '',
         description: '',
@@ -296,7 +335,7 @@ const submitNewProduct = async () => {
                     quantity: 1,
                     unit_price: Number(created.purchase_price) || 0,
                     discount: 0,
-                    tax_rate: Number(created.tax_rate) || 15.00,
+                    tax_rate: Number(created.tax_rate ?? taxRate()),
                     isDropdownOpen: false,
                 });
             }
@@ -325,7 +364,7 @@ const addItem = () => {
         quantity: 1,
         unit_price: 0,
         discount: 0,
-        tax_rate: props.defaultTaxRate || 15.00,
+        tax_rate: lineRate(),
         isDropdownOpen: false,
     });
 };
@@ -403,11 +442,16 @@ onMounted(() => {
 onUnmounted(() => {
     document.removeEventListener('click', handleGlobalClick);
 });
+
+const importLines = (lines, replace) => {
+    const rows = lines.map((l) => ({ product_id: l.product_id, item_name: l.item_name, quantity: l.quantity, unit_price: l.unit_price, discount: l.discount, tax_rate: l.tax_rate, isDropdownOpen: false }));
+    form.items = replace ? rows : [...form.items.filter((i) => i.item_name || i.product_id), ...rows];
+};
 </script>
 
 <template>
     <AppLayout>
-        <Head title="إنشاء فاتورة شراء جديدة - الأستاذ" />
+        <Head title="إنشاء فاتورة شراء جديدة" />
 
         <!-- Notification Toast -->
         <Transition
@@ -551,6 +595,10 @@ onUnmounted(() => {
                                 </div>
                             </div>
 
+                            <div v-if="branches?.length > 1">
+                                <BranchSelect v-model="form.branch_id" :branches="branches" :error="form.errors.branch_id" />
+                            </div>
+
                             <!-- Warehouse Selection -->
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">المستودع المستلم <span class="text-rose-500">*</span></label>
@@ -559,7 +607,7 @@ onUnmounted(() => {
                                     required
                                     class="w-full rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 font-medium"
                                 >
-                                    <option v-for="w in warehouses" :key="w.id" :value="w.id">
+                                    <option v-for="w in branchWarehouses" :key="w.id" :value="w.id">
                                         {{ w.name }}
                                     </option>
                                 </select>
@@ -616,6 +664,7 @@ onUnmounted(() => {
                                 />
                             </div>
                         </div>
+                        <CurrencyPicker v-model:code="form.currency_code" v-model:rate="form.exchange_rate" :errors="form.errors" class="pt-2" />
                     </div>
 
                     <!-- Items Table Card -->
@@ -625,6 +674,7 @@ onUnmounted(() => {
                                 <ArchiveBoxIcon class="w-4 h-4 text-indigo-600" />
                                 <span>بنود فاتورة الشراء والمنتجات المستلمة</span>
                             </h2>
+                            <ImportLines kind="purchase" @imported="importLines" />
                             <button 
                                 type="button" 
                                 @click="addItem"
@@ -746,7 +796,7 @@ onUnmounted(() => {
                                         <!-- Tax Rate -->
                                         <td class="py-2.5 px-2 text-center">
                                             <span class="inline-block py-2 px-2 text-2xs font-mono font-bold text-slate-500 bg-slate-50 rounded-xl border border-slate-100">
-                                                15%
+                                                {{ lineRate() }}%
                                             </span>
                                         </td>
 
@@ -798,7 +848,7 @@ onUnmounted(() => {
                                 <span class="font-mono font-bold">{{ formatCurrency(subtotal) }} ﷼</span>
                             </div>
                             <div class="flex justify-between py-1 text-slate-600">
-                                <span>ضريبة القيمة المضافة 15%:</span>
+                                <span>{{ $taxLabel() }}:</span>
                                 <span class="font-mono font-bold text-indigo-600">{{ formatCurrency(taxAmount) }} ﷼</span>
                             </div>
                             <div class="flex justify-between py-2 border-t border-slate-200 text-sm font-black text-slate-900">

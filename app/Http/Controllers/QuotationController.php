@@ -2,18 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\Quotation;
-use App\Models\QuotationItem;
-use App\Models\Invoice;
+use App\Rules\AllowedBranch;
+use App\Services\Sales\InvoiceService;
+use App\Services\Sales\QuotationService;
+use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
-use App\Services\ZatcaService;
-use Carbon\Carbon;
+use App\Support\BranchOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class QuotationController extends Controller
@@ -31,9 +32,9 @@ class QuotationController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('quotation_number', 'like', "%{$search}%")
-                  ->orWhereHas('customer', function ($cq) use ($search) {
-                      $cq->where('name', 'like', "%{$search}%");
-                  });
+                    ->orWhereHas('customer', function ($cq) use ($search) {
+                        $cq->where('name', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -42,7 +43,7 @@ class QuotationController extends Controller
         }
 
         $quotations = $query->orderBy('quotation_date', 'desc')
-            ->paginate($request->input('per_page', 20))
+            ->paginate($this->perPage($request))
             ->withQueryString();
 
         $stats = [
@@ -72,31 +73,23 @@ class QuotationController extends Controller
 
         $customers = Customer::where('status', 'active')
             ->orderBy('name')
+            ->limit(500)
             ->get(['id', 'name', 'company_name', 'tax_number', 'phone']);
 
-        $branches = Branch::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
-
         $products = Product::where('is_active', true)
+            ->orderBy('name_ar')
+            ->limit(500)
             ->get(['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'tax_rate']);
 
-        $year = date('y');
-        $branchId = $branches->first()?->id ?? 1;
-        $lastNumber = Quotation::where('quotation_number', 'like', "QUO-{$year}-{$branchId}-%")
-            ->orderByRaw('CAST(SUBSTRING_INDEX(quotation_number, "-", -1) AS UNSIGNED) DESC')
-            ->value('quotation_number');
-
-        $nextSeq = $lastNumber 
-            ? ((int) substr($lastNumber, strrpos($lastNumber, '-') + 1)) + 1 
-            : 1;
-        $suggestedNumber = sprintf("QUO-%s-%s-%06d", $year, $branchId, $nextSeq);
+        $suggestedNumber = $this->peekNumber('quotation');
 
         return Inertia::render('Sales/Quotations/Create', [
             'customers' => $customers,
-            'branches' => $branches,
+            ...BranchOptions::forUser(),
             'products' => $products,
             'suggestedNumber' => $suggestedNumber,
             'company' => $company,
-            'defaultTaxRate' => 15.00,
+            'defaultTaxRate' => TaxProfile::rate(),
         ]);
     }
 
@@ -106,15 +99,15 @@ class QuotationController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'branch_id' => 'nullable|exists:branches,id',
-            'quotation_number' => 'required|string|max:50',
+            'customer_id' => 'required|tenant_exists:customers,id',
+            'branch_id' => ['nullable', 'tenant_exists:branches,id', new AllowedBranch],
+            'quotation_number' => 'nullable|string|max:50', // ignored: assigned by the system
             'quotation_date' => 'required|date',
             'valid_until' => 'nullable|date',
             'notes' => 'nullable|string',
             'terms' => 'nullable|string',
             'items' => 'required|array|min:1',
-            'items.*.product_id' => 'nullable|integer',
+            'items.*.product_id' => 'nullable|integer|tenant_exists:products,id',
             'items.*.item_name' => 'required|string|max:255',
             'items.*.description' => 'nullable|string',
             'items.*.quantity' => 'required|numeric|min:0.01',
@@ -123,69 +116,7 @@ class QuotationController extends Controller
             'items.*.tax_rate' => 'nullable|numeric|min:0',
         ]);
 
-        $tenantManager = app(TenantManager::class);
-        $company = $tenantManager->getCompany();
-
-        $quotation = DB::transaction(function () use ($validated, $company) {
-            $subtotal = 0;
-            $taxAmount = 0;
-            $discountTotal = 0;
-            $itemsToCreate = [];
-
-            foreach ($validated['items'] as $itemData) {
-                $qty = (float) $itemData['quantity'];
-                $price = (float) $itemData['unit_price'];
-                $discount = (float) ($itemData['discount'] ?? 0);
-                $taxRate = (float) ($itemData['tax_rate'] ?? 15.00);
-
-                $itemSubtotal = ($qty * $price) - $discount;
-                $itemTax = $itemSubtotal * ($taxRate / 100);
-                $itemTotal = $itemSubtotal + $itemTax;
-
-                $subtotal += $itemSubtotal;
-                $taxAmount += $itemTax;
-                $discountTotal += $discount;
-
-                $itemsToCreate[] = [
-                    'product_id' => $itemData['product_id'] ?? null,
-                    'item_name' => $itemData['item_name'],
-                    'description' => $itemData['description'] ?? null,
-                    'quantity' => $qty,
-                    'unit_price' => $price,
-                    'discount' => $discount,
-                    'tax_rate' => $taxRate,
-                    'tax_amount' => $itemTax,
-                    'subtotal' => $itemSubtotal,
-                    'total' => $itemTotal,
-                ];
-            }
-
-            $total = $subtotal + $taxAmount;
-
-            $quotation = Quotation::create([
-                'company_id' => $company->id,
-                'branch_id' => $validated['branch_id'] ?? null,
-                'customer_id' => $validated['customer_id'],
-                'user_id' => auth()->id(),
-                'quotation_number' => $validated['quotation_number'],
-                'quotation_date' => $validated['quotation_date'],
-                'valid_until' => $validated['valid_until'] ?? null,
-                'subtotal' => $subtotal,
-                'discount_amount' => $discountTotal,
-                'tax_rate' => 15.00,
-                'tax_amount' => $taxAmount,
-                'total' => $total,
-                'status' => 'draft',
-                'notes' => $validated['notes'] ?? null,
-                'terms' => $validated['terms'] ?? null,
-            ]);
-
-            foreach ($itemsToCreate as $item) {
-                $quotation->items()->create($item);
-            }
-
-            return $quotation;
-        });
+        $quotation = app(QuotationService::class)->create($validated);
 
         return redirect()->route('sales.quotations.show', $quotation->id)
             ->with('success', 'تم إنشاء عرض السعر بنجاح');
@@ -213,62 +144,39 @@ class QuotationController extends Controller
         $tenantManager = app(TenantManager::class);
         $company = $tenantManager->getCompany();
 
-        $invoice = DB::transaction(function () use ($quotation, $company) {
-            $year = date('y');
-            $count = Invoice::count() + 1;
-            $invoiceNumber = sprintf("INV-%s-1-%06d", $year, $count);
+        if ($quotation->status === 'converted') {
+            return back()->with('error', 'تم تحويل عرض السعر هذا إلى فاتورة مسبقاً');
+        }
 
-            $timestamp = Carbon::now()->format('Y-m-d\TH:i:s\Z');
-            $zatcaQr = ZatcaService::generateQrCode(
-                $company?->name ?? 'الأستاذ',
-                $company?->tax_number ?? '300000000000003',
-                $timestamp,
-                $quotation->total,
-                $quotation->tax_amount
-            );
-
-            $invoice = Invoice::create([
-                'company_id' => $company->id,
-                'customer_id' => $quotation->customer_id,
-                'user_id' => auth()->id(),
-                'invoice_number' => $invoiceNumber,
-                'reference_number' => $quotation->quotation_number,
-                'invoice_date' => Carbon::now()->toDateString(),
-                'due_date' => Carbon::now()->addDays(30)->toDateString(),
-                'subtotal' => $quotation->subtotal,
-                'tax_rate' => 15.00,
-                'tax_amount' => $quotation->tax_amount,
-                'total' => $quotation->total,
-                'paid_amount' => 0,
-                'remaining_amount' => $quotation->total,
-                'payment_status' => 'unpaid',
-                'payment_method' => 'credit',
-                'notes' => "تم التحويل من عرض سعر رقم {$quotation->quotation_number}",
-                'zatca_uuid' => (string) Str::uuid(),
-                'zatca_qr' => $zatcaQr,
-                'zatca_status' => 'submitted',
-            ]);
-
-            foreach ($quotation->items as $qItem) {
-                $invoice->items()->create([
-                    'product_id' => $qItem->product_id,
-                    'item_name' => $qItem->item_name,
-                    'description' => $qItem->description,
-                    'quantity' => $qItem->quantity,
-                    'unit_price' => $qItem->unit_price,
-                    'discount' => $qItem->discount,
-                    'tax_rate' => $qItem->tax_rate,
-                    'tax_amount' => $qItem->tax_amount,
-                    'subtotal' => $qItem->subtotal,
-                    'total' => $qItem->total,
+        $invoice = DB::transaction(function () use ($quotation) {
+            // Lock the quotation so two concurrent requests cannot both convert it.
+            $quotation = Quotation::with('items')->whereKey($quotation->id)->lockForUpdate()->firstOrFail();
+            if ($quotation->status === 'converted') {
+                throw ValidationException::withMessages([
+                    'quotation' => 'تم تحويل عرض السعر هذا إلى فاتورة مسبقاً',
                 ]);
             }
 
-            // Update customer balance
-            Customer::where('id', $quotation->customer_id)->increment('current_balance', $quotation->total);
+            $invoice = app(InvoiceService::class)->create([
+                'customer_id' => $quotation->customer_id,
+                'branch_id' => $quotation->branch_id,
+                'invoice_date' => now()->toDateString(),
+                'due_date' => now()->addDays(30)->toDateString(),
+                'payment_method' => 'credit',
+                'payment_status' => 'unpaid',
+                'reference_number' => $quotation->quotation_number,
+                'notes' => "تم التحويل من عرض سعر رقم {$quotation->quotation_number}",
+            ], $quotation->items->map(fn ($q) => [
+                'product_id' => $q->product_id,
+                'item_name' => $q->item_name,
+                'description' => $q->description,
+                'quantity' => (float) $q->quantity,
+                'unit_price' => (float) $q->unit_price,
+                'discount' => (float) $q->discount,
+                'tax_rate' => (float) $q->tax_rate,
+            ])->all());
 
-            // Update quotation status
-            $quotation->update(['status' => 'converted']);
+            $quotation->update(['status' => 'converted', 'converted_invoice_id' => $invoice->id]);
 
             return $invoice;
         });

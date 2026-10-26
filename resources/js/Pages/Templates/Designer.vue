@@ -1,4 +1,5 @@
 <script setup>
+import { notify } from '@/composables/useDialog';
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
@@ -172,7 +173,7 @@ const uploadLogoFromDesigner = async (event) => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-        logoError.value = 'يرجى اختيار ملف صورة صالح (PNG, JPG, SVG, WebP).';
+        logoError.value = 'يرجى اختيار ملف صورة صالح (PNG, JPG, WebP, GIF).';
         return;
     }
 
@@ -327,7 +328,7 @@ const setHeaderPreset = (preset) => {
 // Generate QR Code dynamically
 const generateQR = async () => {
     try {
-        const qrPayload = currentInvoice.value?.zatca_qr || 'ZATCA-QR-SAMPLE-ALOSTAZ-ERP';
+        const qrPayload = currentInvoice.value?.zatca_qr || 'ZATCA-QR-SAMPLE-DIWAN-ERP';
         const qrPx = (Number(layout.qr?.size) || 95) * 2;
         qrDataUrl.value = await QRCode.toDataURL(qrPayload, {
             width: qrPx,
@@ -418,7 +419,7 @@ const saveTemplate = () => {
         onError: (errors) => {
             isSaving.value = false;
             console.error('Save template errors:', errors);
-            alert('حدث خطأ أثناء حفظ القالب: ' + Object.values(errors).join(', '));
+            notify('حدث خطأ أثناء حفظ القالب:\n' + Object.values(errors).join('\n'));
         }
     });
 };
@@ -603,7 +604,7 @@ const setAsDefault = () => {
                                 class="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-mono text-slate-700"
                             >
                                 <option v-for="inv in sampleInvoices" :key="inv.id" :value="inv.id">
-                                    {{ inv.invoice_number }} ({{ formatCurrency(inv.total) }} ر.س)
+                                    {{ inv.invoice_number }} ({{ formatCurrency(inv.total) }} {{ $cur() }})
                                 </option>
                             </select>
                         </div>
@@ -714,7 +715,7 @@ const setAsDefault = () => {
                                             {{ Number(item.quantity) }} × {{ formatCurrency(item.unit_price) }}
                                         </span>
                                         <span class="font-mono font-bold text-slate-900">
-                                            {{ formatCurrency(item.total || (item.quantity * item.unit_price)) }} ر.س
+                                            {{ formatCurrency(item.total || (item.quantity * item.unit_price)) }} {{ $cur() }}
                                         </span>
                                     </div>
                                 </div>
@@ -727,30 +728,30 @@ const setAsDefault = () => {
                             <div class="text-3xs space-y-1">
                                 <div v-if="layout.footer.show_subtotal" class="flex justify-between items-center text-slate-600">
                                     <span>المجموع الخاضع للضريبة:</span>
-                                    <span class="font-mono">{{ formatCurrency(currentInvoice.subtotal) }} ر.س</span>
+                                    <span class="font-mono">{{ formatCurrency(currentInvoice.subtotal) }} {{ $cur() }}</span>
                                 </div>
                                 <div v-if="Number(currentInvoice.discount) > 0" class="flex justify-between items-center text-rose-600">
                                     <span>الخصم:</span>
-                                    <span class="font-mono">-{{ formatCurrency(currentInvoice.discount) }} ر.س</span>
+                                    <span class="font-mono">-{{ formatCurrency(currentInvoice.discount) }} {{ $cur() }}</span>
                                 </div>
                                 <div v-if="layout.footer.show_vat_15" class="flex justify-between items-center text-slate-600">
-                                    <span>ضريبة القيمة المضافة (15%):</span>
-                                    <span class="font-mono">{{ formatCurrency(currentInvoice.tax) }} ر.س</span>
+                                    <span>{{ $taxLabel() }}:</span>
+                                    <span class="font-mono">{{ formatCurrency(currentInvoice.tax) }} {{ $cur() }}</span>
                                 </div>
                                 
                                 <!-- Grand Total Highlighted -->
                                 <div v-if="layout.footer.show_grand_total" class="border-y-2 border-dashed border-slate-800 py-1 my-1 flex justify-between items-center text-xs font-black">
                                     <span>الإجمالي شامل الضريبة:</span>
-                                    <span class="font-mono text-xs">{{ formatCurrency(currentInvoice.total) }} ر.س</span>
+                                    <span class="font-mono text-xs">{{ formatCurrency(currentInvoice.total) }} {{ $cur() }}</span>
                                 </div>
 
                                 <div v-if="layout.footer.show_paid && Number(currentInvoice.paid_amount) > 0" class="flex justify-between items-center text-slate-600 pt-0.5">
                                     <span>المبلغ المدفوع:</span>
-                                    <span class="font-mono font-bold">{{ formatCurrency(currentInvoice.paid_amount) }} ر.س</span>
+                                    <span class="font-mono font-bold">{{ formatCurrency(currentInvoice.paid_amount) }} {{ $cur() }}</span>
                                 </div>
                                 <div v-if="layout.footer.show_due && Number(currentInvoice.remaining_amount) > 0" class="flex justify-between items-center text-amber-700 font-bold">
                                     <span>المبلغ المتبقي:</span>
-                                    <span class="font-mono">{{ formatCurrency(currentInvoice.remaining_amount) }} ر.س</span>
+                                    <span class="font-mono">{{ formatCurrency(currentInvoice.remaining_amount) }} {{ $cur() }}</span>
                                 </div>
                             </div>
 
@@ -784,7 +785,7 @@ const setAsDefault = () => {
                                     {{ template.terms_and_conditions }}
                                 </p>
                                 <p class="text-3xs text-slate-400 pt-0.5">
-                                    نظام الأستاذ المحاسبي
+                                    {{ $page.props.brand?.name }}
                                 </p>
                             </div>
                         </div>
@@ -1056,12 +1057,12 @@ const setAsDefault = () => {
                                         </div>
 
                                         <div v-if="layout.footer.show_vat_15" class="flex justify-between items-center text-slate-600">
-                                            <span>ضريبة القيمة المضافة 15%:</span>
+                                            <span>{{ $taxLabel() }}:</span>
                                             <span class="font-mono font-medium">{{ formatCurrency(currentInvoice.tax_amount || 1789.16) }}</span>
                                         </div>
 
                                         <div v-if="layout.footer.show_grand_total" class="flex justify-between items-center text-slate-900 font-bold border-t border-slate-200 pt-2 text-sm">
-                                            <span>الإجمالي شامل الضريبة (ر.س):</span>
+                                            <span>الإجمالي شامل الضريبة ({{ $cur() }}):</span>
                                             <span class="font-mono text-indigo-700">{{ formatCurrency(currentInvoice.total || 13716.86) }}</span>
                                         </div>
 
@@ -1072,7 +1073,7 @@ const setAsDefault = () => {
 
                                         <div v-if="layout.footer.show_due" class="flex justify-between items-center text-slate-700 text-3xs font-semibold border-t border-dashed border-slate-200 pt-1">
                                             <span>المتبقي المستحق:</span>
-                                            <span class="font-mono">{{ formatCurrency(currentInvoice.remaining_amount || 0.00) }} ر.س</span>
+                                            <span class="font-mono">{{ formatCurrency(currentInvoice.remaining_amount || 0.00) }} {{ $cur() }}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1705,7 +1706,7 @@ const setAsDefault = () => {
                                             <input 
                                                 ref="logoInputRef" 
                                                 type="file" 
-                                                accept="image/png,image/jpeg,image/webp,image/svg+xml" 
+                                                accept="image/png,image/jpeg,image/webp,image/gif" 
                                                 class="hidden" 
                                                 @change="uploadLogoFromDesigner"
                                             />
@@ -1731,7 +1732,7 @@ const setAsDefault = () => {
                                                     <span>حذف</span>
                                                 </button>
                                             </div>
-                                            <span class="text-3xs text-slate-400 block">PNG, JPG, SVG حتى 3 ميجا</span>
+                                            <span class="text-3xs text-slate-400 block">PNG, JPG, WebP حتى 3 ميجا</span>
                                             <p v-if="logoError" class="text-3xs text-rose-600 font-bold">{{ logoError }}</p>
                                         </div>
                                     </div>
@@ -1964,7 +1965,7 @@ const setAsDefault = () => {
 
                                 <label class="flex items-center gap-2 cursor-pointer p-2.5 bg-slate-50 rounded-xl">
                                     <input v-model="layout.footer.show_vat_15" type="checkbox" class="rounded border-slate-300 text-indigo-600" />
-                                    <span class="text-3xs font-medium text-slate-800">ضريبة 15%</span>
+                                    <span class="text-3xs font-medium text-slate-800">ضريبة {{ $taxRate() }}%</span>
                                 </label>
 
                                 <label class="flex items-center gap-2 cursor-pointer p-2.5 bg-slate-50 rounded-xl">

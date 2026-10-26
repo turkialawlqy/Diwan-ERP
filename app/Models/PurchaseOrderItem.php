@@ -2,15 +2,18 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PurchaseOrderItem extends Model
 {
-    use HasFactory;
+    use BelongsToCompany, HasFactory;
 
     protected $fillable = [
+        'received_quantity',
+        'invoiced_quantity',
         'purchase_order_id',
         'product_id',
         'item_name',
@@ -23,7 +26,7 @@ class PurchaseOrderItem extends Model
     ];
 
     protected $casts = [
-        'quantity' => 'decimal:2',
+        'quantity' => 'decimal:4',
         'unit_price' => 'decimal:2',
         'discount' => 'decimal:2',
         'tax_rate' => 'decimal:2',
@@ -39,5 +42,13 @@ class PurchaseOrderItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * Parent document the line inherits its company from outside a tenant context.
+     */
+    public function tenantParent(): ?Model
+    {
+        return $this->purchaseOrder;
     }
 }

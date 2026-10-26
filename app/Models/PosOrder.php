@@ -10,9 +10,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PosOrder extends Model
 {
-    use HasFactory, BelongsToCompany;
+    use BelongsToCompany, HasFactory;
 
     protected $fillable = [
+        'cash_amount',
+        'card_amount',
         'company_id',
         'pos_session_id',
         'customer_id',

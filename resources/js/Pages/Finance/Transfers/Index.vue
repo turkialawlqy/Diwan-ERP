@@ -1,4 +1,5 @@
 <script setup>
+import CancelDocument from '@/Components/CancelDocument.vue';
 import { ref, computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -57,7 +58,7 @@ const submitTransfer = () => {
 
 <template>
     <AppLayout>
-        <Head title="التحويلات المالية - الأستاذ" />
+        <Head title="التحويلات المالية" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
@@ -109,7 +110,7 @@ const submitTransfer = () => {
                     <div>
                         <p class="text-xs text-slate-500 font-semibold mb-1">إجمالي مبالغ التحويلات</p>
                         <h3 class="text-xl font-black text-slate-900 font-sans">
-                            {{ Number(stats?.total_transfers_amount || 0).toLocaleString() }} <span class="text-xs font-normal text-slate-400">ر.س</span>
+                            {{ Number(stats?.total_transfers_amount || 0).toLocaleString() }} <span class="text-xs font-normal text-slate-400">{{ $cur() }}</span>
                         </h3>
                     </div>
                     <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -165,13 +166,16 @@ const submitTransfer = () => {
                                     {{ t.description }}
                                 </td>
                                 <td class="px-6 py-4 text-center font-bold text-slate-900 font-sans">
-                                    {{ Number(t.total_debit).toLocaleString() }} ر.س
+                                    {{ Number(t.total_debit).toLocaleString() }} {{ $cur() }}
                                 </td>
                                 <td class="px-6 py-4 text-center">
-                                    <span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-200">
-                                        <CheckCircleIcon class="w-3.5 h-3.5" />
-                                        <span>مرحل ومكتمل</span>
-                                    </span>
+                                    <div class="flex items-center justify-center gap-3">
+                                        <span v-if="t.status !== 'reversed'" class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-200">
+                                            <CheckCircleIcon class="w-3.5 h-3.5" />
+                                            <span>مرحل ومكتمل</span>
+                                        </span>
+                                        <CancelDocument v-if="$can('finance.transfers.cancel') || t.status === 'reversed'" :url="route('finance.transfers.cancel', t.id)" label="التحويل" :status="t.status === 'reversed' ? 'cancelled' : null" />
+                                    </div>
                                 </td>
                             </tr>
 

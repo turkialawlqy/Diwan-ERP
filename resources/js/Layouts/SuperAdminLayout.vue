@@ -1,6 +1,6 @@
 <script setup>
 import { Link, usePage, router } from '@inertiajs/vue3';
-import AlOstazLogo from '../Components/AlOstazLogo.vue';
+import BrandLogo from '../Components/BrandLogo.vue';
 import LanguageSwitcher from '../Components/LanguageSwitcher.vue';
 import { 
     BuildingOfficeIcon, 
@@ -24,7 +24,7 @@ const logout = () => {
         <header class="bg-slate-900 text-white h-16 px-4 lg:px-8 flex items-center justify-between border-b border-slate-800 shadow-md">
             <div class="flex items-center gap-6">
                 <Link :href="route('super-admin.dashboard')" class="flex items-center gap-2">
-                    <AlOstazLogo size="sm" :white="true" :showSubtitle="false" />
+                    <BrandLogo size="sm" :white="true" :showSubtitle="false" />
                     <span class="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                         Super Admin
                     </span>
@@ -38,6 +38,11 @@ const logout = () => {
                         <BuildingOfficeIcon class="w-4 h-4 text-purple-400" />
                         <span>جميع الشركات والمنشآت</span>
                     </Link>
+                    <Link :href="route('super-admin.plans')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">الباقات</Link>
+                    <Link :href="route('super-admin.invoices')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">فواتير الاشتراكات</Link>
+                    <Link :href="route('super-admin.audit')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">سجل تدقيق المنصة</Link>
+                    <Link :href="route('super-admin.backups')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">النسخ الاحتياطي</Link>
+                    <Link :href="route('super-admin.legal')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">الشروط والخصوصية</Link>
                 </nav>
             </div>
 

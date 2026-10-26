@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, 'claude/**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Code style (Pint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: vendor/bin/pint --test
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: public/build
+          retention-days: 1
+
+  tests:
+    name: Tests (${{ matrix.database }})
+    needs: frontend
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, mysql]
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: diwan_test
+          MYSQL_USER: diwan
+          MYSQL_PASSWORD: secret
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, pdo_mysql, pdo_sqlite, zip, gd, bcmath, openssl
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: public/build
+      - run: cp .env.example .env && php artisan key:generate
+      - name: Run tests
+        run: |
+          if [ "${{ matrix.database }}" = "mysql" ]; then
+            php artisan test -c phpunit.mysql.xml
+          else
+            php artisan test
+          fi
+
+  e2e:
+    name: Browser tests (Playwright)
+    needs: frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, pdo_sqlite, zip, gd, bcmath, openssl
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: public/build
+      - run: cp .env.example .env && php artisan key:generate
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
+
+  security:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: composer audit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
