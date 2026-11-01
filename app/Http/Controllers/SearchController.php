@@ -16,6 +16,8 @@ use App\Models\Quotation;
 use App\Models\Revenue;
 use App\Models\SalesOrder;
 use App\Models\Supplier;
+use App\Services\Saas\PlanGuard;
+use App\Services\TenantManager;
 use Illuminate\Http\Request;
 
 /**
@@ -43,7 +45,7 @@ class SearchController extends Controller
         $groups = [];
 
         foreach ($kinds as $key => $kind) {
-            if (($only && $only !== $key) || ! $user->can($kind['permission'])) {
+            if (($only && $only !== $key) || ! $user->can($kind['permission']) || $this->moduleOff($kind['permission'])) {
                 continue;
             }
             $rows = $kind['query']($like, $term)->take($only ? self::PER_KIND : self::PER_GROUP)->get();
@@ -58,11 +60,19 @@ class SearchController extends Controller
     /** @return array<int, array{key: string, label: string}> the kinds the user may search (the palette's chips) */
     protected function visibleKinds(Request $request, array $kinds): array
     {
-        return collect($kinds)->filter(fn ($k) => $request->user()->can($k['permission']))
+        return collect($kinds)->filter(fn ($k) => $request->user()->can($k['permission']) && ! $this->moduleOff($k['permission']))
             ->map(fn ($k, $key) => ['key' => $key, 'label' => $k['label']])->values()->all();
     }
 
     /** key => label, permission, query($like, $term), present($row) → title, code, subtitle, url */
+    /** Permission names share the route prefixes of their module (hr., projects. ...). */
+    protected function moduleOff(string $permission): bool
+    {
+        $company = app(TenantManager::class)->getCompany();
+
+        return $company && app(PlanGuard::class)->unavailable($company, $permission);
+    }
+
     protected function kinds(): array
     {
         return [

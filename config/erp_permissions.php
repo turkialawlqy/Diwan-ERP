@@ -835,6 +835,8 @@ return [
         'settings.index' => 'admin.settings.view',
         'settings.update' => 'admin.settings.edit',
         'settings.currencies' => 'admin.settings.view',
+        'settings.modules' => 'admin.settings.view',
+        'settings.modules.update' => 'admin.settings.edit',
         'settings.currencies.store' => 'admin.settings.edit',
         'settings.currencies.rates' => 'admin.settings.edit',
         'settings.currencies.destroy' => 'admin.settings.edit',

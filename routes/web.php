@@ -49,6 +49,7 @@ use App\Http\Controllers\LineImportController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\LookupController;
 use App\Http\Controllers\Manufacturing as Mfg;
+use App\Http\Controllers\ModuleSettingsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\PosRegisterController;
@@ -773,6 +774,8 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
 
     Route::get('/settings', [CompanySettingController::class, 'index'])->name('settings.index');
     Route::get('/settings/currencies', [CurrencyController::class, 'index'])->name('settings.currencies');
+    Route::get('/settings/modules', [ModuleSettingsController::class, 'index'])->name('settings.modules');
+    Route::put('/settings/modules', [ModuleSettingsController::class, 'update'])->name('settings.modules.update');
     Route::post('/settings/currencies', [CurrencyController::class, 'store'])->name('settings.currencies.store');
     Route::post('/settings/currencies/rates', [CurrencyController::class, 'storeRate'])->name('settings.currencies.rates');
     Route::delete('/settings/currencies/{currency}', [CurrencyController::class, 'destroy'])->name('settings.currencies.destroy');

@@ -194,6 +194,7 @@ export default [
         children: [
             { label: 'nav.general_settings', route: 'settings.index', path: '/settings' },
             { label: 'nav.currencies', route: 'settings.currencies', path: '/settings/currencies' },
+            { label: 'nav.modules', route: 'settings.modules', path: '/settings/modules' },
             { label: 'nav.users', route: 'users.index', path: '/users' },
             { label: 'nav.roles', route: 'roles.index', path: '/roles' },
             { label: 'nav.audit_log', route: 'audit.index', path: '/audit-log' },
