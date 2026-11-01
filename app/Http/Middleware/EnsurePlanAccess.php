@@ -26,6 +26,9 @@ class EnsurePlanAccess
 
         $route = $request->route()?->getName();
         $module = $this->guard->moduleForRoute($route);
+        if ($module && $this->guard->switchedOff($company, $module)) {
+            abort(403, 'وحدة «'.(config('saas.optional_modules')[$module] ?? $module).'» معطّلة. يفعّلها مدير النظام من الإعدادات ← الوحدات.');
+        }
         if ($module && ! $this->guard->hasModule($company->loadMissing('plan'), $module)) {
             abort(403, 'هذه الوحدة غير مشمولة في باقة اشتراككم. يمكن الترقية من صفحة الاشتراك.');
         }

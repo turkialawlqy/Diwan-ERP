@@ -106,7 +106,10 @@ class HandleInertiaRequests extends Middleware
             ] : null,
             // Route name => permission map (same one the server enforces) so the UI
             // can hide links the user cannot open.
-            'routePermissions' => fn () => $user && $currentTenant ? config('erp_permissions.routes') : [],
+            // Routes of modules outside the plan or switched off are left out: links to them disappear.
+            'routePermissions' => fn () => $user && $currentTenant
+                ? array_filter(config('erp_permissions.routes'), fn ($p, $name) => ! app(PlanGuard::class)->unavailable($currentTenant, $name), ARRAY_FILTER_USE_BOTH)
+                : [],
             'brand' => [
                 'name' => config('app.name'),
                 'name_en' => config('app.brand.name_en'),

@@ -25,6 +25,16 @@ return [
         'zatca' => 'الربط مع فاتورة (المرحلة الثانية)', 'crm' => 'إدارة العملاء المحتملين', 'api' => 'الواجهة البرمجية API',
     ],
 
+    // Modules a company may switch off itself (الإعدادات ← الوحدات): their menus, pages and search disappear, the data stays.
+    'optional_modules' => [
+        'manufacturing' => 'نظام المصانع (التصنيع، تخطيط الاحتياجات، مراكز العمل، الجودة)',
+        'projects' => 'المقاولات والمشاريع (المستخلصات، مقاولو الباطن، الضمانات)',
+        'equipment' => 'المعدات (التأجير، القراءات، الصيانة)',
+        'pos' => 'نقاط البيع (الكاشير والورديات)',
+        'hr' => 'الموارد البشرية والرواتب',
+        'crm' => 'إدارة العملاء المحتملين',
+    ],
+
     // Days a lapsed subscription keeps working before the company becomes read-only.
     'grace_days' => 7,
 

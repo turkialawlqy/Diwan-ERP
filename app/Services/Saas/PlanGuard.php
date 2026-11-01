@@ -30,7 +30,34 @@ class PlanGuard
 
     public function hasModule(Company $company, string $module): bool
     {
+        return $this->inPlan($company, $module) && ! $this->switchedOff($company, $module);
+    }
+
+    public function inPlan(Company $company, string $module): bool
+    {
         return ! $company->plan || $company->plan->includesModule($module);
+    }
+
+    /** Optional modules the company switched off in its settings. */
+    public function disabledModules(Company $company): array
+    {
+        $off = $company->setting('disabled_modules', []);
+        $off = is_array($off) ? $off : (json_decode((string) $off, true) ?: []);
+
+        return array_values(array_intersect($off, array_keys(config('saas.optional_modules'))));
+    }
+
+    public function switchedOff(Company $company, string $module): bool
+    {
+        return in_array($module, $this->disabledModules($company), true);
+    }
+
+    /** Route / permission names (same prefixes) the company cannot use: outside the plan or switched off. */
+    public function unavailable(Company $company, ?string $name): bool
+    {
+        $module = $this->moduleForRoute($name);
+
+        return $module !== null && ! $this->hasModule($company, $module);
     }
 
     public function moduleForRoute(?string $routeName): ?string

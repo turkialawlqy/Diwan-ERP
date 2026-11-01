@@ -52,4 +52,15 @@ class ReleaseNotesTest extends TestCase
         $this->get(route('feature-requests.index'))->assertOk()
             ->assertInertia(fn ($page) => $page->component('FeatureRequests/Index')->where('repo', SelfUpdate::REPO));
     }
+
+    public function test_every_version_is_listed_once_newest_first(): void
+    {
+        $versions = array_column(config('release_notes'), 'version');
+
+        $this->assertSame(array_unique($versions), $versions);
+        $sorted = $versions;
+        usort($sorted, fn ($a, $b) => version_compare($b, $a));
+        $this->assertSame($sorted, $versions);
+        $this->assertContains('1.0.0', $versions);
+    }
 }

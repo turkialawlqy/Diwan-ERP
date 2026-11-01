@@ -50,6 +50,7 @@ const logout = () => {
         <div class="flex items-center gap-1 sm:gap-2 shrink-0">
             <!-- Quick POS Cashier Action Button -->
             <Link
+                v-if="$canRoute('pos.index')"
                 :href="route('pos.index')"
                 class="h-9 inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-2.5 sm:px-3 rounded-lg shadow-sm transition-colors"
                 title="فتح نقطة البيع (الكاشير)"

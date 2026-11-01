@@ -142,6 +142,23 @@ class ActiveBranch
     }
 
     /**
+     * scopeIds() as part of a cache key, for figures cached per scope: 'all'
+     * when unrestricted, else the sorted ids (hashed when long, as database
+     * cache keys are limited to 255 characters).
+     */
+    public function scopeKey(): string
+    {
+        $ids = $this->scopeIds();
+        if ($ids === null) {
+            return self::ALL;
+        }
+        sort($ids);
+        $key = implode(',', $ids);
+
+        return strlen($key) > 64 ? md5($key) : $key;
+    }
+
+    /**
      * The branch a new record belongs to. Refuses while "all branches" is shown.
      *
      * @throws BranchRequiredException

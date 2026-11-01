@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
+use App\Services\ActiveBranch;
 use App\Services\Reports\Insights;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
@@ -17,9 +18,10 @@ class InsightsController extends Controller
         $request->validate(['from' => 'nullable|date', 'to' => 'nullable|date|after_or_equal:from']);
         $from = Carbon::parse($request->input('from', now()->startOfYear()->toDateString()));
         $to = Carbon::parse($request->input('to', now()->toDateString()));
-        $key = 'insights:'.app(TenantManager::class)->getTenantId().':';
+        $key = 'insights:'.app(TenantManager::class)->getTenantId().':'.app(ActiveBranch::class)->scopeKey().':';
 
-        // Aggregations over many rows: cached briefly per company.
+        // Aggregations over many rows: cached briefly per company and branch scope
+        // (every tab follows the branches the user is viewing).
         return Inertia::render('Reports/Insights', [
             'filters' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
             'cash' => Cache::remember($key.'cash:'.now()->toDateString(), now()->addMinutes(10), fn () => $insights->cashForecast()),
