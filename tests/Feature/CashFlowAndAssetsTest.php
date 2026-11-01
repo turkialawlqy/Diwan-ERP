@@ -16,9 +16,11 @@ use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DepreciationService;
 use App\Services\Accounting\FixedAssetRegister;
 use App\Services\Accounting\PostingService;
+use App\Services\ActiveBranch;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -113,6 +115,34 @@ class CashFlowAndAssetsTest extends TestCase
         $this->assertSame('indirect', $props['filters']['method']);
         $this->assertSame(300.0, $props['report']['indirect']['operating_total']);
         $this->assertArrayNotHasKey('indirect', $this->get(route('accounting.reports.cash-flow'))->viewData('page')['props']['report']);
+    }
+
+    public function test_cash_flow_counts_each_entry_whole_over_many_lines(): void
+    {
+        // 2,000 receipts of three lines: more than the 5,000 lines the report
+        // used to read per page, so a page boundary fell inside an entry.
+        [$bank, $sales, $vat] = [$this->role('default_bank'), $this->role('sales_revenue'), $this->role('vat_output')];
+        $branchId = app(ActiveBranch::class)->forWrite();
+        $lines = [];
+        for ($i = 1; $i <= 2000; $i++) {
+            $id = DB::table('journal_entries')->insertGetId([
+                'company_id' => $this->company->id, 'branch_id' => $branchId, 'entry_number' => 'T-'.$i, 'date' => '2026-06-15',
+                'description' => 'تحصيل', 'total_debit' => 115, 'total_credit' => 115, 'status' => 'posted', 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            foreach ([[$bank, 115, 0], [$sales, 0, 100], [$vat, 0, 15]] as [$account, $debit, $credit]) {
+                $lines[] = ['journal_entry_id' => $id, 'company_id' => $this->company->id, 'account_id' => $account, 'date' => '2026-06-15', 'debit' => $debit, 'credit' => $credit];
+            }
+        }
+        foreach (array_chunk($lines, 500) as $chunk) {
+            DB::table('journal_entry_lines')->insert($chunk);
+        }
+
+        $flow = app(AccountingReports::class)->cashFlow(Carbon::parse('2026-06-01'), Carbon::parse('2026-06-30'));
+        $rows = collect($flow['sections']['operating']['rows'])->pluck('amount', 'account_id');
+
+        $this->assertSame(200000.0, $rows[$sales]);
+        $this->assertSame(30000.0, $rows[$vat]);
+        $this->assertSame(230000.0, $flow['net_change']);
     }
 
     // ------------------------------------------------------------------ assets
