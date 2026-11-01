@@ -391,51 +391,47 @@ class AccountingReports
 
         $flows = ['operating' => [], 'investing' => [], 'financing' => []];
         $openingInRange = 0.0;
+        $range = [$from->toDateString(), $to->toDateString().' 23:59:59'];
 
-        DB::table('journal_entry_lines as l')
+        // Entries that move cash: a cash line, another line and a net cash
+        // movement (transfers between cash accounts net to zero). Whole entries
+        // are summed in SQL: paging their lines could split an entry.
+        $cash = $cashIds ?: [0];
+        $isCash = 'l.account_id IN ('.implode(', ', array_fill(0, count($cash), '?')).')';
+        $entries = DB::table('journal_entry_lines as l')
             ->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
             ->where('l.company_id', $this->companyId())
             ->whereIn('e.status', self::STATUSES)
             ->when($this->branchIds(), fn ($q, $ids) => $q->whereIn('e.branch_id', $ids))
-            ->whereBetween('l.date', [$from->toDateString(), $to->toDateString().' 23:59:59'])
-            ->whereIn('l.journal_entry_id', function ($q) use ($cashIds, $from, $to) {
-                $q->select('journal_entry_id')->from('journal_entry_lines')
-                    ->where('company_id', $this->companyId())
-                    ->whereIn('account_id', $cashIds ?: [0])
-                    ->whereBetween('date', [$from->toDateString(), $to->toDateString().' 23:59:59']);
-            })
-            ->orderBy('l.journal_entry_id')
-            ->select('l.journal_entry_id', 'l.account_id', 'l.debit', 'l.credit', 'e.entry_type')
-            ->chunk(5000, function ($lines) use (&$flows, &$openingInRange, $cashIds, $categories) {
-                foreach ($lines->groupBy('journal_entry_id') as $entryLines) {
-                    $cashNet = 0.0;
-                    $others = [];
-                    foreach ($entryLines as $line) {
-                        if (in_array($line->account_id, $cashIds, true)) {
-                            $cashNet += (float) $line->debit - (float) $line->credit;
-                        } else {
-                            $others[] = $line;
-                        }
-                    }
-                    if (abs($cashNet) < 0.005 || ! $others) {
-                        continue; // transfers between cash accounts
-                    }
-                    // Opening balances are not a cash flow of the period.
-                    if ($entryLines->first()->entry_type === 'opening') {
-                        $openingInRange += $cashNet;
+            ->whereBetween('l.date', $range)
+            ->groupBy('l.journal_entry_id')
+            ->havingRaw("SUM(CASE WHEN {$isCash} THEN 1 ELSE 0 END) > 0", $cash)
+            ->havingRaw("SUM(CASE WHEN {$isCash} THEN 0 ELSE 1 END) > 0", $cash)
+            ->havingRaw("ABS(SUM(CASE WHEN {$isCash} THEN l.debit - l.credit ELSE 0 END)) >= 0.005", $cash)
+            ->selectRaw("l.journal_entry_id, MAX(CASE WHEN e.entry_type = 'opening' THEN 1 ELSE 0 END) as is_opening");
 
-                        continue;
-                    }
-                    // In a balanced entry the cash movement equals the other
-                    // lines' credits minus debits, so each line's signed
-                    // amount is exactly its share of the flow.
-                    foreach ($others as $line) {
-                        $share = (float) $line->credit - (float) $line->debit;
-                        $category = in_array($categories[$line->account_id] ?? null, ['operating', 'investing', 'financing'], true) ? $categories[$line->account_id] : 'operating';
-                        $flows[$category][$line->account_id] = ($flows[$category][$line->account_id] ?? 0) + $share;
-                    }
+        $totals = DB::table('journal_entry_lines as l')
+            ->joinSub($entries, 'f', 'f.journal_entry_id', '=', 'l.journal_entry_id')
+            ->whereBetween('l.date', $range)
+            ->groupBy('f.is_opening', 'l.account_id')
+            ->selectRaw('f.is_opening, l.account_id, SUM(l.debit) as debit, SUM(l.credit) as credit')
+            ->get();
+
+        foreach ($totals as $line) {
+            $cashLine = in_array((int) $line->account_id, $cashIds, true);
+            if ($line->is_opening) {
+                // Opening balances are not a cash flow of the period.
+                if ($cashLine) {
+                    $openingInRange += (float) $line->debit - (float) $line->credit;
                 }
-            });
+            } elseif (! $cashLine) {
+                // In a balanced entry the cash movement equals the other lines'
+                // credits minus debits, so each account's signed amount is
+                // exactly its share of the flow.
+                $category = in_array($categories[$line->account_id] ?? null, ['operating', 'investing', 'financing'], true) ? $categories[$line->account_id] : 'operating';
+                $flows[$category][$line->account_id] = (float) $line->credit - (float) $line->debit;
+            }
+        }
 
         $result = [];
         $net = 0.0;
