@@ -41,7 +41,7 @@ class DashboardController extends Controller
         // indexes are used; aggregates are cached briefly per company.
         // Figures follow the branch and fiscal year chosen in the top bar.
         $year = app(ActiveFiscalYear::class)->current();
-        $scope = app(ActiveBranch::class)->isAll() ? 'all' : (string) app(ActiveBranch::class)->id();
+        $scope = app(ActiveBranch::class)->scopeKey();
         $cacheKey = 'dashboard:'.$tenantManager->getTenantId().':'.$scope.':'.($year?->id ?? 0).':'.$today->toDateString();
         $cached = Cache::remember($cacheKey.':kpis', now()->addMinutes(5), function () use ($today, $startOfMonth, $lastMonthStart, $lastMonthEnd) {
             return [
@@ -203,7 +203,7 @@ class DashboardController extends Controller
             'salesChart' => $salesChart,
             // Short cash outlook for users who can open the insights page.
             'cashOutlook' => fn () => $request->user()?->can('reports.insights.view')
-                ? Cache::remember('insights:'.$tenantManager->getTenantId().':outlook:'.now()->toDateString(), now()->addMinutes(10), function () {
+                ? Cache::remember('insights:'.$tenantManager->getTenantId().':'.$scope.':outlook:'.now()->toDateString(), now()->addMinutes(10), function () {
                     $cash = app(Insights::class)->cashForecast(5);
 
                     return ['now' => $cash['opening'], 'in30' => $cash['weeks'][4]['balance'] ?? $cash['closing'], 'lowest' => $cash['lowest'], 'overdue' => $cash['overdue']['receivables']];
