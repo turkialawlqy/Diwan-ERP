@@ -208,6 +208,13 @@ export const quickCreate = {
             num('price', 'السعر', { required: true }),
         ],
     },
+    work_type: {
+        title: 'نوع عمل جديد', route: 'work-orders.types.store', seed: 'name', label: (r) => r.name,
+        fields: () => [
+            text('name', 'اسم نوع العمل', { required: true, span: 2 }),
+            num('hourly_rate', 'سعر الساعة للعميل', { required: true }),
+        ],
+    },
     nationality: {
         title: 'جنسية جديدة', route: 'hr.nationalities.store', seed: 'name_ar',
         fields: () => [

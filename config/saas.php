@@ -19,6 +19,7 @@ return [
         'contracts.' => 'contracts',
         'portal.' => 'portal',
         'bookings.' => 'bookings',
+        'work-orders.' => 'work_orders',
         'api.' => 'api',
         'webhooks.' => 'api',
     ],
@@ -26,7 +27,7 @@ return [
     'modules' => [
         'sales' => 'المبيعات', 'pos' => 'نقاط البيع', 'inventory' => 'المستودعات', 'purchases' => 'المشتريات',
         'accounting' => 'المحاسبة والمالية', 'projects' => 'المقاولات والمشاريع', 'equipment' => 'المعدات والتأجير والصيانة', 'manufacturing' => 'التصنيع والمصانع', 'hr' => 'الموارد البشرية والرواتب',
-        'zatca' => 'الربط مع فاتورة (المرحلة الثانية)', 'crm' => 'إدارة العملاء المحتملين', 'support' => 'خدمة العملاء والتذاكر', 'contracts' => 'إدارة العقود', 'portal' => 'بوابة العملاء', 'bookings' => 'الحجوزات والمواعيد', 'api' => 'الواجهة البرمجية API',
+        'zatca' => 'الربط مع فاتورة (المرحلة الثانية)', 'crm' => 'إدارة العملاء المحتملين', 'support' => 'خدمة العملاء والتذاكر', 'contracts' => 'إدارة العقود', 'portal' => 'بوابة العملاء', 'bookings' => 'الحجوزات والمواعيد', 'work_orders' => 'أوامر العمل الميدانية', 'api' => 'الواجهة البرمجية API',
     ],
 
     // Modules a company may switch off itself (الإعدادات ← الوحدات): their menus, pages and search disappear, the data stays.
@@ -41,6 +42,7 @@ return [
         'contracts' => 'إدارة العقود (النماذج والإصدارات والاعتماد والتجديد والالتزامات)',
         'portal' => 'بوابة العملاء (الفواتير والتذاكر والعقود والاشتراكات والمشاريع)',
         'bookings' => 'الحجوزات والمواعيد (الموارد والخدمات والتقويم وباقات الزيارات)',
+        'work_orders' => 'أوامر العمل الميدانية (الفنيون والوقت والقطع والتوقيع والفوترة)',
     ],
 
     // Days a lapsed subscription keeps working before the company becomes read-only.

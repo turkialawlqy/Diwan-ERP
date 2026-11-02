@@ -15,7 +15,7 @@ class Employee extends Model
     use Auditable, BelongsToCompany, HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'company_id',
+        'company_id', 'labour_cost_rate',
         'branch_id',
         'name',
         'national_id',

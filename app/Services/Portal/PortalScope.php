@@ -13,6 +13,7 @@ use App\Models\PortalUser;
 use App\Models\ProgressBilling;
 use App\Models\Project;
 use App\Models\Ticket;
+use App\Models\WorkOrder;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -77,5 +78,10 @@ class PortalScope
     public function packages(): Builder
     {
         return CustomerPackage::query()->where('customer_id', $this->user->customer_id);
+    }
+
+    public function workOrders(): Builder
+    {
+        return WorkOrder::query()->where('customer_id', $this->user->customer_id)->where('status', '!=', 'cancelled');
     }
 }

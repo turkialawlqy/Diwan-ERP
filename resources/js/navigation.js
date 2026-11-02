@@ -1,5 +1,6 @@
 import {
     CalendarDaysIcon,
+    ClipboardDocumentCheckIcon as WorkOrderIcon,
     HomeIcon,
     CubeTransparentIcon,
     ShoppingCartIcon,
@@ -90,6 +91,17 @@ export default [
         children: [
             { label: 'nav.contracts_list', route: 'contracts.index', path: '/contracts', exact: true },
             { label: 'nav.contract_templates', route: 'contracts.templates.index', path: '/contracts/templates' },
+        ],
+    },
+    {
+        key: 'work_orders', label: 'nav.work_orders', icon: WorkOrderIcon, color: 'indigo',
+        children: [
+            { label: 'nav.work_orders_mine', route: 'work-orders.mine.index', path: '/work-orders/mine' },
+            { label: 'nav.work_orders_list', route: 'work-orders.index', path: '/work-orders', exact: true },
+            { label: 'nav.work_orders_board', route: 'work-orders.board', path: '/work-orders/board' },
+            { label: 'nav.work_types', route: 'work-orders.types.index', path: '/work-orders/types' },
+            { label: 'nav.timesheet', route: 'work-orders.timesheet', path: '/work-orders/timesheet' },
+            { label: 'nav.work_order_settings', route: 'work-orders.settings', path: '/work-orders/settings' },
         ],
     },
     {

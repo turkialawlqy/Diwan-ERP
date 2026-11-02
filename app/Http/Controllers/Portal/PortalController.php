@@ -41,7 +41,7 @@ abstract class PortalController extends Controller
         return Inertia::render($component, $props + ['portal' => [
             'company' => ['id' => $this->company($request)->id, 'name' => $this->company($request)->name],
             'user' => ['name' => $user->name, 'email' => $user->email],
-            'menu' => ['support' => $this->has($request, 'support'), 'contracts' => $this->has($request, 'contracts'), 'projects' => $this->has($request, 'projects'), 'bookings' => $this->has($request, 'bookings')],
+            'menu' => ['support' => $this->has($request, 'support'), 'contracts' => $this->has($request, 'contracts'), 'projects' => $this->has($request, 'projects'), 'bookings' => $this->has($request, 'bookings'), 'work_orders' => $this->has($request, 'work_orders')],
         ]]);
     }
 }

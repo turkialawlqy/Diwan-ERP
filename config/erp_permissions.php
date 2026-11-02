@@ -197,6 +197,17 @@ return [
             ],
         ],
 
+        'work_orders' => [
+            'ar' => 'أوامر العمل الميدانية', 'en' => 'Work Orders',
+            'resources' => [
+                'orders' => ['ar' => 'أوامر العمل', 'en' => 'Work Orders', 'actions' => ['view', 'create', 'edit', 'delete', 'invoice']],
+                'types' => ['ar' => 'أنواع الأعمال', 'en' => 'Work Types', 'actions' => ['view', 'create', 'edit', 'delete']],
+                'timesheets' => ['ar' => 'سجلات الوقت', 'en' => 'Timesheets', 'actions' => ['view']],
+                'settings' => ['ar' => 'إعدادات أوامر العمل', 'en' => 'Work Order Settings', 'actions' => ['view', 'edit']],
+                'mine' => ['ar' => 'شاشة الفني (أوامري)', 'en' => 'My Work Orders', 'actions' => ['use']],
+            ],
+        ],
+
         'bookings' => [
             'ar' => 'الحجوزات والمواعيد', 'en' => 'Bookings',
             'resources' => [
@@ -343,7 +354,7 @@ return [
         'documents.pdf' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view', 'sales.orders.print', 'sales.debit_notes.print', 'sales.payments.print', 'purchases.payments.print', 'finance.expenses.view', 'finance.revenues.view', 'accounting.journals.view', 'purchases.invoices.print', 'purchases.orders.print'],
         'documents.dispatches' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view', 'sales.orders.print', 'sales.debit_notes.print', 'sales.payments.print', 'purchases.payments.print', 'finance.expenses.view', 'finance.revenues.view', 'accounting.journals.view', 'purchases.invoices.print', 'purchases.orders.print'],
         'documents.send' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view', 'sales.orders.print', 'sales.debit_notes.print', 'sales.payments.print', 'purchases.payments.print', 'finance.expenses.view', 'finance.revenues.view', 'accounting.journals.view', 'purchases.invoices.print', 'purchases.orders.print'],
-        'lookup.customers' => ['bookings.bookings.create', 'bookings.packages.create', 'portal.users.create', 'contracts.contracts.create', 'contracts.contracts.edit', 'support.tickets.create', 'sales.clients.view', 'sales.invoices.create', 'sales.subscriptions.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.returns.create', 'sales.payments.create', 'sales.debit_notes.create', 'sales.price_lists.edit', 'pos.terminal.use', 'accounting.cheques.create', 'projects.projects.create', 'projects.projects.edit'],
+        'lookup.customers' => ['work_orders.orders.create', 'work_orders.orders.edit', 'bookings.bookings.create', 'bookings.packages.create', 'portal.users.create', 'contracts.contracts.create', 'contracts.contracts.edit', 'support.tickets.create', 'sales.clients.view', 'sales.invoices.create', 'sales.subscriptions.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.returns.create', 'sales.payments.create', 'sales.debit_notes.create', 'sales.price_lists.edit', 'pos.terminal.use', 'accounting.cheques.create', 'projects.projects.create', 'projects.projects.edit'],
         'lookup.products' => ['inventory.products.view', 'sales.invoices.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.price_lists.edit', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.requests.create', 'inventory.transfers.create', 'inventory.counts.create', 'inventory.assembly.create', 'projects.costs.create', 'pos.terminal.use'],
         'lookup.lines.import' => ['inventory.products.view', 'sales.invoices.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.price_lists.edit', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.requests.create', 'inventory.transfers.create', 'inventory.counts.create', 'inventory.assembly.create', 'projects.costs.create', 'pos.terminal.use', 'accounting.journals.create'],
         'lookup.lines.template' => ['inventory.products.view', 'sales.invoices.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.price_lists.edit', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.requests.create', 'inventory.transfers.create', 'inventory.counts.create', 'inventory.assembly.create', 'projects.costs.create', 'pos.terminal.use', 'accounting.journals.create'],
@@ -863,6 +874,20 @@ return [
         'portal.users.resend' => 'portal.users.edit',
         'portal.users.destroy' => 'portal.users.delete',
         'contracts.share' => 'contracts.contracts.edit',
+
+        'work-orders.index' => 'work_orders.orders.view', 'work-orders.show' => 'work_orders.orders.view', 'work-orders.board' => 'work_orders.orders.view',
+        'work-orders.create' => 'work_orders.orders.create', 'work-orders.store' => 'work_orders.orders.create',
+        'work-orders.edit' => 'work_orders.orders.edit', 'work-orders.update' => 'work_orders.orders.edit', 'work-orders.hold' => 'work_orders.orders.edit', 'work-orders.complete' => 'work_orders.orders.edit',
+        'work-orders.reopen' => 'work_orders.orders.edit', 'work-orders.cancel' => 'work_orders.orders.edit', 'work-orders.sign' => 'work_orders.orders.edit',
+        'work-orders.time.store' => 'work_orders.orders.edit', 'work-orders.time.update' => 'work_orders.orders.edit', 'work-orders.time.stop' => 'work_orders.orders.edit',
+        'work-orders.parts.store' => 'work_orders.orders.edit', 'work-orders.parts.return' => 'work_orders.orders.edit', 'work-orders.attachments.store' => 'work_orders.orders.edit',
+        'work-orders.invoice' => 'work_orders.orders.invoice', 'work-orders.destroy' => 'work_orders.orders.delete',
+        'work-orders.types.index' => 'work_orders.types.view', 'work-orders.types.create' => 'work_orders.types.create', 'work-orders.types.store' => 'work_orders.types.create',
+        'work-orders.types.edit' => 'work_orders.types.edit', 'work-orders.types.update' => 'work_orders.types.edit', 'work-orders.types.destroy' => 'work_orders.types.delete',
+        'work-orders.timesheet' => 'work_orders.timesheets.view', 'work-orders.settings' => 'work_orders.settings.view', 'work-orders.settings.update' => 'work_orders.settings.edit',
+        'work-orders.mine.index' => 'work_orders.mine.use', 'work-orders.mine.show' => 'work_orders.mine.use', 'work-orders.mine.start' => 'work_orders.mine.use', 'work-orders.mine.stop' => 'work_orders.mine.use',
+        'work-orders.mine.task' => 'work_orders.mine.use', 'work-orders.mine.part' => 'work_orders.mine.use', 'work-orders.mine.photo' => 'work_orders.mine.use', 'work-orders.mine.sign' => 'work_orders.mine.use',
+        'work-orders.mine.complete' => 'work_orders.mine.use', 'work-orders.mine.hold' => 'work_orders.mine.use', 'work-orders.mine.products' => 'work_orders.mine.use',
 
         'bookings.index' => 'bookings.bookings.view', 'bookings.calendar' => 'bookings.bookings.view', 'bookings.slots' => 'bookings.bookings.view', 'bookings.show' => 'bookings.bookings.view',
         'bookings.create' => 'bookings.bookings.create', 'bookings.store' => 'bookings.bookings.create',

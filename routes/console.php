@@ -10,6 +10,7 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Contracts: activate, renew, expire and remind.
+Schedule::command('erp:work-orders')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('erp:bookings')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('erp:contracts')->dailyAt('00:50')->withoutOverlapping()->onOneServer();
 

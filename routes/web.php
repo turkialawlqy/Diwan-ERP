@@ -95,6 +95,7 @@ use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\WorkOrders;
 use App\Http\Controllers\ZatcaController;
 use App\Models\PlatformPage;
 use App\Models\SubscriptionPlan;
@@ -170,6 +171,8 @@ Route::prefix('portal/{company}')->whereNumber('company')->middleware('portal.te
         Route::post('/bookings', [Portal\BookingController::class, 'store'])->name('bookings.store');
         Route::get('/bookings/{booking}', [Portal\BookingController::class, 'show'])->whereNumber('booking')->name('bookings.show');
         Route::post('/bookings/{booking}/cancel', [Portal\BookingController::class, 'cancel'])->whereNumber('booking')->name('bookings.cancel');
+        Route::get('/work-orders', [Portal\WorkOrderController::class, 'index'])->name('work-orders.index');
+        Route::get('/work-orders/{order}', [Portal\WorkOrderController::class, 'show'])->whereNumber('order')->name('work-orders.show');
         Route::get('/projects', [Portal\ServiceController::class, 'projects'])->name('projects.index');
         Route::get('/projects/{project}', [Portal\ServiceController::class, 'project'])->whereNumber('project')->name('projects.show');
     });
@@ -910,6 +913,55 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::put('/{portalUser}', [PortalUserController::class, 'update'])->name('update');
         Route::post('/{portalUser}/resend', [PortalUserController::class, 'resend'])->name('resend');
         Route::delete('/{portalUser}', [PortalUserController::class, 'destroy'])->name('destroy');
+    });
+
+    // Field-service work orders
+    Route::prefix('work-orders')->name('work-orders.')->group(function () {
+        Route::get('/', [WorkOrders\WorkOrderController::class, 'index'])->name('index');
+        Route::get('/board', [WorkOrders\WorkOrderController::class, 'board'])->name('board');
+        Route::get('/create', [WorkOrders\WorkOrderController::class, 'create'])->name('create');
+        Route::post('/', [WorkOrders\WorkOrderController::class, 'store'])->name('store');
+        Route::get('/timesheet', [WorkOrders\ReportController::class, 'timesheet'])->name('timesheet');
+        Route::get('/settings', [WorkOrders\ReportController::class, 'settings'])->name('settings');
+        Route::put('/settings', [WorkOrders\ReportController::class, 'updateSettings'])->name('settings.update');
+
+        Route::get('/types', [WorkOrders\WorkTypeController::class, 'index'])->name('types.index');
+        Route::get('/types/create', [WorkOrders\WorkTypeController::class, 'create'])->name('types.create');
+        Route::post('/types', [WorkOrders\WorkTypeController::class, 'store'])->name('types.store');
+        Route::get('/types/{type}/edit', [WorkOrders\WorkTypeController::class, 'edit'])->name('types.edit');
+        Route::put('/types/{type}', [WorkOrders\WorkTypeController::class, 'update'])->name('types.update');
+        Route::delete('/types/{type}', [WorkOrders\WorkTypeController::class, 'destroy'])->name('types.destroy');
+
+        // The technician's phone screen
+        Route::get('/mine', [WorkOrders\MineController::class, 'index'])->name('mine.index');
+        Route::get('/mine/products', [WorkOrders\MineController::class, 'products'])->name('mine.products');
+        Route::get('/mine/{order}', [WorkOrders\MineController::class, 'show'])->whereNumber('order')->name('mine.show');
+        Route::post('/mine/{order}/start', [WorkOrders\MineController::class, 'start'])->name('mine.start');
+        Route::post('/mine/{order}/stop', [WorkOrders\MineController::class, 'stop'])->name('mine.stop');
+        Route::post('/mine/{order}/hold', [WorkOrders\MineController::class, 'hold'])->name('mine.hold');
+        Route::post('/mine/{order}/tasks/{task}', [WorkOrders\MineController::class, 'task'])->name('mine.task');
+        Route::post('/mine/{order}/parts', [WorkOrders\MineController::class, 'part'])->name('mine.part');
+        Route::post('/mine/{order}/photos', [WorkOrders\MineController::class, 'photo'])->name('mine.photo');
+        Route::post('/mine/{order}/sign', [WorkOrders\MineController::class, 'sign'])->name('mine.sign');
+        Route::post('/mine/{order}/complete', [WorkOrders\MineController::class, 'complete'])->name('mine.complete');
+
+        Route::post('/time/{entry}/stop', [WorkOrders\WorkOrderController::class, 'stopTime'])->name('time.stop');
+        Route::put('/time/{entry}', [WorkOrders\WorkOrderController::class, 'updateTime'])->name('time.update');
+        Route::post('/parts/{part}/return', [WorkOrders\WorkOrderController::class, 'returnPart'])->name('parts.return');
+
+        Route::get('/{order}', [WorkOrders\WorkOrderController::class, 'show'])->whereNumber('order')->name('show');
+        Route::get('/{order}/edit', [WorkOrders\WorkOrderController::class, 'edit'])->whereNumber('order')->name('edit');
+        Route::put('/{order}', [WorkOrders\WorkOrderController::class, 'update'])->whereNumber('order')->name('update');
+        Route::delete('/{order}', [WorkOrders\WorkOrderController::class, 'destroy'])->whereNumber('order')->name('destroy');
+        Route::post('/{order}/hold', [WorkOrders\WorkOrderController::class, 'hold'])->name('hold');
+        Route::post('/{order}/complete', [WorkOrders\WorkOrderController::class, 'complete'])->name('complete');
+        Route::post('/{order}/reopen', [WorkOrders\WorkOrderController::class, 'reopen'])->name('reopen');
+        Route::post('/{order}/cancel', [WorkOrders\WorkOrderController::class, 'cancel'])->name('cancel');
+        Route::post('/{order}/sign', [WorkOrders\WorkOrderController::class, 'sign'])->name('sign');
+        Route::post('/{order}/invoice', [WorkOrders\WorkOrderController::class, 'invoice'])->name('invoice');
+        Route::post('/{order}/time', [WorkOrders\WorkOrderController::class, 'storeTime'])->name('time.store');
+        Route::post('/{order}/parts', [WorkOrders\WorkOrderController::class, 'storePart'])->name('parts.store');
+        Route::post('/{order}/attachments', [WorkOrders\WorkOrderController::class, 'storeAttachment'])->name('attachments.store');
     });
 
     // Bookings & appointments

@@ -20,6 +20,7 @@ use App\Models\Revenue;
 use App\Models\SalesOrder;
 use App\Models\Supplier;
 use App\Models\Ticket;
+use App\Models\WorkOrder;
 use App\Services\Saas\PlanGuard;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
@@ -100,6 +101,13 @@ class SearchController extends Controller
                     ->where(fn ($q) => $q->where('number', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)))
                     ->latest('starts_at')->select('id', 'number', 'customer_id', 'bookable_service_id', 'starts_at', 'status'),
                 'present' => fn ($r) => ['title' => $r->number.' — '.($r->customer?->name ?? ''), 'code' => (string) $r->number, 'subtitle' => ($r->service?->name ?? '').' · '.$r->starts_at->format('Y-m-d H:i').' · '.(Booking::STATUSES[$r->status] ?? $r->status), 'url' => route('bookings.show', $r->id)],
+            ],
+            'work_orders' => [
+                'label' => 'أوامر العمل', 'permission' => 'work_orders.orders.view',
+                'query' => fn ($like) => WorkOrder::query()->with('customer:id,name')
+                    ->where(fn ($q) => $q->where('number', 'like', $like)->orWhere('title', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)))
+                    ->latest('id')->select('id', 'number', 'title', 'customer_id', 'status'),
+                'present' => fn ($r) => ['title' => $r->title, 'code' => (string) $r->number, 'subtitle' => ($r->customer?->name ?? '').' · '.(WorkOrder::STATUSES[$r->status] ?? $r->status), 'url' => route('work-orders.show', $r->id)],
             ],
             'tickets' => [
                 'label' => 'تذاكر الدعم', 'permission' => 'support.tickets.view',

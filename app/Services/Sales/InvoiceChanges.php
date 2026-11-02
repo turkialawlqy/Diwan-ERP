@@ -35,6 +35,7 @@ class InvoiceChanges
         'progress_billings' => 'مستخلص مشروع',
         'equipment_billings' => 'فوترة معدات',
         'bookings' => 'حجز',
+        'work_orders' => 'أمر عمل',
         'customer_packages' => 'باقة زيارات',
     ];
 
