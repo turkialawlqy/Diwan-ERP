@@ -104,7 +104,6 @@ const form = useForm({
 
     // Invoicing & Tax
     vat_rate: props.settings?.vat_rate ? Number(props.settings.vat_rate) : 15,
-    invoice_prefix: props.settings?.invoice_prefix || 'INV',
     invoice_terms: props.settings?.invoice_terms || 'تطبق الشروط والأحكام الخاصة بالمبيعات.',
     document_message: props.settings?.document_message || '',
     show_hijri: props.settings?.show_hijri !== '0',
@@ -558,13 +557,9 @@ const removeLogo = async () => {
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">بادئة ترقيم الفواتير</label>
-                                    <input 
-                                        v-model="form.invoice_prefix" 
-                                        type="text" 
-                                        placeholder="INV"
-                                        class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 font-mono uppercase"
-                                    />
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">ترقيم الفواتير والمستندات</label>
+                                    <Link v-if="$canRoute('settings.numbering')" :href="route('settings.numbering')" class="inline-flex items-center px-3 py-2 rounded-xl border border-indigo-200 text-indigo-700 text-xs font-bold hover:bg-indigo-50" data-numbering-link>دليل الترميز: البادئات وعدد الخانات</Link>
+                                    <p v-else class="text-3xs text-slate-500">تُضبط بادئات الترقيم من «دليل الترميز» لمن يملك صلاحيته.</p>
                                 </div>
                             </div>
 

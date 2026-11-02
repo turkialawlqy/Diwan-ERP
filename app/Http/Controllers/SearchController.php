@@ -86,9 +86,9 @@ class SearchController extends Controller
             'suppliers' => [
                 'label' => 'الموردون', 'permission' => 'purchases.suppliers.view',
                 'query' => fn ($like) => Supplier::query()
-                    ->where(fn ($q) => $q->where('name', 'like', $like)->orWhere('phone', 'like', $like)->orWhere('tax_number', 'like', $like))
-                    ->orderBy('name')->select('id', 'name', 'phone'),
-                'present' => fn ($r) => ['title' => $r->name, 'code' => '', 'subtitle' => (string) $r->phone, 'url' => route('purchases.suppliers.index', ['search' => $r->name])],
+                    ->where(fn ($q) => $q->where('name', 'like', $like)->orWhere('code', 'like', $like)->orWhere('phone', 'like', $like)->orWhere('tax_number', 'like', $like))
+                    ->orderBy('name')->select('id', 'name', 'code', 'phone'),
+                'present' => fn ($r) => ['title' => $r->name, 'code' => (string) $r->code, 'subtitle' => (string) $r->phone, 'url' => route('purchases.suppliers.index', ['search' => $r->name])],
             ],
             'products' => [
                 'label' => 'الأصناف', 'permission' => 'inventory.products.view',
