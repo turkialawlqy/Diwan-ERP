@@ -28,7 +28,7 @@
 set -Eeuo pipefail
 
 # Raised whenever this file changes: an update whose release carries a newer copy installs it.
-DIWAN_SCRIPT_VERSION=2
+DIWAN_SCRIPT_VERSION=3
 
 REPO=turkialawlqy/Diwan-ERP
 DEFAULT_PACKAGE=https://github.com/$REPO/releases/latest/download/diwan-erp.zip
@@ -321,6 +321,21 @@ PLIST
     mv -f "$AGENTS/$label.plist.tmp" "$AGENTS/$label.plist"
 }
 
+queue_agent() { # the queue worker, on every queue the jobs use: tax authority (zatca), mail and alerts, webhooks, exports
+    write_agent com.diwan.queue true "" "$PHP" "$DIR/current/artisan" queue:work database --queue=zatca,default,webhooks,exports --sleep=3 --tries=3 --max-time=3600
+}
+
+refresh_queue_agent() { # a worker set up by an earlier copy of this tool (it served only "default") is set up again
+    local plist="$AGENTS/com.diwan.queue.plist" before
+    [[ -f $plist ]] || return 0
+    before=$(cat "$plist")
+    queue_agent
+    if [[ $(cat "$plist") == "$before" ]] && agent_loaded com.diwan.queue; then return 0; fi
+    agent_stop com.diwan.queue || warn "launchd is slow to stop com.diwan.queue; continuing."
+    agent_start com.diwan.queue || return 1
+    ok "The queue service now serves every queue."
+}
+
 install_agents() {
     local label
     mkdir -p "$LOGS" "$QUEUE_DIR"
@@ -328,7 +343,7 @@ install_agents() {
         agent_stop "$label" || warn "launchd is slow to stop $label; continuing."
     done
     write_agent com.diwan.web true "" /bin/bash "$BIN" serve "--port=$PORT"
-    write_agent com.diwan.queue true "" "$PHP" "$DIR/current/artisan" queue:work database --sleep=3 --tries=3 --max-time=3600
+    queue_agent
     write_agent com.diwan.scheduler true "" "$PHP" "$DIR/current/artisan" schedule:work
     write_agent com.diwan.update false "    <key>StartCalendarInterval</key><dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>30</integer></dict>" \
         /bin/bash "$BIN" update
@@ -773,6 +788,7 @@ cmd_update() { # run daily by launchd (com.diwan.update) and when the dashboard 
     trap 'status failed "Update stopped unexpectedly (line $LINENO)"; echo "${c_err}✗ Update stopped unexpectedly (line $LINENO).${c_off}" >&2' ERR
     TMP=$(mktemp -d)
     [[ -e $DIR/current ]] || fail "Diwan is not installed in $DIR."
+    refresh_queue_agent || warn "Could not set up the queue service again; the next update tries again."
     update_release "$force"
 }
 

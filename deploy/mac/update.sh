@@ -71,6 +71,43 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Queue workers set up by earlier installers served only the "default" queue: tax-authority
+# submissions (zatca), webhooks and data exports waited in the jobs table for good.
+QUEUE_ARG=--queue=zatca,default,webhooks,exports
+refresh_queue_agent() {
+    local plist="$HOME/Library/LaunchAgents/com.diwan.queue.plist" domain job n=0 at="" arg
+    domain="gui/$(id -u)"
+    job="$domain/com.diwan.queue"
+    [[ -f $plist ]] || return 0
+    # Run over SSH, launchd's session of the logged-in user is out of reach: the next daily run does it.
+    launchctl print "$domain" > /dev/null 2>&1 || return 0
+    if grep -q "<string>$QUEUE_ARG</string>" "$plist" && launchctl print "$job" > /dev/null 2>&1; then return 0; fi
+    while arg=$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:$n" "$plist" 2> /dev/null); do
+        if [[ $arg == --queue=* ]]; then at=$n; fi
+        n=$((n + 1))
+    done
+    if [[ -n $at ]]; then
+        /usr/libexec/PlistBuddy -c "Set :ProgramArguments:$at $QUEUE_ARG" "$plist" || return 1
+    else
+        /usr/libexec/PlistBuddy -c "Add :ProgramArguments:$n string $QUEUE_ARG" "$plist" || return 1
+    fi
+    # launchd reads the plist again only when the job is loaded again.
+    launchctl bootout "$job" > /dev/null 2>&1 || true
+    for _ in $(seq 1 40); do
+        launchctl print "$job" > /dev/null 2>&1 || break
+        sleep 0.5
+    done
+    for _ in 1 2 3 4 5; do
+        if launchctl bootstrap "$domain" "$plist" 2> /dev/null; then
+            ok "The queue service now serves every queue."
+            return 0
+        fi
+        sleep 2 # (right after a bootout launchd may still answer "Input/output error")
+    done
+    launchctl bootstrap "$domain" "$plist" # the last try shows launchd's message
+}
+refresh_queue_agent || echo "${c_err}✗ Could not set up the queue service again; the next update tries again.${c_off}" >&2
+
 # The dashboard asks for an update by dropping a file in this folder (launchd QueueDirectories).
 rm -f "$DIR"/shared/storage/app/update-queue/* 2> /dev/null || true
 CURRENT=$(cd "$DIR/current" && pwd -P)
