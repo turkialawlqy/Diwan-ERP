@@ -145,7 +145,7 @@ PLIST
     launchctl bootstrap "gui/$(id -u)" "$AGENTS/$label.plist"
 }
 agent com.diwan.web true "" "$PHP" "$DIR/current/artisan" serve --host=0.0.0.0 "--port=$PORT" --no-reload
-agent com.diwan.queue true "" "$PHP" "$DIR/current/artisan" queue:work database --sleep=3 --tries=3 --max-time=3600
+agent com.diwan.queue true "" "$PHP" "$DIR/current/artisan" queue:work database --queue=zatca,default,webhooks,exports --sleep=3 --tries=3 --max-time=3600
 agent com.diwan.scheduler true "" "$PHP" "$DIR/current/artisan" schedule:work
 agent com.diwan.update false "    <key>StartCalendarInterval</key><dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>30</integer></dict>" \
     /bin/bash "$DIR/current/deploy/mac/update.sh"

@@ -195,7 +195,7 @@ WantedBy=multi-user.target
 UNIT
     }
     unit diwan-web "Diwan ERP web" "/usr/bin/php $DIR/current/artisan serve --host=0.0.0.0 --port=$PORT --no-reload"
-    unit diwan-queue "Diwan ERP queue" "/usr/bin/php $DIR/current/artisan queue:work database --sleep=3 --tries=3 --max-time=3600"
+    unit diwan-queue "Diwan ERP queue" "/usr/bin/php $DIR/current/artisan queue:work database --queue=zatca,default,webhooks,exports --sleep=3 --tries=3 --max-time=3600"
     unit diwan-scheduler "Diwan ERP scheduler" "/usr/bin/php $DIR/current/artisan schedule:work"
     cat > /etc/systemd/system/diwan-update.service <<UNIT
 [Unit]
