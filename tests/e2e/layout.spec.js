@@ -9,6 +9,8 @@ const PAGES = [
     '/dashboard', '/sales/invoices', '/inventory/products',
     // Date fields in narrow cards and toolbars, a payroll button row, settings rows, document lines.
     '/hr/leaves', '/manufacturing/reports', '/hr/payroll', '/hr/settings', '/purchases/invoices/create', '/sales/invoices/create',
+    // Release notes: filter toolbar and month cards.
+    '/whats-new',
 ];
 const WIDTHS = [375, 768, 1024, 1440];
 
