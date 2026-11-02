@@ -406,6 +406,9 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
         Route::delete('/products/{product}', [ProductController::class, 'destroy'])->name('products.destroy');
         Route::get('/products/{product}', [ProductController::class, 'show'])->name('products.show');
+        Route::get('/products/{product}/image', [ProductController::class, 'image'])->name('products.image.show');
+        Route::post('/products/{product}/image', [ProductController::class, 'uploadImage'])->name('products.image.upload');
+        Route::delete('/products/{product}/image', [ProductController::class, 'deleteImage'])->name('products.image.delete');
         Route::post('/products/{product}/units', [ProductController::class, 'storeUnit'])->name('products.units.store');
         Route::delete('/products/{product}/units/{unit}', [ProductController::class, 'destroyUnit'])->name('products.units.destroy');
         Route::put('/products/{product}/kit', [ProductController::class, 'syncKit'])->name('products.kit');

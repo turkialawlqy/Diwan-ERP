@@ -5,9 +5,10 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Field from '@/Components/UI/Field.vue';
+import ProductImageField from '@/Components/Products/ProductImageField.vue';
 import VatFields from '@/Components/Products/VatFields.vue';
 
-const props = defineProps({ product: Object, categories: Array, units: Array, vatCategories: Object, exemptionReasons: Object });
+const props = defineProps({ product: Object, imageUrl: String, categories: Array, units: Array, vatCategories: Object, exemptionReasons: Object });
 const p = props.product;
 const form = useForm({
     name_ar: p.name_ar, name_en: p.name_en || '', category_id: p.category_id || '', unit_id: p.unit_id || '', sku: p.sku || '', barcode: p.barcode || '',
@@ -41,6 +42,7 @@ const inp = 'w-full rounded-xl border-slate-200 text-xs';
                 <Field label="كمية إعادة الطلب"><input v-model.number="form.reorder_quantity" type="text" inputmode="decimal" data-num :class="inp" /></Field>
                 <label class="flex items-center gap-2 pt-5"><input v-model="form.track_inventory" type="checkbox" class="rounded" /> تتبع المخزون</label>
             </div>
+            <Field label="صورة الصنف (تظهر في الكاشير)"><ProductImageField :product-id="product.id" :current="imageUrl" /></Field>
             <VatFields v-model:category="form.vat_category" v-model:code="form.vat_exemption_code" v-model:tax-rate="form.tax_rate" :categories="vatCategories" :reasons="exemptionReasons" :errors="form.errors" />
             <Field label="الوصف"><textarea v-model="form.description" rows="2" :class="inp"></textarea></Field>
             <div class="flex justify-end gap-2">

@@ -58,7 +58,7 @@ class PosController extends Controller
         $products = $this->productQuery($session->register?->warehouse_id)
             ->limit(self::PRODUCT_PAGE)
             ->get()
-            ->each->append('total_stock');
+            ->each->append(['total_stock', 'image_url']);
 
         $categories = Category::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
 
@@ -109,7 +109,7 @@ class PosController extends Controller
             }
         }
 
-        return response()->json(['data' => $query->limit(self::PRODUCT_PAGE)->get()->each->append('total_stock')]);
+        return response()->json(['data' => $query->limit(self::PRODUCT_PAGE)->get()->each->append(['total_stock', 'image_url'])]);
     }
 
     /**
