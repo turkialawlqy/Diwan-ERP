@@ -21,6 +21,8 @@ class AccountController extends PortalController
             'openInvoices' => ['count' => (clone $open)->count(), 'remaining' => (float) (clone $open)->sum('remaining_amount'), 'overdue' => (clone $open)->whereDate('due_date', '<', today())->count()],
             'openTickets' => $support ? $scope->tickets()->whereIn('status', ['open', 'pending'])->count() : null,
             'toAccept' => $contracts ? $this->awaiting($scope)->count() : null,
+            'nextBooking' => $this->has($request, 'bookings') ? $scope->bookings()->with('service:id,name')->whereIn('status', ['pending', 'confirmed'])->where('starts_at', '>=', now())->orderBy('starts_at')->first(['id', 'number', 'bookable_service_id', 'starts_at', 'status']) : null,
+            'packages' => $this->has($request, 'bookings') ? $scope->packages()->where('status', 'active')->get(['id', 'name', 'visits_total', 'visits_used', 'expires_at'])->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'remaining' => $p->remaining(), 'total' => $p->visits_total, 'expires_at' => $p->expires_at?->toDateString()])->values() : null,
             'recentInvoices' => $scope->invoices()->latest('invoice_date')->limit(5)->get($this->invoiceColumns()),
         ]);
     }

@@ -34,6 +34,8 @@ class InvoiceChanges
         'pos_orders' => 'طلب نقطة بيع',
         'progress_billings' => 'مستخلص مشروع',
         'equipment_billings' => 'فوترة معدات',
+        'bookings' => 'حجز',
+        'customer_packages' => 'باقة زيارات',
     ];
 
     public function __construct(protected PostingService $posting, protected StockService $stock, protected InvoiceService $invoices) {}

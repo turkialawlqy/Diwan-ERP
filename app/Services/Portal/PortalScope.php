@@ -2,8 +2,10 @@
 
 namespace App\Services\Portal;
 
+use App\Models\Booking;
 use App\Models\Contract;
 use App\Models\Customer;
+use App\Models\CustomerPackage;
 use App\Models\CustomerPayment;
 use App\Models\CustomerSubscription;
 use App\Models\Invoice;
@@ -65,5 +67,15 @@ class PortalScope
     public function billings(): Builder
     {
         return ProgressBilling::query()->where('status', 'approved')->whereIn('project_id', $this->projects()->select('id'));
+    }
+
+    public function bookings(): Builder
+    {
+        return Booking::query()->where('customer_id', $this->user->customer_id);
+    }
+
+    public function packages(): Builder
+    {
+        return CustomerPackage::query()->where('customer_id', $this->user->customer_id);
     }
 }

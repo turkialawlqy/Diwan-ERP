@@ -1,4 +1,5 @@
 import {
+    CalendarDaysIcon,
     HomeIcon,
     CubeTransparentIcon,
     ShoppingCartIcon,
@@ -89,6 +90,17 @@ export default [
         children: [
             { label: 'nav.contracts_list', route: 'contracts.index', path: '/contracts', exact: true },
             { label: 'nav.contract_templates', route: 'contracts.templates.index', path: '/contracts/templates' },
+        ],
+    },
+    {
+        key: 'bookings', label: 'nav.bookings', icon: CalendarDaysIcon, color: 'indigo',
+        children: [
+            { label: 'nav.bookings_calendar', route: 'bookings.calendar', path: '/bookings/calendar' },
+            { label: 'nav.bookings_list', route: 'bookings.index', path: '/bookings', exact: true },
+            { label: 'nav.booking_resources', route: 'bookings.resources.index', path: '/bookings/resources' },
+            { label: 'nav.booking_services', route: 'bookings.services.index', path: '/bookings/services' },
+            { label: 'nav.booking_packages', route: 'bookings.packages.index', path: '/bookings/packages' },
+            { label: 'nav.booking_settings', route: 'bookings.settings', path: '/bookings/settings' },
         ],
     },
     {

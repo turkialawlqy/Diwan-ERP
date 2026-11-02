@@ -3,7 +3,7 @@ import { Head, Link } from '@inertiajs/vue3';
 import PortalLayout from '@/Layouts/PortalLayout.vue';
 import { money } from '@/utils/format';
 
-const props = defineProps({ portal: Object, balance: Number, openInvoices: Object, openTickets: Number, toAccept: Number, recentInvoices: Array });
+const props = defineProps({ portal: Object, balance: Number, openInvoices: Object, openTickets: Number, toAccept: Number, recentInvoices: Array, nextBooking: Object, packages: Array });
 const r = (n, p = {}) => route(n, { company: props.portal.company.id, ...p });
 </script>
 
@@ -16,6 +16,10 @@ const r = (n, p = {}) => route(n, { company: props.portal.company.id, ...p });
             <Link :href="r('customer-portal.invoices.index', { status: 'open' })" class="bg-white border border-slate-200 rounded-2xl p-4 block"><p class="text-slate-500">فواتير مستحقة</p><p class="text-lg font-black font-mono">{{ openInvoices.count }}</p><p v-if="openInvoices.overdue" class="text-rose-600 font-bold">{{ openInvoices.overdue }} متأخرة</p></Link>
             <Link v-if="openTickets !== null" :href="r('customer-portal.tickets.index')" class="bg-white border border-slate-200 rounded-2xl p-4 block"><p class="text-slate-500">تذاكر مفتوحة</p><p class="text-lg font-black font-mono">{{ openTickets }}</p></Link>
             <Link v-if="toAccept !== null" :href="r('customer-portal.contracts.index')" class="bg-white border border-slate-200 rounded-2xl p-4 block"><p class="text-slate-500">عقود بانتظار قبولك</p><p class="text-lg font-black font-mono" :class="toAccept ? 'text-amber-600' : ''">{{ toAccept }}</p></Link>
+        </div>
+        <div v-if="nextBooking || (packages && packages.length)" class="grid md:grid-cols-2 gap-3 mb-5 text-xs" data-portal-bookings>
+            <Link v-if="nextBooking" :href="r('customer-portal.bookings.show', { booking: nextBooking.id })" class="bg-white border border-slate-200 rounded-2xl p-4 block"><p class="text-slate-500">موعدك القادم</p><p class="font-bold">{{ nextBooking.service?.name }}</p><p class="font-mono">{{ String(nextBooking.starts_at).slice(0, 16).replace('T', ' ') }}</p></Link>
+            <div v-for="p in packages" :key="p.id" class="bg-white border border-slate-200 rounded-2xl p-4"><p class="text-slate-500">{{ p.name }}</p><p class="text-lg font-black font-mono" data-package-left>{{ p.remaining }} / {{ p.total }} زيارة</p><p v-if="p.expires_at" class="text-slate-400">تنتهي {{ p.expires_at }}</p></div>
         </div>
         <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
             <h2 class="px-4 py-3 text-xs font-bold border-b border-slate-100">آخر الفواتير</h2>

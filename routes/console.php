@@ -10,6 +10,7 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Contracts: activate, renew, expire and remind.
+Schedule::command('erp:bookings')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
 Schedule::command('erp:contracts')->dailyAt('00:50')->withoutOverlapping()->onOneServer();
 
 // Customer subscriptions: before the recurring-invoice run below so plan changes and non-renewals apply first.

@@ -197,6 +197,17 @@ return [
             ],
         ],
 
+        'bookings' => [
+            'ar' => 'الحجوزات والمواعيد', 'en' => 'Bookings',
+            'resources' => [
+                'bookings' => ['ar' => 'الحجوزات والتقويم', 'en' => 'Bookings', 'actions' => ['view', 'create', 'edit']],
+                'resources' => ['ar' => 'موارد الحجز', 'en' => 'Booking Resources', 'actions' => ['view', 'create', 'edit', 'delete']],
+                'services' => ['ar' => 'خدمات الحجز', 'en' => 'Bookable Services', 'actions' => ['view', 'create', 'edit', 'delete']],
+                'packages' => ['ar' => 'باقات الزيارات', 'en' => 'Visit Packages', 'actions' => ['view', 'create', 'edit', 'delete']],
+                'settings' => ['ar' => 'إعدادات الحجوزات', 'en' => 'Booking Settings', 'actions' => ['view', 'edit']],
+            ],
+        ],
+
         'contracts' => [
             'ar' => 'إدارة العقود', 'en' => 'Contracts',
             'resources' => [
@@ -332,7 +343,7 @@ return [
         'documents.pdf' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view', 'sales.orders.print', 'sales.debit_notes.print', 'sales.payments.print', 'purchases.payments.print', 'finance.expenses.view', 'finance.revenues.view', 'accounting.journals.view', 'purchases.invoices.print', 'purchases.orders.print'],
         'documents.dispatches' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view', 'sales.orders.print', 'sales.debit_notes.print', 'sales.payments.print', 'purchases.payments.print', 'finance.expenses.view', 'finance.revenues.view', 'accounting.journals.view', 'purchases.invoices.print', 'purchases.orders.print'],
         'documents.send' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view', 'sales.orders.print', 'sales.debit_notes.print', 'sales.payments.print', 'purchases.payments.print', 'finance.expenses.view', 'finance.revenues.view', 'accounting.journals.view', 'purchases.invoices.print', 'purchases.orders.print'],
-        'lookup.customers' => ['portal.users.create', 'contracts.contracts.create', 'contracts.contracts.edit', 'support.tickets.create', 'sales.clients.view', 'sales.invoices.create', 'sales.subscriptions.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.returns.create', 'sales.payments.create', 'sales.debit_notes.create', 'sales.price_lists.edit', 'pos.terminal.use', 'accounting.cheques.create', 'projects.projects.create', 'projects.projects.edit'],
+        'lookup.customers' => ['bookings.bookings.create', 'bookings.packages.create', 'portal.users.create', 'contracts.contracts.create', 'contracts.contracts.edit', 'support.tickets.create', 'sales.clients.view', 'sales.invoices.create', 'sales.subscriptions.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.returns.create', 'sales.payments.create', 'sales.debit_notes.create', 'sales.price_lists.edit', 'pos.terminal.use', 'accounting.cheques.create', 'projects.projects.create', 'projects.projects.edit'],
         'lookup.products' => ['inventory.products.view', 'sales.invoices.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.price_lists.edit', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.requests.create', 'inventory.transfers.create', 'inventory.counts.create', 'inventory.assembly.create', 'projects.costs.create', 'pos.terminal.use'],
         'lookup.lines.import' => ['inventory.products.view', 'sales.invoices.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.price_lists.edit', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.requests.create', 'inventory.transfers.create', 'inventory.counts.create', 'inventory.assembly.create', 'projects.costs.create', 'pos.terminal.use', 'accounting.journals.create'],
         'lookup.lines.template' => ['inventory.products.view', 'sales.invoices.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.price_lists.edit', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.requests.create', 'inventory.transfers.create', 'inventory.counts.create', 'inventory.assembly.create', 'projects.costs.create', 'pos.terminal.use', 'accounting.journals.create'],
@@ -852,6 +863,20 @@ return [
         'portal.users.resend' => 'portal.users.edit',
         'portal.users.destroy' => 'portal.users.delete',
         'contracts.share' => 'contracts.contracts.edit',
+
+        'bookings.index' => 'bookings.bookings.view', 'bookings.calendar' => 'bookings.bookings.view', 'bookings.slots' => 'bookings.bookings.view', 'bookings.show' => 'bookings.bookings.view',
+        'bookings.create' => 'bookings.bookings.create', 'bookings.store' => 'bookings.bookings.create',
+        'bookings.edit' => 'bookings.bookings.edit', 'bookings.update' => 'bookings.bookings.edit', 'bookings.confirm' => 'bookings.bookings.edit', 'bookings.complete' => 'bookings.bookings.edit',
+        'bookings.cancel' => 'bookings.bookings.edit', 'bookings.no-show' => 'bookings.bookings.edit',
+        'bookings.resources.index' => 'bookings.resources.view', 'bookings.resources.create' => 'bookings.resources.create', 'bookings.resources.store' => 'bookings.resources.create',
+        'bookings.resources.edit' => 'bookings.resources.edit', 'bookings.resources.update' => 'bookings.resources.edit', 'bookings.resources.destroy' => 'bookings.resources.delete',
+        'bookings.services.index' => 'bookings.services.view', 'bookings.services.create' => 'bookings.services.create', 'bookings.services.store' => 'bookings.services.create',
+        'bookings.services.edit' => 'bookings.services.edit', 'bookings.services.update' => 'bookings.services.edit', 'bookings.services.destroy' => 'bookings.services.delete',
+        'bookings.packages.index' => 'bookings.packages.view', 'bookings.packages.create' => 'bookings.packages.create', 'bookings.packages.store' => 'bookings.packages.create',
+        'bookings.packages.edit' => 'bookings.packages.edit', 'bookings.packages.update' => 'bookings.packages.edit', 'bookings.packages.destroy' => 'bookings.packages.delete',
+        'bookings.customer-packages.sell' => 'bookings.packages.create', 'bookings.customer-packages.store' => 'bookings.packages.create',
+        'bookings.customer-packages.show' => 'bookings.packages.view', 'bookings.customer-packages.give-back' => 'bookings.packages.edit',
+        'bookings.settings' => 'bookings.settings.view', 'bookings.settings.update' => 'bookings.settings.edit',
         'contracts.index' => 'contracts.contracts.view',
         'contracts.show' => 'contracts.contracts.view',
         'contracts.create' => 'contracts.contracts.create',

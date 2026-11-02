@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Account;
+use App\Models\Booking;
 use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\CustomerSubscription;
@@ -92,6 +93,13 @@ class SearchController extends Controller
                     ->where(fn ($q) => $q->where('number', 'like', $like)->orWhere('title', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like))->orWhereHas('supplier', fn ($c) => $c->where('name', 'like', $like)))
                     ->latest('id')->select('id', 'number', 'title', 'status', 'customer_id', 'supplier_id', 'party_type'),
                 'present' => fn ($r) => ['title' => $r->title, 'code' => (string) $r->number, 'subtitle' => ($r->partyName() ?? '').' · '.(Contract::STATUSES[$r->status] ?? $r->status), 'url' => route('contracts.show', $r->id)],
+            ],
+            'bookings' => [
+                'label' => 'الحجوزات', 'permission' => 'bookings.bookings.view',
+                'query' => fn ($like) => Booking::query()->with(['customer:id,name', 'service:id,name'])
+                    ->where(fn ($q) => $q->where('number', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)))
+                    ->latest('starts_at')->select('id', 'number', 'customer_id', 'bookable_service_id', 'starts_at', 'status'),
+                'present' => fn ($r) => ['title' => $r->number.' — '.($r->customer?->name ?? ''), 'code' => (string) $r->number, 'subtitle' => ($r->service?->name ?? '').' · '.$r->starts_at->format('Y-m-d H:i').' · '.(Booking::STATUSES[$r->status] ?? $r->status), 'url' => route('bookings.show', $r->id)],
             ],
             'tickets' => [
                 'label' => 'تذاكر الدعم', 'permission' => 'support.tickets.view',

@@ -1,4 +1,5 @@
 import {
+    CalendarDaysIcon,
     BuildingOffice2Icon, TruckIcon, UserCircleIcon, BuildingLibraryIcon, DocumentTextIcon, ClipboardDocumentListIcon,
     ShoppingCartIcon, ArrowUturnLeftIcon, DocumentPlusIcon, CreditCardIcon, BookOpenIcon, ArrowsRightLeftIcon,
     CubeIcon, BuildingStorefrontIcon, ArchiveBoxIcon, ClipboardDocumentCheckIcon, Cog6ToothIcon, BriefcaseIcon,
@@ -25,6 +26,8 @@ export const addMenu = [
         { label: 'اشتراك عميل', route: 'sales.subscriptions.create', icon: CreditCardIcon },
         { label: 'تذكرة دعم', route: 'support.tickets.create', icon: ClipboardDocumentListIcon },
         { label: 'عقد', route: 'contracts.create', icon: DocumentTextIcon },
+        { label: 'حجز موعد', route: 'bookings.create', icon: CalendarDaysIcon },
+        { label: 'بيع باقة زيارات', route: 'bookings.customer-packages.sell', icon: CreditCardIcon },
         { label: 'مستخدم بوابة عملاء', route: 'portal.users.create', icon: UserCircleIcon },
     ] },
     { label: 'المشتريات', items: [
@@ -65,6 +68,8 @@ export const viewMenu = [
     { label: 'اشتراكات العملاء', route: 'sales.subscriptions.index', icon: CreditCardIcon },
     { label: 'تذاكر الدعم', route: 'support.tickets.index', icon: ClipboardDocumentListIcon },
     { label: 'العقود', route: 'contracts.index', icon: DocumentTextIcon },
+    { label: 'تقويم الحجوزات', route: 'bookings.calendar', icon: CalendarDaysIcon },
+    { label: 'الحجوزات', route: 'bookings.index', icon: CalendarDaysIcon },
     { label: 'مستخدمو بوابة العملاء', route: 'portal.users.index', icon: UserCircleIcon },
     { label: 'فواتير المشتريات', route: 'purchases.invoices.index', icon: DocumentPlusIcon },
     { label: 'سندات القبض', route: 'finance.revenues.index', icon: BanknotesIcon },

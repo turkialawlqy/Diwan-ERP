@@ -13,7 +13,7 @@ class ServicePlan extends Model
 {
     use Auditable, BelongsToCompany;
 
-    protected $fillable = ['company_id', 'code', 'name', 'description', 'price', 'tax_rate', 'cycle', 'interval', 'trial_days', 'product_id', 'is_active'];
+    protected $fillable = ['company_id', 'code', 'name', 'description', 'price', 'tax_rate', 'cycle', 'interval', 'trial_days', 'booking_discount_percent', 'product_id', 'is_active'];
 
     protected $casts = ['price' => 'decimal:2', 'tax_rate' => 'decimal:2', 'is_active' => 'boolean'];
 

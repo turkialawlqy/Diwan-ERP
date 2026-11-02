@@ -192,6 +192,22 @@ export const quickCreate = {
             num('trial_days', 'أيام التجربة المجانية', { step: '1' }),
         ],
     },
+    booking_resource: {
+        title: 'مورد حجز جديد', route: 'bookings.resources.store', seed: 'name', label: (r) => r.name,
+        fields: () => [
+            text('name', 'الاسم', { required: true, span: 2 }),
+            { key: 'type', label: 'النوع', type: 'select', default: 'staff', options: [{ value: 'staff', label: 'موظف' }, { value: 'room', label: 'غرفة' }, { value: 'equipment', label: 'معدة' }, { value: 'court', label: 'ملعب / قاعة' }] },
+            num('capacity', 'عدد الحجوزات المتزامنة', { step: '1', default: 1 }),
+        ],
+    },
+    bookable_service: {
+        title: 'خدمة حجز جديدة', route: 'bookings.services.store', seed: 'name', label: (r) => r.name,
+        fields: () => [
+            text('name', 'اسم الخدمة', { required: true, span: 2 }),
+            num('duration_minutes', 'المدة بالدقائق', { step: '5', default: 30, required: true }),
+            num('price', 'السعر', { required: true }),
+        ],
+    },
     nationality: {
         title: 'جنسية جديدة', route: 'hr.nationalities.store', seed: 'name_ar',
         fields: () => [

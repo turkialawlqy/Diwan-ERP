@@ -16,6 +16,7 @@ const items = computed(() => [
     { key: 'statement', label: 'كشف الحساب', href: r('customer-portal.statement') },
     { key: 'payments', label: 'الدفعات', href: r('customer-portal.payments') },
     ...(props.portal.menu.support ? [{ key: 'tickets', label: 'التذاكر', href: r('customer-portal.tickets.index') }] : []),
+    ...(props.portal.menu.bookings ? [{ key: 'bookings', label: 'حجوزاتي', href: r('customer-portal.bookings.index') }] : []),
     ...(props.portal.menu.contracts ? [{ key: 'contracts', label: 'العقود', href: r('customer-portal.contracts.index') }] : []),
     { key: 'subscriptions', label: 'الاشتراكات', href: r('customer-portal.subscriptions.index') },
     ...(props.portal.menu.projects ? [{ key: 'projects', label: 'المشاريع', href: r('customer-portal.projects.index') }] : []),

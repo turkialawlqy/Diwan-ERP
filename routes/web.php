@@ -13,6 +13,7 @@ use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\LocalSetupController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\BillingController;
+use App\Http\Controllers\Bookings;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CompanySettingController;
@@ -163,6 +164,12 @@ Route::prefix('portal/{company}')->whereNumber('company')->middleware('portal.te
         Route::get('/subscriptions', [Portal\ServiceController::class, 'subscriptions'])->name('subscriptions.index');
         Route::get('/subscriptions/{subscription}', [Portal\ServiceController::class, 'subscription'])->whereNumber('subscription')->name('subscriptions.show');
         Route::post('/subscriptions/{subscription}/request', [Portal\ServiceController::class, 'requestChange'])->name('subscriptions.request');
+        Route::get('/bookings', [Portal\BookingController::class, 'index'])->name('bookings.index');
+        Route::get('/bookings/new', [Portal\BookingController::class, 'create'])->name('bookings.create');
+        Route::get('/bookings/slots', [Portal\BookingController::class, 'slots'])->name('bookings.slots');
+        Route::post('/bookings', [Portal\BookingController::class, 'store'])->name('bookings.store');
+        Route::get('/bookings/{booking}', [Portal\BookingController::class, 'show'])->whereNumber('booking')->name('bookings.show');
+        Route::post('/bookings/{booking}/cancel', [Portal\BookingController::class, 'cancel'])->whereNumber('booking')->name('bookings.cancel');
         Route::get('/projects', [Portal\ServiceController::class, 'projects'])->name('projects.index');
         Route::get('/projects/{project}', [Portal\ServiceController::class, 'project'])->whereNumber('project')->name('projects.show');
     });
@@ -903,6 +910,51 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::put('/{portalUser}', [PortalUserController::class, 'update'])->name('update');
         Route::post('/{portalUser}/resend', [PortalUserController::class, 'resend'])->name('resend');
         Route::delete('/{portalUser}', [PortalUserController::class, 'destroy'])->name('destroy');
+    });
+
+    // Bookings & appointments
+    Route::prefix('bookings')->name('bookings.')->group(function () {
+        Route::get('/', [Bookings\BookingController::class, 'index'])->name('index');
+        Route::get('/calendar', [Bookings\BookingController::class, 'calendar'])->name('calendar');
+        Route::get('/slots', [Bookings\BookingController::class, 'slots'])->name('slots');
+        Route::get('/create', [Bookings\BookingController::class, 'create'])->name('create');
+        Route::post('/', [Bookings\BookingController::class, 'store'])->name('store');
+
+        Route::get('/resources', [Bookings\ResourceController::class, 'index'])->name('resources.index');
+        Route::get('/resources/create', [Bookings\ResourceController::class, 'create'])->name('resources.create');
+        Route::post('/resources', [Bookings\ResourceController::class, 'store'])->name('resources.store');
+        Route::get('/resources/{resource}/edit', [Bookings\ResourceController::class, 'edit'])->name('resources.edit');
+        Route::put('/resources/{resource}', [Bookings\ResourceController::class, 'update'])->name('resources.update');
+        Route::delete('/resources/{resource}', [Bookings\ResourceController::class, 'destroy'])->name('resources.destroy');
+
+        Route::get('/services', [Bookings\BookableServiceController::class, 'index'])->name('services.index');
+        Route::get('/services/create', [Bookings\BookableServiceController::class, 'create'])->name('services.create');
+        Route::post('/services', [Bookings\BookableServiceController::class, 'store'])->name('services.store');
+        Route::get('/services/{service}/edit', [Bookings\BookableServiceController::class, 'edit'])->name('services.edit');
+        Route::put('/services/{service}', [Bookings\BookableServiceController::class, 'update'])->name('services.update');
+        Route::delete('/services/{service}', [Bookings\BookableServiceController::class, 'destroy'])->name('services.destroy');
+
+        Route::get('/packages', [Bookings\PackageController::class, 'index'])->name('packages.index');
+        Route::get('/packages/create', [Bookings\PackageController::class, 'create'])->name('packages.create');
+        Route::post('/packages', [Bookings\PackageController::class, 'store'])->name('packages.store');
+        Route::get('/packages/sell', [Bookings\PackageController::class, 'sell'])->name('customer-packages.sell');
+        Route::post('/packages/sell', [Bookings\PackageController::class, 'storeSold'])->name('customer-packages.store');
+        Route::get('/packages/sold/{customerPackage}', [Bookings\PackageController::class, 'showSold'])->name('customer-packages.show');
+        Route::post('/packages/sold/{customerPackage}/give-back', [Bookings\PackageController::class, 'giveBack'])->name('customer-packages.give-back');
+        Route::get('/packages/{package}/edit', [Bookings\PackageController::class, 'edit'])->name('packages.edit');
+        Route::put('/packages/{package}', [Bookings\PackageController::class, 'update'])->name('packages.update');
+        Route::delete('/packages/{package}', [Bookings\PackageController::class, 'destroy'])->name('packages.destroy');
+
+        Route::get('/settings', [Bookings\SettingsController::class, 'show'])->name('settings');
+        Route::put('/settings', [Bookings\SettingsController::class, 'update'])->name('settings.update');
+
+        Route::get('/{booking}', [Bookings\BookingController::class, 'show'])->whereNumber('booking')->name('show');
+        Route::get('/{booking}/edit', [Bookings\BookingController::class, 'edit'])->whereNumber('booking')->name('edit');
+        Route::put('/{booking}', [Bookings\BookingController::class, 'update'])->whereNumber('booking')->name('update');
+        Route::post('/{booking}/confirm', [Bookings\BookingController::class, 'confirm'])->name('confirm');
+        Route::post('/{booking}/complete', [Bookings\BookingController::class, 'complete'])->name('complete');
+        Route::post('/{booking}/cancel', [Bookings\BookingController::class, 'cancel'])->name('cancel');
+        Route::post('/{booking}/no-show', [Bookings\BookingController::class, 'noShow'])->name('no-show');
     });
 
     // Contracts
