@@ -24,6 +24,7 @@ export const addMenu = [
         { label: 'مرتجع مبيعات', route: 'sales.returns.create', icon: ArrowUturnLeftIcon },
         { label: 'اشتراك عميل', route: 'sales.subscriptions.create', icon: CreditCardIcon },
         { label: 'تذكرة دعم', route: 'support.tickets.create', icon: ClipboardDocumentListIcon },
+        { label: 'عقد', route: 'contracts.create', icon: DocumentTextIcon },
     ] },
     { label: 'المشتريات', items: [
         { label: 'فاتورة مشتريات', route: 'purchases.invoices.create', icon: DocumentPlusIcon },
@@ -62,6 +63,7 @@ export const viewMenu = [
     { label: 'فواتير المبيعات', route: 'sales.invoices.index', icon: DocumentTextIcon },
     { label: 'اشتراكات العملاء', route: 'sales.subscriptions.index', icon: CreditCardIcon },
     { label: 'تذاكر الدعم', route: 'support.tickets.index', icon: ClipboardDocumentListIcon },
+    { label: 'العقود', route: 'contracts.index', icon: DocumentTextIcon },
     { label: 'فواتير المشتريات', route: 'purchases.invoices.index', icon: DocumentPlusIcon },
     { label: 'سندات القبض', route: 'finance.revenues.index', icon: BanknotesIcon },
     { label: 'سندات الصرف', route: 'finance.expenses.index', icon: CreditCardIcon },

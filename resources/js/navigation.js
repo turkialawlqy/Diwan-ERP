@@ -18,6 +18,7 @@ import {
     BuildingOffice2Icon,
     WrenchScrewdriverIcon,
     LifebuoyIcon,
+    DocumentTextIcon,
 } from '@heroicons/vue/24/outline';
 
 /**
@@ -80,6 +81,13 @@ export default [
         children: [
             { label: 'nav.projects_list', route: 'projects.index', path: '/projects' },
             { label: 'nav.guarantees', route: 'projects.guarantees.index', path: '/projects/guarantees' },
+        ],
+    },
+    {
+        key: 'contracts', label: 'nav.contracts', icon: DocumentTextIcon, color: 'indigo',
+        children: [
+            { label: 'nav.contracts_list', route: 'contracts.index', path: '/contracts', exact: true },
+            { label: 'nav.contract_templates', route: 'contracts.templates.index', path: '/contracts/templates' },
         ],
     },
     {

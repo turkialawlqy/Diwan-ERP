@@ -16,6 +16,8 @@ use App\Http\Controllers\BillingController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CompanySettingController;
+use App\Http\Controllers\Contracts\ContractController;
+use App\Http\Controllers\Contracts\ContractTemplateController;
 use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\Crm;
 use App\Http\Controllers\CurrencyController;
@@ -855,6 +857,32 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/leads/{lead}/move', [Crm\LeadController::class, 'move'])->name('leads.move');
         Route::post('/leads/{lead}/activities', [Crm\LeadController::class, 'storeActivity'])->name('leads.activities.store');
         Route::post('/leads/{lead}/convert', [Crm\LeadController::class, 'convert'])->name('leads.convert');
+    });
+
+    // Contracts
+    Route::prefix('contracts')->name('contracts.')->group(function () {
+        Route::get('/', [ContractController::class, 'index'])->name('index');
+        Route::get('/create', [ContractController::class, 'create'])->name('create');
+        Route::post('/', [ContractController::class, 'store'])->name('store');
+        Route::post('/attachments', [ContractController::class, 'uploadAttachment'])->name('attachments.upload');
+        Route::post('/obligations/{obligation}/toggle', [ContractController::class, 'toggleObligation'])->name('obligations.toggle');
+        Route::get('/templates', [ContractTemplateController::class, 'index'])->name('templates.index');
+        Route::get('/templates/create', [ContractTemplateController::class, 'create'])->name('templates.create');
+        Route::post('/templates', [ContractTemplateController::class, 'store'])->name('templates.store');
+        Route::get('/templates/{template}/edit', [ContractTemplateController::class, 'edit'])->name('templates.edit');
+        Route::put('/templates/{template}', [ContractTemplateController::class, 'update'])->name('templates.update');
+        Route::delete('/templates/{template}', [ContractTemplateController::class, 'destroy'])->name('templates.destroy');
+        Route::get('/{contract}', [ContractController::class, 'show'])->whereNumber('contract')->name('show');
+        Route::get('/{contract}/edit', [ContractController::class, 'edit'])->whereNumber('contract')->name('edit');
+        Route::put('/{contract}', [ContractController::class, 'update'])->whereNumber('contract')->name('update');
+        Route::delete('/{contract}', [ContractController::class, 'destroy'])->whereNumber('contract')->name('destroy');
+        Route::post('/{contract}/submit', [ContractController::class, 'submit'])->name('submit');
+        Route::post('/{contract}/approve', [ContractController::class, 'approve'])->name('approve');
+        Route::post('/{contract}/reject', [ContractController::class, 'reject'])->name('reject');
+        Route::post('/{contract}/activate', [ContractController::class, 'activate'])->name('activate');
+        Route::post('/{contract}/terminate', [ContractController::class, 'terminate'])->name('terminate');
+        Route::post('/{contract}/renew', [ContractController::class, 'renew'])->name('renew');
+        Route::post('/{contract}/amend', [ContractController::class, 'amend'])->name('amend');
     });
 
     // Customer support: tickets and SLA

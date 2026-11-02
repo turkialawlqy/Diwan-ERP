@@ -44,6 +44,7 @@ return [
         'subscription' => ['table' => 'customer_subscriptions', 'column' => 'number', 'prefix' => 'SBS-', 'pad' => 5, 'yearly' => false, 'label' => 'اشتراك عميل', 'area' => 'sales'],
         'service_plan' => ['table' => 'service_plans', 'column' => 'code', 'prefix' => 'PLN-', 'pad' => 4, 'yearly' => false, 'label' => 'خطة خدمة (اشتراكات)', 'area' => 'sales'],
         'ticket' => ['table' => 'tickets', 'column' => 'number', 'prefix' => 'TKT-', 'pad' => 5, 'yearly' => true, 'label' => 'تذكرة دعم', 'area' => 'sales', 'module' => 'support'],
+        'contract' => ['table' => 'contracts', 'column' => 'number', 'prefix' => 'CTR-', 'pad' => 5, 'yearly' => true, 'label' => 'عقد', 'area' => 'sales', 'module' => 'contracts'],
         'customer' => ['table' => 'customers', 'column' => 'code', 'prefix' => 'C-', 'pad' => 5, 'yearly' => false, 'label' => 'كود العميل', 'area' => 'parties'],
         'supplier' => ['table' => 'suppliers', 'column' => 'code', 'prefix' => 'S-', 'pad' => 5, 'yearly' => false, 'label' => 'كود المورد', 'area' => 'parties'],
         'employee' => ['table' => 'employees', 'column' => 'employee_number', 'prefix' => 'EMP-', 'pad' => 4, 'yearly' => false, 'label' => 'رقم الموظف', 'area' => 'parties', 'module' => 'hr'],

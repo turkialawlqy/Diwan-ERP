@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Account;
+use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\CustomerSubscription;
 use App\Models\Employee;
@@ -84,6 +85,13 @@ class SearchController extends Controller
                     ->where(fn ($q) => $q->where('name', 'like', $like)->orWhere('code', 'like', $like)->orWhere('phone', 'like', $like)->orWhere('tax_number', 'like', $like))
                     ->orderBy('name')->select('id', 'name', 'code', 'phone'),
                 'present' => fn ($r) => ['title' => $r->name, 'code' => (string) $r->code, 'subtitle' => (string) $r->phone, 'url' => route('sales.clients.show', $r->id)],
+            ],
+            'contracts' => [
+                'label' => 'العقود', 'permission' => 'contracts.contracts.view',
+                'query' => fn ($like) => Contract::query()->with(['customer:id,name', 'supplier:id,name'])
+                    ->where(fn ($q) => $q->where('number', 'like', $like)->orWhere('title', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like))->orWhereHas('supplier', fn ($c) => $c->where('name', 'like', $like)))
+                    ->latest('id')->select('id', 'number', 'title', 'status', 'customer_id', 'supplier_id', 'party_type'),
+                'present' => fn ($r) => ['title' => $r->title, 'code' => (string) $r->number, 'subtitle' => ($r->partyName() ?? '').' · '.(Contract::STATUSES[$r->status] ?? $r->status), 'url' => route('contracts.show', $r->id)],
             ],
             'tickets' => [
                 'label' => 'تذاكر الدعم', 'permission' => 'support.tickets.view',

@@ -89,6 +89,11 @@ class ServicePlanController extends Controller
             throw ValidationException::withMessages(['product_id' => 'الاشتراكات للخدمات فقط، اختر صنفًا غير مخزني.']);
         }
 
-        return $data + ['interval' => 1, 'trial_days' => 0, 'tax_rate' => TaxProfile::rate()];
+        $data['interval'] ??= 1;
+        $data['trial_days'] ??= 0;
+        $data['tax_rate'] ??= TaxProfile::rate();
+        $data['is_active'] = (bool) ($data['is_active'] ?? true);
+
+        return $data;
     }
 }
