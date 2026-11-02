@@ -35,6 +35,23 @@ class DocumentNumberingTest extends TestCase
         return app(DocumentNumberService::class);
     }
 
+    /** Invoices as an import would leave them: numbered in the app's format, bypassing the sequence. */
+    protected function insertInvoices(array $numbers): void
+    {
+        $customer = Customer::create(['code' => 'X1', 'name' => 'A', 'customer_type' => 'commercial', 'status' => 'active']);
+
+        foreach (array_chunk($numbers, 100) as $chunk) {
+            DB::table('invoices')->insert(array_map(fn ($number) => [
+                'company_id' => $this->company->id,
+                'customer_id' => $customer->id,
+                'invoice_number' => is_int($number) ? sprintf('INV-26-%06d', $number) : $number,
+                'invoice_date' => '2026-01-01',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ], $chunk));
+        }
+    }
+
     public function test_numbers_are_sequential_per_type_and_year(): void
     {
         $date = Carbon::parse('2026-03-01');
@@ -85,6 +102,42 @@ class DocumentNumberingTest extends TestCase
 
         $date = Carbon::parse('2026-05-01');
         $this->assertSame('INV-26-000010', $this->numbers()->next('sales_invoice', $date));
+    }
+
+    public function test_a_long_run_of_used_numbers_is_skipped_in_a_few_queries(): void
+    {
+        $date = Carbon::parse('2026-05-01');
+        $this->assertSame('INV-26-000001', $this->numbers()->next('sales_invoice', $date));
+        $this->insertInvoices(range(2, 1300));
+
+        DB::enableQueryLog();
+        $number = $this->numbers()->next('sales_invoice', $date);
+        $queries = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertSame('INV-26-001301', $number);
+        // One query per used number made saving time out once an import used thousands of them.
+        $this->assertLessThan(15, $queries);
+        $this->assertSame('INV-26-001302', $this->numbers()->next('sales_invoice', $date));
+    }
+
+    public function test_a_gap_between_used_numbers_is_still_filled(): void
+    {
+        $date = Carbon::parse('2026-05-01');
+        $this->assertSame('INV-26-000001', $this->numbers()->next('sales_invoice', $date));
+        $this->insertInvoices([2, 3, 5]);
+
+        $this->assertSame('INV-26-000004', $this->numbers()->next('sales_invoice', $date));
+        $this->assertSame('INV-26-000006', $this->numbers()->next('sales_invoice', $date));
+    }
+
+    public function test_a_new_sequence_starts_after_the_highest_number_across_pages(): void
+    {
+        $this->insertInvoices([...range(1, 2500), 'INV-26-ABC']);
+
+        $date = Carbon::parse('2026-05-01');
+        $this->assertSame('INV-26-002501', $this->numbers()->peek('sales_invoice', $date));
+        $this->assertSame('INV-26-002501', $this->numbers()->next('sales_invoice', $date));
     }
 
     public function test_company_can_override_prefix(): void

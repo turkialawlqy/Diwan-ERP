@@ -14,6 +14,9 @@ use InvalidArgumentException;
  */
 class DocumentNumberService
 {
+    /** Numbers checked per query while skipping used ones (well under SQLite's 999 bound values). */
+    protected const SKIP_BLOCK = 500;
+
     public function __construct(protected TenantManager $tenantManager, protected NumberingRules $rules) {}
 
     /**
@@ -32,10 +35,10 @@ class DocumentNumberService
             $row = $this->lockedRow($companyId, $type, $scope, $prefix, $definition, $rule);
             $number = (int) $row->next_number;
 
-            // Guard against numbers already used (e.g. entered manually or by
-            // an older numbering scheme): skip forward until free.
-            while ($this->exists($definition, $companyId, $this->format($prefix, $number, $rule['pad']))) {
-                $number++;
+            // Guard against numbers already used (e.g. entered manually, imported or
+            // left by an older numbering scheme): skip forward to the first free one.
+            if ($this->exists($definition, $companyId, $this->format($prefix, $number, $rule['pad']))) {
+                $number = $this->firstFree($definition, $companyId, $prefix, (int) $rule['pad'], $number + 1);
             }
 
             DB::table('document_sequences')->where('id', $row->id)->update([
@@ -102,12 +105,12 @@ class DocumentNumberService
 
         $max = 0;
 
+        // Paged by id rather than OFFSET, so the scan stays linear on a large table.
         DB::table($definition['table'])
             ->where('company_id', $companyId)
             ->where($definition['column'], 'like', addcslashes($prefix, '%_').'%')
-            ->select($definition['column'])
-            ->orderBy('id')
-            ->chunk(1000, function ($rows) use (&$max, $definition, $prefix) {
+            ->select(['id', $definition['column']])
+            ->chunkById(1000, function ($rows) use (&$max, $definition, $prefix) {
                 foreach ($rows as $row) {
                     $rest = substr((string) $row->{$definition['column']}, strlen($prefix));
                     if ($rest !== '' && ctype_digit($rest)) {
@@ -117,6 +120,35 @@ class DocumentNumberService
             });
 
         return max($start, $max + 1);
+    }
+
+    /**
+     * The first number from $number on that no document uses yet. Candidates are
+     * checked a block per query, so a long run of used numbers (an import, data
+     * from another system) costs a few queries instead of one per number.
+     */
+    protected function firstFree(array $definition, int $companyId, string $prefix, int $pad, int $number): int
+    {
+        for (; ; $number += self::SKIP_BLOCK) {
+            $candidates = [];
+            foreach (range($number, $number + self::SKIP_BLOCK - 1) as $candidate) {
+                $candidates[$this->format($prefix, $candidate, $pad)] = $candidate;
+            }
+
+            $used = DB::table($definition['table'])
+                ->where('company_id', $companyId)
+                ->whereIn($definition['column'], array_keys($candidates))
+                ->pluck($definition['column'])
+                // MySQL's default collation matches numbers case-insensitively: compare the same way.
+                ->map(fn ($value) => mb_strtolower((string) $value))
+                ->flip();
+
+            foreach ($candidates as $formatted => $candidate) {
+                if (! $used->has(mb_strtolower($formatted))) {
+                    return $candidate;
+                }
+            }
+        }
     }
 
     protected function exists(array $definition, int $companyId, string $number): bool
