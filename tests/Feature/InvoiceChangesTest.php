@@ -11,6 +11,7 @@ use App\Models\Invoice;
 use App\Models\JournalEntryLine;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
+use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Models\Warehouse;
@@ -19,6 +20,7 @@ use App\Services\Accounting\AccountMap;
 use App\Services\Inventory\StockService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /** Invoices of branches without government e-invoicing can be edited and deleted. */
@@ -94,6 +96,19 @@ class InvoiceChangesTest extends TestCase
         $this->assertSame(300.0, $this->receivables());
         $this->assertEquals(300, $this->customer->fresh()->current_balance);
         $this->assertEqualsWithDelta((float) JournalEntryLine::sum('debit'), (float) JournalEntryLine::sum('credit'), 0.001);
+    }
+
+    public function test_the_stock_return_of_an_edit_carries_the_invoice_date(): void
+    {
+        $date = now()->subDays(5)->toDateString();
+        $this->post(route('sales.invoices.store'), ['invoice_date' => $date] + $this->payload($this->sanaa, 5))->assertSessionHasNoErrors();
+        $invoice = Invoice::firstOrFail();
+
+        $this->put(route('sales.invoices.update', $invoice->id), ['invoice_date' => $date] + $this->payload($this->sanaa, 3))->assertSessionHasNoErrors();
+
+        $return = StockMovement::where('type', 'sale_cancel')->firstOrFail();
+        $this->assertSame($date, Carbon::parse($return->date)->toDateString());
+        $this->assertSame(17.0, $this->onHand());
     }
 
     public function test_deleting_reverses_the_entry_and_returns_the_stock(): void

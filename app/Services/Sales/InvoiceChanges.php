@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\Quotation;
 use App\Models\StockMovement;
 use App\Services\Accounting\ExchangeRates;
+use App\Services\Accounting\FiscalCalendar;
 use App\Services\Accounting\PostingService;
 use App\Services\Inventory\StockService;
 use App\Services\Tax\TaxProfile;
@@ -92,9 +93,11 @@ class InvoiceChanges
         $this->posting->reverseSource($invoice, $description);
 
         // Net quantity still out of stock per product / warehouse / batch (earlier edits returned theirs).
+        // Returned on the invoice's own date (like its reversed entry) while that period is open.
+        $date = app(FiscalCalendar::class)->reversalDate($invoice->invoice_date, $invoice->company_id);
         StockMovement::where('source_type', $invoice->getMorphClass())->where('source_id', $invoice->id)->get()
             ->groupBy(fn ($m) => $m->product_id.'|'.$m->warehouse_id.'|'.$m->batch_id)
-            ->each(function ($moves) use ($invoice) {
+            ->each(function ($moves) use ($invoice, $date) {
                 $net = round($moves->sum(fn ($m) => (float) $m->quantity), 4);
                 if ($net >= 0) {
                     return;
@@ -105,7 +108,7 @@ class InvoiceChanges
                 $this->stock->receive([
                     'product_id' => $first->product_id, 'warehouse_id' => $first->warehouse_id, 'batch_id' => $first->batch_id,
                     'quantity' => abs($net), 'unit_cost' => $qty > 0 ? abs($out->sum(fn ($m) => (float) $m->total_cost)) / $qty : 0,
-                    'type' => 'sale_cancel', 'date' => now()->toDateString(), 'source' => $invoice, 'reference' => $invoice->invoice_number,
+                    'type' => 'sale_cancel', 'date' => $date, 'source' => $invoice, 'reference' => $invoice->invoice_number,
                 ]);
             });
 

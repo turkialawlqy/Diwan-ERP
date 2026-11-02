@@ -51,4 +51,13 @@ class IdleTimeoutTest extends TestCase
 
         $this->withSession(['last_activity_at' => time() - 600 * 60])->get(route('dashboard'))->assertOk();
     }
+
+    public function test_pos_screens_are_not_signed_out(): void
+    {
+        $this->company->setSetting('session_timeout_minutes', '5');
+
+        $this->withSession(['last_activity_at' => time() - 60 * 60])->get(route('pos.history'))->assertOk()->assertInertia(fn ($p) => $p->where('idleMinutes', 0));
+        $this->assertAuthenticated();
+        $this->withSession(['last_activity_at' => time() - 60 * 60])->get(route('dashboard'))->assertRedirect(route('login'));
+    }
 }
