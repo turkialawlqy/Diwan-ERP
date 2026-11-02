@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SendDocumentEmail;
+use App\Jobs\SubmitZatcaDocument;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Invoice;
@@ -24,6 +26,8 @@ use DOMDocument;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -322,6 +326,167 @@ class ZatcaTest extends TestCase
         $this->post(route('zatca.documents.resubmit', $record))->assertRedirect()->assertSessionHas('error');
         $this->assertSame('failed', $record->fresh()->status);
         $this->assertNotEmpty($record->fresh()->errors[0]['message']);
+    }
+
+    /** As on office installs: jobs and their unique locks in the database, and no worker until work(). */
+    protected function officeQueue(): void
+    {
+        config(['queue.default' => 'database', 'cache.default' => 'database']);
+        $this->app->forgetInstance('cache.store');
+    }
+
+    protected function queued(): int
+    {
+        return DB::table('jobs')->where('queue', 'zatca')->count();
+    }
+
+    /** One pass of the worker: runs the jobs that are due now, then stops. */
+    protected function work(): void
+    {
+        $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'zatca', '--stop-when-empty' => true, '--sleep' => 0, '--memory' => 0])->assertSuccessful();
+    }
+
+    /** Submissions of the document that reached Fatoora. */
+    protected function sent(ZatcaDocument $record): int
+    {
+        return Http::recorded(fn (Request $request) => preg_match('#/(clearance|reporting)/single$#', $request->url()) && $request['uuid'] === $record->uuid)->count();
+    }
+
+    public function test_the_safety_net_queues_one_job_per_document_while_no_worker_runs(): void
+    {
+        $this->onboard();
+        $this->officeQueue();
+        $this->invoice();
+        $this->invoice('simplified');
+        [$standard, $simplified] = ZatcaDocument::orderBy('id')->get()->all();
+        $this->assertSame(2, $this->queued());
+
+        // erp:zatca-submit every 10 minutes: the documents' jobs are still waiting, so nothing is added.
+        foreach (range(1, 35) as $run) {
+            $this->travel(10)->minutes();
+            $this->artisan('erp:zatca-submit')->assertSuccessful();
+        }
+        $this->assertSame([2, 2], [$this->queued(), DB::table('cache_locks')->count()]);
+
+        // After 6 hours the lock lapses (a job lost before it ran does not block its document for good): one more each.
+        $this->travel(10)->minutes();
+        $this->artisan('erp:zatca-submit')->assertSuccessful();
+        $this->artisan('erp:zatca-submit')->assertSuccessful();
+        $this->assertSame(4, $this->queued());
+
+        // The worker is back: each document reaches ZATCA once.
+        $this->work();
+        $this->assertSame(['cleared', 'reported'], [$standard->fresh()->status, $simplified->fresh()->status]);
+        $this->assertSame([1, 1], [$this->sent($standard), $this->sent($simplified)]);
+        $this->assertSame([0, 0], [$this->queued(), DB::table('cache_locks')->count()]);
+    }
+
+    public function test_a_failing_document_is_sent_again_only_after_its_back_off(): void
+    {
+        $this->onboard();
+        $this->officeQueue();
+        $this->clearance = [503, ['message' => 'Service unavailable']];
+        $this->invoice();
+        $record = ZatcaDocument::firstOrFail();
+        // Copies queued before this fix, one per erp:zatca-submit run.
+        foreach (range(1, 3) as $copy) {
+            Bus::dispatchToQueue(new SubmitZatcaDocument($record->id, $this->company->id));
+        }
+        $this->assertSame(4, $this->queued());
+
+        // The first job fails and retries in a minute; the copies find the document just failed and send nothing.
+        $this->work();
+        $this->assertSame([1, 'failed', 1], [$this->sent($record), $record->fresh()->status, $this->queued()]);
+
+        // Within the back-off nothing is sent, and the safety net adds no job.
+        $this->travel(59)->seconds();
+        $this->artisan('erp:zatca-submit')->assertSuccessful();
+        $this->work();
+        $this->assertSame([1, 1], [$this->sent($record), $this->queued()]);
+
+        // Then the job's retry; the next wait is 5 minutes.
+        $this->travel(1)->seconds();
+        $this->work();
+        $this->assertSame([2, 2, 1], [$this->sent($record), $record->fresh()->attempts, $this->queued()]);
+
+        // The worker missed that retry by more than the 5-minute grace: the safety net adds one job, once,
+        // and the two of them send the document once.
+        $this->travel(11)->minutes();
+        $this->artisan('erp:zatca-submit')->assertSuccessful();
+        $this->artisan('erp:zatca-submit')->assertSuccessful();
+        $this->assertSame(2, $this->queued());
+        $this->work();
+        $this->assertSame([3, 1], [$this->sent($record), $this->queued()]);
+
+        // ZATCA is back: cleared at the next retry, 15 minutes after the third attempt.
+        $this->clearance = [200, ['clearanceStatus' => 'CLEARED', 'validationResults' => ['status' => 'PASS', 'warningMessages' => [], 'errorMessages' => []]]];
+        $this->travel(15)->minutes();
+        $this->work();
+        $this->assertSame([4, 'cleared', 0], [$this->sent($record), $record->fresh()->status, $this->queued()]);
+    }
+
+    public function test_send_now_does_not_wait_for_the_back_off(): void
+    {
+        $this->onboard();
+        $this->officeQueue();
+        $this->clearance = [503, ['message' => 'Service unavailable']];
+        $this->invoice();
+        $record = ZatcaDocument::firstOrFail();
+        $this->work(); // failed: its job retries in a minute
+
+        $this->clearance = [200, ['clearanceStatus' => 'CLEARED', 'validationResults' => ['status' => 'PASS', 'warningMessages' => [], 'errorMessages' => []]]];
+        $this->post(route('zatca.documents.resubmit', $record))->assertSessionHas('success');
+        $this->assertSame([2, 'cleared'], [$this->sent($record), $record->fresh()->status]);
+
+        // The retry finds it cleared.
+        $this->travel(1)->minutes();
+        $this->work();
+        $this->assertSame([2, 0], [$this->sent($record), $this->queued()]);
+    }
+
+    public function test_a_document_left_submitting_by_a_dead_worker_is_sent_again(): void
+    {
+        $this->onboard();
+        $this->invoice();
+        $record = ZatcaDocument::firstOrFail();
+        // The worker died after claiming it; the back-off counts from that attempt.
+        $record->forceFill(['status' => 'submitting', 'attempts' => 1])->saveQuietly();
+        $this->officeQueue();
+
+        $this->travel(16)->minutes();
+        $this->artisan('erp:zatca-submit')->assertSuccessful();
+        $this->work();
+        $this->assertSame(['cleared', 2], [$record->fresh()->status, $record->fresh()->attempts]);
+    }
+
+    public function test_a_job_queued_by_the_previous_release_unserializes_as_a_queued_one(): void
+    {
+        // As 1.6.0 queued it (no "manual"): one still waiting after the update must not break on it.
+        $job = unserialize('O:28:"App\Jobs\SubmitZatcaDocument":3:{s:10:"documentId";i:7;s:9:"companyId";i:3;s:5:"queue";s:5:"zatca";}');
+        $this->assertSame([7, 3, false, '7'], [$job->documentId, $job->companyId, $job->manual, $job->uniqueId()]);
+    }
+
+    public function test_the_update_drops_the_piled_up_submission_jobs(): void
+    {
+        $this->onboard();
+        $this->invoice();
+        // Never sent, as on an office install whose worker skipped the zatca queue.
+        $record = $this->waiting(ZatcaDocument::firstOrFail());
+        $this->officeQueue();
+        foreach (range(1, 5) as $copy) {
+            Bus::dispatchToQueue(new SubmitZatcaDocument($record->id, $this->company->id));
+        }
+        Bus::dispatchToQueue(new SendDocumentEmail(1));
+
+        (require database_path('migrations/2026_11_02_000002_clear_queued_zatca_submissions.php'))->up();
+        $this->assertSame([0, 1], [$this->queued(), DB::table('jobs')->where('queue', 'default')->count()]);
+
+        // The next safety-net run queues it once.
+        $this->travel(10)->minutes();
+        $this->artisan('erp:zatca-submit')->assertSuccessful();
+        $this->assertSame(1, $this->queued());
+        $this->work();
+        $this->assertSame([2, 'cleared'], [$this->sent($record), $record->fresh()->status]);
     }
 
     public function test_long_certificate_serials_are_written_in_decimal(): void

@@ -252,7 +252,7 @@ class ZatcaController extends Controller
     protected function submitNow(ZatcaDocument $document): array
     {
         try {
-            SubmitZatcaDocument::dispatchSync($document->id, $document->company_id);
+            SubmitZatcaDocument::dispatchSync($document->id, $document->company_id, manual: true);
         } catch (Throwable $e) {
             // An unexpected error (unreadable device keys, malformed response) must not leave the document "submitting".
             report($e);
