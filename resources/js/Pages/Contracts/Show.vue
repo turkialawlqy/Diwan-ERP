@@ -7,9 +7,10 @@ import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
 import { money } from '@/utils/format';
 
-const props = defineProps({ contract: Object, renewals: Array, project: Object, subscription: Object, approvals: Array, canApprove: Boolean, statuses: Object, kinds: Object, obligationKinds: Object });
+const props = defineProps({ contract: Object, renewals: Array, project: Object, subscription: Object, approvals: Array, acceptances: { type: Array, default: () => [] }, canApprove: Boolean, statuses: Object, kinds: Object, obligationKinds: Object });
 const c = computed(() => props.contract);
 const post = (name, data = {}) => router.post(route(name, c.value.id), data, { preserveScroll: true });
+const share = (shared, requires) => router.post(route('contracts.share', c.value.id), { shared_with_customer: shared, requires_acceptance: requires }, { preserveScroll: true });
 const d = (v) => (v ? String(v).slice(0, 10) : '—');
 const tone = { draft: 'bg-slate-100 text-slate-600 border-slate-200', pending_approval: 'bg-amber-50 text-amber-700 border-amber-200', rejected: 'bg-rose-50 text-rose-700 border-rose-200', approved: 'bg-sky-50 text-sky-700 border-sky-200', active: 'bg-emerald-50 text-emerald-700 border-emerald-200', expired: 'bg-orange-50 text-orange-700 border-orange-200', terminated: 'bg-rose-50 text-rose-700 border-rose-200', renewed: 'bg-violet-50 text-violet-700 border-violet-200' };
 const editable = computed(() => ['draft', 'rejected'].includes(c.value.status));
@@ -60,6 +61,13 @@ const toggle = (o) => router.post(route('contracts.obligations.toggle', o.id), {
                     <h2 class="font-bold text-slate-800 mb-2">نص العقد</h2>
                     <p v-if="c.body" class="whitespace-pre-line leading-relaxed" data-contract-body>{{ c.body }}</p>
                     <p v-else class="text-slate-400">لا نص مسجَّل.</p>
+                </div>
+
+                <div v-if="c.party_type === 'customer' && $canRoute('contracts.share')" class="bg-white border border-slate-200 rounded-2xl p-5 space-y-2" data-portal-share>
+                    <h2 class="font-bold text-slate-800">بوابة العملاء</h2>
+                    <label class="flex items-center gap-2"><input type="checkbox" :checked="c.shared_with_customer" class="rounded border-slate-300" @change="share($event.target.checked, c.requires_acceptance)" data-share-toggle /> مشاركة العقد مع العميل</label>
+                    <label v-if="c.shared_with_customer" class="flex items-center gap-2"><input type="checkbox" :checked="c.requires_acceptance" class="rounded border-slate-300" @change="share(true, $event.target.checked)" data-require-acceptance /> يتطلب قبول العميل (لكل إصدار)</label>
+                    <p v-for="(a, i) in acceptances" :key="i" class="text-emerald-700 font-bold" data-acceptance>قبل {{ a.name }} الإصدار {{ a.version }} — <span class="font-mono">{{ String(a.accepted_at).slice(0, 16).replace('T', ' ') }}</span></p>
                 </div>
 
                 <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">

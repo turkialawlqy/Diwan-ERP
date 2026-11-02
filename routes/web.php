@@ -54,6 +54,8 @@ use App\Http\Controllers\Manufacturing as Mfg;
 use App\Http\Controllers\ModuleSettingsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NumberingController;
+use App\Http\Controllers\Portal;
+use App\Http\Controllers\Portal\PortalUserController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\PosRegisterController;
 use App\Http\Controllers\ProductController;
@@ -134,6 +136,37 @@ Route::get('/', function () {
         'countries' => count(config('countries')),
     ]);
 })->name('home');
+
+// Customer portal: its own sign-in (e-mailed code) and its own guard, the company in the path.
+Route::prefix('portal/{company}')->whereNumber('company')->middleware('portal.tenant')->name('customer-portal.')->group(function () {
+    Route::get('/login', [Portal\AuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [Portal\AuthController::class, 'sendCode'])->middleware('throttle:20,1')->name('send-code');
+    Route::get('/verify', [Portal\AuthController::class, 'showVerify'])->name('verify');
+    Route::post('/verify', [Portal\AuthController::class, 'verify'])->middleware('throttle:20,1')->name('verify.check');
+
+    Route::middleware('portal.auth')->group(function () {
+        Route::post('/logout', [Portal\AuthController::class, 'logout'])->name('logout');
+        Route::get('/', [Portal\AccountController::class, 'home'])->name('home');
+        Route::get('/invoices', [Portal\AccountController::class, 'invoices'])->name('invoices.index');
+        Route::get('/invoices/{invoice}', [Portal\AccountController::class, 'invoice'])->whereNumber('invoice')->name('invoices.show');
+        Route::get('/statement', [Portal\AccountController::class, 'statement'])->name('statement');
+        Route::get('/payments', [Portal\AccountController::class, 'payments'])->name('payments');
+        Route::get('/tickets', [Portal\TicketController::class, 'index'])->name('tickets.index');
+        Route::get('/tickets/create', [Portal\TicketController::class, 'create'])->name('tickets.create');
+        Route::post('/tickets', [Portal\TicketController::class, 'store'])->name('tickets.store');
+        Route::get('/tickets/{ticket}', [Portal\TicketController::class, 'show'])->whereNumber('ticket')->name('tickets.show');
+        Route::post('/tickets/{ticket}/reply', [Portal\TicketController::class, 'reply'])->name('tickets.reply');
+        Route::post('/tickets/{ticket}/rate', [Portal\TicketController::class, 'rate'])->name('tickets.rate');
+        Route::get('/contracts', [Portal\ContractController::class, 'index'])->name('contracts.index');
+        Route::get('/contracts/{contract}', [Portal\ContractController::class, 'show'])->whereNumber('contract')->name('contracts.show');
+        Route::post('/contracts/{contract}/accept', [Portal\ContractController::class, 'accept'])->name('contracts.accept');
+        Route::get('/subscriptions', [Portal\ServiceController::class, 'subscriptions'])->name('subscriptions.index');
+        Route::get('/subscriptions/{subscription}', [Portal\ServiceController::class, 'subscription'])->whereNumber('subscription')->name('subscriptions.show');
+        Route::post('/subscriptions/{subscription}/request', [Portal\ServiceController::class, 'requestChange'])->name('subscriptions.request');
+        Route::get('/projects', [Portal\ServiceController::class, 'projects'])->name('projects.index');
+        Route::get('/projects/{project}', [Portal\ServiceController::class, 'project'])->whereNumber('project')->name('projects.show');
+    });
+});
 
 // Localization Switcher
 // Customer-facing signed links (no login): document PDF and account statement.
@@ -859,6 +892,16 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/leads/{lead}/convert', [Crm\LeadController::class, 'convert'])->name('leads.convert');
     });
 
+    // Customer portal accounts (staff side)
+    Route::prefix('portal-users')->name('portal.users.')->group(function () {
+        Route::get('/', [PortalUserController::class, 'index'])->name('index');
+        Route::get('/create', [PortalUserController::class, 'create'])->name('create');
+        Route::post('/', [PortalUserController::class, 'store'])->name('store');
+        Route::put('/{portalUser}', [PortalUserController::class, 'update'])->name('update');
+        Route::post('/{portalUser}/resend', [PortalUserController::class, 'resend'])->name('resend');
+        Route::delete('/{portalUser}', [PortalUserController::class, 'destroy'])->name('destroy');
+    });
+
     // Contracts
     Route::prefix('contracts')->name('contracts.')->group(function () {
         Route::get('/', [ContractController::class, 'index'])->name('index');
@@ -883,6 +926,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/{contract}/terminate', [ContractController::class, 'terminate'])->name('terminate');
         Route::post('/{contract}/renew', [ContractController::class, 'renew'])->name('renew');
         Route::post('/{contract}/amend', [ContractController::class, 'amend'])->name('amend');
+        Route::post('/{contract}/share', [ContractController::class, 'share'])->name('share');
     });
 
     // Customer support: tickets and SLA

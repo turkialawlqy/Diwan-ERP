@@ -190,6 +190,13 @@ return [
             ],
         ],
 
+        'portal' => [
+            'ar' => 'بوابة العملاء', 'en' => 'Customer Portal',
+            'resources' => [
+                'users' => ['ar' => 'مستخدمو البوابة', 'en' => 'Portal Users', 'actions' => ['view', 'create', 'edit', 'delete']],
+            ],
+        ],
+
         'contracts' => [
             'ar' => 'إدارة العقود', 'en' => 'Contracts',
             'resources' => [
@@ -325,7 +332,7 @@ return [
         'documents.pdf' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view', 'sales.orders.print', 'sales.debit_notes.print', 'sales.payments.print', 'purchases.payments.print', 'finance.expenses.view', 'finance.revenues.view', 'accounting.journals.view', 'purchases.invoices.print', 'purchases.orders.print'],
         'documents.dispatches' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view', 'sales.orders.print', 'sales.debit_notes.print', 'sales.payments.print', 'purchases.payments.print', 'finance.expenses.view', 'finance.revenues.view', 'accounting.journals.view', 'purchases.invoices.print', 'purchases.orders.print'],
         'documents.send' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view', 'sales.orders.print', 'sales.debit_notes.print', 'sales.payments.print', 'purchases.payments.print', 'finance.expenses.view', 'finance.revenues.view', 'accounting.journals.view', 'purchases.invoices.print', 'purchases.orders.print'],
-        'lookup.customers' => ['contracts.contracts.create', 'contracts.contracts.edit', 'support.tickets.create', 'sales.clients.view', 'sales.invoices.create', 'sales.subscriptions.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.returns.create', 'sales.payments.create', 'sales.debit_notes.create', 'sales.price_lists.edit', 'pos.terminal.use', 'accounting.cheques.create', 'projects.projects.create', 'projects.projects.edit'],
+        'lookup.customers' => ['portal.users.create', 'contracts.contracts.create', 'contracts.contracts.edit', 'support.tickets.create', 'sales.clients.view', 'sales.invoices.create', 'sales.subscriptions.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.returns.create', 'sales.payments.create', 'sales.debit_notes.create', 'sales.price_lists.edit', 'pos.terminal.use', 'accounting.cheques.create', 'projects.projects.create', 'projects.projects.edit'],
         'lookup.products' => ['inventory.products.view', 'sales.invoices.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.price_lists.edit', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.requests.create', 'inventory.transfers.create', 'inventory.counts.create', 'inventory.assembly.create', 'projects.costs.create', 'pos.terminal.use'],
         'lookup.lines.import' => ['inventory.products.view', 'sales.invoices.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.price_lists.edit', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.requests.create', 'inventory.transfers.create', 'inventory.counts.create', 'inventory.assembly.create', 'projects.costs.create', 'pos.terminal.use', 'accounting.journals.create'],
         'lookup.lines.template' => ['inventory.products.view', 'sales.invoices.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.price_lists.edit', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.requests.create', 'inventory.transfers.create', 'inventory.counts.create', 'inventory.assembly.create', 'projects.costs.create', 'pos.terminal.use', 'accounting.journals.create'],
@@ -835,6 +842,13 @@ return [
         'sales.invoices.print' => 'sales.invoices.print',
         'sales.payments.index' => 'sales.payments.view',
         'sales.payments.store' => 'sales.payments.create',
+        'portal.users.index' => 'portal.users.view',
+        'portal.users.create' => 'portal.users.create',
+        'portal.users.store' => 'portal.users.create',
+        'portal.users.update' => 'portal.users.edit',
+        'portal.users.resend' => 'portal.users.edit',
+        'portal.users.destroy' => 'portal.users.delete',
+        'contracts.share' => 'contracts.contracts.edit',
         'contracts.index' => 'contracts.contracts.view',
         'contracts.show' => 'contracts.contracts.view',
         'contracts.create' => 'contracts.contracts.create',

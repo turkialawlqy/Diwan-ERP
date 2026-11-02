@@ -58,7 +58,9 @@ export default defineConfig({
             CACHE_STORE: 'array',
             QUEUE_CONNECTION: 'sync',
             SESSION_DRIVER: 'file',
-            MAIL_MAILER: 'array',
+            MAIL_MAILER: 'log',
+            LOG_CHANNEL: 'single',
+            LOG_LEVEL: 'debug',
         },
     },
 });

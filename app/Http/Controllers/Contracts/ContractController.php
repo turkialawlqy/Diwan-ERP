@@ -89,6 +89,7 @@ class ContractController extends Controller
             'project' => $contract->project_id ? Project::find($contract->project_id, ['id', 'code', 'name']) : null,
             'subscription' => $contract->subscription_id ? CustomerSubscription::find($contract->subscription_id, ['id', 'number']) : null,
             'approvals' => $this->approvals->history($contract),
+            'acceptances' => $contract->acceptances()->with('portalUser:id,name')->get(['id', 'contract_id', 'portal_user_id', 'name', 'version', 'accepted_at', 'ip']),
             'canApprove' => $contract->status === 'pending_approval' && auth()->user()->can('contracts.contracts.approve') && ((int) $contract->created_by !== (int) auth()->id() || auth()->user()->isCompanyOwner()),
             'statuses' => Contract::STATUSES, 'kinds' => Contract::KINDS, 'obligationKinds' => ContractObligation::KINDS,
         ]);
@@ -153,6 +154,16 @@ class ContractController extends Controller
         $this->service->amend($contract, $data['body'], $data['note'] ?? null);
 
         return back()->with('success', 'حُفظ إصدار جديد من العقد');
+    }
+
+    /** Show the contract in the customer's portal, optionally asking for his acceptance of the current version. */
+    public function share(Request $request, Contract $contract)
+    {
+        abort_unless($contract->party_type === 'customer', 422, 'تُشارك عقود العملاء فقط.');
+        $data = $request->validate(['shared_with_customer' => 'required|boolean', 'requires_acceptance' => 'nullable|boolean']);
+        $contract->update(['shared_with_customer' => $data['shared_with_customer'], 'requires_acceptance' => $data['shared_with_customer'] && ! empty($data['requires_acceptance'])]);
+
+        return back()->with('success', $contract->shared_with_customer ? 'العقد ظاهر الآن للعميل في البوابة' : 'أُخفي العقد عن البوابة');
     }
 
     public function toggleObligation(ContractObligation $obligation)

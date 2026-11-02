@@ -83,6 +83,7 @@ export default [
             { label: 'nav.guarantees', route: 'projects.guarantees.index', path: '/projects/guarantees' },
         ],
     },
+    { key: 'portal_users', label: 'nav.portal_users', icon: UsersIcon, route: 'portal.users.index', path: '/portal-users' },
     {
         key: 'contracts', label: 'nav.contracts', icon: DocumentTextIcon, color: 'indigo',
         children: [

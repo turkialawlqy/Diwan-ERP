@@ -2,11 +2,13 @@
 
 namespace App\Services\Support;
 
+use App\Models\PortalUser;
 use App\Models\SlaPolicy;
 use App\Models\Ticket;
 use App\Models\TicketMessage;
 use App\Models\User;
 use App\Notifications\ErpAlert;
+use App\Notifications\PortalTicketReply;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\TenantManager;
 use Illuminate\Support\Carbon;
@@ -50,14 +52,14 @@ class SlaService
     }
 
     /** A reply on the ticket: «public» (staff to customer), «internal» (note) or «customer» (his answer). */
-    public function reply(Ticket $ticket, ?User $user, string $body, string $type): TicketMessage
+    public function reply(Ticket $ticket, ?User $user, string $body, string $type, ?int $portalUserId = null): TicketMessage
     {
         if ($ticket->status === 'closed') {
             throw ValidationException::withMessages(['body' => 'التذكرة مغلقة؛ أعد فتحها أولًا.']);
         }
 
-        return DB::transaction(function () use ($ticket, $user, $body, $type) {
-            $message = TicketMessage::create(['ticket_id' => $ticket->id, 'user_id' => $type === 'customer' ? null : $user?->id, 'type' => $type, 'body' => $body]);
+        return DB::transaction(function () use ($ticket, $user, $body, $type, $portalUserId) {
+            $message = TicketMessage::create(['ticket_id' => $ticket->id, 'user_id' => $type === 'customer' ? null : $user?->id, 'portal_user_id' => $type === 'customer' ? $portalUserId : null, 'type' => $type, 'body' => $body]);
 
             if ($type === 'public') {
                 if (! $ticket->first_response_at) {
@@ -73,7 +75,27 @@ class SlaService
             }
             $ticket->save();
 
+            if ($type === 'public') {
+                $this->tellCustomer($ticket);
+            }
+
             return $message;
+        });
+    }
+
+    /** A staff reply e-mails the portal users of the ticket's customer, so they know to come back. */
+    protected function tellCustomer(Ticket $ticket): void
+    {
+        if (! $ticket->customer_id) {
+            return;
+        }
+        $url = route('customer-portal.tickets.show', ['company' => $ticket->company_id, 'ticket' => $ticket->id]);
+        PortalUser::where('customer_id', $ticket->customer_id)->where('status', 'active')->get()->each(function (PortalUser $u) use ($ticket, $url) {
+            try {
+                $u->notify(new PortalTicketReply($ticket->number, $ticket->subject, $url));
+            } catch (\Throwable $e) {
+                report($e);
+            }
         });
     }
 

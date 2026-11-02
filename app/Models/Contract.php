@@ -16,10 +16,10 @@ class Contract extends Model
 
     protected $fillable = ['company_id', 'branch_id', 'number', 'title', 'kind', 'party_type', 'customer_id', 'supplier_id', 'template_id', 'project_id', 'subscription_id', 'status',
         'start_date', 'end_date', 'value', 'payment_terms', 'auto_renew', 'renewal_term_months', 'renewal_notice_days', 'body', 'version', 'parent_contract_id', 'signed_at',
-        'terminated_at', 'termination_reason', 'approved_by', 'approved_at', 'attachments', 'reminder_state', 'created_by'];
+        'terminated_at', 'termination_reason', 'approved_by', 'approved_at', 'attachments', 'shared_with_customer', 'requires_acceptance', 'reminder_state', 'created_by'];
 
     protected $casts = ['start_date' => 'date', 'end_date' => 'date', 'signed_at' => 'date', 'terminated_at' => 'date', 'approved_at' => 'datetime', 'value' => 'decimal:2',
-        'auto_renew' => 'boolean', 'attachments' => 'array'];
+        'auto_renew' => 'boolean', 'attachments' => 'array', 'shared_with_customer' => 'boolean', 'requires_acceptance' => 'boolean'];
 
     public const STATUSES = ['draft' => 'مسودة', 'pending_approval' => 'بانتظار الاعتماد', 'rejected' => 'مرفوض', 'approved' => 'معتمد', 'active' => 'ساري', 'expired' => 'منتهٍ', 'terminated' => 'مفسوخ', 'renewed' => 'مجدَّد'];
 
@@ -48,6 +48,11 @@ class Contract extends Model
     public function obligations(): HasMany
     {
         return $this->hasMany(ContractObligation::class)->orderBy('due_date');
+    }
+
+    public function acceptances(): HasMany
+    {
+        return $this->hasMany(ContractAcceptance::class)->orderByDesc('id');
     }
 
     public function versions(): HasMany

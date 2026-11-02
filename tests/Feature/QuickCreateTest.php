@@ -80,8 +80,8 @@ class QuickCreateTest extends TestCase
     public function test_master_data_dropdowns_use_select_create(): void
     {
         $lists = ['warehouses', 'branchWarehouses', 'bankAccounts', 'boxes', 'accounts', 'expenseAccounts', 'revenueAccounts', 'chartAccounts', 'costCenters', 'categories', 'categoriesList', 'units', 'unitsList', 'employees', 'departments', 'positions', 'shifts', 'workCenters', 'suppliers', 'products', 'customers', 'parentAccounts'];
-        // Report filters and fixed lists are not creation points.
-        $allowed = ['Reports/', 'Accounting/Mappings', 'TrialBalance', 'Ledger/Index', 'IncomeStatement', 'POS/Terminal', 'VatFields', 'Equipment/Index', 'Products/Index', 'Reconciliations', 'EquipmentForm', 'Inventory/Reports'];
+        // Report filters and fixed lists are not creation points (the portal customer only picks a category, staff own them).
+        $allowed = ['Reports/', 'Accounting/Mappings', 'TrialBalance', 'Ledger/Index', 'IncomeStatement', 'POS/Terminal', 'VatFields', 'Equipment/Index', 'Products/Index', 'Reconciliations', 'EquipmentForm', 'Inventory/Reports', 'Portal/TicketForm'];
 
         $offenders = [];
         $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(resource_path('js')));

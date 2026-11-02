@@ -10,7 +10,7 @@ class TicketMessage extends Model
 {
     use BelongsToCompany;
 
-    protected $fillable = ['company_id', 'ticket_id', 'user_id', 'type', 'body'];
+    protected $fillable = ['company_id', 'ticket_id', 'user_id', 'portal_user_id', 'type', 'body'];
 
     public function user(): BelongsTo
     {
