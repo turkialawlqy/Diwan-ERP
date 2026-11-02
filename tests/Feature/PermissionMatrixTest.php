@@ -192,4 +192,20 @@ class PermissionMatrixTest extends TestCase
             ->where('routePermissions', fn ($map) => ($map['sales.invoices.index'] ?? null) === 'sales.invoices.view')
         );
     }
+
+    public function test_roles_that_could_create_vouchers_get_the_new_edit_action(): void
+    {
+        $registrar = app(PermissionRegistrar::class);
+        $registrar->setPermissionsTeamId($this->company->id);
+        $role = Role::create(['name' => 'cashier_custom', 'guard_name' => 'web', 'team_id' => $this->company->id]);
+        $role->syncPermissions(['finance.expenses.create', 'sales.customer_groups.view']);
+
+        (require database_path('migrations/2026_11_02_000001_grant_new_edit_delete_actions_to_roles.php'))->up();
+        $registrar->forgetCachedPermissions();
+
+        $role = $role->fresh();
+        $this->assertTrue($role->hasPermissionTo('finance.expenses.edit'));
+        $this->assertFalse($role->hasPermissionTo('finance.revenues.edit'));
+        $this->assertFalse($role->hasPermissionTo('sales.customer_groups.delete'));
+    }
 }

@@ -7,6 +7,7 @@ use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Services\Accounting\ExchangeRates;
+use App\Services\Accounting\FiscalCalendar;
 use App\Services\Accounting\PostingService;
 use App\Services\Inventory\StockService;
 use App\Services\Tax\TaxProfile;
@@ -67,10 +68,12 @@ class PurchaseInvoiceChanges
         $this->assertChangeable($invoice);
         $this->posting->reverseSource($invoice, $description);
 
-        // Goods still held from this bill leave the warehouse again.
+        // Goods still held from this bill leave the warehouse again, on the bill's own date
+        // (like its reversed entry) while that period is open.
+        $date = app(FiscalCalendar::class)->reversalDate($invoice->invoice_date, $invoice->company_id);
         StockMovement::where('source_type', $invoice->getMorphClass())->where('source_id', $invoice->id)->get()
             ->groupBy(fn ($m) => $m->product_id.'|'.$m->warehouse_id.'|'.$m->batch_id)
-            ->each(function ($moves) use ($invoice) {
+            ->each(function ($moves) use ($invoice, $date) {
                 $net = round($moves->sum(fn ($m) => (float) $m->quantity), 4);
                 if ($net <= 0) {
                     return;
@@ -78,7 +81,7 @@ class PurchaseInvoiceChanges
                 $first = $moves->first();
                 $this->stock->issue([
                     'product_id' => $first->product_id, 'warehouse_id' => $first->warehouse_id, 'batch_id' => $first->batch_id, 'quantity' => $net,
-                    'type' => 'purchase_cancel', 'date' => now()->toDateString(), 'source' => $invoice, 'reference' => $invoice->invoice_number,
+                    'type' => 'purchase_cancel', 'date' => $date, 'source' => $invoice, 'reference' => $invoice->invoice_number,
                 ]);
             });
 

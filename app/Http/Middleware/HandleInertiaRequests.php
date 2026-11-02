@@ -67,7 +67,7 @@ class HandleInertiaRequests extends Middleware
                 ] : null,
             ],
             // Idle sign-out: minutes without activity (0 = off); the layout warns a minute before.
-            'idleMinutes' => fn () => $user ? IdleTimeout::minutes() : 0,
+            'idleMinutes' => fn () => $user && ! IdleTimeout::exempt($request) ? IdleTimeout::minutes() : 0,
             'tenant' => $currentTenant ? [
                 'id' => $currentTenant->id,
                 'name' => $currentTenant->name,

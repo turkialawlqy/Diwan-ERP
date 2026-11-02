@@ -27,13 +27,19 @@ class IdleTimeout
         return max(0, (int) ($company?->setting('session_timeout_minutes', self::DEFAULT_MINUTES) ?? self::DEFAULT_MINUTES));
     }
 
+    /** Cashier screens stay open all day: POS pages never sign out. */
+    public static function exempt(Request $request): bool
+    {
+        return str_starts_with((string) $request->route()?->getName(), 'pos.');
+    }
+
     public function handle(Request $request, Closure $next): Response
     {
         if (! Auth::check() || ! $request->hasSession()) {
             return $next($request);
         }
 
-        $minutes = self::minutes();
+        $minutes = self::exempt($request) ? 0 : self::minutes();
         $last = (int) $request->session()->get('last_activity_at', 0);
 
         if ($minutes > 0 && $last > 0 && time() - $last > $minutes * 60) {

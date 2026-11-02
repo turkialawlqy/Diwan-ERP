@@ -15,6 +15,17 @@ use Illuminate\Support\Carbon;
 class FiscalCalendar
 {
     /**
+     * Date for undoing a document: its own date while that period is open, otherwise
+     * today (the same rule PostingService::reverse applies to the journal entry).
+     */
+    public function reversalDate(CarbonInterface|string|null $date, int $companyId): string
+    {
+        return $date && $this->periodFor($date, $companyId)->isOpen()
+            ? Carbon::parse($date)->toDateString()
+            : now()->toDateString();
+    }
+
+    /**
      * The period containing the date; creates the fiscal year when missing.
      */
     public function periodFor(CarbonInterface|string $date, int $companyId): FiscalPeriod
