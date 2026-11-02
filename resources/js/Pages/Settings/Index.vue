@@ -110,6 +110,7 @@ const form = useForm({
     two_factor_required_roles: [...(props.twoFactorRoles || [])],
     session_timeout_minutes: props.settings?.session_timeout_minutes ?? 30,
     pos_auto_print: props.settings?.pos_auto_print === '1',
+    pos_allow_credit: props.settings?.pos_allow_credit === '1',
 
     // ZATCA Settings
     zatca_phase: props.settings?.zatca_phase || 'phase1',
@@ -812,6 +813,16 @@ const removeLogo = async () => {
                                     <div>
                                         <span class="text-xs font-bold text-slate-800">الطباعة التلقائية للإيصال بعد إتمام الطلب</span>
                                         <p class="text-[11px] text-slate-500">يقوم بإرسال الإيصال المبسط مباشرة إلى طابعة الكاشير الحرارية فور الضغط على دفع.</p>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/60">
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input v-model="form.pos_allow_credit" type="checkbox" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 w-4 h-4" data-pos-allow-credit />
+                                    <div>
+                                        <span class="text-xs font-bold text-slate-800">السماح بالبيع الآجل في الكاشير</span>
+                                        <p class="text-[11px] text-slate-500">يظهر زر «بيع آجل» لعميل محدد (لا يكون للعميل النقدي) مع دفعة مقدّمة اختيارية، ويُسجَّل المتبقي ذمة على العميل ويُراعى حده الائتماني.</p>
                                     </div>
                                 </label>
                             </div>

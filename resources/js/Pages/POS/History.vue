@@ -109,7 +109,7 @@ const formatCurrency = (val) => {
                                                 : 'bg-purple-50 text-purple-700 border border-purple-200/60'
                                         ]"
                                     >
-                                        {{ ({ cash: 'نقداً (Cash)', card: 'مدى / بطاقة', multiple: 'مجزأ' })[order.payment_method] || order.payment_method }}
+                                        {{ ({ cash: 'نقداً (Cash)', card: 'مدى / بطاقة', multiple: 'مجزأ', credit: 'آجل' })[order.payment_method] || order.payment_method }}
                                     </span>
                                 </td>
                                 <td class="py-3.5 px-4 font-mono font-bold text-slate-900">
@@ -162,7 +162,7 @@ const formatCurrency = (val) => {
                         <div class="border-t border-slate-200 pt-2 text-3xs text-start space-y-0.5">
                             <p>رقم الفاتورة: <strong>{{ activeOrder.order_number }}</strong></p>
                             <p>التاريخ: {{ new Date(activeOrder.created_at).toLocaleString('ar-SA-u-nu-latn', { timeZone: timeZone() }) }}</p>
-                            <p>طريقة الدفع: {{ ({ cash: 'نقداً', card: 'بطاقة مدى', multiple: 'مجزأ (نقد + بطاقة)' })[activeOrder.payment_method] || activeOrder.payment_method }}</p>
+                            <p>طريقة الدفع: {{ ({ cash: 'نقداً', card: 'بطاقة مدى', multiple: 'مجزأ (نقد + بطاقة)', credit: 'آجل' })[activeOrder.payment_method] || activeOrder.payment_method }}</p>
                         </div>
 
                         <div class="border-t border-slate-200 pt-2 text-3xs space-y-1 text-start">
