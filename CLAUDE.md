@@ -19,4 +19,4 @@
 14. **أزرار القوائم**: العرض والتعديل والحذف في صفوف القوائم عبر `RowActions` (أو `editLink`/`deleteLink` في `DocumentTable`). أي إجراء جديد في `erp_permissions.php` تُمنح للأدوار القائمة المناسبة بترحيل (مثال: `2026_11_02_000001_grant_new_edit_delete_actions_to_roles`).
 15. **قوالب الطباعة**: المستند الجديد القابل للطباعة يُعرَّف في `TemplateData` (KINDS والأعمدة والعينة) و`FreeformPresets`، ويُضاف إلى `DocumentSharing::TYPES` وصلاحيات `documents.pdf`/`documents.send`.
 16. **الخروج التلقائي**: الطلبات التي تجريها الصفحة وحدها دوريًا تُضاف إلى `IdleTimeout::PASSIVE`؛ وشاشات نقاط البيع (`pos.*`) مستثناة من الخروج التلقائي.
-
+17. **الترقيم**: كل مستند أو سجل مرقّم يُعرَّف في `config/documents.php` (البادئة الافتراضية والخانات و`label`/`area`/`module` لظهوره في «دليل الترميز») ويُرقَّم عبر `DocumentNumberService::next()` فقط؛ لا تبنِ الأرقام يدويًا. البادئات تُضبط من «الإعدادات ← دليل الترميز» (`NumberingRules`) وتُقفل بعد الاستخدام.

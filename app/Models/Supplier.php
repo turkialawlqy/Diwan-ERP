@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Documents\DocumentNumberService;
 use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,6 +16,7 @@ class Supplier extends Model
 
     protected $fillable = [
         'company_id',
+        'code',
         'name',
         'company_name',
         'tax_number',
@@ -34,6 +36,15 @@ class Supplier extends Model
         'opening_balance' => 'decimal:2',
         'current_balance' => 'decimal:2',
     ];
+
+    protected static function booted()
+    {
+        static::creating(function ($supplier) {
+            if (empty($supplier->code) && ! empty($supplier->company_id)) {
+                $supplier->code = app(DocumentNumberService::class)->next('supplier', null, (int) $supplier->company_id);
+            }
+        });
+    }
 
     public function purchaseInvoices(): HasMany
     {
