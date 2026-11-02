@@ -53,6 +53,20 @@ class ReleaseNotesTest extends TestCase
             ->assertInertia(fn ($page) => $page->component('FeatureRequests/Index')->where('repo', SelfUpdate::REPO));
     }
 
+    /** The page groups and filters releases by the month and year of their date, and labels each line by its type. */
+    public function test_every_release_has_a_date_a_title_and_known_line_types(): void
+    {
+        foreach (config('release_notes') as $release) {
+            $date = \DateTime::createFromFormat('!Y-m-d', $release['date'] ?? '');
+            $this->assertTrue($date && $date->format('Y-m-d') === $release['date'], "{$release['version']}: date YYYY-MM-DD");
+            $this->assertNotSame('', trim($release['title'] ?? ''), "{$release['version']}: title");
+            foreach ($release['items'] as [$type, $text]) {
+                $this->assertContains($type, ['new', 'improved', 'fixed'], "{$release['version']}: {$text}");
+                $this->assertNotSame('', trim($text), $release['version']);
+            }
+        }
+    }
+
     public function test_every_version_is_listed_once_newest_first(): void
     {
         $versions = array_column(config('release_notes'), 'version');
