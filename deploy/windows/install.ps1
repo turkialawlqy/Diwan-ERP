@@ -339,7 +339,7 @@ Write-Utf8Bom (Join-Path $Scripts 'run-worker.ps1') @"
 `$schedule = `$null
 while (`$true) {
     if (-not `$queue -or `$queue.HasExited) {
-        `$queue = Start-Process -FilePath '$phpExe' -ArgumentList 'artisan', 'queue:work', 'database', '--sleep=3', '--tries=3', '--max-time=3600' -WorkingDirectory '$Current' -WindowStyle Hidden -PassThru
+        `$queue = Start-Process -FilePath '$phpExe' -ArgumentList 'artisan', 'queue:work', 'database', '--queue=zatca,default,webhooks,exports', '--sleep=3', '--tries=3', '--max-time=3600' -WorkingDirectory '$Current' -WindowStyle Hidden -PassThru
     }
     if (-not `$schedule -or `$schedule.HasExited) {
         `$schedule = Start-Process -FilePath '$phpExe' -ArgumentList 'artisan', 'schedule:work' -WorkingDirectory '$Current' -WindowStyle Hidden -PassThru

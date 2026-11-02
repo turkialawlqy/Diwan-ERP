@@ -66,6 +66,25 @@ function Remove-Release($dir) {
     foreach ($l in @('storage', 'public\storage')) { $p = Join-Path $dir $l; if (Test-Path $p) { cmd /c rmdir "$p" | Out-Null } }
     Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
 }
+# Queue workers set up by earlier installers served only the "default" queue: tax-authority
+# submissions (zatca), webhooks and data exports waited in the jobs table for good.
+$QueueArg = '--queue=zatca,default,webhooks,exports'
+function Update-QueueWorker {
+    $worker = Join-Path $Root 'scripts\run-worker.ps1'
+    if (-not (Test-Path $worker)) { return }
+    $text = [IO.File]::ReadAllText($worker)
+    if ($text.Contains("'$QueueArg'")) { return }
+    $text = ($text -replace "'--queue=[^']*', ", '').Replace("'queue:work', 'database', ", "'queue:work', 'database', '$QueueArg', ")
+    if (-not $text.Contains("'$QueueArg'")) { throw "$worker does not start the queue worker the way the installer wrote it." }
+    [IO.File]::WriteAllText($worker, $text, (New-Object System.Text.UTF8Encoding($true)))
+    # The "Diwan Worker" loop reads its script only when it starts: stop it and what it started, then start it again.
+    Stop-ScheduledTask -TaskName 'Diwan Worker' -ErrorAction SilentlyContinue
+    Get-CimInstance Win32_Process -Filter "Name = 'php.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -match 'queue:work|schedule:work' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Start-ScheduledTask -TaskName 'Diwan Worker'
+    Write-Host 'The queue worker now serves every queue.' -ForegroundColor Green
+}
+try { Update-QueueWorker } catch { Write-Host "Could not set up the queue worker again: $($_.Exception.Message)" -ForegroundColor Yellow }
 
 $new = $null
 $switched = $false
