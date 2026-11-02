@@ -51,6 +51,7 @@ use App\Http\Controllers\LookupController;
 use App\Http\Controllers\Manufacturing as Mfg;
 use App\Http\Controllers\ModuleSettingsController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\NumberingController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\PosRegisterController;
 use App\Http\Controllers\ProductController;
@@ -776,6 +777,10 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     Route::get('/settings/currencies', [CurrencyController::class, 'index'])->name('settings.currencies');
     Route::get('/settings/modules', [ModuleSettingsController::class, 'index'])->name('settings.modules');
     Route::put('/settings/modules', [ModuleSettingsController::class, 'update'])->name('settings.modules.update');
+    Route::get('/settings/numbering', [NumberingController::class, 'index'])->name('settings.numbering');
+    Route::put('/settings/numbering/{type}/{year}', [NumberingController::class, 'update'])->whereNumber('year')->name('settings.numbering.update');
+    Route::post('/settings/numbering/{type}', [NumberingController::class, 'add'])->name('settings.numbering.add');
+    Route::delete('/settings/numbering/{type}/{year}', [NumberingController::class, 'destroy'])->whereNumber('year')->name('settings.numbering.destroy');
     Route::post('/settings/currencies', [CurrencyController::class, 'store'])->name('settings.currencies.store');
     Route::post('/settings/currencies/rates', [CurrencyController::class, 'storeRate'])->name('settings.currencies.rates');
     Route::delete('/settings/currencies/{currency}', [CurrencyController::class, 'destroy'])->name('settings.currencies.destroy');

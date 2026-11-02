@@ -31,6 +31,7 @@ const props = defineProps({
     products: Array,
     categories: Array,
     customers: Array,
+    allowCredit: { type: Boolean, default: false },
     company: Object,
 });
 
@@ -38,7 +39,9 @@ const page = usePage();
 const barcodeInput = ref(null);
 const searchQuery = ref('');
 const selectedCategoryId = ref('all');
-const selectedCustomerId = ref(props.customers?.[0]?.id || null);
+// «عميل نقدي» unless the cashier picks one: a credit sale must never fall on a customer by accident.
+const selectedCustomerId = ref(null);
+const selectedCustomer = computed(() => props.customers?.find((c) => c.id === selectedCustomerId.value) || null);
 
 // Cart State
 const cart = ref([]);
@@ -176,6 +179,22 @@ const openSplitCheckout = () => {
     splitCash.value = Math.ceil(cartTotal.value);
     isSplitModalOpen.value = true;
 };
+// Credit sale («بيع آجل»): a named customer, an optional down payment in cash, the rest on his account.
+const isCreditModalOpen = ref(false);
+const downPayment = ref(0);
+const creditRemaining = computed(() => Math.max(0, Math.round((cartTotal.value - (Number(downPayment.value) || 0)) * 100) / 100));
+const balanceAfter = computed(() => Number(selectedCustomer.value?.current_balance || 0) + creditRemaining.value);
+const overLimit = computed(() => {
+    const limit = Number(selectedCustomer.value?.credit_limit || 0);
+    return limit > 0 && balanceAfter.value > limit + 0.005;
+});
+const openCreditCheckout = () => {
+    if (cart.value.length === 0) return;
+    downPayment.value = 0;
+    isCreditModalOpen.value = true;
+};
+const submitCredit = () => submitOrder('credit', Number(downPayment.value) || 0);
+
 const submitSplit = () => submitOrder('multiple', (Number(splitCash.value) || 0) + (Number(splitCard.value) || 0), { cash_amount: Number(splitCash.value) || 0, card_amount: Number(splitCard.value) || 0 });
 
 const submitOrder = (paymentMethod, paid, tender = {}) => {
@@ -194,6 +213,7 @@ const submitOrder = (paymentMethod, paid, tender = {}) => {
         onSuccess: (page) => {
             isCashModalOpen.value = false;
             isSplitModalOpen.value = false;
+            isCreditModalOpen.value = false;
             const ord = page.props.flash?.latest_order;
             if (ord) {
                 latestOrder.value = ord;
@@ -507,6 +527,15 @@ onMounted(() => {
                         >
                             دفع مجزأ (نقد + بطاقة)
                         </button>
+                        <button
+                            v-if="allowCredit"
+                            @click="openCreditCheckout"
+                            :disabled="cart.length === 0"
+                            class="col-span-2 py-2 px-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 font-bold text-xs disabled:opacity-40"
+                            data-pos-credit
+                        >
+                            بيع آجل (على حساب العميل)
+                        </button>
                     </div>
                 </div>
             </div>
@@ -585,6 +614,40 @@ onMounted(() => {
             </div>
         </div>
 
+        <!-- Credit sale dialog -->
+        <div v-if="isCreditModalOpen" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4" data-credit-modal>
+            <div class="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-100">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="text-sm font-black text-slate-800">بيع آجل</h3>
+                    <button @click="isCreditModalOpen = false" class="text-slate-400 hover:text-slate-600"><XMarkIcon class="w-5 h-5" /></button>
+                </div>
+
+                <div v-if="!selectedCustomer" class="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold p-3" data-credit-need-customer>
+                    اختر العميل من القائمة أعلى الشاشة أولًا: البيع الآجل لا يكون للعميل النقدي.
+                </div>
+                <template v-else>
+                    <div class="bg-amber-50 rounded-2xl p-4 text-center space-y-1">
+                        <p class="text-2xs font-bold text-amber-700">{{ selectedCustomer.name }}</p>
+                        <p class="text-2xl font-black text-amber-900 font-mono">{{ formatCurrency(cartTotal) }} <span class="text-xs font-normal">﷼</span></p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1.5">دفعة مقدّمة نقدًا (اختياري)</label>
+                        <input v-model.number="downPayment" type="text" inputmode="decimal" data-num class="w-full text-center text-xl font-black font-mono rounded-xl border border-slate-200 py-3" data-credit-down />
+                    </div>
+                    <div class="text-xs space-y-1 rounded-xl border border-slate-100 p-3">
+                        <div class="flex justify-between"><span>المتبقي على العميل</span><b class="font-mono">{{ formatCurrency(creditRemaining) }} ﷼</b></div>
+                        <div class="flex justify-between"><span>رصيده الحالي</span><b class="font-mono">{{ formatCurrency(selectedCustomer.current_balance) }} ﷼</b></div>
+                        <div class="flex justify-between"><span>رصيده بعد البيع</span><b class="font-mono" :class="overLimit ? 'text-rose-600' : ''">{{ formatCurrency(balanceAfter) }} ﷼</b></div>
+                        <div v-if="Number(selectedCustomer.credit_limit) > 0" class="flex justify-between"><span>الحد الائتماني</span><b class="font-mono">{{ formatCurrency(selectedCustomer.credit_limit) }} ﷼</b></div>
+                        <p v-if="overLimit" class="text-rose-600 font-bold pt-1" data-credit-over-limit>يتجاوز الحد الائتماني، وقد يمنع النظام إتمام البيع.</p>
+                    </div>
+                    <button @click="submitCredit" :disabled="creditRemaining <= 0" class="w-full py-3.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-sm disabled:opacity-50" data-credit-confirm>
+                        تأكيد البيع الآجل وإصدار الفاتورة
+                    </button>
+                </template>
+            </div>
+        </div>
+
         <!-- 4. Thermal 80mm ZATCA Receipt Modal -->
         <div 
             v-if="isReceiptModalOpen && latestOrder"
@@ -614,7 +677,7 @@ onMounted(() => {
                     <div class="border-t border-slate-200 pt-2 text-3xs text-start space-y-0.5">
                         <p>رقم الفاتورة: <strong>{{ latestOrder.order_number }}</strong></p>
                         <p>التاريخ: {{ new Date(latestOrder.created_at).toLocaleString('ar-SA-u-nu-latn', { timeZone: timeZone() }) }}</p>
-                        <p>طريقة الدفع: {{ ({ cash: 'نقداً', card: 'بطاقة مدى', multiple: 'مجزأ (نقد + بطاقة)' })[latestOrder.payment_method] || latestOrder.payment_method }}</p>
+                        <p>طريقة الدفع: {{ ({ cash: 'نقداً', card: 'بطاقة مدى', multiple: 'مجزأ (نقد + بطاقة)', credit: 'آجل' })[latestOrder.payment_method] || latestOrder.payment_method }}</p>
                     </div>
 
                     <!-- Items Table -->
@@ -649,6 +712,10 @@ onMounted(() => {
                             <span>المجموع الكلي:</span>
                             <span>{{ formatCurrency(latestOrder.total) }} ﷼</span>
                         </div>
+                        <template v-if="Number(latestOrder.paid_amount) - Number(latestOrder.change_amount) < Number(latestOrder.total) - 0.005">
+                            <div class="flex justify-between"><span>المدفوع:</span><span class="font-bold">{{ formatCurrency(Number(latestOrder.paid_amount) - Number(latestOrder.change_amount)) }} ﷼</span></div>
+                            <div class="flex justify-between font-black" data-receipt-remaining><span>المتبقي على الحساب{{ latestOrder.customer ? ` (${latestOrder.customer.name})` : '' }}:</span><span>{{ formatCurrency(Number(latestOrder.total) - (Number(latestOrder.paid_amount) - Number(latestOrder.change_amount))) }} ﷼</span></div>
+                        </template>
                     </div>
 
                     <!-- ZATCA QR Code -->

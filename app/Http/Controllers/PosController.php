@@ -14,6 +14,7 @@ use App\Models\Product;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\PostingService;
 use App\Services\Inventory\DocumentStock;
+use App\Services\Sales\InvoiceService;
 use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Services\Zatca\EInvoiceManager;
@@ -64,7 +65,7 @@ class PosController extends Controller
         $customers = Customer::where('status', 'active')
             ->latest('id')
             ->limit(200)
-            ->get(['id', 'name', 'phone', 'tax_number', 'current_balance']);
+            ->get(['id', 'name', 'phone', 'tax_number', 'current_balance', 'credit_limit']);
 
         $company = app(TenantManager::class)->getCompany();
 
@@ -73,6 +74,7 @@ class PosController extends Controller
             'products' => $products,
             'categories' => $categories,
             'customers' => $customers,
+            'allowCredit' => (bool) $company?->setting('pos_allow_credit', false),
             'company' => $company,
             'boxes' => BankAccount::where('is_active', true)->get(['id', 'name', 'type']),
         ]);
@@ -169,7 +171,7 @@ class PosController extends Controller
         $validated = $request->validate([
             'session_id' => 'required|tenant_exists:pos_sessions,id',
             'customer_id' => 'nullable|tenant_exists:customers,id',
-            'payment_method' => 'required|string|in:cash,card,multiple',
+            'payment_method' => 'required|string|in:cash,card,multiple,credit',
             'paid_amount' => 'required|numeric|min:0',
             'cash_amount' => 'nullable|required_if:payment_method,multiple|numeric|min:0',
             'card_amount' => 'nullable|required_if:payment_method,multiple|numeric|min:0',
@@ -250,7 +252,7 @@ class PosController extends Controller
             [$cashTender, $cardTender] = match ($validated['payment_method']) {
                 'multiple' => [(float) ($validated['cash_amount'] ?? 0), (float) ($validated['card_amount'] ?? 0)],
                 'card' => [0.0, min((float) $validated['paid_amount'], $total)],
-                default => [(float) $validated['paid_amount'], 0.0],
+                default => [(float) $validated['paid_amount'], 0.0], // cash, or the down payment of a credit sale
             };
             if ($cardTender > $total + 0.001) {
                 throw ValidationException::withMessages(['card_amount' => 'مبلغ البطاقة أكبر من إجمالي الفاتورة.']);
@@ -260,10 +262,21 @@ class PosController extends Controller
             $collected = min($paidAmount, $total);
             $remaining = round($total - $collected, 2);
 
-            // A short payment is a credit sale: only allowed for a named customer
-            // when the company permits POS credit.
-            if ($remaining > 0 && (empty($validated['customer_id']) || ! $company->setting('pos_allow_credit', false))) {
-                throw ValidationException::withMessages(['paid_amount' => 'المبلغ المدفوع أقل من إجمالي الفاتورة.']);
+            // A short payment (or an explicit «آجل» sale) is on credit: only for a named
+            // customer, and only when the company switched POS credit on.
+            $isCredit = $validated['payment_method'] === 'credit' || $remaining > 0;
+            if ($isCredit && $remaining > 0) {
+                if (! $company->setting('pos_allow_credit', false)) {
+                    throw ValidationException::withMessages(['paid_amount' => $validated['payment_method'] === 'credit'
+                        ? 'البيع الآجل غير مفعّل في نقاط البيع (الإعدادات ← نقاط البيع).' : 'المبلغ المدفوع أقل من إجمالي الفاتورة.']);
+                }
+                if (empty($validated['customer_id']) || (int) $validated['customer_id'] === (int) Customer::walkIn()->id) {
+                    throw ValidationException::withMessages(['customer_id' => 'اختر العميل أولًا: البيع الآجل لا يكون للعميل النقدي.']);
+                }
+                app(InvoiceService::class)->checkCreditLimit(Customer::findOrFail($validated['customer_id']), $remaining);
+            } elseif ($validated['payment_method'] === 'credit') {
+                // Paid in full up front: it is just a cash sale.
+                $validated['payment_method'] = 'cash';
             }
 
             $orderNumber = $this->nextNumber('pos_order');
@@ -287,7 +300,8 @@ class PosController extends Controller
                 'paid_amount' => $collected,
                 'remaining_amount' => $remaining,
                 'payment_status' => $remaining > 0 ? ($collected > 0 ? 'partially_paid' : 'unpaid') : 'paid',
-                'payment_method' => $validated['payment_method'],
+                // The down payment of a credit sale goes to the drawer, so it posts as cash.
+                'payment_method' => $validated['payment_method'] === 'credit' && $collected > 0 ? 'cash' : $validated['payment_method'],
                 'bank_account_id' => $validated['payment_method'] === 'card' ? null : $session->register?->bank_account_id,
                 'notes' => $profile->invoiceTitle(true)[0].' - نقطة بيع',
                 'invoice_type' => $profile->simplifiedInvoices() ? 'simplified' : 'standard',
@@ -370,7 +384,7 @@ class PosController extends Controller
         }
 
         // Cash actually kept in the drawer: cash received (the cash part of split tenders) minus change given.
-        $cashOrdersTotal = $session->orders()->where('status', 'completed')->whereIn('payment_method', ['cash', 'multiple'])
+        $cashOrdersTotal = $session->orders()->where('status', 'completed')->whereIn('payment_method', ['cash', 'multiple', 'credit'])
             ->get(['payment_method', 'paid_amount', 'change_amount', 'cash_amount'])
             ->sum(fn ($o) => ($o->payment_method === 'cash' ? (float) $o->paid_amount : (float) $o->cash_amount) - (float) $o->change_amount);
 

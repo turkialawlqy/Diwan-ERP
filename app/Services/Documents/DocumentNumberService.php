@@ -2,7 +2,6 @@
 
 namespace App\Services\Documents;
 
-use App\Models\CompanySetting;
 use App\Services\TenantManager;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +17,7 @@ class DocumentNumberService
     /** Numbers checked per query while skipping used ones (well under SQLite's 999 bound values). */
     protected const SKIP_BLOCK = 500;
 
-    public function __construct(protected TenantManager $tenantManager) {}
+    public function __construct(protected TenantManager $tenantManager, protected NumberingRules $rules) {}
 
     /**
      * Reserve and return the next number. Call inside the transaction that
@@ -28,17 +27,18 @@ class DocumentNumberService
     {
         $companyId ??= $this->companyId();
         $definition = $this->definition($type);
-        $scope = $this->scope($definition, $date);
-        $prefix = $this->prefix($type, $definition, $companyId, $date);
+        $rule = $this->rules->resolve($type, $companyId, $date);
+        $scope = $this->scope($rule, $date);
+        $prefix = $this->prefix($rule, $date);
 
-        return DB::transaction(function () use ($type, $definition, $scope, $prefix, $companyId) {
-            $row = $this->lockedRow($companyId, $type, $scope, $prefix, $definition);
+        return DB::transaction(function () use ($type, $definition, $rule, $scope, $prefix, $companyId) {
+            $row = $this->lockedRow($companyId, $type, $scope, $prefix, $definition, $rule);
             $number = (int) $row->next_number;
 
             // Guard against numbers already used (e.g. entered manually, imported or
             // left by an older numbering scheme): skip forward to the first free one.
-            if ($this->exists($definition, $companyId, $this->format($prefix, $number, $definition['pad']))) {
-                $number = $this->firstFree($definition, $companyId, $prefix, $number + 1);
+            if ($this->exists($definition, $companyId, $this->format($prefix, $number, $rule['pad']))) {
+                $number = $this->firstFree($definition, $companyId, $prefix, (int) $rule['pad'], $number + 1);
             }
 
             DB::table('document_sequences')->where('id', $row->id)->update([
@@ -46,7 +46,7 @@ class DocumentNumberService
                 'updated_at' => now(),
             ]);
 
-            return $this->format($prefix, $number, $definition['pad']);
+            return $this->format($prefix, $number, $rule['pad']);
         });
     }
 
@@ -57,17 +57,18 @@ class DocumentNumberService
     {
         $companyId ??= $this->companyId();
         $definition = $this->definition($type);
-        $scope = $this->scope($definition, $date);
-        $prefix = $this->prefix($type, $definition, $companyId, $date);
+        $rule = $this->rules->resolve($type, $companyId, $date);
+        $scope = $this->scope($rule, $date);
+        $prefix = $this->prefix($rule, $date);
 
         $next = DB::table('document_sequences')
             ->where(['company_id' => $companyId, 'type' => $type, 'scope' => $scope])
-            ->value('next_number') ?? $this->initialNumber($definition, $companyId, $prefix);
+            ->value('next_number') ?? $this->initialNumber($definition, $companyId, $prefix, $rule);
 
-        return $this->format($prefix, (int) $next, $definition['pad']);
+        return $this->format($prefix, (int) $next, $rule['pad']);
     }
 
-    protected function lockedRow(int $companyId, string $type, string $scope, string $prefix, array $definition): object
+    protected function lockedRow(int $companyId, string $type, string $scope, string $prefix, array $definition, array $rule): object
     {
         $query = fn () => DB::table('document_sequences')
             ->where(['company_id' => $companyId, 'type' => $type, 'scope' => $scope])
@@ -82,7 +83,7 @@ class DocumentNumberService
             'company_id' => $companyId,
             'type' => $type,
             'scope' => $scope,
-            'next_number' => $this->initialNumber($definition, $companyId, $prefix),
+            'next_number' => $this->initialNumber($definition, $companyId, $prefix, $rule),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -94,10 +95,12 @@ class DocumentNumberService
      * First number for a new sequence: continue after the highest existing
      * number with the same prefix so upgrades never collide.
      */
-    protected function initialNumber(array $definition, int $companyId, string $prefix): int
+    protected function initialNumber(array $definition, int $companyId, string $prefix, array $rule): int
     {
+        $start = max(1, (int) $rule['start_number']);
+
         if (empty($definition['table'])) {
-            return 1;
+            return $start;
         }
 
         $max = 0;
@@ -116,7 +119,7 @@ class DocumentNumberService
                 }
             });
 
-        return $max + 1;
+        return max($start, $max + 1);
     }
 
     /**
@@ -124,12 +127,12 @@ class DocumentNumberService
      * checked a block per query, so a long run of used numbers (an import, data
      * from another system) costs a few queries instead of one per number.
      */
-    protected function firstFree(array $definition, int $companyId, string $prefix, int $number): int
+    protected function firstFree(array $definition, int $companyId, string $prefix, int $pad, int $number): int
     {
         for (; ; $number += self::SKIP_BLOCK) {
             $candidates = [];
             foreach (range($number, $number + self::SKIP_BLOCK - 1) as $candidate) {
-                $candidates[$this->format($prefix, $candidate, $definition['pad'])] = $candidate;
+                $candidates[$this->format($prefix, $candidate, $pad)] = $candidate;
             }
 
             $used = DB::table($definition['table'])
@@ -160,19 +163,14 @@ class DocumentNumberService
             ->exists();
     }
 
-    protected function prefix(string $type, array $definition, int $companyId, ?CarbonInterface $date): string
+    protected function prefix(array $rule, ?CarbonInterface $date): string
     {
-        $prefix = CompanySetting::withoutGlobalScopes()
-            ->where('company_id', $companyId)
-            ->where('key', "{$type}_prefix")
-            ->value('value') ?: $definition['prefix'];
-
-        return $definition['yearly'] ? $prefix.($date ?? now())->format('y').'-' : $prefix;
+        return $rule['with_year'] ? $rule['prefix'].($date ?? now())->format('y').'-' : $rule['prefix'];
     }
 
-    protected function scope(array $definition, ?CarbonInterface $date): string
+    protected function scope(array $rule, ?CarbonInterface $date): string
     {
-        return $definition['yearly'] ? ($date ?? now())->format('Y') : 'all';
+        return $rule['with_year'] ? ($date ?? now())->format('Y') : 'all';
     }
 
     protected function format(string $prefix, int $number, int $pad): string

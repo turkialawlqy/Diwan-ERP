@@ -256,7 +256,7 @@ class InvoiceService
     /**
      * Block (or only warn, per company setting) sales above the customer's credit limit.
      */
-    protected function checkCreditLimit(Customer $customer, float $newDebt): void
+    public function checkCreditLimit(Customer $customer, float $newDebt): void
     {
         $limit = (float) ($customer->credit_limit ?? 0);
         if ($limit <= 0) {

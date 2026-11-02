@@ -189,7 +189,7 @@ const formatCurrency = (val) => {
                                         </div>
                                         <div>
                                             <div class="text-xs font-bold text-slate-900">{{ supplier.name }}</div>
-                                            <div class="text-3xs text-slate-400 font-mono">#SUP-{{ String(supplier.id).padStart(5, '0') }}</div>
+                                            <div class="text-3xs text-slate-400 font-mono">{{ supplier.code }}</div>
                                         </div>
                                     </div>
                                 </td>
