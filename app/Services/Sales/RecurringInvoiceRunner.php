@@ -29,7 +29,7 @@ class RecurringInvoiceRunner
 
         RecurringInvoice::withoutGlobalScopes()
             ->where('status', 'active')
-            ->where('next_run_date', '<=', $today->toDateString())
+            ->whereDate('next_run_date', '<=', $today->toDateString())
             ->orderBy('id')
             ->chunkById(100, function ($templates) use ($today, &$count) {
                 foreach ($templates as $template) {

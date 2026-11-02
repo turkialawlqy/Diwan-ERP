@@ -179,6 +179,19 @@ export const quickCreate = {
             text('description', 'الوصف', { span: 2 }),
         ],
     },
+    support_category: {
+        title: 'تصنيف تذاكر جديد', route: 'support.settings.categories.store', seed: 'name', label: (r) => r.name,
+        fields: () => [text('name', 'اسم التصنيف', { required: true, span: 2 })],
+    },
+    service_plan: {
+        title: 'خطة اشتراك جديدة', route: 'sales.service-plans.store', seed: 'name', label: (r) => r.name,
+        fields: () => [
+            text('name', 'اسم الخطة', { required: true, span: 2 }),
+            num('price', 'السعر لكل فترة', { required: true }),
+            { key: 'cycle', label: 'دورة الفوترة', type: 'select', default: 'monthly', options: [{ value: 'monthly', label: 'شهري' }, { value: 'quarterly', label: 'ربع سنوي' }, { value: 'yearly', label: 'سنوي' }] },
+            num('trial_days', 'أيام التجربة المجانية', { step: '1' }),
+        ],
+    },
     nationality: {
         title: 'جنسية جديدة', route: 'hr.nationalities.store', seed: 'name_ar',
         fields: () => [

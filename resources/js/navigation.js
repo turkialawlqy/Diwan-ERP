@@ -17,6 +17,7 @@ import {
     DocumentChartBarIcon,
     BuildingOffice2Icon,
     WrenchScrewdriverIcon,
+    LifebuoyIcon,
 } from '@heroicons/vue/24/outline';
 
 /**
@@ -45,6 +46,8 @@ export default [
             { label: 'nav.debit_notes', route: 'sales.debit-notes.index', path: '/sales/debit-notes' },
             { label: 'nav.price_lists', route: 'sales.price-lists.index', path: '/sales/price-lists' },
             { label: 'nav.recurring_invoices', route: 'sales.recurring.index', path: '/sales/recurring' },
+            { label: 'nav.subscriptions', route: 'sales.subscriptions.index', path: '/sales/subscriptions' },
+            { label: 'nav.service_plans', route: 'sales.service-plans.index', path: '/sales/service-plans' },
         ],
     },
     {
@@ -77,6 +80,13 @@ export default [
         children: [
             { label: 'nav.projects_list', route: 'projects.index', path: '/projects' },
             { label: 'nav.guarantees', route: 'projects.guarantees.index', path: '/projects/guarantees' },
+        ],
+    },
+    {
+        key: 'support', label: 'nav.support', icon: LifebuoyIcon, color: 'indigo',
+        children: [
+            { label: 'nav.tickets', route: 'support.tickets.index', path: '/support/tickets' },
+            { label: 'nav.support_settings', route: 'support.settings.index', path: '/support/settings' },
         ],
     },
     {

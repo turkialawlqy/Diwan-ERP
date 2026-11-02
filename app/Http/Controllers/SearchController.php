@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\Customer;
+use App\Models\CustomerSubscription;
 use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\Invoice;
@@ -16,6 +17,7 @@ use App\Models\Quotation;
 use App\Models\Revenue;
 use App\Models\SalesOrder;
 use App\Models\Supplier;
+use App\Models\Ticket;
 use App\Services\Saas\PlanGuard;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
@@ -82,6 +84,20 @@ class SearchController extends Controller
                     ->where(fn ($q) => $q->where('name', 'like', $like)->orWhere('code', 'like', $like)->orWhere('phone', 'like', $like)->orWhere('tax_number', 'like', $like))
                     ->orderBy('name')->select('id', 'name', 'code', 'phone'),
                 'present' => fn ($r) => ['title' => $r->name, 'code' => (string) $r->code, 'subtitle' => (string) $r->phone, 'url' => route('sales.clients.show', $r->id)],
+            ],
+            'tickets' => [
+                'label' => 'تذاكر الدعم', 'permission' => 'support.tickets.view',
+                'query' => fn ($like) => Ticket::query()->with('customer:id,name')
+                    ->where(fn ($q) => $q->where('number', 'like', $like)->orWhere('subject', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)))
+                    ->latest('id')->select('id', 'number', 'subject', 'customer_id', 'status'),
+                'present' => fn ($r) => ['title' => $r->subject, 'code' => (string) $r->number, 'subtitle' => ($r->customer?->name ?? '').' · '.(Ticket::STATUSES[$r->status] ?? $r->status), 'url' => route('support.tickets.show', $r->id)],
+            ],
+            'subscriptions' => [
+                'label' => 'اشتراكات العملاء', 'permission' => 'sales.subscriptions.view',
+                'query' => fn ($like) => CustomerSubscription::query()->with('customer:id,name')
+                    ->where(fn ($q) => $q->where('number', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)))
+                    ->latest('id')->select('id', 'number', 'customer_id', 'status'),
+                'present' => fn ($r) => ['title' => $r->number.' — '.($r->customer?->name ?? ''), 'code' => (string) $r->number, 'subtitle' => CustomerSubscription::STATUSES[$r->status] ?? $r->status, 'url' => route('sales.subscriptions.show', $r->id)],
             ],
             'suppliers' => [
                 'label' => 'الموردون', 'permission' => 'purchases.suppliers.view',

@@ -9,6 +9,12 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+// Customer subscriptions: before the recurring-invoice run below so plan changes and non-renewals apply first.
+Schedule::command('erp:subscriptions')->dailyAt('01:00')->withoutOverlapping()->onOneServer();
+
+// Support tickets: flag missed SLA deadlines.
+Schedule::command('erp:support-sla')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
+
 // Accounting automation (requires the scheduler: `* * * * * php artisan schedule:run`).
 Schedule::command('erp:accounting-schedules recurring')->dailyAt('01:10')->withoutOverlapping()->onOneServer();
 Schedule::command('erp:accounting-schedules depreciation')->monthlyOn(1, '02:10')->withoutOverlapping()->onOneServer();

@@ -72,6 +72,8 @@ use App\Http\Controllers\Sales\CommissionPlanController;
 use App\Http\Controllers\Sales\CustomerGroupController;
 use App\Http\Controllers\Sales\PromotionController;
 use App\Http\Controllers\Sales\RecurringInvoiceController;
+use App\Http\Controllers\Sales\ServicePlanController;
+use App\Http\Controllers\Sales\SubscriptionController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SelfUpdateController;
 use App\Http\Controllers\StockCountController;
@@ -81,6 +83,9 @@ use App\Http\Controllers\SuperAdmin\PlatformController;
 use App\Http\Controllers\SuperAdmin\SuperAdminDashboardController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierPaymentController;
+use App\Http\Controllers\Support\SupportSettingsController;
+use App\Http\Controllers\Support\SurveyController;
+use App\Http\Controllers\Support\TicketController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
@@ -133,6 +138,8 @@ Route::get('/', function () {
 Route::middleware(['signed', 'throttle:60,1'])->prefix('share/{company}')->whereNumber('company')->name('share.')->group(function () {
     Route::get('/pdf/{type}/{id}', [DocumentShareController::class, 'sharedPdf'])->whereNumber('id')->name('pdf');
     Route::get('/statement/{customer}', [DocumentShareController::class, 'portal'])->whereNumber('customer')->name('statement');
+    Route::get('/ticket-survey/{ticket}', [SurveyController::class, 'show'])->whereNumber('ticket')->name('ticket-survey');
+    Route::post('/ticket-survey/{ticket}', [SurveyController::class, 'rate'])->whereNumber('ticket')->name('ticket-survey.rate');
 });
 
 Route::post('/locale/switch', [LocaleController::class, 'switch'])->name('locale.switch');
@@ -287,6 +294,23 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::get('/payments', [CustomerPaymentController::class, 'index'])->name('payments.index');
         Route::post('/payments', [CustomerPaymentController::class, 'store'])->name('payments.store');
         Route::get('/payments/open-invoices', [CustomerPaymentController::class, 'openInvoices'])->name('payments.open-invoices');
+
+        Route::get('/subscriptions', [SubscriptionController::class, 'index'])->name('subscriptions.index');
+        Route::get('/subscriptions/create', [SubscriptionController::class, 'create'])->name('subscriptions.create');
+        Route::post('/subscriptions', [SubscriptionController::class, 'store'])->name('subscriptions.store');
+        Route::get('/subscriptions/{subscription}', [SubscriptionController::class, 'show'])->whereNumber('subscription')->name('subscriptions.show');
+        Route::post('/subscriptions/{subscription}/pause', [SubscriptionController::class, 'pause'])->name('subscriptions.pause');
+        Route::post('/subscriptions/{subscription}/resume', [SubscriptionController::class, 'resume'])->name('subscriptions.resume');
+        Route::post('/subscriptions/{subscription}/change-plan', [SubscriptionController::class, 'changePlan'])->name('subscriptions.change-plan');
+        Route::post('/subscriptions/{subscription}/cancel', [SubscriptionController::class, 'cancel'])->name('subscriptions.cancel');
+        Route::post('/subscriptions/{subscription}/keep', [SubscriptionController::class, 'keep'])->name('subscriptions.keep');
+        Route::delete('/subscriptions/{subscription}', [SubscriptionController::class, 'destroy'])->name('subscriptions.destroy');
+        Route::get('/service-plans', [ServicePlanController::class, 'index'])->name('service-plans.index');
+        Route::get('/service-plans/create', [ServicePlanController::class, 'create'])->name('service-plans.create');
+        Route::post('/service-plans', [ServicePlanController::class, 'store'])->name('service-plans.store');
+        Route::get('/service-plans/{plan}/edit', [ServicePlanController::class, 'edit'])->name('service-plans.edit');
+        Route::put('/service-plans/{plan}', [ServicePlanController::class, 'update'])->name('service-plans.update');
+        Route::delete('/service-plans/{plan}', [ServicePlanController::class, 'destroy'])->name('service-plans.destroy');
 
         Route::get('/recurring', [RecurringInvoiceController::class, 'index'])->name('recurring.index');
         Route::post('/recurring', [RecurringInvoiceController::class, 'store'])->name('recurring.store');
@@ -831,6 +855,21 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/leads/{lead}/move', [Crm\LeadController::class, 'move'])->name('leads.move');
         Route::post('/leads/{lead}/activities', [Crm\LeadController::class, 'storeActivity'])->name('leads.activities.store');
         Route::post('/leads/{lead}/convert', [Crm\LeadController::class, 'convert'])->name('leads.convert');
+    });
+
+    // Customer support: tickets and SLA
+    Route::prefix('support')->name('support.')->group(function () {
+        Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
+        Route::get('/tickets/create', [TicketController::class, 'create'])->name('tickets.create');
+        Route::post('/tickets', [TicketController::class, 'store'])->name('tickets.store');
+        Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->whereNumber('ticket')->name('tickets.show');
+        Route::patch('/tickets/{ticket}', [TicketController::class, 'update'])->name('tickets.update');
+        Route::post('/tickets/{ticket}/reply', [TicketController::class, 'reply'])->name('tickets.reply');
+        Route::get('/settings', [SupportSettingsController::class, 'index'])->name('settings.index');
+        Route::put('/settings/sla', [SupportSettingsController::class, 'saveSla'])->name('settings.sla');
+        Route::post('/settings/categories', [SupportSettingsController::class, 'storeCategory'])->name('settings.categories.store');
+        Route::post('/settings/categories/{category}/toggle', [SupportSettingsController::class, 'toggleCategory'])->name('settings.categories.toggle');
+        Route::delete('/settings/categories/{category}', [SupportSettingsController::class, 'destroyCategory'])->name('settings.categories.destroy');
     });
 
     // Manufacturing: work centres, BOMs, routings, production orders, process costing, MRP, quality, subcontracting
