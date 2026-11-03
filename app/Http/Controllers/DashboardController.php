@@ -11,6 +11,7 @@ use App\Models\Project;
 use App\Models\PurchaseInvoice;
 use App\Services\ActiveBranch;
 use App\Services\ActiveFiscalYear;
+use App\Services\Dashboard\ModuleWidgets;
 use App\Services\Reports\Insights;
 use App\Services\Saas\OnboardingChecklist;
 use App\Services\TenantManager;
@@ -191,6 +192,8 @@ class DashboardController extends Controller
             : collect();
 
         return Inertia::render('Dashboard', [
+            // One small card per enabled system (see ModuleWidgets); 'widgetsAll' feeds the customise menu.
+            'widgets' => fn () => $request->user() ? app(ModuleWidgets::class)->forUser($request->user(), $company, true) : [],
             'yearData' => $yearData,
             'projects' => $projects,
             'activeYearName' => $year?->name,

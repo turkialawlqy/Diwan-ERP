@@ -26,6 +26,7 @@ use App\Http\Controllers\CurrencyController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerPaymentController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardWidgetController;
 use App\Http\Controllers\DataTransferController;
 use App\Http\Controllers\DocumentCancellationController;
 use App\Http\Controllers\DocumentShareController;
@@ -249,6 +250,7 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.feature', 'erp.authorize', 'throttle:tenant-web'])->group(function () {
     // 1. Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::post('/dashboard/widgets', [DashboardWidgetController::class, 'update'])->name('dashboard.widgets');
     Route::get('/search', SearchController::class)->name('search');
 
     // Working branch and fiscal year (sidebar «سياق العمل» card).

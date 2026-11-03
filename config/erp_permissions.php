@@ -522,6 +522,7 @@ return [
         'session.keep-alive' => '@authenticated',
         'whats-new.index' => '@authenticated',
         'feature-requests.index' => '@authenticated',
+        'dashboard.widgets' => '@authenticated',
         'notifications.index' => '@authenticated',
         'notifications.read' => '@authenticated',
         'notifications.read-all' => '@authenticated',
