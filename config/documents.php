@@ -46,6 +46,7 @@ return [
         'ticket' => ['table' => 'tickets', 'column' => 'number', 'prefix' => 'TKT-', 'pad' => 5, 'yearly' => true, 'label' => 'تذكرة دعم', 'area' => 'sales', 'module' => 'support'],
         'contract' => ['table' => 'contracts', 'column' => 'number', 'prefix' => 'CTR-', 'pad' => 5, 'yearly' => true, 'label' => 'عقد', 'area' => 'sales', 'module' => 'contracts'],
         'booking' => ['table' => 'bookings', 'column' => 'number', 'prefix' => 'BKG-', 'pad' => 5, 'yearly' => true, 'label' => 'حجز', 'area' => 'sales', 'module' => 'bookings'],
+        'admin_request' => ['table' => 'admin_requests', 'column' => 'number', 'prefix' => 'ADM-', 'pad' => 5, 'yearly' => true, 'label' => 'طلب إداري', 'area' => 'parties', 'module' => 'hr'],
         'work_order' => ['table' => 'work_orders', 'column' => 'number', 'prefix' => 'WO-', 'pad' => 5, 'yearly' => true, 'label' => 'أمر عمل', 'area' => 'sales', 'module' => 'work_orders'],
         'patient_file' => ['table' => 'patient_files', 'column' => 'file_number', 'prefix' => 'PF-', 'pad' => 5, 'yearly' => false, 'label' => 'ملف مريض', 'area' => 'parties', 'module' => 'clinic'],
         'lease' => ['table' => 'leases', 'column' => 'number', 'prefix' => 'LSE-', 'pad' => 5, 'yearly' => true, 'label' => 'عقد إيجار', 'area' => 'sales', 'module' => 'real_estate'],

@@ -8,7 +8,7 @@ import StatCard from '@/Components/UI/StatCard.vue';
 import StatusBadge from '@/Components/Documents/StatusBadge.vue';
 import { money, date, hijri } from '@/utils/format';
 
-const props = defineProps({ employee: Object, leaveBalance: Object, leaveRequests: Array, loans: Array, payslips: Array, leaveTypes: Array });
+const props = defineProps({ employee: Object, leaveBalance: Object, leaveRequests: Array, loans: Array, payslips: Array, leaveTypes: Array, adminLines: { type: Array, default: () => [] } });
 const withdraw = async (name, id, message) => {
     if (await confirmAction(message, { confirmText: 'سحب الطلب', danger: true })) router.post(route(name, id), {}, { preserveScroll: true });
 };
@@ -43,6 +43,10 @@ const loan = useForm({ amount: 0, monthly_installment: 0, reason: '' });
                 <div class="grid grid-cols-2 gap-2"><label>المبلغ<input v-model.number="loan.amount" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs font-mono" /></label><label>القسط<input v-model.number="loan.monthly_installment" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs font-mono" /></label></div>
                 <p v-for="(m, k) in loan.errors" :key="k" class="text-rose-600">{{ m }}</p>
                 <button @click="loan.post(route('hr.me.loans'), { preserveScroll: true, onSuccess: () => loan.reset() })" class="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold">إرسال طلب السلفة</button>
+            </div>
+            <div v-if="adminLines.length" class="bg-white border border-slate-200 rounded-2xl p-4" data-admin-lines>
+                <h3 class="font-black text-slate-700 mb-2">طلبات إدارية موجَّهة إليّ</h3>
+                <div v-for="a in adminLines" :key="a.id" class="py-1 border-b border-slate-50 flex justify-between gap-2"><span>{{ a.title }} <span class="font-mono text-slate-400">{{ a.attend_at ? String(a.attend_at).replace('T', ' ').slice(0, 16) : '' }}</span><span v-if="a.location" class="text-slate-400"> — {{ a.location }}</span></span><span class="font-bold text-slate-600">{{ a.status_label }}</span></div>
             </div>
             <div class="bg-white border border-slate-200 rounded-2xl p-4">
                 <h3 class="font-black text-slate-700 mb-2">طلباتي</h3>

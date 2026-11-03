@@ -241,6 +241,8 @@ export default [
             { label: 'nav.attendance', route: 'hr.attendance.index', path: '/hr/attendance' },
             { label: 'nav.leaves', route: 'hr.leaves.index', path: '/hr/leaves' },
             { label: 'nav.loans', route: 'hr.loans.index', path: '/hr/loans' },
+            { label: 'nav.admin_requests', route: 'hr.admin-requests.index', path: '/hr/admin-requests' },
+            { label: 'nav.admin_requests_inbox', route: 'hr.admin-requests.inbox', path: '/hr/admin-requests/inbox' },
             { label: 'nav.settlements', route: 'hr.settlements.index', path: '/hr/settlements' },
             { label: 'nav.gosi_report', route: 'hr.reports.gosi', path: '/hr/reports/gosi', feature: 'gosi' },
             { label: 'nav.saudization_report', route: 'hr.reports.saudization', path: '/hr/reports/saudization', feature: 'saudization' },

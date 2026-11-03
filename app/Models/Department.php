@@ -23,6 +23,11 @@ class Department extends Model
         return $this->belongsTo(CostCenter::class);
     }
 
+    public function manager(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'manager_employee_id');
+    }
+
     public function employees(): HasMany
     {
         return $this->hasMany(Employee::class, 'department_id');

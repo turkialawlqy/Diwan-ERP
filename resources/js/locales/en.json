@@ -148,6 +148,8 @@
         "attendance": "Attendance",
         "leaves": "Leave",
         "loans": "Loans",
+        "admin_requests": "Administrative requests",
+        "admin_requests_inbox": "Notification tasks",
         "settlements": "End of Service",
         "organization": "Organisation",
         "updates": "Updates & Requests",

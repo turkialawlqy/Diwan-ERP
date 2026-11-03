@@ -148,6 +148,8 @@
         "attendance": "الحضور والانصراف",
         "leaves": "الإجازات",
         "loans": "السلف",
+        "admin_requests": "الطلبات الإدارية",
+        "admin_requests_inbox": "مهام التبليغ",
         "settlements": "نهاية الخدمة",
         "organization": "الهيكل التنظيمي",
         "updates": "التحديثات والطلبات",

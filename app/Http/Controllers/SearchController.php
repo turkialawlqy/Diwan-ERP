@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Account;
+use App\Models\AdminRequest;
 use App\Models\Booking;
 use App\Models\Contract;
 use App\Models\Customer;
@@ -219,6 +220,11 @@ class SearchController extends Controller
                 'query' => fn ($like) => Project::query()->where(fn ($q) => $q->where('code', 'like', $like)->orWhere('name', 'like', $like)->orWhere('contract_number', 'like', $like))
                     ->orderBy('name')->select('id', 'code', 'name'),
                 'present' => fn ($r) => ['title' => $r->name, 'code' => $r->code, 'subtitle' => '', 'url' => route('projects.show', $r->id)],
+            ],
+            'admin_requests' => [
+                'label' => 'الطلبات الإدارية', 'permission' => 'hr.admin_requests.view',
+                'query' => fn ($like) => AdminRequest::query()->where(fn ($q) => $q->where('number', 'like', $like)->orWhere('title', 'like', $like))->orderByDesc('id')->select('id', 'number', 'title', 'status'),
+                'present' => fn ($r) => ['title' => $r->title, 'code' => (string) $r->number, 'subtitle' => AdminRequest::STATUSES[$r->status] ?? '', 'url' => route('hr.admin-requests.show', $r->id)],
             ],
             'employees' => [
                 'label' => 'الموظفون', 'permission' => 'hr.employees.view',

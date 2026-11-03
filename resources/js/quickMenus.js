@@ -17,6 +17,7 @@ export const addMenu = [
         { label: 'عميل', route: 'sales.clients.create', icon: BuildingOffice2Icon },
         { label: 'مورد', route: 'purchases.suppliers.create', icon: TruckIcon },
         { label: 'موظف', route: 'hr.employees.create', icon: UserCircleIcon },
+        { label: 'طلب إداري', route: 'hr.admin-requests.create', icon: ClipboardDocumentListIcon },
     ] },
     { label: 'المبيعات', items: [
         { label: 'فاتورة مبيعات', route: 'sales.invoices.create', icon: DocumentTextIcon },
@@ -67,6 +68,7 @@ export const viewMenu = [
     { label: 'العملاء', route: 'sales.clients.index', icon: BuildingOffice2Icon },
     { label: 'الموردون', route: 'purchases.suppliers.index', icon: TruckIcon },
     { label: 'الموظفون', route: 'hr.employees.index', icon: UserCircleIcon },
+    { label: 'الطلبات الإدارية', route: 'hr.admin-requests.index', icon: ClipboardDocumentListIcon },
     { label: 'المنتجات', route: 'inventory.products.index', icon: CubeIcon },
     { label: 'فواتير المبيعات', route: 'sales.invoices.index', icon: DocumentTextIcon },
     { label: 'اشتراكات العملاء', route: 'sales.subscriptions.index', icon: CreditCardIcon },

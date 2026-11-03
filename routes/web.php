@@ -39,6 +39,8 @@ use App\Http\Controllers\Finance\TransferController;
 use App\Http\Controllers\FreeformTemplateController;
 use App\Http\Controllers\Gym;
 use App\Http\Controllers\HealthController;
+use App\Http\Controllers\HR\AdminRequestController;
+use App\Http\Controllers\HR\AdminRequestLineController;
 use App\Http\Controllers\HR\EmployeeController;
 use App\Http\Controllers\HR\HrOperationsController;
 use App\Http\Controllers\HR\HrReportController;
@@ -794,6 +796,22 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::get('/leaves', [HrOperationsController::class, 'leaves'])->name('leaves.index');
         Route::post('/leaves', [HrOperationsController::class, 'storeLeave'])->name('leaves.store');
         Route::post('/leaves/{leave}/decide', [HrOperationsController::class, 'decideLeave'])->name('leaves.decide');
+
+        Route::get('/admin-requests', [AdminRequestController::class, 'index'])->name('admin-requests.index');
+        Route::get('/admin-requests/inbox', [AdminRequestController::class, 'inbox'])->name('admin-requests.inbox');
+        Route::get('/admin-requests/create', [AdminRequestController::class, 'create'])->name('admin-requests.create');
+        Route::post('/admin-requests', [AdminRequestController::class, 'store'])->name('admin-requests.store');
+        Route::get('/admin-requests/{adminRequest}', [AdminRequestController::class, 'show'])->whereNumber('adminRequest')->name('admin-requests.show');
+        Route::get('/admin-requests/{adminRequest}/edit', [AdminRequestController::class, 'edit'])->whereNumber('adminRequest')->name('admin-requests.edit');
+        Route::put('/admin-requests/{adminRequest}', [AdminRequestController::class, 'update'])->whereNumber('adminRequest')->name('admin-requests.update');
+        Route::delete('/admin-requests/{adminRequest}', [AdminRequestController::class, 'destroy'])->whereNumber('adminRequest')->name('admin-requests.destroy');
+        Route::post('/admin-requests/{adminRequest}/send', [AdminRequestController::class, 'send'])->whereNumber('adminRequest')->name('admin-requests.send');
+        Route::post('/admin-requests/{adminRequest}/receive-all', [AdminRequestLineController::class, 'receiveAll'])->whereNumber('adminRequest')->name('admin-requests.receive-all');
+        Route::post('/admin-requests/{adminRequest}/lines/{line}/receive', [AdminRequestLineController::class, 'receive'])->whereNumber(['adminRequest', 'line'])->name('admin-requests.lines.receive');
+        Route::post('/admin-requests/{adminRequest}/lines/{line}/assign', [AdminRequestLineController::class, 'assign'])->whereNumber(['adminRequest', 'line'])->name('admin-requests.lines.assign');
+        Route::post('/admin-requests/{adminRequest}/lines/{line}/notify', [AdminRequestLineController::class, 'notify'])->whereNumber(['adminRequest', 'line'])->name('admin-requests.lines.notify');
+        Route::post('/admin-requests/{adminRequest}/lines/{line}/attendance', [AdminRequestLineController::class, 'attendance'])->whereNumber(['adminRequest', 'line'])->name('admin-requests.lines.attendance');
+        Route::post('/admin-requests/{adminRequest}/lines/{line}/reopen', [AdminRequestLineController::class, 'reopen'])->whereNumber(['adminRequest', 'line'])->name('admin-requests.lines.reopen');
 
         Route::get('/loans', [HrOperationsController::class, 'loans'])->name('loans.index');
         Route::post('/loans', [HrOperationsController::class, 'storeLoan'])->name('loans.store');
