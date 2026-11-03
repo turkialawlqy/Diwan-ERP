@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
+use App\Traits\BranchScoped;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /** A job sent to a customer's site: crew, checklist, time, parts, sign-off and billing. */
 class WorkOrder extends Model
 {
-    use Auditable, BelongsToCompany;
+    use Auditable, BelongsToCompany, BranchScoped;
 
     protected $fillable = ['company_id', 'branch_id', 'number', 'customer_id', 'ticket_id', 'booking_id', 'subscription_id', 'project_id', 'equipment_id', 'work_type_id', 'vehicle_id', 'odometer_in', 'property_unit_id', 'title', 'description',
         'site_address', 'site_phone', 'priority', 'status', 'scheduled_start', 'scheduled_end', 'started_at', 'completed_at', 'assigned_to', 'warehouse_id', 'invoice_id',

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
+use App\Traits\BranchScoped;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 /** Something that can be booked: a staff member, room, piece of equipment or court. */
 class BookingResource extends Model
 {
-    use Auditable, BelongsToCompany, SoftDeletes;
+    use Auditable, BelongsToCompany, BranchScoped, SoftDeletes;
 
     protected $fillable = ['company_id', 'branch_id', 'name', 'type', 'employee_id', 'capacity', 'color', 'is_active', 'notes'];
 

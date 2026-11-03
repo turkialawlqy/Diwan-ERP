@@ -30,9 +30,10 @@ class Branch extends Model
         'tax_registered',
         'commercial_registration',
         'timezone',
+        'modules',
     ];
 
-    protected $casts = ['is_main' => 'boolean', 'is_active' => 'boolean', 'tax_registered' => 'boolean'];
+    protected $casts = ['is_main' => 'boolean', 'is_active' => 'boolean', 'tax_registered' => 'boolean', 'modules' => 'array'];
 
     protected $appends = ['name'];
 

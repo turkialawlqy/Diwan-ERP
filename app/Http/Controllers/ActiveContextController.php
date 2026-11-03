@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\ActiveBranch;
 use App\Services\ActiveFiscalYear;
+use App\Services\Saas\PlanGuard;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -85,6 +86,17 @@ class ActiveContextController extends Controller
     {
         $previous = parse_url((string) url()->previous(), PHP_URL_PATH) ?: '/';
         if (preg_match('#/\d+(/|$)#', $previous)) {
+            return redirect()->route('dashboard');
+        }
+
+        // The page belongs to an activity the new branch does not run: go to the dashboard instead of a 403.
+        try {
+            $name = app('router')->getRoutes()->match(Request::create($previous))->getName();
+        } catch (\Throwable) {
+            $name = null;
+        }
+        $guard = app(PlanGuard::class);
+        if ($name && ($module = $guard->moduleForRoute($name)) && ! $guard->branchAllows($module)) {
             return redirect()->route('dashboard');
         }
 

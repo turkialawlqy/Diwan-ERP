@@ -107,6 +107,10 @@ class LookupController extends Controller
         [$model, $order, $label] = $lists[$name];
 
         $query = $model::query();
+        // A user only sees (and so can only pick) the branches he works in.
+        if ($model === Branch::class && ($allowed = auth()->user()?->allowedBranchIds()) !== null) {
+            $query->whereIn('id', $allowed);
+        }
         if ($name === 'accounts') {
             $query->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
                 ->when($request->boolean('parents'), fn ($q) => $q->where('is_parent', true));

@@ -33,6 +33,10 @@ class EnsurePlanAccess
             abort(403, 'هذه الوحدة غير مشمولة في باقة اشتراككم. يمكن الترقية من صفحة الاشتراك.');
         }
 
+        if ($module && ! $this->guard->branchAllows($module)) {
+            abort(403, 'هذا النشاط غير مفعّل في الفرع الذي تعمل عليه. بدّل الفرع من الشريط العلوي أو اطلب من مدير النظام تفعيله للفرع.');
+        }
+
         if (! $request->isMethodSafe() && $this->guard->state($company) === 'expired') {
             foreach (config('saas.always_writable') as $prefix) {
                 if ($route && str_starts_with($route, $prefix)) {

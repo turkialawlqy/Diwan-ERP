@@ -4,13 +4,14 @@ namespace App\Models;
 
 use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
+use App\Traits\BranchScoped;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /** A customer's appointment on a resource for a service. */
 class Booking extends Model
 {
-    use Auditable, BelongsToCompany;
+    use Auditable, BelongsToCompany, BranchScoped;
 
     protected $fillable = ['company_id', 'branch_id', 'number', 'customer_id', 'bookable_service_id', 'booking_resource_id', 'starts_at', 'ends_at', 'status', 'source',
         'price', 'member_discount', 'deposit_amount', 'invoice_id', 'customer_package_id', 'portal_user_id', 'cancel_reason', 'cancelled_at', 'reminder_state', 'notes', 'created_by'];
@@ -51,5 +52,13 @@ class Booking extends Model
     public function isOpen(): bool
     {
         return in_array($this->status, ['pending', 'confirmed'], true);
+    }
+
+    /** Belongs to the branch of its parent record. */
+    public function inheritedBranchId(): ?int
+    {
+        $id = BookingResource::withoutGlobalScopes()->whereKey($this->booking_resource_id)->value('branch_id');
+
+        return $id ? (int) $id : null;
     }
 }

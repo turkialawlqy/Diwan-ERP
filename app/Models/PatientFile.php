@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
+use App\Traits\BranchScoped;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,9 +12,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /** A patient's medical file (one per customer). Sensitive: its own permissions, audited, never in the portal. */
 class PatientFile extends Model
 {
-    use Auditable, BelongsToCompany;
+    use Auditable, BelongsToCompany, BranchScoped;
 
-    protected $fillable = ['company_id', 'customer_id', 'file_number', 'birth_date', 'gender', 'blood_type', 'allergies', 'chronic_conditions', 'emergency_contact', 'notes', 'created_by'];
+    protected $fillable = ['company_id', 'branch_id', 'customer_id', 'file_number', 'birth_date', 'gender', 'blood_type', 'allergies', 'chronic_conditions', 'emergency_contact', 'notes', 'created_by'];
 
     protected $casts = ['birth_date' => 'date'];
 

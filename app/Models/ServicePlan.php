@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
+use App\Traits\BranchScoped;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,9 +12,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /** A sellable subscription plan (price, billing cycle, trial). */
 class ServicePlan extends Model
 {
-    use Auditable, BelongsToCompany;
+    use Auditable, BelongsToCompany, BranchScoped;
 
-    protected $fillable = ['company_id', 'code', 'name', 'description', 'price', 'tax_rate', 'cycle', 'interval', 'trial_days', 'booking_discount_percent', 'product_id', 'is_active'];
+    protected $fillable = ['company_id', 'branch_id', 'code', 'name', 'description', 'price', 'tax_rate', 'cycle', 'interval', 'trial_days', 'booking_discount_percent', 'product_id', 'is_active'];
 
     protected $casts = ['price' => 'decimal:2', 'tax_rate' => 'decimal:2', 'is_active' => 'boolean'];
 

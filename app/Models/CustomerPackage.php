@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
+use App\Traits\BranchScoped;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,7 +13,7 @@ use Illuminate\Support\Carbon;
 /** Visits a customer bought in advance; a completed booking deducts one. */
 class CustomerPackage extends Model
 {
-    use Auditable, BelongsToCompany;
+    use Auditable, BelongsToCompany, BranchScoped;
 
     protected $fillable = ['company_id', 'branch_id', 'number', 'customer_id', 'visit_package_id', 'bookable_service_id', 'name', 'visits_total', 'visits_used',
         'expires_at', 'status', 'invoice_id', 'created_by'];
