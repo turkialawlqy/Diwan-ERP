@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\ActiveBranch;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -31,6 +32,40 @@ class PlanGuard
     public function hasModule(Company $company, string $module): bool
     {
         return $this->inPlan($company, $module) && ! $this->switchedOff($company, $module);
+    }
+
+    /**
+     * Does the branch the user is working in operate this optional module? (A branch with no list runs every
+     * company module; «all branches» mode is the union over the branches the user may use; outside a user
+     * request — console, jobs — nothing is restricted.)
+     */
+    public function branchAllows(string $module): bool
+    {
+        if (! array_key_exists($module, config('saas.optional_modules'))) {
+            return true;
+        }
+        $active = app(ActiveBranch::class);
+        if (! $active->user()) {
+            return true;
+        }
+        $branches = $active->isAll() ? $active->branches() : $active->branches()->where('id', $active->contextId());
+        if ($branches->isEmpty()) {
+            return true;
+        }
+
+        return $branches->contains(fn ($b) => $b->modules === null || in_array($module, (array) $b->modules, true));
+    }
+
+    /** Plan, company switch AND the active branch all allow the module. */
+    public function hasModuleHere(Company $company, string $module): bool
+    {
+        return $this->hasModule($company, $module) && $this->branchAllows($module);
+    }
+
+    /** Optional modules a branch may be given (plan and company switch applied). */
+    public function branchOptions(Company $company): array
+    {
+        return collect(config('saas.optional_modules'))->filter(fn ($label, $key) => $this->hasModule($company, $key))->all();
     }
 
     public function inPlan(Company $company, string $module): bool
@@ -57,7 +92,7 @@ class PlanGuard
     {
         $module = $this->moduleForRoute($name);
 
-        return $module !== null && ! $this->hasModule($company, $module);
+        return $module !== null && ! $this->hasModuleHere($company, $module);
     }
 
     public function moduleForRoute(?string $routeName): ?string

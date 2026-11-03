@@ -15,11 +15,11 @@ import { today } from '@/utils/format';
  * Branches and the country each one operates in: the country sets the tax
  * (rates, registration number, e-invoicing system) and the default currency.
  */
-const props = defineProps({ branches: Array, stats: Object, countries: Array, companyCountry: String, baseCurrency: String, rateHistory: { type: Object, default: () => ({}) } });
+const props = defineProps({ branches: Array, stats: Object, countries: Array, companyCountry: String, baseCurrency: String, rateHistory: { type: Object, default: () => ({}) }, activityOptions: { type: Object, default: () => ({}) } });
 
 const open = ref(false);
 const editing = ref(null);
-const blank = () => ({ name_ar: '', name_en: '', code: '', city: '', phone: '', address: '', is_main: false, country_code: props.companyCountry, currency: '', tax_number: '', tax_registered: true, commercial_registration: '' });
+const blank = () => ({ name_ar: '', name_en: '', code: '', city: '', phone: '', address: '', is_main: false, country_code: props.companyCountry, currency: '', tax_number: '', tax_registered: true, commercial_registration: '', all_activities: true, modules: [] });
 const form = useForm(blank());
 
 const country = computed(() => props.countries.find((c) => c.code === form.country_code) || props.countries[0]);
@@ -31,16 +31,18 @@ const add = () => { editing.value = null; form.defaults(blank()); form.reset(); 
 const edit = (b) => {
     editing.value = b;
     form.defaults({ name_ar: b.name_ar, name_en: b.name_en || '', code: b.code || '', city: b.city || '', phone: b.phone || '', address: b.address || '', is_main: !!b.is_main,
-        country_code: b.profile.country, currency: b.currency || '', tax_number: b.tax_number || '', tax_registered: b.tax_registered !== false, commercial_registration: b.commercial_registration || '' });
+        country_code: b.profile.country, currency: b.currency || '', tax_number: b.tax_number || '', tax_registered: b.tax_registered !== false, commercial_registration: b.commercial_registration || '', all_activities: b.modules == null, modules: b.modules || [] });
     form.reset(); form.clearErrors(); open.value = true;
 };
 const save = () => {
     const options = { preserveScroll: true, onSuccess: () => { open.value = false; } };
+    form.transform((d) => { const { all_activities, ...rest } = d; return { ...rest, modules: all_activities ? null : d.modules }; });
     editing.value ? form.put(route('branches.update', editing.value.id), options) : form.post(route('branches.store'), options);
 };
 const remove = async (b) => {
     if (await confirmAction(`حذف الفرع «${b.name_ar}»؟`)) router.delete(route('branches.destroy', b.id), { preserveScroll: true });
 };
+const toggleModule = (k) => { form.modules = form.modules.includes(k) ? form.modules.filter((x) => x !== k) : [...form.modules, k]; };
 const rates = (p) => (p.has_tax ? p.rates.map((r) => `${Number(r)}%`).join(' / ') : 'بدون ضريبة');
 
 // Countries the company works in (with tax), and a rate change from a date.
@@ -143,6 +145,16 @@ const saveRates = () => rateForm.post(route('branches.tax-rates'), { preserveScr
                 <Field label="السجل التجاري" :error="form.errors.commercial_registration"><input v-model="form.commercial_registration" dir="ltr" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
                 <label v-if="country.has_tax" class="sm:col-span-2 flex items-center gap-2 font-bold text-slate-700"><input v-model="form.tax_registered" type="checkbox" class="rounded" /> الفرع مسجّل في الضريبة (غير المسجّل يُصدر فواتير دون ضريبة)</label>
                 <label class="sm:col-span-2 flex items-center gap-2 text-slate-700"><input v-model="form.is_main" type="checkbox" class="rounded" /> الفرع الرئيسي</label>
+                <div v-if="Object.keys(activityOptions).length" class="sm:col-span-2 border-t border-slate-100 pt-3 space-y-2" data-branch-activities>
+                    <p class="font-bold text-slate-700">أنشطة الفرع</p>
+                    <label class="flex items-center gap-2"><input v-model="form.all_activities" type="checkbox" class="rounded" data-all-activities /> يمارس كل أنشطة المنشأة</label>
+                    <div v-if="!form.all_activities" class="flex flex-wrap gap-2">
+                        <label v-for="(label, key) in activityOptions" :key="key" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border" :class="form.modules.includes(key) ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200'" :data-activity="key">
+                            <input type="checkbox" class="rounded border-slate-300" :checked="form.modules.includes(key)" @change="toggleModule(key)" /> {{ label }}
+                        </label>
+                    </div>
+                    <p class="text-3xs text-slate-500">مستخدمو هذا الفرع لا يرون ولا يفتحون أنشطة غير مختارة هنا، ولا بيانات الفروع الأخرى.</p>
+                </div>
             </form>
             <template #footer>
                 <button type="button" @click="save" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">حفظ</button>

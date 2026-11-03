@@ -1,4 +1,6 @@
 import {
+    CalendarDaysIcon,
+    ClipboardDocumentCheckIcon as WorkOrderIcon,
     HomeIcon,
     CubeTransparentIcon,
     ShoppingCartIcon,
@@ -17,6 +19,8 @@ import {
     DocumentChartBarIcon,
     BuildingOffice2Icon,
     WrenchScrewdriverIcon,
+    LifebuoyIcon,
+    DocumentTextIcon,
 } from '@heroicons/vue/24/outline';
 
 /**
@@ -45,6 +49,8 @@ export default [
             { label: 'nav.debit_notes', route: 'sales.debit-notes.index', path: '/sales/debit-notes' },
             { label: 'nav.price_lists', route: 'sales.price-lists.index', path: '/sales/price-lists' },
             { label: 'nav.recurring_invoices', route: 'sales.recurring.index', path: '/sales/recurring' },
+            { label: 'nav.subscriptions', route: 'sales.subscriptions.index', path: '/sales/subscriptions' },
+            { label: 'nav.service_plans', route: 'sales.service-plans.index', path: '/sales/service-plans' },
         ],
     },
     {
@@ -77,6 +83,63 @@ export default [
         children: [
             { label: 'nav.projects_list', route: 'projects.index', path: '/projects' },
             { label: 'nav.guarantees', route: 'projects.guarantees.index', path: '/projects/guarantees' },
+        ],
+    },
+    { key: 'portal_users', label: 'nav.portal_users', icon: UsersIcon, route: 'portal.users.index', path: '/portal-users' },
+    {
+        key: 'contracts', label: 'nav.contracts', icon: DocumentTextIcon, color: 'indigo',
+        children: [
+            { label: 'nav.contracts_list', route: 'contracts.index', path: '/contracts', exact: true },
+            { label: 'nav.contract_templates', route: 'contracts.templates.index', path: '/contracts/templates' },
+        ],
+    },
+    {
+        key: 'clinic', label: 'nav.clinic', icon: UsersIcon, color: 'indigo',
+        children: [{ label: 'nav.clinic_patients', route: 'clinic.patients.index', path: '/clinic/patients' }],
+    },
+    {
+        key: 'gym', label: 'nav.gym', icon: UsersIcon, color: 'indigo',
+        children: [
+            { label: 'nav.gym_checkin', route: 'gym.checkin', path: '/gym/checkin' },
+            { label: 'nav.gym_attendance', route: 'gym.attendance', path: '/gym/attendance' },
+        ],
+    },
+    { key: 'workshop', label: 'nav.workshop', icon: WrenchScrewdriverIcon, route: 'workshop.vehicles.index', path: '/workshop/vehicles' },
+    {
+        key: 'real_estate', label: 'nav.real_estate', icon: BuildingOffice2Icon, color: 'indigo',
+        children: [
+            { label: 'nav.re_properties', route: 'real-estate.properties.index', path: '/real-estate/properties' },
+            { label: 'nav.re_leases', route: 'real-estate.leases.index', path: '/real-estate/leases' },
+            { label: 'nav.re_report', route: 'real-estate.report', path: '/real-estate/report' },
+        ],
+    },
+    {
+        key: 'work_orders', label: 'nav.work_orders', icon: WorkOrderIcon, color: 'indigo',
+        children: [
+            { label: 'nav.work_orders_mine', route: 'work-orders.mine.index', path: '/work-orders/mine' },
+            { label: 'nav.work_orders_list', route: 'work-orders.index', path: '/work-orders', exact: true },
+            { label: 'nav.work_orders_board', route: 'work-orders.board', path: '/work-orders/board' },
+            { label: 'nav.work_types', route: 'work-orders.types.index', path: '/work-orders/types' },
+            { label: 'nav.timesheet', route: 'work-orders.timesheet', path: '/work-orders/timesheet' },
+            { label: 'nav.work_order_settings', route: 'work-orders.settings', path: '/work-orders/settings' },
+        ],
+    },
+    {
+        key: 'bookings', label: 'nav.bookings', icon: CalendarDaysIcon, color: 'indigo',
+        children: [
+            { label: 'nav.bookings_calendar', route: 'bookings.calendar', path: '/bookings/calendar' },
+            { label: 'nav.bookings_list', route: 'bookings.index', path: '/bookings', exact: true },
+            { label: 'nav.booking_resources', route: 'bookings.resources.index', path: '/bookings/resources' },
+            { label: 'nav.booking_services', route: 'bookings.services.index', path: '/bookings/services' },
+            { label: 'nav.booking_packages', route: 'bookings.packages.index', path: '/bookings/packages' },
+            { label: 'nav.booking_settings', route: 'bookings.settings', path: '/bookings/settings' },
+        ],
+    },
+    {
+        key: 'support', label: 'nav.support', icon: LifebuoyIcon, color: 'indigo',
+        children: [
+            { label: 'nav.tickets', route: 'support.tickets.index', path: '/support/tickets' },
+            { label: 'nav.support_settings', route: 'support.settings.index', path: '/support/settings' },
         ],
     },
     {
@@ -178,6 +241,8 @@ export default [
             { label: 'nav.attendance', route: 'hr.attendance.index', path: '/hr/attendance' },
             { label: 'nav.leaves', route: 'hr.leaves.index', path: '/hr/leaves' },
             { label: 'nav.loans', route: 'hr.loans.index', path: '/hr/loans' },
+            { label: 'nav.admin_requests', route: 'hr.admin-requests.index', path: '/hr/admin-requests' },
+            { label: 'nav.admin_requests_inbox', route: 'hr.admin-requests.inbox', path: '/hr/admin-requests/inbox' },
             { label: 'nav.settlements', route: 'hr.settlements.index', path: '/hr/settlements' },
             { label: 'nav.gosi_report', route: 'hr.reports.gosi', path: '/hr/reports/gosi', feature: 'gosi' },
             { label: 'nav.saudization_report', route: 'hr.reports.saudization', path: '/hr/reports/saudization', feature: 'saudization' },

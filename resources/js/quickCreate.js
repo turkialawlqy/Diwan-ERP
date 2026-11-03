@@ -179,6 +179,59 @@ export const quickCreate = {
             text('description', 'الوصف', { span: 2 }),
         ],
     },
+    support_category: {
+        title: 'تصنيف تذاكر جديد', route: 'support.settings.categories.store', seed: 'name', label: (r) => r.name,
+        fields: () => [text('name', 'اسم التصنيف', { required: true, span: 2 })],
+    },
+    service_plan: {
+        title: 'خطة اشتراك جديدة', route: 'sales.service-plans.store', seed: 'name', label: (r) => r.name,
+        fields: () => [
+            text('name', 'اسم الخطة', { required: true, span: 2 }),
+            num('price', 'السعر لكل فترة', { required: true }),
+            { key: 'cycle', label: 'دورة الفوترة', type: 'select', default: 'monthly', options: [{ value: 'monthly', label: 'شهري' }, { value: 'quarterly', label: 'ربع سنوي' }, { value: 'yearly', label: 'سنوي' }] },
+            num('trial_days', 'أيام التجربة المجانية', { step: '1' }),
+        ],
+    },
+    booking_resource: {
+        title: 'مورد حجز جديد', route: 'bookings.resources.store', seed: 'name', label: (r) => r.name,
+        fields: () => [
+            text('name', 'الاسم', { required: true, span: 2 }),
+            { key: 'type', label: 'النوع', type: 'select', default: 'staff', options: [{ value: 'staff', label: 'موظف' }, { value: 'room', label: 'غرفة' }, { value: 'equipment', label: 'معدة' }, { value: 'court', label: 'ملعب / قاعة' }] },
+            num('capacity', 'عدد الحجوزات المتزامنة', { step: '1', default: 1 }),
+        ],
+    },
+    bookable_service: {
+        title: 'خدمة حجز جديدة', route: 'bookings.services.store', seed: 'name', label: (r) => r.name,
+        fields: () => [
+            text('name', 'اسم الخدمة', { required: true, span: 2 }),
+            num('duration_minutes', 'المدة بالدقائق', { step: '5', default: 30, required: true }),
+            num('price', 'السعر', { required: true }),
+        ],
+    },
+    work_type: {
+        title: 'نوع عمل جديد', route: 'work-orders.types.store', seed: 'name', label: (r) => r.name,
+        fields: () => [
+            text('name', 'اسم نوع العمل', { required: true, span: 2 }),
+            num('hourly_rate', 'سعر الساعة للعميل', { required: true }),
+        ],
+    },
+    vehicle: {
+        title: 'مركبة جديدة', route: 'workshop.vehicles.store', seed: 'plate', label: (r) => r.label,
+        fields: () => [
+            { key: 'customer_id', label: 'العميل', type: 'select', lookup: 'customers', required: true, span: 2 },
+            text('plate', 'رقم اللوحة', { required: true }),
+            text('make', 'الماركة'),
+            text('model', 'الموديل'),
+        ],
+    },
+    property: {
+        title: 'عقار جديد', route: 'real-estate.properties.store', seed: 'name', label: (r) => r.name,
+        fields: () => [
+            text('name', 'اسم العقار', { required: true, span: 2 }),
+            { key: 'type', label: 'النوع', type: 'select', default: 'building', options: [{ value: 'building', label: 'عمارة' }, { value: 'villa', label: 'فيلا' }, { value: 'complex', label: 'مجمع' }, { value: 'shop', label: 'محلات' }, { value: 'land', label: 'أرض' }] },
+            text('address', 'العنوان'),
+        ],
+    },
     nationality: {
         title: 'جنسية جديدة', route: 'hr.nationalities.store', seed: 'name_ar',
         fields: () => [

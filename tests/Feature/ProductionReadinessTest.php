@@ -386,7 +386,8 @@ class ProductionReadinessTest extends TestCase
     public function test_a_new_companys_owner_sees_the_setup_checklist(): void
     {
         $onboarding = $this->actingAs($this->owner)->get(route('dashboard'))->assertOk()->viewData('page')['props']['onboarding'];
-        $this->assertSame(7, $onboarding['total']);
+        $this->assertSame(8, $onboarding['total']);
         $this->assertFalse(collect($onboarding['steps'])->firstWhere('key', 'zatca')['done']);
+        $this->assertFalse(collect($onboarding['steps'])->firstWhere('key', 'sector')['done']); // pick a sector pack
     }
 }

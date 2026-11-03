@@ -119,7 +119,7 @@ const submitUser = () => (editingUser
                                                 <span>{{ b.name_ar }}</span>
                                             </label>
                                         </div>
-                                        <p class="text-[11px] text-slate-500 mt-1">ينشئ المستندات ويرى مستندات وتقارير هذه الفروع فقط. لرؤية كل الفروع امنحه صلاحية «الوصول لكل الفروع».</p>
+                                        <p class="text-[11px] text-slate-500 mt-1">ينشئ المستندات ويرى مستندات وتقارير هذه الفروع فقط. لرؤية كل الفروع امنحه صلاحية «الوصول لكل الفروع». ولا يرى ولا يفتح إلا الأنشطة المفعّلة في هذه الفروع (تُضبط من «الفروع»)، ولا بيانات فرع غير مختار.</p>
                                         <p v-if="form.errors.branch_ids" class="text-[11px] text-rose-600 mt-1">{{ form.errors.branch_ids }}</p>
                                     </div>
                                     <div v-if="allowedBranches.length > 1">

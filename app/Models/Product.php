@@ -59,6 +59,12 @@ class Product extends Model
      * Total stock across warehouses. Uses withSum('stocks', 'quantity') or the
      * loaded relation when available so listing products is not N+1.
      */
+    /** URL of the product picture (streamed by the app, cache-busted by the file name), or null. */
+    public function getImageUrlAttribute(): ?string
+    {
+        return $this->image ? route('inventory.products.image.show', ['product' => $this->id, 'v' => substr(md5($this->image), 0, 8)]) : null;
+    }
+
     public function getTotalStockAttribute(): float
     {
         if (array_key_exists('stocks_sum_quantity', $this->attributes)) {

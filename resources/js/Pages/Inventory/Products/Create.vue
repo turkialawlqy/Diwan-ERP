@@ -1,4 +1,5 @@
 <script setup>
+import ProductImageField from '@/Components/Products/ProductImageField.vue';
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -23,6 +24,7 @@ const props = defineProps({
 });
 
 const form = useForm({
+    image: null,
     name_ar: '',
     name_en: '',
     category_id: props.categories?.[0]?.id || '',
@@ -76,6 +78,10 @@ const submit = () => {
             <!-- Form Card -->
             <div class="bg-white rounded-2xl border border-slate-200/80 p-6 sm:p-8 shadow-2xs space-y-6">
                 <form @submit.prevent="submit" class="space-y-5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-2">صورة الصنف (تظهر في الكاشير)</label>
+                        <ProductImageField v-model="form.image" :error="form.errors.image" />
+                    </div>
                     <!-- Type Selector -->
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-2">نوع البند</label>

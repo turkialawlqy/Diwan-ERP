@@ -19,12 +19,14 @@ class ApprovalService
         'purchase_request' => 'purchases.requests.approve',
         'purchase_order' => 'purchases.orders.approve',
         'sales_order' => 'sales.orders.approve',
+        'contract' => 'contracts.contracts.approve',
     ];
 
     public const DOCUMENT_TYPES = [
         'purchase_request' => 'طلبات الشراء',
         'purchase_order' => 'أوامر الشراء',
         'sales_order' => 'أوامر البيع',
+        'contract' => 'العقود (حسب قيمة العقد)',
     ];
 
     public function requiresApproval(string $documentType, float $amount): bool

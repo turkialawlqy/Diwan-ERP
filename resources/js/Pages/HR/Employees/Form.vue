@@ -17,7 +17,7 @@ const form = useForm({
     phone: e.phone || '', email: e.email || '', job_title: e.job_title || '', profession: e.profession || '', department_id: e.department_id || '', position_id: e.position_id || '',
     manager_id: e.manager_id || '', branch_id: e.branch_id || '', shift_id: e.shift_id || '', cost_center_id: e.cost_center_id || '', user_id: e.user_id || '',
     hire_date: d(e.hire_date), contract_type: e.contract_type || 'unlimited', contract_end: d(e.contract_end), probation_end: d(e.probation_end),
-    basic_salary: e.basic_salary ?? 0, housing_allowance: e.housing_allowance ?? 0, transport_allowance: e.transport_allowance ?? 0, other_allowances: e.other_allowances ?? 0,
+    labour_cost_rate: e.labour_cost_rate ?? '', basic_salary: e.basic_salary ?? 0, housing_allowance: e.housing_allowance ?? 0, transport_allowance: e.transport_allowance ?? 0, other_allowances: e.other_allowances ?? 0,
     gosi_registered: e.gosi_registered ?? true, gosi_number: e.gosi_number || '', gosi_join_date: d(e.gosi_join_date), annual_leave_days: e.annual_leave_days || 21, leave_opening_balance: e.leave_opening_balance ?? 0,
     bank_name: e.bank_name || '', bank_code: e.bank_code || '', iban: e.iban || '', status: e.status || 'active', notes: e.notes || '',
     salary_effective_date: today(), salary_change_reason: '',
@@ -76,6 +76,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
                 <h3 class="text-xs font-black text-slate-700 mb-3">الراتب والتأمينات والبنك</h3>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <Field label="الراتب الأساسي" :error="form.errors.basic_salary"><input v-model.number="form.basic_salary" type="text" inputmode="decimal" data-num step="0.01" :class="input" class="font-mono" /></Field>
+                    <Field label="تكلفة ساعة العمل (أوامر العمل)" :error="form.errors.labour_cost_rate" hint="تكلفة داخلية لهامش الربحية؛ فارغ = الراتب ÷ 208 ساعة"><input v-model="form.labour_cost_rate" type="text" inputmode="decimal" data-num :class="input" class="font-mono" data-labour-rate /></Field>
                     <Field label="بدل السكن"><input v-model.number="form.housing_allowance" type="text" inputmode="decimal" data-num step="0.01" :class="input" class="font-mono" /></Field>
                     <Field label="بدل النقل"><input v-model.number="form.transport_allowance" type="text" inputmode="decimal" data-num step="0.01" :class="input" class="font-mono" /></Field>
                     <Field label="بدلات أخرى" :hint="`الإجمالي: ${money(total())}`"><input v-model.number="form.other_allowances" type="text" inputmode="decimal" data-num step="0.01" :class="input" class="font-mono" /></Field>

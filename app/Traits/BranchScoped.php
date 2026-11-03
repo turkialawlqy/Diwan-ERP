@@ -4,6 +4,7 @@ namespace App\Traits;
 
 use App\Models\User;
 use App\Services\ActiveBranch;
+use App\Support\BranchScopeSwitch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\ValidationException;
 
@@ -52,6 +53,9 @@ trait BranchScoped
      */
     protected static function scopedUser(): ?User
     {
+        if (BranchScopeSwitch::isOff()) {
+            return null;
+        }
         if (app()->runningInConsole() && ! app()->runningUnitTests()) {
             return null;
         }

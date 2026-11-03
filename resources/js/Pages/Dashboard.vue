@@ -1,11 +1,12 @@
 <script setup>
 import { cur } from '@/utils/tax';
 import { computed, ref } from 'vue';
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import KpiCard from '@/Components/KpiCard.vue';
 import QuickActionButton from '@/Components/QuickActionButton.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
+import ModuleWidget from '@/Components/Dashboard/ModuleWidget.vue';
 import {
     DocumentPlusIcon,
     UserPlusIcon,
@@ -36,7 +37,12 @@ const props = defineProps({
     projects: { type: Array, default: () => [] },
     activeYearName: { type: String, default: null },
     onboarding: { type: Object, default: null },
+    widgets: { type: Array, default: () => [] },
 });
+
+const shownWidgets = computed(() => props.widgets.filter((w) => !w.hidden));
+const customizing = ref(false);
+const toggleWidget = (w) => router.post(route('dashboard.widgets'), { key: w.key, hidden: !w.hidden }, { preserveScroll: true });
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
@@ -146,6 +152,20 @@ const costOptions = computed(() => ({
                 <template #icon><ClockIcon class="w-5 h-5" /></template>
             </KpiCard>
         </div>
+
+        <!-- Enabled systems: one small card each (hide / show per user) -->
+        <section v-if="widgets.length" class="mb-6" data-module-widgets>
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="font-black text-slate-700">الأنظمة المفعّلة</h2>
+                <button type="button" class="text-xs font-bold text-slate-500 hover:text-indigo-600" data-customize @click="customizing = !customizing">تخصيص اللوحة</button>
+            </div>
+            <div v-if="customizing" class="bg-white border border-slate-200 rounded-2xl p-3 mb-3 flex flex-wrap gap-3 text-xs" data-customize-panel>
+                <label v-for="w in widgets" :key="w.key" class="inline-flex items-center gap-1.5"><input type="checkbox" :checked="!w.hidden" :data-toggle="w.key" @change="toggleWidget(w)" /> {{ w.title }}</label>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
+                <ModuleWidget v-for="w in shownWidgets" :key="w.key" :widget="w" />
+            </div>
+        </section>
 
         <!-- First-run setup checklist (owner): below the day's figures, collapsible -->
         <div v-if="onboarding" class="mb-6 bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs" data-onboarding>

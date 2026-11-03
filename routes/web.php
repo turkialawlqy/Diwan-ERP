@@ -13,15 +13,20 @@ use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\LocalSetupController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\BillingController;
+use App\Http\Controllers\Bookings;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\Clinic;
 use App\Http\Controllers\CompanySettingController;
+use App\Http\Controllers\Contracts\ContractController;
+use App\Http\Controllers\Contracts\ContractTemplateController;
 use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\Crm;
 use App\Http\Controllers\CurrencyController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CustomerPaymentController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardWidgetController;
 use App\Http\Controllers\DataTransferController;
 use App\Http\Controllers\DocumentCancellationController;
 use App\Http\Controllers\DocumentShareController;
@@ -33,7 +38,10 @@ use App\Http\Controllers\Finance\ExpenseController;
 use App\Http\Controllers\Finance\RevenueController;
 use App\Http\Controllers\Finance\TransferController;
 use App\Http\Controllers\FreeformTemplateController;
+use App\Http\Controllers\Gym;
 use App\Http\Controllers\HealthController;
+use App\Http\Controllers\HR\AdminRequestController;
+use App\Http\Controllers\HR\AdminRequestLineController;
 use App\Http\Controllers\HR\EmployeeController;
 use App\Http\Controllers\HR\HrOperationsController;
 use App\Http\Controllers\HR\HrReportController;
@@ -52,6 +60,8 @@ use App\Http\Controllers\Manufacturing as Mfg;
 use App\Http\Controllers\ModuleSettingsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NumberingController;
+use App\Http\Controllers\Portal;
+use App\Http\Controllers\Portal\PortalUserController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\PosRegisterController;
 use App\Http\Controllers\ProductController;
@@ -61,6 +71,7 @@ use App\Http\Controllers\PurchaseInvoiceController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\Purchases as P;
 use App\Http\Controllers\QuotationController;
+use App\Http\Controllers\RealEstate;
 use App\Http\Controllers\RecycleBinController;
 use App\Http\Controllers\ReleaseNotesController;
 use App\Http\Controllers\Reports\InsightsController;
@@ -72,7 +83,10 @@ use App\Http\Controllers\Sales\CommissionPlanController;
 use App\Http\Controllers\Sales\CustomerGroupController;
 use App\Http\Controllers\Sales\PromotionController;
 use App\Http\Controllers\Sales\RecurringInvoiceController;
+use App\Http\Controllers\Sales\ServicePlanController;
+use App\Http\Controllers\Sales\SubscriptionController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\SectorPackController;
 use App\Http\Controllers\SelfUpdateController;
 use App\Http\Controllers\StockCountController;
 use App\Http\Controllers\StockTransferController;
@@ -81,10 +95,15 @@ use App\Http\Controllers\SuperAdmin\PlatformController;
 use App\Http\Controllers\SuperAdmin\SuperAdminDashboardController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierPaymentController;
+use App\Http\Controllers\Support\SupportSettingsController;
+use App\Http\Controllers\Support\SurveyController;
+use App\Http\Controllers\Support\TicketController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\WorkOrders;
+use App\Http\Controllers\Workshop;
 use App\Http\Controllers\ZatcaController;
 use App\Models\PlatformPage;
 use App\Models\SubscriptionPlan;
@@ -128,11 +147,52 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
+// Customer portal: its own sign-in (e-mailed code) and its own guard, the company in the path.
+Route::prefix('portal/{company}')->whereNumber('company')->middleware('portal.tenant')->name('customer-portal.')->group(function () {
+    Route::get('/login', [Portal\AuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [Portal\AuthController::class, 'sendCode'])->middleware('throttle:20,1')->name('send-code');
+    Route::get('/verify', [Portal\AuthController::class, 'showVerify'])->name('verify');
+    Route::post('/verify', [Portal\AuthController::class, 'verify'])->middleware('throttle:20,1')->name('verify.check');
+
+    Route::middleware('portal.auth')->group(function () {
+        Route::post('/logout', [Portal\AuthController::class, 'logout'])->name('logout');
+        Route::get('/', [Portal\AccountController::class, 'home'])->name('home');
+        Route::get('/invoices', [Portal\AccountController::class, 'invoices'])->name('invoices.index');
+        Route::get('/invoices/{invoice}', [Portal\AccountController::class, 'invoice'])->whereNumber('invoice')->name('invoices.show');
+        Route::get('/statement', [Portal\AccountController::class, 'statement'])->name('statement');
+        Route::get('/payments', [Portal\AccountController::class, 'payments'])->name('payments');
+        Route::get('/tickets', [Portal\TicketController::class, 'index'])->name('tickets.index');
+        Route::get('/tickets/create', [Portal\TicketController::class, 'create'])->name('tickets.create');
+        Route::post('/tickets', [Portal\TicketController::class, 'store'])->name('tickets.store');
+        Route::get('/tickets/{ticket}', [Portal\TicketController::class, 'show'])->whereNumber('ticket')->name('tickets.show');
+        Route::post('/tickets/{ticket}/reply', [Portal\TicketController::class, 'reply'])->name('tickets.reply');
+        Route::post('/tickets/{ticket}/rate', [Portal\TicketController::class, 'rate'])->name('tickets.rate');
+        Route::get('/contracts', [Portal\ContractController::class, 'index'])->name('contracts.index');
+        Route::get('/contracts/{contract}', [Portal\ContractController::class, 'show'])->whereNumber('contract')->name('contracts.show');
+        Route::post('/contracts/{contract}/accept', [Portal\ContractController::class, 'accept'])->name('contracts.accept');
+        Route::get('/subscriptions', [Portal\ServiceController::class, 'subscriptions'])->name('subscriptions.index');
+        Route::get('/subscriptions/{subscription}', [Portal\ServiceController::class, 'subscription'])->whereNumber('subscription')->name('subscriptions.show');
+        Route::post('/subscriptions/{subscription}/request', [Portal\ServiceController::class, 'requestChange'])->name('subscriptions.request');
+        Route::get('/bookings', [Portal\BookingController::class, 'index'])->name('bookings.index');
+        Route::get('/bookings/new', [Portal\BookingController::class, 'create'])->name('bookings.create');
+        Route::get('/bookings/slots', [Portal\BookingController::class, 'slots'])->name('bookings.slots');
+        Route::post('/bookings', [Portal\BookingController::class, 'store'])->name('bookings.store');
+        Route::get('/bookings/{booking}', [Portal\BookingController::class, 'show'])->whereNumber('booking')->name('bookings.show');
+        Route::post('/bookings/{booking}/cancel', [Portal\BookingController::class, 'cancel'])->whereNumber('booking')->name('bookings.cancel');
+        Route::get('/work-orders', [Portal\WorkOrderController::class, 'index'])->name('work-orders.index');
+        Route::get('/work-orders/{order}', [Portal\WorkOrderController::class, 'show'])->whereNumber('order')->name('work-orders.show');
+        Route::get('/projects', [Portal\ServiceController::class, 'projects'])->name('projects.index');
+        Route::get('/projects/{project}', [Portal\ServiceController::class, 'project'])->whereNumber('project')->name('projects.show');
+    });
+});
+
 // Localization Switcher
 // Customer-facing signed links (no login): document PDF and account statement.
 Route::middleware(['signed', 'throttle:60,1'])->prefix('share/{company}')->whereNumber('company')->name('share.')->group(function () {
     Route::get('/pdf/{type}/{id}', [DocumentShareController::class, 'sharedPdf'])->whereNumber('id')->name('pdf');
     Route::get('/statement/{customer}', [DocumentShareController::class, 'portal'])->whereNumber('customer')->name('statement');
+    Route::get('/ticket-survey/{ticket}', [SurveyController::class, 'show'])->whereNumber('ticket')->name('ticket-survey');
+    Route::post('/ticket-survey/{ticket}', [SurveyController::class, 'rate'])->whereNumber('ticket')->name('ticket-survey.rate');
 });
 
 Route::post('/locale/switch', [LocaleController::class, 'switch'])->name('locale.switch');
@@ -190,6 +250,7 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.feature', 'erp.authorize', 'throttle:tenant-web'])->group(function () {
     // 1. Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::post('/dashboard/widgets', [DashboardWidgetController::class, 'update'])->name('dashboard.widgets');
     Route::get('/search', SearchController::class)->name('search');
 
     // Working branch and fiscal year (sidebar «سياق العمل» card).
@@ -288,6 +349,23 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/payments', [CustomerPaymentController::class, 'store'])->name('payments.store');
         Route::get('/payments/open-invoices', [CustomerPaymentController::class, 'openInvoices'])->name('payments.open-invoices');
 
+        Route::get('/subscriptions', [SubscriptionController::class, 'index'])->name('subscriptions.index');
+        Route::get('/subscriptions/create', [SubscriptionController::class, 'create'])->name('subscriptions.create');
+        Route::post('/subscriptions', [SubscriptionController::class, 'store'])->name('subscriptions.store');
+        Route::get('/subscriptions/{subscription}', [SubscriptionController::class, 'show'])->whereNumber('subscription')->name('subscriptions.show');
+        Route::post('/subscriptions/{subscription}/pause', [SubscriptionController::class, 'pause'])->name('subscriptions.pause');
+        Route::post('/subscriptions/{subscription}/resume', [SubscriptionController::class, 'resume'])->name('subscriptions.resume');
+        Route::post('/subscriptions/{subscription}/change-plan', [SubscriptionController::class, 'changePlan'])->name('subscriptions.change-plan');
+        Route::post('/subscriptions/{subscription}/cancel', [SubscriptionController::class, 'cancel'])->name('subscriptions.cancel');
+        Route::post('/subscriptions/{subscription}/keep', [SubscriptionController::class, 'keep'])->name('subscriptions.keep');
+        Route::delete('/subscriptions/{subscription}', [SubscriptionController::class, 'destroy'])->name('subscriptions.destroy');
+        Route::get('/service-plans', [ServicePlanController::class, 'index'])->name('service-plans.index');
+        Route::get('/service-plans/create', [ServicePlanController::class, 'create'])->name('service-plans.create');
+        Route::post('/service-plans', [ServicePlanController::class, 'store'])->name('service-plans.store');
+        Route::get('/service-plans/{plan}/edit', [ServicePlanController::class, 'edit'])->name('service-plans.edit');
+        Route::put('/service-plans/{plan}', [ServicePlanController::class, 'update'])->name('service-plans.update');
+        Route::delete('/service-plans/{plan}', [ServicePlanController::class, 'destroy'])->name('service-plans.destroy');
+
         Route::get('/recurring', [RecurringInvoiceController::class, 'index'])->name('recurring.index');
         Route::post('/recurring', [RecurringInvoiceController::class, 'store'])->name('recurring.store');
         Route::put('/recurring/{recurring}', [RecurringInvoiceController::class, 'update'])->name('recurring.update');
@@ -347,6 +425,9 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
         Route::delete('/products/{product}', [ProductController::class, 'destroy'])->name('products.destroy');
         Route::get('/products/{product}', [ProductController::class, 'show'])->name('products.show');
+        Route::get('/products/{product}/image', [ProductController::class, 'image'])->name('products.image.show');
+        Route::post('/products/{product}/image', [ProductController::class, 'uploadImage'])->name('products.image.upload');
+        Route::delete('/products/{product}/image', [ProductController::class, 'deleteImage'])->name('products.image.delete');
         Route::post('/products/{product}/units', [ProductController::class, 'storeUnit'])->name('products.units.store');
         Route::delete('/products/{product}/units/{unit}', [ProductController::class, 'destroyUnit'])->name('products.units.destroy');
         Route::put('/products/{product}/kit', [ProductController::class, 'syncKit'])->name('products.kit');
@@ -718,6 +799,22 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/leaves', [HrOperationsController::class, 'storeLeave'])->name('leaves.store');
         Route::post('/leaves/{leave}/decide', [HrOperationsController::class, 'decideLeave'])->name('leaves.decide');
 
+        Route::get('/admin-requests', [AdminRequestController::class, 'index'])->name('admin-requests.index');
+        Route::get('/admin-requests/inbox', [AdminRequestController::class, 'inbox'])->name('admin-requests.inbox');
+        Route::get('/admin-requests/create', [AdminRequestController::class, 'create'])->name('admin-requests.create');
+        Route::post('/admin-requests', [AdminRequestController::class, 'store'])->name('admin-requests.store');
+        Route::get('/admin-requests/{adminRequest}', [AdminRequestController::class, 'show'])->whereNumber('adminRequest')->name('admin-requests.show');
+        Route::get('/admin-requests/{adminRequest}/edit', [AdminRequestController::class, 'edit'])->whereNumber('adminRequest')->name('admin-requests.edit');
+        Route::put('/admin-requests/{adminRequest}', [AdminRequestController::class, 'update'])->whereNumber('adminRequest')->name('admin-requests.update');
+        Route::delete('/admin-requests/{adminRequest}', [AdminRequestController::class, 'destroy'])->whereNumber('adminRequest')->name('admin-requests.destroy');
+        Route::post('/admin-requests/{adminRequest}/send', [AdminRequestController::class, 'send'])->whereNumber('adminRequest')->name('admin-requests.send');
+        Route::post('/admin-requests/{adminRequest}/receive-all', [AdminRequestLineController::class, 'receiveAll'])->whereNumber('adminRequest')->name('admin-requests.receive-all');
+        Route::post('/admin-requests/{adminRequest}/lines/{line}/receive', [AdminRequestLineController::class, 'receive'])->whereNumber(['adminRequest', 'line'])->name('admin-requests.lines.receive');
+        Route::post('/admin-requests/{adminRequest}/lines/{line}/assign', [AdminRequestLineController::class, 'assign'])->whereNumber(['adminRequest', 'line'])->name('admin-requests.lines.assign');
+        Route::post('/admin-requests/{adminRequest}/lines/{line}/notify', [AdminRequestLineController::class, 'notify'])->whereNumber(['adminRequest', 'line'])->name('admin-requests.lines.notify');
+        Route::post('/admin-requests/{adminRequest}/lines/{line}/attendance', [AdminRequestLineController::class, 'attendance'])->whereNumber(['adminRequest', 'line'])->name('admin-requests.lines.attendance');
+        Route::post('/admin-requests/{adminRequest}/lines/{line}/reopen', [AdminRequestLineController::class, 'reopen'])->whereNumber(['adminRequest', 'line'])->name('admin-requests.lines.reopen');
+
         Route::get('/loans', [HrOperationsController::class, 'loans'])->name('loans.index');
         Route::post('/loans', [HrOperationsController::class, 'storeLoan'])->name('loans.store');
         Route::post('/loans/{loan}/decide', [HrOperationsController::class, 'decideLoan'])->name('loans.decide');
@@ -831,6 +928,204 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/leads/{lead}/move', [Crm\LeadController::class, 'move'])->name('leads.move');
         Route::post('/leads/{lead}/activities', [Crm\LeadController::class, 'storeActivity'])->name('leads.activities.store');
         Route::post('/leads/{lead}/convert', [Crm\LeadController::class, 'convert'])->name('leads.convert');
+    });
+
+    // Customer portal accounts (staff side)
+    Route::prefix('portal-users')->name('portal.users.')->group(function () {
+        Route::get('/', [PortalUserController::class, 'index'])->name('index');
+        Route::get('/create', [PortalUserController::class, 'create'])->name('create');
+        Route::post('/', [PortalUserController::class, 'store'])->name('store');
+        Route::put('/{portalUser}', [PortalUserController::class, 'update'])->name('update');
+        Route::post('/{portalUser}/resend', [PortalUserController::class, 'resend'])->name('resend');
+        Route::delete('/{portalUser}', [PortalUserController::class, 'destroy'])->name('destroy');
+    });
+
+    // Sector packs and the light sector modules
+    Route::get('/settings/sector-packs', [SectorPackController::class, 'index'])->name('settings.sector-packs');
+    Route::post('/settings/sector-packs/{pack}', [SectorPackController::class, 'apply'])->name('settings.sector-packs.apply');
+
+    Route::prefix('clinic')->name('clinic.')->group(function () {
+        Route::get('/patients', [Clinic\PatientController::class, 'index'])->name('patients.index');
+        Route::get('/patients/create', [Clinic\PatientController::class, 'create'])->name('patients.create');
+        Route::post('/patients', [Clinic\PatientController::class, 'store'])->name('patients.store');
+        Route::get('/patients/{patient}', [Clinic\PatientController::class, 'show'])->whereNumber('patient')->name('patients.show');
+        Route::get('/patients/{patient}/edit', [Clinic\PatientController::class, 'edit'])->whereNumber('patient')->name('patients.edit');
+        Route::put('/patients/{patient}', [Clinic\PatientController::class, 'update'])->whereNumber('patient')->name('patients.update');
+        Route::post('/patients/{patient}/visits', [Clinic\PatientController::class, 'storeVisit'])->whereNumber('patient')->name('visits.store');
+        Route::post('/visits/{visit}', [Clinic\PatientController::class, 'updateVisit'])->whereNumber('visit')->name('visits.update');
+    });
+
+    Route::prefix('gym')->name('gym.')->group(function () {
+        Route::get('/checkin', [Gym\CheckinController::class, 'index'])->name('checkin');
+        Route::post('/checkin', [Gym\CheckinController::class, 'scan'])->middleware('throttle:120,1')->name('checkin.scan');
+        Route::get('/attendance', [Gym\CheckinController::class, 'attendance'])->name('attendance');
+    });
+
+    Route::prefix('workshop')->name('workshop.')->group(function () {
+        Route::get('/vehicles', [Workshop\VehicleController::class, 'index'])->name('vehicles.index');
+        Route::get('/vehicles/create', [Workshop\VehicleController::class, 'create'])->name('vehicles.create');
+        Route::post('/vehicles', [Workshop\VehicleController::class, 'store'])->name('vehicles.store');
+        Route::get('/vehicles/{vehicle}', [Workshop\VehicleController::class, 'show'])->whereNumber('vehicle')->name('vehicles.show');
+        Route::get('/vehicles/{vehicle}/edit', [Workshop\VehicleController::class, 'edit'])->whereNumber('vehicle')->name('vehicles.edit');
+        Route::put('/vehicles/{vehicle}', [Workshop\VehicleController::class, 'update'])->whereNumber('vehicle')->name('vehicles.update');
+        Route::delete('/vehicles/{vehicle}', [Workshop\VehicleController::class, 'destroy'])->whereNumber('vehicle')->name('vehicles.destroy');
+    });
+
+    Route::prefix('real-estate')->name('real-estate.')->group(function () {
+        Route::get('/properties', [RealEstate\PropertyController::class, 'index'])->name('properties.index');
+        Route::get('/properties/create', [RealEstate\PropertyController::class, 'create'])->name('properties.create');
+        Route::post('/properties', [RealEstate\PropertyController::class, 'store'])->name('properties.store');
+        Route::get('/properties/{property}', [RealEstate\PropertyController::class, 'show'])->whereNumber('property')->name('properties.show');
+        Route::get('/properties/{property}/edit', [RealEstate\PropertyController::class, 'edit'])->whereNumber('property')->name('properties.edit');
+        Route::put('/properties/{property}', [RealEstate\PropertyController::class, 'update'])->whereNumber('property')->name('properties.update');
+        Route::delete('/properties/{property}', [RealEstate\PropertyController::class, 'destroy'])->whereNumber('property')->name('properties.destroy');
+        Route::get('/units/create', [RealEstate\UnitController::class, 'create'])->name('units.create');
+        Route::post('/units', [RealEstate\UnitController::class, 'store'])->name('units.store');
+        Route::get('/units/{unit}/edit', [RealEstate\UnitController::class, 'edit'])->whereNumber('unit')->name('units.edit');
+        Route::put('/units/{unit}', [RealEstate\UnitController::class, 'update'])->whereNumber('unit')->name('units.update');
+        Route::delete('/units/{unit}', [RealEstate\UnitController::class, 'destroy'])->whereNumber('unit')->name('units.destroy');
+        Route::get('/leases', [RealEstate\LeaseController::class, 'index'])->name('leases.index');
+        Route::get('/leases/create', [RealEstate\LeaseController::class, 'create'])->name('leases.create');
+        Route::post('/leases', [RealEstate\LeaseController::class, 'store'])->name('leases.store');
+        Route::get('/leases/{lease}', [RealEstate\LeaseController::class, 'show'])->whereNumber('lease')->name('leases.show');
+        Route::post('/leases/{lease}/end', [RealEstate\LeaseController::class, 'end'])->whereNumber('lease')->name('leases.end');
+        Route::get('/report', [RealEstate\LeaseController::class, 'report'])->name('report');
+    });
+
+    // Field-service work orders
+    Route::prefix('work-orders')->name('work-orders.')->group(function () {
+        Route::get('/', [WorkOrders\WorkOrderController::class, 'index'])->name('index');
+        Route::get('/board', [WorkOrders\WorkOrderController::class, 'board'])->name('board');
+        Route::get('/create', [WorkOrders\WorkOrderController::class, 'create'])->name('create');
+        Route::post('/', [WorkOrders\WorkOrderController::class, 'store'])->name('store');
+        Route::get('/timesheet', [WorkOrders\ReportController::class, 'timesheet'])->name('timesheet');
+        Route::get('/settings', [WorkOrders\ReportController::class, 'settings'])->name('settings');
+        Route::put('/settings', [WorkOrders\ReportController::class, 'updateSettings'])->name('settings.update');
+
+        Route::get('/types', [WorkOrders\WorkTypeController::class, 'index'])->name('types.index');
+        Route::get('/types/create', [WorkOrders\WorkTypeController::class, 'create'])->name('types.create');
+        Route::post('/types', [WorkOrders\WorkTypeController::class, 'store'])->name('types.store');
+        Route::get('/types/{type}/edit', [WorkOrders\WorkTypeController::class, 'edit'])->name('types.edit');
+        Route::put('/types/{type}', [WorkOrders\WorkTypeController::class, 'update'])->name('types.update');
+        Route::delete('/types/{type}', [WorkOrders\WorkTypeController::class, 'destroy'])->name('types.destroy');
+
+        // The technician's phone screen
+        Route::get('/mine', [WorkOrders\MineController::class, 'index'])->name('mine.index');
+        Route::get('/mine/products', [WorkOrders\MineController::class, 'products'])->name('mine.products');
+        Route::get('/mine/{order}', [WorkOrders\MineController::class, 'show'])->whereNumber('order')->name('mine.show');
+        Route::post('/mine/{order}/start', [WorkOrders\MineController::class, 'start'])->name('mine.start');
+        Route::post('/mine/{order}/stop', [WorkOrders\MineController::class, 'stop'])->name('mine.stop');
+        Route::post('/mine/{order}/hold', [WorkOrders\MineController::class, 'hold'])->name('mine.hold');
+        Route::post('/mine/{order}/tasks/{task}', [WorkOrders\MineController::class, 'task'])->name('mine.task');
+        Route::post('/mine/{order}/parts', [WorkOrders\MineController::class, 'part'])->name('mine.part');
+        Route::post('/mine/{order}/photos', [WorkOrders\MineController::class, 'photo'])->name('mine.photo');
+        Route::post('/mine/{order}/sign', [WorkOrders\MineController::class, 'sign'])->name('mine.sign');
+        Route::post('/mine/{order}/complete', [WorkOrders\MineController::class, 'complete'])->name('mine.complete');
+
+        Route::post('/time/{entry}/stop', [WorkOrders\WorkOrderController::class, 'stopTime'])->name('time.stop');
+        Route::put('/time/{entry}', [WorkOrders\WorkOrderController::class, 'updateTime'])->name('time.update');
+        Route::post('/parts/{part}/return', [WorkOrders\WorkOrderController::class, 'returnPart'])->name('parts.return');
+
+        Route::get('/{order}', [WorkOrders\WorkOrderController::class, 'show'])->whereNumber('order')->name('show');
+        Route::get('/{order}/edit', [WorkOrders\WorkOrderController::class, 'edit'])->whereNumber('order')->name('edit');
+        Route::put('/{order}', [WorkOrders\WorkOrderController::class, 'update'])->whereNumber('order')->name('update');
+        Route::delete('/{order}', [WorkOrders\WorkOrderController::class, 'destroy'])->whereNumber('order')->name('destroy');
+        Route::post('/{order}/hold', [WorkOrders\WorkOrderController::class, 'hold'])->name('hold');
+        Route::post('/{order}/complete', [WorkOrders\WorkOrderController::class, 'complete'])->name('complete');
+        Route::post('/{order}/reopen', [WorkOrders\WorkOrderController::class, 'reopen'])->name('reopen');
+        Route::post('/{order}/cancel', [WorkOrders\WorkOrderController::class, 'cancel'])->name('cancel');
+        Route::post('/{order}/sign', [WorkOrders\WorkOrderController::class, 'sign'])->name('sign');
+        Route::post('/{order}/invoice', [WorkOrders\WorkOrderController::class, 'invoice'])->name('invoice');
+        Route::post('/{order}/time', [WorkOrders\WorkOrderController::class, 'storeTime'])->name('time.store');
+        Route::post('/{order}/parts', [WorkOrders\WorkOrderController::class, 'storePart'])->name('parts.store');
+        Route::post('/{order}/attachments', [WorkOrders\WorkOrderController::class, 'storeAttachment'])->name('attachments.store');
+    });
+
+    // Bookings & appointments
+    Route::prefix('bookings')->name('bookings.')->group(function () {
+        Route::get('/', [Bookings\BookingController::class, 'index'])->name('index');
+        Route::get('/calendar', [Bookings\BookingController::class, 'calendar'])->name('calendar');
+        Route::get('/slots', [Bookings\BookingController::class, 'slots'])->name('slots');
+        Route::get('/create', [Bookings\BookingController::class, 'create'])->name('create');
+        Route::post('/', [Bookings\BookingController::class, 'store'])->name('store');
+
+        Route::get('/resources', [Bookings\ResourceController::class, 'index'])->name('resources.index');
+        Route::get('/resources/create', [Bookings\ResourceController::class, 'create'])->name('resources.create');
+        Route::post('/resources', [Bookings\ResourceController::class, 'store'])->name('resources.store');
+        Route::get('/resources/{resource}/edit', [Bookings\ResourceController::class, 'edit'])->name('resources.edit');
+        Route::put('/resources/{resource}', [Bookings\ResourceController::class, 'update'])->name('resources.update');
+        Route::delete('/resources/{resource}', [Bookings\ResourceController::class, 'destroy'])->name('resources.destroy');
+
+        Route::get('/services', [Bookings\BookableServiceController::class, 'index'])->name('services.index');
+        Route::get('/services/create', [Bookings\BookableServiceController::class, 'create'])->name('services.create');
+        Route::post('/services', [Bookings\BookableServiceController::class, 'store'])->name('services.store');
+        Route::get('/services/{service}/edit', [Bookings\BookableServiceController::class, 'edit'])->name('services.edit');
+        Route::put('/services/{service}', [Bookings\BookableServiceController::class, 'update'])->name('services.update');
+        Route::delete('/services/{service}', [Bookings\BookableServiceController::class, 'destroy'])->name('services.destroy');
+
+        Route::get('/packages', [Bookings\PackageController::class, 'index'])->name('packages.index');
+        Route::get('/packages/create', [Bookings\PackageController::class, 'create'])->name('packages.create');
+        Route::post('/packages', [Bookings\PackageController::class, 'store'])->name('packages.store');
+        Route::get('/packages/sell', [Bookings\PackageController::class, 'sell'])->name('customer-packages.sell');
+        Route::post('/packages/sell', [Bookings\PackageController::class, 'storeSold'])->name('customer-packages.store');
+        Route::get('/packages/sold/{customerPackage}', [Bookings\PackageController::class, 'showSold'])->name('customer-packages.show');
+        Route::post('/packages/sold/{customerPackage}/give-back', [Bookings\PackageController::class, 'giveBack'])->name('customer-packages.give-back');
+        Route::get('/packages/{package}/edit', [Bookings\PackageController::class, 'edit'])->name('packages.edit');
+        Route::put('/packages/{package}', [Bookings\PackageController::class, 'update'])->name('packages.update');
+        Route::delete('/packages/{package}', [Bookings\PackageController::class, 'destroy'])->name('packages.destroy');
+
+        Route::get('/settings', [Bookings\SettingsController::class, 'show'])->name('settings');
+        Route::put('/settings', [Bookings\SettingsController::class, 'update'])->name('settings.update');
+
+        Route::get('/{booking}', [Bookings\BookingController::class, 'show'])->whereNumber('booking')->name('show');
+        Route::get('/{booking}/edit', [Bookings\BookingController::class, 'edit'])->whereNumber('booking')->name('edit');
+        Route::put('/{booking}', [Bookings\BookingController::class, 'update'])->whereNumber('booking')->name('update');
+        Route::post('/{booking}/confirm', [Bookings\BookingController::class, 'confirm'])->name('confirm');
+        Route::post('/{booking}/complete', [Bookings\BookingController::class, 'complete'])->name('complete');
+        Route::post('/{booking}/cancel', [Bookings\BookingController::class, 'cancel'])->name('cancel');
+        Route::post('/{booking}/no-show', [Bookings\BookingController::class, 'noShow'])->name('no-show');
+    });
+
+    // Contracts
+    Route::prefix('contracts')->name('contracts.')->group(function () {
+        Route::get('/', [ContractController::class, 'index'])->name('index');
+        Route::get('/create', [ContractController::class, 'create'])->name('create');
+        Route::post('/', [ContractController::class, 'store'])->name('store');
+        Route::post('/attachments', [ContractController::class, 'uploadAttachment'])->name('attachments.upload');
+        Route::post('/obligations/{obligation}/toggle', [ContractController::class, 'toggleObligation'])->name('obligations.toggle');
+        Route::get('/templates', [ContractTemplateController::class, 'index'])->name('templates.index');
+        Route::get('/templates/create', [ContractTemplateController::class, 'create'])->name('templates.create');
+        Route::post('/templates', [ContractTemplateController::class, 'store'])->name('templates.store');
+        Route::get('/templates/{template}/edit', [ContractTemplateController::class, 'edit'])->name('templates.edit');
+        Route::put('/templates/{template}', [ContractTemplateController::class, 'update'])->name('templates.update');
+        Route::delete('/templates/{template}', [ContractTemplateController::class, 'destroy'])->name('templates.destroy');
+        Route::get('/{contract}', [ContractController::class, 'show'])->whereNumber('contract')->name('show');
+        Route::get('/{contract}/edit', [ContractController::class, 'edit'])->whereNumber('contract')->name('edit');
+        Route::put('/{contract}', [ContractController::class, 'update'])->whereNumber('contract')->name('update');
+        Route::delete('/{contract}', [ContractController::class, 'destroy'])->whereNumber('contract')->name('destroy');
+        Route::post('/{contract}/submit', [ContractController::class, 'submit'])->name('submit');
+        Route::post('/{contract}/approve', [ContractController::class, 'approve'])->name('approve');
+        Route::post('/{contract}/reject', [ContractController::class, 'reject'])->name('reject');
+        Route::post('/{contract}/activate', [ContractController::class, 'activate'])->name('activate');
+        Route::post('/{contract}/terminate', [ContractController::class, 'terminate'])->name('terminate');
+        Route::post('/{contract}/renew', [ContractController::class, 'renew'])->name('renew');
+        Route::post('/{contract}/amend', [ContractController::class, 'amend'])->name('amend');
+        Route::post('/{contract}/share', [ContractController::class, 'share'])->name('share');
+    });
+
+    // Customer support: tickets and SLA
+    Route::prefix('support')->name('support.')->group(function () {
+        Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
+        Route::get('/tickets/create', [TicketController::class, 'create'])->name('tickets.create');
+        Route::post('/tickets', [TicketController::class, 'store'])->name('tickets.store');
+        Route::get('/tickets/{ticket}', [TicketController::class, 'show'])->whereNumber('ticket')->name('tickets.show');
+        Route::patch('/tickets/{ticket}', [TicketController::class, 'update'])->name('tickets.update');
+        Route::post('/tickets/{ticket}/reply', [TicketController::class, 'reply'])->name('tickets.reply');
+        Route::get('/settings', [SupportSettingsController::class, 'index'])->name('settings.index');
+        Route::put('/settings/sla', [SupportSettingsController::class, 'saveSla'])->name('settings.sla');
+        Route::post('/settings/categories', [SupportSettingsController::class, 'storeCategory'])->name('settings.categories.store');
+        Route::post('/settings/categories/{category}/toggle', [SupportSettingsController::class, 'toggleCategory'])->name('settings.categories.toggle');
+        Route::delete('/settings/categories/{category}', [SupportSettingsController::class, 'destroyCategory'])->name('settings.categories.destroy');
     });
 
     // Manufacturing: work centres, BOMs, routings, production orders, process costing, MRP, quality, subcontracting

@@ -1,6 +1,6 @@
 <script setup>
 import { taxRate } from '@/utils/tax';
-import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import axios from 'axios';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import BrandLogo from '../../Components/BrandLogo.vue';
@@ -102,26 +102,38 @@ const changeDue = computed(() => {
 });
 
 // Add product to cart
-const addToCart = (product) => {
+const selectedIdx = ref(-1); // the cart line the keyboard +/-/Delete act on (the last one touched)
+
+const addToCart = (product, qty = 1) => {
     const existing = cart.value.find(item => item.product_id === product.id);
     if (existing) {
-        existing.quantity += 1;
+        existing.quantity += qty;
+        selectedIdx.value = cart.value.indexOf(existing);
     } else {
         cart.value.push({
             product_id: product.id,
             item_name: product.name_ar,
             unit_price: Number(product.selling_price) || 0,
-            quantity: 1,
+            quantity: qty,
             tax_rate: taxRate(),
             discount: 0,
         });
+        selectedIdx.value = cart.value.length - 1;
     }
 };
 
 // Barcode Scan / Enter handler
 const handleBarcodeEnter = async () => {
-    const query = searchQuery.value.trim();
+    let query = searchQuery.value.trim();
     if (!query) return;
+
+    // «5*barcode»: sell five of it at once.
+    let qty = 1;
+    const times = query.match(/^(\d+(?:\.\d+)?)\s*[*×xX]\s*(.+)$/);
+    if (times && Number(times[1]) > 0) {
+        qty = Number(times[1]);
+        query = times[2].trim();
+    }
 
     const isExact = (p) => (p.barcode && p.barcode === query) || (p.sku && p.sku.toLowerCase() === query.toLowerCase());
     let matched = products.value.find(isExact);
@@ -133,25 +145,54 @@ const handleBarcodeEnter = async () => {
     }
 
     if (matched) {
-        addToCart(matched);
+        addToCart(matched, qty);
         searchQuery.value = '';
     }
 };
 
 const updateQty = (index, delta) => {
     cart.value[index].quantity += delta;
+    selectedIdx.value = index;
     if (cart.value[index].quantity <= 0) {
         cart.value.splice(index, 1);
+        selectedIdx.value = Math.min(index, cart.value.length - 1);
     }
+};
+
+// Typing a quantity straight into the cart line.
+const setQty = (index, value) => {
+    const q = Number(String(value).replace(/[^\d.]/g, ''));
+    if (q > 0) cart.value[index].quantity = q;
+    selectedIdx.value = index;
 };
 
 const removeFromCart = (index) => {
     cart.value.splice(index, 1);
+    selectedIdx.value = Math.min(index, cart.value.length - 1);
 };
 
 const clearCart = () => {
     cart.value = [];
+    selectedIdx.value = -1;
 };
+
+// Keyboard: + / - change the selected line, ↑ / ↓ move between lines, Delete removes it.
+// While the search box holds text the keys type normally; in any other field they are left alone.
+const onKey = (e) => {
+    const t = e.target;
+    const inBarcode = t === barcodeInput.value;
+    const inField = !inBarcode && ['INPUT', 'TEXTAREA', 'SELECT'].includes(t?.tagName);
+    if (inField || e.ctrlKey || e.metaKey || e.altKey || !cart.value.length) return;
+    if (inBarcode && searchQuery.value !== '') return;
+
+    const i = selectedIdx.value >= 0 && selectedIdx.value < cart.value.length ? selectedIdx.value : cart.value.length - 1;
+    if (e.key === '+' || e.key === '=') { e.preventDefault(); updateQty(i, 1); }
+    else if (e.key === '-' || e.key === '_') { e.preventDefault(); updateQty(i, -1); }
+    else if (e.key === 'Delete') { e.preventDefault(); removeFromCart(i); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); selectedIdx.value = Math.max(0, i - 1); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); selectedIdx.value = Math.min(cart.value.length - 1, i + 1); }
+};
+
 
 // Quick Tender Buttons (+10, +50, +100, +500)
 const addTender = (val) => {
@@ -261,10 +302,12 @@ const formatCurrency = (val) => {
 };
 
 onMounted(() => {
+    window.addEventListener('keydown', onKey);
     nextTick(() => {
         barcodeInput.value?.focus();
     });
 });
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 </script>
 
 <template>
@@ -336,7 +379,7 @@ onMounted(() => {
                             v-model="searchQuery"
                             @keyup.enter="handleBarcodeEnter"
                             type="text" 
-                            placeholder="امسح الباركود أو ابحث عن المنتج / الخدمة..." 
+                            placeholder="امسح الباركود أو ابحث (5*باركود لعدة قطع، + و - للكمية)" 
                             class="w-full text-xs sm:text-sm ps-10 pe-4 py-2 rounded-xl border-none focus:ring-0 text-slate-800 font-medium placeholder-slate-400"
                         />
                     </div>
@@ -380,6 +423,10 @@ onMounted(() => {
                             class="bg-white rounded-2xl p-3.5 border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer flex flex-col justify-between group active:scale-98"
                         >
                             <div>
+                                <div class="h-24 -mx-1 -mt-1 mb-2 rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center" data-product-image>
+                                    <img v-if="p.image_url" :src="p.image_url" :alt="p.name_ar" loading="lazy" class="w-full h-full object-cover" />
+                                    <span v-else class="text-2xl font-black text-slate-300">{{ (p.name_ar || '?').trim().charAt(0) }}</span>
+                                </div>
                                 <div class="flex items-start justify-between gap-1 mb-2">
                                     <span class="text-3xs font-mono text-slate-400">
                                         {{ p.sku || 'SKU' }}
@@ -439,7 +486,9 @@ onMounted(() => {
                     <div 
                         v-for="(item, idx) in cart" 
                         :key="idx"
-                        class="pt-2 first:pt-0 flex items-center justify-between gap-2"
+                        @click="selectedIdx = idx"
+                        :data-cart-line="idx"
+                        :class="['pt-2 first:pt-0 flex items-center justify-between gap-2 rounded-lg px-1 -mx-1', idx === selectedIdx ? 'bg-indigo-50 ring-1 ring-indigo-200' : '']"
                     >
                         <div class="flex-1 min-w-0">
                             <h4 class="text-xs font-bold text-slate-800 truncate">{{ item.item_name }}</h4>
@@ -456,9 +505,12 @@ onMounted(() => {
                             >
                                 <MinusIcon class="w-3 h-3" />
                             </button>
-                            <span class="w-6 text-center text-xs font-bold font-mono text-slate-800">
-                                {{ item.quantity }}
-                            </span>
+                            <input
+                                :value="item.quantity" type="text" inputmode="decimal" data-num
+                                @change="setQty(idx, $event.target.value)" @focus="selectedIdx = idx" @keydown.enter.prevent="$event.target.blur(); barcodeInput?.focus()"
+                                class="w-10 text-center text-xs font-bold font-mono text-slate-800 bg-transparent border-0 p-0 focus:ring-1 focus:ring-indigo-300 rounded"
+                                data-cart-qty
+                            />
                             <button 
                                 @click="updateQty(idx, 1)"
                                 class="w-5 h-5 rounded bg-white text-slate-600 hover:text-indigo-600 flex items-center justify-center font-bold text-xs shadow-2xs"

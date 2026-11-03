@@ -7,6 +7,7 @@ use App\Models\Currency;
 use App\Models\Invoice;
 use App\Rules\TaxNumber;
 use App\Services\EInvoicing\ProviderRegistry;
+use App\Services\Saas\PlanGuard;
 use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Support\CurrencyNames;
@@ -50,6 +51,8 @@ class BranchController extends Controller
             // Rate changes recorded per country (with their effective dates).
             'rateHistory' => $branches->pluck('profile.country')->unique()->mapWithKeys(fn ($code) => [$code => $company?->setting('tax_rates.'.$code) ?? []]),
             'baseCurrency' => $company?->currency ?: 'SAR',
+            // The activities (optional modules) a branch may be given: what the plan and the company have on.
+            'activityOptions' => $company ? app(PlanGuard::class)->branchOptions($company->loadMissing('plan')) : [],
         ]);
     }
 
@@ -111,6 +114,13 @@ class BranchController extends Controller
             ->with('success', 'تم حذف الفرع بنجاح');
     }
 
+    protected function activityOptions(): array
+    {
+        $company = app(TenantManager::class)->getCompany();
+
+        return $company ? app(PlanGuard::class)->branchOptions($company->loadMissing('plan')) : [];
+    }
+
     protected function validated(Request $request, ?Branch $branch = null): array
     {
         $country = strtoupper((string) $request->input('country_code', ''));
@@ -127,11 +137,15 @@ class BranchController extends Controller
             'tax_number' => ['nullable', 'string', 'max:30', new TaxNumber($country ?: null)],
             'tax_registered' => 'boolean',
             'commercial_registration' => 'nullable|string|max:30',
+            'modules' => 'nullable|array',
+            'modules.*' => ['string', Rule::in(array_keys($this->activityOptions()))],
         ], [], ['country_code' => 'الدولة', 'tax_number' => 'الرقم الضريبي']);
 
         $company = app(TenantManager::class)->getCompany();
         // The company's own country is stored as "null" (follows the company); the time zone comes from the country.
         $data['country_code'] = $country && $country !== ($company?->country_code ?: 'SA') ? $country : null;
+        // null = the branch runs every company activity; a list = only those.
+        $data['modules'] = $request->has('modules') && $request->input('modules') !== null ? array_values(array_unique($data['modules'] ?? [])) : null;
         $data['currency'] = isset($data['currency']) ? strtoupper($data['currency']) : null;
         $data['timezone'] = $data['country_code'] ? config("countries.{$data['country_code']}.timezone") : null;
 

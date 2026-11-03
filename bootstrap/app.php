@@ -10,6 +10,8 @@ use App\Http\Middleware\EnsureTwoFactorEnrolled;
 use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\IdleTimeout;
+use App\Http\Middleware\PortalAuth;
+use App\Http\Middleware\PortalTenant;
 use App\Http\Middleware\ResolveTenant;
 use App\Http\Middleware\SaveAndNew;
 use App\Http\Middleware\SecurityHeaders;
@@ -73,6 +75,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'super_admin' => EnsureSuperAdmin::class,
+            'portal.tenant' => PortalTenant::class,
+            'portal.auth' => PortalAuth::class,
             'tenant' => EnsureTenant::class,
             'erp.authorize' => AuthorizeRoutePermission::class,
             'plan' => EnsurePlanAccess::class,

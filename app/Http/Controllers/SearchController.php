@@ -3,11 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\Account;
+use App\Models\AdminRequest;
+use App\Models\Booking;
+use App\Models\Contract;
 use App\Models\Customer;
+use App\Models\CustomerSubscription;
+use App\Models\CustomerVehicle;
 use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
+use App\Models\Lease;
+use App\Models\PatientFile;
 use App\Models\Product;
 use App\Models\Project;
 use App\Models\PurchaseInvoice;
@@ -16,6 +23,8 @@ use App\Models\Quotation;
 use App\Models\Revenue;
 use App\Models\SalesOrder;
 use App\Models\Supplier;
+use App\Models\Ticket;
+use App\Models\WorkOrder;
 use App\Services\Saas\PlanGuard;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
@@ -82,6 +91,62 @@ class SearchController extends Controller
                     ->where(fn ($q) => $q->where('name', 'like', $like)->orWhere('code', 'like', $like)->orWhere('phone', 'like', $like)->orWhere('tax_number', 'like', $like))
                     ->orderBy('name')->select('id', 'name', 'code', 'phone'),
                 'present' => fn ($r) => ['title' => $r->name, 'code' => (string) $r->code, 'subtitle' => (string) $r->phone, 'url' => route('sales.clients.show', $r->id)],
+            ],
+            'contracts' => [
+                'label' => 'العقود', 'permission' => 'contracts.contracts.view',
+                'query' => fn ($like) => Contract::query()->with(['customer:id,name', 'supplier:id,name'])
+                    ->where(fn ($q) => $q->where('number', 'like', $like)->orWhere('title', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like))->orWhereHas('supplier', fn ($c) => $c->where('name', 'like', $like)))
+                    ->latest('id')->select('id', 'number', 'title', 'status', 'customer_id', 'supplier_id', 'party_type'),
+                'present' => fn ($r) => ['title' => $r->title, 'code' => (string) $r->number, 'subtitle' => ($r->partyName() ?? '').' · '.(Contract::STATUSES[$r->status] ?? $r->status), 'url' => route('contracts.show', $r->id)],
+            ],
+            'bookings' => [
+                'label' => 'الحجوزات', 'permission' => 'bookings.bookings.view',
+                'query' => fn ($like) => Booking::query()->with(['customer:id,name', 'service:id,name'])
+                    ->where(fn ($q) => $q->where('number', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)))
+                    ->latest('starts_at')->select('id', 'number', 'customer_id', 'bookable_service_id', 'starts_at', 'status'),
+                'present' => fn ($r) => ['title' => $r->number.' — '.($r->customer?->name ?? ''), 'code' => (string) $r->number, 'subtitle' => ($r->service?->name ?? '').' · '.$r->starts_at->format('Y-m-d H:i').' · '.(Booking::STATUSES[$r->status] ?? $r->status), 'url' => route('bookings.show', $r->id)],
+            ],
+            'patients' => [
+                'label' => 'ملفات المرضى', 'permission' => 'clinic.patients.view',
+                'query' => fn ($like) => PatientFile::query()->with('customer:id,name,phone')
+                    ->where(fn ($q) => $q->where('file_number', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)->orWhere('phone', 'like', $like)))
+                    ->latest('id')->select('id', 'file_number', 'customer_id'),
+                'present' => fn ($r) => ['title' => $r->customer?->name ?? $r->file_number, 'code' => (string) $r->file_number, 'subtitle' => (string) $r->customer?->phone, 'url' => route('clinic.patients.show', $r->id)],
+            ],
+            'vehicles' => [
+                'label' => 'مركبات العملاء', 'permission' => 'workshop.vehicles.view',
+                'query' => fn ($like) => CustomerVehicle::query()->with('customer:id,name')
+                    ->where(fn ($q) => $q->where('plate', 'like', $like)->orWhere('vin', 'like', $like)->orWhere('model', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)))
+                    ->latest('id')->select('id', 'plate', 'make', 'model', 'year', 'customer_id'),
+                'present' => fn ($r) => ['title' => $r->label(), 'code' => (string) $r->plate, 'subtitle' => (string) $r->customer?->name, 'url' => route('workshop.vehicles.show', $r->id)],
+            ],
+            'leases' => [
+                'label' => 'عقود الإيجار', 'permission' => 'real_estate.leases.view',
+                'query' => fn ($like) => Lease::query()->with(['customer:id,name', 'unit:id,unit_number,property_id'])
+                    ->where(fn ($q) => $q->where('number', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like))->orWhereHas('unit', fn ($u) => $u->where('unit_number', 'like', $like)))
+                    ->latest('id')->select('id', 'number', 'customer_id', 'property_unit_id', 'status'),
+                'present' => fn ($r) => ['title' => $r->number.' — '.($r->customer?->name ?? ''), 'code' => (string) $r->number, 'subtitle' => 'وحدة '.($r->unit?->unit_number ?? '').' · '.(Lease::STATUSES[$r->status] ?? $r->status), 'url' => route('real-estate.leases.show', $r->id)],
+            ],
+            'work_orders' => [
+                'label' => 'أوامر العمل', 'permission' => 'work_orders.orders.view',
+                'query' => fn ($like) => WorkOrder::query()->with('customer:id,name')
+                    ->where(fn ($q) => $q->where('number', 'like', $like)->orWhere('title', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)))
+                    ->latest('id')->select('id', 'number', 'title', 'customer_id', 'status'),
+                'present' => fn ($r) => ['title' => $r->title, 'code' => (string) $r->number, 'subtitle' => ($r->customer?->name ?? '').' · '.(WorkOrder::STATUSES[$r->status] ?? $r->status), 'url' => route('work-orders.show', $r->id)],
+            ],
+            'tickets' => [
+                'label' => 'تذاكر الدعم', 'permission' => 'support.tickets.view',
+                'query' => fn ($like) => Ticket::query()->with('customer:id,name')
+                    ->where(fn ($q) => $q->where('number', 'like', $like)->orWhere('subject', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)))
+                    ->latest('id')->select('id', 'number', 'subject', 'customer_id', 'status'),
+                'present' => fn ($r) => ['title' => $r->subject, 'code' => (string) $r->number, 'subtitle' => ($r->customer?->name ?? '').' · '.(Ticket::STATUSES[$r->status] ?? $r->status), 'url' => route('support.tickets.show', $r->id)],
+            ],
+            'subscriptions' => [
+                'label' => 'اشتراكات العملاء', 'permission' => 'sales.subscriptions.view',
+                'query' => fn ($like) => CustomerSubscription::query()->with('customer:id,name')
+                    ->where(fn ($q) => $q->where('number', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)))
+                    ->latest('id')->select('id', 'number', 'customer_id', 'status'),
+                'present' => fn ($r) => ['title' => $r->number.' — '.($r->customer?->name ?? ''), 'code' => (string) $r->number, 'subtitle' => CustomerSubscription::STATUSES[$r->status] ?? $r->status, 'url' => route('sales.subscriptions.show', $r->id)],
             ],
             'suppliers' => [
                 'label' => 'الموردون', 'permission' => 'purchases.suppliers.view',
@@ -155,6 +220,11 @@ class SearchController extends Controller
                 'query' => fn ($like) => Project::query()->where(fn ($q) => $q->where('code', 'like', $like)->orWhere('name', 'like', $like)->orWhere('contract_number', 'like', $like))
                     ->orderBy('name')->select('id', 'code', 'name'),
                 'present' => fn ($r) => ['title' => $r->name, 'code' => $r->code, 'subtitle' => '', 'url' => route('projects.show', $r->id)],
+            ],
+            'admin_requests' => [
+                'label' => 'الطلبات الإدارية', 'permission' => 'hr.admin_requests.view',
+                'query' => fn ($like) => AdminRequest::query()->where(fn ($q) => $q->where('number', 'like', $like)->orWhere('title', 'like', $like))->orderByDesc('id')->select('id', 'number', 'title', 'status'),
+                'present' => fn ($r) => ['title' => $r->title, 'code' => (string) $r->number, 'subtitle' => AdminRequest::STATUSES[$r->status] ?? '', 'url' => route('hr.admin-requests.show', $r->id)],
             ],
             'employees' => [
                 'label' => 'الموظفون', 'permission' => 'hr.employees.view',

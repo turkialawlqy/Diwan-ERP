@@ -269,6 +269,7 @@ class EmployeeController extends Controller
             'contract_end' => 'nullable|required_if:contract_type,limited|date|after:hire_date',
             'probation_end' => 'nullable|date',
             'basic_salary' => 'required|numeric|min:0',
+            'labour_cost_rate' => 'nullable|numeric|min:0',
             'housing_allowance' => 'nullable|numeric|min:0',
             'transport_allowance' => 'nullable|numeric|min:0',
             'other_allowances' => 'nullable|numeric|min:0',
@@ -299,6 +300,7 @@ class EmployeeController extends Controller
             $validated['iban'] = strtoupper(str_replace(' ', '', $validated['iban']));
         }
         if (! $canSalaries) {
+            unset($validated['labour_cost_rate']); // a cost figure: only people who see salaries set it
             $validated['department'] = ! empty($validated['department_id']) ? Department::find($validated['department_id'])->name : ($employee?->department ?? 'عام');
             $validated['annual_leave_days'] ??= 21;
             $validated['employee_number'] ??= $employee?->employee_number ?? $this->nextNumber('employee');

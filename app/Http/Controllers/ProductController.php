@@ -17,6 +17,7 @@ use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class ProductController extends Controller
@@ -97,6 +98,7 @@ class ProductController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'image' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'name_ar' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'category_id' => 'nullable|tenant_exists:categories,id',
@@ -133,7 +135,7 @@ class ProductController extends Controller
             abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
         }
 
-        $product = DB::transaction(function () use ($validated, $companyId) {
+        $product = DB::transaction(function () use ($validated, $companyId, $request) {
             $productType = $validated['type'] ?? 'product';
             $purchasePrice = $validated['purchase_price'] ?? 0;
             $trackInventory = isset($validated['track_inventory']) ? (bool) $validated['track_inventory'] : ($productType === 'product');
@@ -160,6 +162,7 @@ class ProductController extends Controller
                 'is_active' => true,
                 'vat_category' => $validated['vat_category'] ?? 'S',
                 'vat_exemption_code' => ($validated['vat_category'] ?? 'S') === 'S' ? null : ($validated['vat_exemption_code'] ?? null),
+                'image' => $request->hasFile('image') ? $request->file('image')->store('products/'.$companyId, 'public') : null,
             ]);
 
             // Opening stock goes through the stock ledger and is posted against
@@ -214,6 +217,7 @@ class ProductController extends Controller
 
         return Inertia::render('Inventory/Products/Edit', [
             'product' => $product,
+            'imageUrl' => $product->image_url,
             'categories' => $categories,
             'units' => $units,
             'vatCategories' => config('zatca.vat_categories'),
@@ -227,6 +231,7 @@ class ProductController extends Controller
     public function update(Request $request, Product $product)
     {
         $validated = $request->validate([
+            'image' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'name_ar' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'category_id' => 'nullable|tenant_exists:categories,id',
@@ -258,9 +263,43 @@ class ProductController extends Controller
             return back()->withErrors(['tracking' => 'لا يمكن تغيير نوع التتبع لصنف عليه رصيد مخزون.']);
         }
 
+        unset($validated['image']); // changed from its own field (uploadImage / deleteImage)
         $product->update($validated);
 
         return redirect()->route('inventory.products.index')->with('success', 'تم تحديث بيانات المنتج بنجاح');
+    }
+
+    /** Stream the product picture (never depends on the public/storage symlink). */
+    public function image(Product $product)
+    {
+        abort_unless($product->image && Storage::disk('public')->exists($product->image), 404);
+
+        return response()->file(Storage::disk('public')->path($product->image), [
+            'Cache-Control' => 'private, max-age=604800',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    public function uploadImage(Request $request, Product $product)
+    {
+        $request->validate(['image' => 'required|image|mimes:png,jpg,jpeg,webp|max:2048'], [], ['image' => 'الصورة']);
+        $old = $product->image;
+        $product->update(['image' => $request->file('image')->store('products/'.$product->company_id, 'public')]);
+        if ($old) {
+            Storage::disk('public')->delete($old);
+        }
+
+        return back()->with('success', 'تم حفظ صورة الصنف');
+    }
+
+    public function deleteImage(Product $product)
+    {
+        if ($product->image) {
+            Storage::disk('public')->delete($product->image);
+            $product->update(['image' => null]);
+        }
+
+        return back()->with('success', 'تم حذف صورة الصنف');
     }
 
     /**
