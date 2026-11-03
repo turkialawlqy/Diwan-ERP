@@ -1,0 +1,31 @@
+<?php
+
+namespace App\Models;
+
+use App\Traits\Auditable;
+use App\Traits\BelongsToCompany;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+/** A patient's medical file (one per customer). Sensitive: its own permissions, audited, never in the portal. */
+class PatientFile extends Model
+{
+    use Auditable, BelongsToCompany;
+
+    protected $fillable = ['company_id', 'customer_id', 'file_number', 'birth_date', 'gender', 'blood_type', 'allergies', 'chronic_conditions', 'emergency_contact', 'notes', 'created_by'];
+
+    protected $casts = ['birth_date' => 'date'];
+
+    public const GENDERS = ['male' => 'ذكر', 'female' => 'أنثى'];
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function visits(): HasMany
+    {
+        return $this->hasMany(PatientVisit::class)->orderByDesc('visit_date')->orderByDesc('id');
+    }
+}

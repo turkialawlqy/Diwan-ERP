@@ -87,6 +87,23 @@ class PackageService
         PackageUsage::create(['customer_package_id' => $fresh->id, 'booking_id' => $booking->id, 'delta' => -1, 'note' => "حجز {$booking->number}"]);
     }
 
+    /** Deduct one visit for a walk-in (a gym check-in) with no booking. */
+    public function useForCheckin(CustomerPackage $package, string $note): void
+    {
+        DB::transaction(function () use ($package, $note) {
+            $fresh = CustomerPackage::whereKey($package->id)->lockForUpdate()->firstOrFail();
+            if ($fresh->remaining() < 1) {
+                throw ValidationException::withMessages(['customer_package_id' => 'لا رصيد زيارات في هذه الباقة.']);
+            }
+            $fresh->visits_used++;
+            if ($fresh->remaining() === 0) {
+                $fresh->status = 'used_up';
+            }
+            $fresh->save();
+            PackageUsage::create(['customer_package_id' => $fresh->id, 'delta' => -1, 'note' => $note]);
+        });
+    }
+
     /** Give a visit back (staff correction). */
     public function giveBack(CustomerPackage $package, ?string $note = null): void
     {

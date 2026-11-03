@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -9,7 +10,7 @@ import DatePicker from '@/Components/UI/DatePicker.vue';
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import { PlusIcon, TrashIcon } from '@heroicons/vue/24/outline';
 
-const props = defineProps({ order: Object, prefill: Object, workTypes: Array, technicians: Array, warehouses: Array, priorities: Object });
+const props = defineProps({ order: Object, prefill: Object, workTypes: Array, vehicles: { type: Array, default: () => [] }, rentalUnits: { type: Array, default: () => [] }, technicians: Array, warehouses: Array, priorities: Object });
 const o = props.order;
 const pre = props.prefill || {};
 const split = (v) => (v ? String(v).replace('T', ' ').slice(0, 16).split(' ') : ['', '']);
@@ -18,11 +19,12 @@ const [ed, et] = split(o?.scheduled_end || pre.scheduled_end);
 
 const form = useForm({
     customer_id: o?.customer_id || pre.customer_id || null, ticket_id: o?.ticket_id || pre.ticket_id || null, booking_id: o?.booking_id || pre.booking_id || null,
-    work_type_id: o?.work_type_id || '', title: o?.title || pre.title || '', description: o?.description || pre.description || '', site_address: o?.site_address || '', site_phone: o?.site_phone || '',
+    work_type_id: o?.work_type_id || '', vehicle_id: o?.vehicle_id || pre.vehicle_id || '', odometer_in: o?.odometer_in || pre.odometer_in || '', property_unit_id: o?.property_unit_id || pre.property_unit_id || '', title: o?.title || pre.title || '', description: o?.description || pre.description || '', site_address: o?.site_address || '', site_phone: o?.site_phone || '',
     priority: o?.priority || 'normal', start_date: sd, start_time: st || '09:00', end_date: ed, end_time: et || '', assigned_to: o?.assigned_to || '', crew: o?.crew_ids || [],
     tasks: (o?.tasks || []).map((t) => t.title), warehouse_id: o?.warehouse_id || '',
 });
 useUnsavedGuard(form);
+const customerVehicles = computed(() => props.vehicles.filter((v) => !form.customer_id || v.customer_id === form.customer_id));
 const toggleCrew = (id) => { form.crew = form.crew.includes(id) ? form.crew.filter((x) => x !== id) : [...form.crew, id]; };
 const submit = () => {
     form.transform((d) => ({
@@ -46,6 +48,9 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
             <Field label="نوع العمل" :error="form.errors.work_type_id" hint="يحدد سعر الساعة المفوتَر"><SelectCreate v-model="form.work_type_id" :options="workTypes" entity="work_type" :label="(t) => t.name" placeholder="بدون" /></Field>
             <Field label="الأولوية" :error="form.errors.priority"><select v-model="form.priority" :class="input"><option v-for="(l, k) in priorities" :key="k" :value="k">{{ l }}</option></select></Field>
             <Field label="مستودع القطع" :error="form.errors.warehouse_id"><SelectCreate v-model="form.warehouse_id" :options="warehouses" entity="warehouse" :label="(w) => w.name_ar" placeholder="الافتراضي" /></Field>
+            <Field v-if="vehicles.length || form.vehicle_id" label="المركبة" :error="form.errors.vehicle_id"><SelectCreate v-model="form.vehicle_id" :options="customerVehicles" entity="vehicle" :label="(v) => v.label" placeholder="بدون" data-vehicle /></Field>
+            <Field v-if="form.vehicle_id" label="قراءة العداد عند الاستلام (كم)" :error="form.errors.odometer_in"><input v-model="form.odometer_in" type="text" inputmode="decimal" data-num :class="input" class="font-mono" data-odometer-in /></Field>
+            <Field v-if="rentalUnits.length || form.property_unit_id" label="الوحدة العقارية" :error="form.errors.property_unit_id"><select v-model="form.property_unit_id" :class="input"><option value="">بدون</option><option v-for="u in rentalUnits" :key="u.id" :value="u.id">{{ u.label }}</option></select></Field>
             <Field label="الوصف" :error="form.errors.description" class="md:col-span-3"><textarea v-model="form.description" rows="2" :class="input"></textarea></Field>
             <Field label="عنوان الموقع" :error="form.errors.site_address" class="md:col-span-2"><input v-model="form.site_address" :class="input" /></Field>
             <Field label="هاتف الموقع" :error="form.errors.site_phone"><input v-model="form.site_phone" :class="input" dir="ltr" /></Field>

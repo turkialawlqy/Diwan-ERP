@@ -215,6 +215,23 @@ export const quickCreate = {
             num('hourly_rate', 'سعر الساعة للعميل', { required: true }),
         ],
     },
+    vehicle: {
+        title: 'مركبة جديدة', route: 'workshop.vehicles.store', seed: 'plate', label: (r) => r.label,
+        fields: () => [
+            { key: 'customer_id', label: 'العميل', type: 'select', lookup: 'customers', required: true, span: 2 },
+            text('plate', 'رقم اللوحة', { required: true }),
+            text('make', 'الماركة'),
+            text('model', 'الموديل'),
+        ],
+    },
+    property: {
+        title: 'عقار جديد', route: 'real-estate.properties.store', seed: 'name', label: (r) => r.name,
+        fields: () => [
+            text('name', 'اسم العقار', { required: true, span: 2 }),
+            { key: 'type', label: 'النوع', type: 'select', default: 'building', options: [{ value: 'building', label: 'عمارة' }, { value: 'villa', label: 'فيلا' }, { value: 'complex', label: 'مجمع' }, { value: 'shop', label: 'محلات' }, { value: 'land', label: 'أرض' }] },
+            text('address', 'العنوان'),
+        ],
+    },
     nationality: {
         title: 'جنسية جديدة', route: 'hr.nationalities.store', seed: 'name_ar',
         fields: () => [

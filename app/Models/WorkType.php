@@ -12,7 +12,7 @@ class WorkType extends Model
 {
     use Auditable, BelongsToCompany, SoftDeletes;
 
-    protected $fillable = ['company_id', 'name', 'hourly_rate', 'tax_rate', 'product_id', 'min_billable_minutes', 'is_active'];
+    protected $fillable = ['company_id', 'name', 'hourly_rate', 'tax_rate', 'product_id', 'min_billable_minutes', 'service_interval_days', 'service_interval_km', 'is_active'];
 
     protected $casts = ['hourly_rate' => 'decimal:2', 'tax_rate' => 'decimal:2', 'is_active' => 'boolean', 'min_billable_minutes' => 'integer'];
 }

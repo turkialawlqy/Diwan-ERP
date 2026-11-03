@@ -14,7 +14,7 @@ class WorkOrder extends Model
 {
     use Auditable, BelongsToCompany;
 
-    protected $fillable = ['company_id', 'branch_id', 'number', 'customer_id', 'ticket_id', 'booking_id', 'subscription_id', 'project_id', 'equipment_id', 'work_type_id', 'title', 'description',
+    protected $fillable = ['company_id', 'branch_id', 'number', 'customer_id', 'ticket_id', 'booking_id', 'subscription_id', 'project_id', 'equipment_id', 'work_type_id', 'vehicle_id', 'odometer_in', 'property_unit_id', 'title', 'description',
         'site_address', 'site_phone', 'priority', 'status', 'scheduled_start', 'scheduled_end', 'started_at', 'completed_at', 'assigned_to', 'warehouse_id', 'invoice_id',
         'labour_amount', 'parts_amount', 'cost_amount', 'customer_signature_path', 'signed_by', 'signed_at', 'completion_notes', 'cancel_reason', 'reminder_state', 'created_by'];
 

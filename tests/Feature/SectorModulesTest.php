@@ -1,0 +1,303 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Company;
+use App\Models\Contract;
+use App\Models\Customer;
+use App\Models\CustomerSubscription;
+use App\Models\CustomerVehicle;
+use App\Models\Invoice;
+use App\Models\Lease;
+use App\Models\MemberCheckin;
+use App\Models\PatientFile;
+use App\Models\Property;
+use App\Models\PropertyUnit;
+use App\Models\ServicePlan;
+use App\Models\VisitPackage;
+use App\Models\WorkOrder;
+use App\Models\WorkType;
+use App\Notifications\BookingMessage;
+use App\Services\Accounting\AccountingSetupService;
+use App\Services\Bookings\PackageService;
+use App\Services\Sectors\GymCheckinService;
+use App\Services\Sectors\LeaseService;
+use App\Services\Sectors\WorkshopService;
+use App\Services\Subscriptions\SubscriptionService;
+use App\Services\TenantManager;
+use App\Services\WorkOrders\WorkOrderService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
+use Tests\TestCase;
+
+/** The light sector modules: clinic files, gym check-in, workshop vehicles, real-estate leases. */
+class SectorModulesTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected Company $company;
+
+    protected Customer $customer;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutVite();
+        Storage::fake('local');
+        Carbon::setTestNow('2026-06-15 10:00:00');
+        $this->company = Company::factory()->create();
+        app(AccountingSetupService::class)->provision($this->company);
+        app(TenantManager::class)->setTenant($this->company);
+        $this->actingAs($this->userWithRole($this->company));
+        $this->customer = Customer::create(['name' => 'سارة', 'customer_type' => 'individual', 'status' => 'active', 'code' => 'C-00001', 'phone' => '0555000111', 'email' => 'sara@example.test']);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        app(TenantManager::class)->forget();
+        parent::tearDown();
+    }
+
+    // ------------------------------------------------------------------ clinic
+
+    public function test_a_patient_file_is_numbered_unique_per_customer_and_visits_keep_private_files(): void
+    {
+        $this->post(route('clinic.patients.store'), ['customer_id' => $this->customer->id, 'gender' => 'female', 'blood_type' => 'O+', 'allergies' => 'البنسلين'])->assertSessionHasNoErrors();
+        $patient = PatientFile::firstOrFail();
+        $this->assertSame('PF-00001', $patient->file_number);
+        $this->post(route('clinic.patients.store'), ['customer_id' => $this->customer->id])->assertSessionHasErrors('customer_id');
+
+        $this->post(route('clinic.visits.store', $patient->id), ['visit_date' => '2026-06-15', 'complaint' => 'صداع', 'diagnosis' => 'إجهاد', 'next_visit_date' => '2026-06-29', 'files' => [UploadedFile::fake()->image('xray.jpg')]])->assertSessionHasNoErrors();
+        $visit = $patient->visits()->firstOrFail();
+        $this->assertSame('2026-06-29', $visit->next_visit_date->toDateString());
+        Storage::disk('local')->assertExists($visit->attachments[0]['path']);
+        $this->post(route('clinic.visits.store', $patient->id), ['visit_date' => '2026-06-15', 'files' => [UploadedFile::fake()->create('x.exe', 5)]])->assertSessionHasErrors('files.0');
+
+        $this->get(route('clinic.patients.show', $patient->id))->assertOk()->assertInertia(fn ($p) => $p->component('Clinic/Patients/Show')->has('visits', 1)->where('visits.0.files.0.name', 'xray.jpg'));
+        $this->assertDatabaseHas('audit_logs', ['auditable_type' => PatientFile::class, 'auditable_id' => $patient->id]);
+    }
+
+    public function test_medical_data_needs_its_own_permission(): void
+    {
+        $patient = PatientFile::create(['customer_id' => $this->customer->id, 'file_number' => 'PF-1']);
+        $this->actingAs($this->userWithRole($this->company, 'warehouse_keeper'));
+        $this->get(route('clinic.patients.index'))->assertForbidden();
+        $this->get(route('clinic.patients.show', $patient->id))->assertForbidden();
+        $this->post(route('clinic.visits.store', $patient->id), ['visit_date' => '2026-06-15'])->assertForbidden();
+        $this->actingAs($this->userWithRole($this->company, 'accountant'));
+        $this->get(route('clinic.patients.index'))->assertForbidden(); // not granted by the migration either
+    }
+
+    // --------------------------------------------------------------------- gym
+
+    public function test_the_gym_checkin_allows_live_members_and_explains_every_denial(): void
+    {
+        $plan = ServicePlan::create(['code' => 'PLN-1', 'name' => 'عضوية', 'price' => 100, 'tax_rate' => 0, 'cycle' => 'monthly', 'trial_days' => 0, 'is_active' => true]);
+        $sub = app(SubscriptionService::class)->start(['customer_id' => $this->customer->id, 'service_plan_id' => $plan->id, 'quantity' => 1, 'start_date' => '2026-06-15']);
+        $gym = app(GymCheckinService::class);
+
+        $ok = $gym->scan('c-00001'); // case-insensitive
+        $this->assertTrue($ok['allowed']);
+        $this->assertSame('عضوية', $ok['subscription']['plan']);
+        $this->assertTrue($gym->scan('0555000111')['allowed']); // by phone too
+
+        app(SubscriptionService::class)->pause($sub->fresh());
+        $paused = $gym->scan('C-00001');
+        $this->assertFalse($paused['allowed']);
+        $this->assertStringContainsString('موقوفة', $paused['reason']);
+
+        $sub->fresh()->update(['status' => 'past_due']);
+        $this->assertStringContainsString('متعثرة', $gym->scan('C-00001')['reason']);
+        $sub->fresh()->update(['status' => 'expired']);
+        $this->assertStringContainsString('منتهية', $gym->scan('C-00001')['reason']);
+
+        $unknown = $gym->scan('NOPE');
+        $this->assertFalse($unknown['allowed']);
+        $this->assertSame('الكود غير معروف', $unknown['reason']);
+
+        $day = $gym->day('2026-06-15');
+        $this->assertSame(2, $day['allowed']);
+        $this->assertSame(4, $day['denied']);
+        $this->assertSame(1, $day['unique']);
+        $this->assertSame(6, MemberCheckin::count());
+    }
+
+    public function test_a_visit_package_lets_a_non_member_in_and_deducts_a_visit(): void
+    {
+        $template = VisitPackage::create(['name' => '12 حصة', 'visits' => 2, 'price' => 0, 'tax_rate' => 0, 'is_active' => true]);
+        $pack = app(PackageService::class)->sell($template, $this->customer->id);
+        $gym = app(GymCheckinService::class);
+
+        $this->assertTrue($gym->scan('C-00001')['allowed']);
+        $this->assertSame(1, $pack->fresh()->remaining());
+        $this->assertTrue($gym->scan('C-00001')['allowed']);
+        $this->assertSame('used_up', $pack->fresh()->status);
+        $this->assertFalse($gym->scan('C-00001')['allowed']); // nothing left
+        $this->assertSame(2, $pack->usages()->count());
+    }
+
+    public function test_the_checkin_endpoint_answers_json_and_respects_the_permission(): void
+    {
+        $this->postJson(route('gym.checkin.scan'), ['code' => 'C-00001'])->assertOk()->assertJsonPath('allowed', false)->assertJsonPath('customer.name', 'سارة')->assertJsonStructure(['today' => ['allowed', 'denied', 'rows']]);
+        $this->get(route('gym.checkin'))->assertOk();
+        $this->get(route('gym.attendance'))->assertOk();
+        $this->actingAs($this->userWithRole($this->company, 'warehouse_keeper'));
+        $this->postJson(route('gym.checkin.scan'), ['code' => 'C-00001'])->assertForbidden();
+    }
+
+    // ---------------------------------------------------------------- workshop
+
+    public function test_a_vehicle_belongs_to_its_customer_and_completion_updates_the_card(): void
+    {
+        $other = Customer::create(['name' => 'غيري', 'customer_type' => 'individual', 'status' => 'active']);
+        $this->post(route('workshop.vehicles.store'), ['customer_id' => $this->customer->id, 'plate' => 'أ ب ج 1234', 'make' => 'تويوتا', 'model' => 'كامري', 'year' => 2020, 'odometer' => 50000])->assertSessionHasNoErrors();
+        $vehicle = CustomerVehicle::firstOrFail();
+        $type = WorkType::create(['name' => 'تغيير زيت', 'hourly_rate' => 100, 'tax_rate' => 0, 'is_active' => true, 'service_interval_days' => 120, 'service_interval_km' => 5000]);
+        $svc = app(WorkOrderService::class);
+
+        try {
+            $svc->create(['customer_id' => $other->id, 'title' => 'x', 'vehicle_id' => $vehicle->id]);
+            $this->fail("another customer's vehicle must be refused");
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('vehicle_id', $e->errors());
+        }
+
+        $order = $svc->create(['customer_id' => $this->customer->id, 'title' => 'تغيير زيت', 'work_type_id' => $type->id, 'vehicle_id' => $vehicle->id, 'odometer_in' => 52000]);
+        $svc->complete($order);
+
+        $vehicle->refresh();
+        $this->assertSame(52000, $vehicle->odometer);
+        $this->assertSame('2026-10-13', $vehicle->next_service_date->toDateString()); // today + 120 days
+        $this->assertSame(57000, $vehicle->next_service_km);
+
+        $this->get(route('workshop.vehicles.show', $vehicle->id))->assertOk()->assertInertia(fn ($p) => $p->has('orders', 1));
+        $this->delete(route('workshop.vehicles.destroy', $vehicle->id))->assertSessionHasErrors('vehicle'); // it has an order
+        $this->postJson(route('workshop.vehicles.store'), ['customer_id' => $this->customer->id, 'plate' => 'QUICK 1'])->assertCreated()->assertJsonPath('record.label', 'QUICK 1 —');
+    }
+
+    public function test_the_service_reminder_goes_out_once_per_due_date(): void
+    {
+        Notification::fake();
+        $v = CustomerVehicle::create(['customer_id' => $this->customer->id, 'plate' => 'P1', 'next_service_date' => '2026-06-20', 'odometer' => 1000]);
+        CustomerVehicle::create(['customer_id' => $this->customer->id, 'plate' => 'P2', 'next_service_date' => '2026-09-01', 'odometer' => 1000]); // far away
+
+        $this->assertSame(1, app(WorkshopService::class)->remind());
+        $this->assertSame(0, app(WorkshopService::class)->remind());
+        Notification::assertSentOnDemandTimes(BookingMessage::class, 1);
+
+        $v->update(['next_service_date' => '2026-06-22']); // moved: a new due date is a new reminder
+        $this->assertSame(1, app(WorkshopService::class)->remind());
+    }
+
+    // -------------------------------------------------------------- real estate
+
+    protected function unit(string $number = '101', float $rent = 3000): PropertyUnit
+    {
+        $property = Property::firstOrCreate(['name' => 'عمارة النخيل'], ['type' => 'building']);
+
+        return PropertyUnit::create(['property_id' => $property->id, 'unit_number' => $number, 'type' => 'apartment', 'rent_amount' => $rent, 'status' => 'vacant']);
+    }
+
+    protected function lease(PropertyUnit $unit, array $extra = []): Lease
+    {
+        return app(LeaseService::class)->create(array_merge(['customer_id' => $this->customer->id, 'property_unit_id' => $unit->id, 'start_date' => '2026-06-15', 'end_date' => '2027-06-14',
+            'rent_amount' => 3000, 'cycle' => 'monthly', 'security_deposit' => 3000], $extra));
+    }
+
+    public function test_a_lease_creates_a_contract_a_rent_subscription_and_the_first_invoice(): void
+    {
+        $unit = $this->unit();
+        $lease = $this->lease($unit);
+
+        $this->assertSame('LSE-26-00001', $lease->number);
+        $this->assertSame('occupied', $unit->fresh()->status);
+        $contract = Contract::findOrFail($lease->contract_id);
+        $this->assertSame('lease', $contract->kind);
+        $this->assertEquals(36000.0, (float) $contract->value); // 12 months × 3000
+        $this->assertSame($lease->subscription_id, $contract->subscription_id);
+
+        $sub = CustomerSubscription::findOrFail($lease->subscription_id);
+        $this->assertSame('active', $sub->status);
+        $this->assertEquals(3000.0, (float) $sub->unit_price);
+        $this->assertSame('إيجار شهري', $sub->plan->name);
+        $invoice = Invoice::firstOrFail(); // the first month is billed at once
+        $this->assertEquals(3000.0, (float) $invoice->subtotal);
+        $this->assertStringContainsString('101', $invoice->items()->first()->description);
+        $this->assertCount(1, app(LeaseService::class)->invoices($lease));
+    }
+
+    public function test_an_occupied_unit_cannot_be_rented_twice_and_ending_frees_everything(): void
+    {
+        $unit = $this->unit();
+        $lease = $this->lease($unit);
+        try {
+            $this->lease($unit);
+            $this->fail('an occupied unit must be refused');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('property_unit_id', $e->errors());
+        }
+
+        app(LeaseService::class)->end($lease, 'انتقل المستأجر');
+        $this->assertSame('ended', $lease->fresh()->status);
+        $this->assertSame('vacant', $unit->fresh()->status);
+        $this->assertSame('cancelled', CustomerSubscription::find($lease->subscription_id)->status);
+        $this->assertSame('terminated', Contract::find($lease->contract_id)->status);
+
+        $again = $this->lease($unit->fresh()); // rentable again
+        $this->assertNotSame($lease->id, $again->id);
+    }
+
+    public function test_lease_dates_and_rent_are_validated(): void
+    {
+        $unit = $this->unit();
+        $this->assertInvalid(fn () => $this->lease($unit, ['end_date' => '2026-06-01']), 'end_date');
+        $this->assertInvalid(fn () => $this->lease($unit, ['rent_amount' => 0]), 'rent_amount');
+        $this->assertSame('vacant', $unit->fresh()->status);
+        $this->assertSame(0, Lease::count());
+    }
+
+    public function test_the_real_estate_screens_and_the_report(): void
+    {
+        $this->post(route('real-estate.properties.store'), ['name' => 'برج الندى', 'type' => 'building'])->assertSessionHasNoErrors();
+        $property = Property::where('name', 'برج الندى')->firstOrFail();
+        $this->post(route('real-estate.units.store'), ['property_id' => $property->id, 'unit_number' => '5', 'type' => 'shop', 'rent_amount' => 8000])->assertSessionHasNoErrors();
+        $this->post(route('real-estate.units.store'), ['property_id' => $property->id, 'unit_number' => '5', 'type' => 'shop'])->assertSessionHasErrors('unit_number'); // unique in the property
+        $unit = PropertyUnit::where('unit_number', '5')->firstOrFail();
+
+        $this->post(route('real-estate.leases.store'), ['customer_id' => $this->customer->id, 'property_unit_id' => $unit->id, 'start_date' => '2026-06-15', 'end_date' => '2026-08-01',
+            'rent_amount' => 8000, 'cycle' => 'monthly'])->assertSessionHasNoErrors();
+        $lease = Lease::firstOrFail();
+        $this->get(route('real-estate.properties.show', $property->id))->assertOk()->assertInertia(fn ($p) => $p->where('units.0.tenant', 'سارة'));
+        $this->get(route('real-estate.leases.show', $lease->id))->assertOk()->assertInertia(fn ($p) => $p->has('invoices', 1));
+        $this->get(route('real-estate.report'))->assertOk()->assertInertia(fn ($p) => $p->has('expiring', 1)->where('occupancy.occupied', 1));
+        $this->delete(route('real-estate.units.destroy', $unit->id))->assertSessionHasErrors('unit');
+        $this->delete(route('real-estate.properties.destroy', $property->id))->assertSessionHasErrors('property');
+        $this->post(route('real-estate.leases.end', $lease->id))->assertSessionHasNoErrors();
+        $this->assertSame('vacant', $unit->fresh()->status);
+    }
+
+    public function test_a_unit_on_a_work_order_is_linked_and_the_module_switch_applies(): void
+    {
+        $unit = $this->unit();
+        $order = app(WorkOrderService::class)->create(['customer_id' => $this->customer->id, 'title' => 'تسريب', 'property_unit_id' => $unit->id]);
+        $this->assertSame($unit->id, WorkOrder::find($order->id)->property_unit_id);
+
+        $this->company->setSetting('disabled_modules', ['real_estate'], 'general', 'json');
+        $this->get(route('real-estate.leases.index'))->assertForbidden();
+    }
+
+    protected function assertInvalid(callable $fn, string $key): void
+    {
+        try {
+            $fn();
+            $this->fail("expected a validation error on [{$key}]");
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey($key, $e->errors());
+        }
+    }
+}

@@ -5,8 +5,10 @@ namespace App\Http\Controllers\WorkOrders;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\FileController;
 use App\Models\Booking;
+use App\Models\CustomerVehicle;
 use App\Models\Employee;
 use App\Models\Product;
+use App\Models\PropertyUnit;
 use App\Models\Ticket;
 use App\Models\TimeEntry;
 use App\Models\Warehouse;
@@ -84,6 +86,12 @@ class WorkOrderController extends Controller
         }
         if ($request->filled('booking') && ($b = Booking::with('service:id,name')->find($request->integer('booking')))) {
             $prefill = ['booking_id' => $b->id, 'customer_id' => $b->customer_id, 'title' => $b->service?->name, 'scheduled_start' => $b->starts_at->format('Y-m-d H:i'), 'scheduled_end' => $b->ends_at->format('Y-m-d H:i')];
+        }
+        if ($request->filled('vehicle') && ($v = CustomerVehicle::find($request->integer('vehicle')))) {
+            $prefill += ['vehicle_id' => $v->id, 'customer_id' => $v->customer_id, 'odometer_in' => $v->odometer];
+        }
+        if ($request->filled('unit')) {
+            $prefill['property_unit_id'] = $request->integer('unit');
         }
         if ($request->filled('customer')) {
             $prefill['customer_id'] = $request->integer('customer');
@@ -246,6 +254,8 @@ class WorkOrderController extends Controller
             'technicians' => Employee::orderBy('name')->limit(500)->get(['id', 'name']),
             'warehouses' => Warehouse::orderBy('name_ar')->get(['id', 'name_ar']),
             'priorities' => WorkOrder::PRIORITIES,
+            'vehicles' => CustomerVehicle::orderBy('plate')->limit(500)->get()->map(fn ($v) => ['id' => $v->id, 'customer_id' => $v->customer_id, 'label' => $v->label(), 'odometer' => $v->odometer]),
+            'units' => PropertyUnit::with('property:id,name')->orderBy('property_id')->orderBy('unit_number')->limit(500)->get()->map(fn ($u) => ['id' => $u->id, 'label' => $u->label()]),
         ];
     }
 
@@ -256,6 +266,9 @@ class WorkOrderController extends Controller
             'ticket_id' => 'nullable|tenant_exists:tickets,id',
             'booking_id' => 'nullable|tenant_exists:bookings,id',
             'work_type_id' => 'nullable|tenant_exists:work_types,id',
+            'vehicle_id' => 'nullable|tenant_exists:customer_vehicles,id',
+            'odometer_in' => 'nullable|integer|min:0|max:9999999',
+            'property_unit_id' => 'nullable|tenant_exists:property_units,id',
             'title' => 'required|string|max:255',
             'description' => 'nullable|string|max:5000',
             'site_address' => 'nullable|string|max:255',

@@ -59,7 +59,7 @@ class SubscriptionService
             $template = RecurringInvoice::create([
                 'customer_id' => $customer->id, 'branch_id' => $data['branch_id'] ?? null,
                 'name' => 'اشتراك: '.$plan->name.' — '.$customer->name,
-                'lines' => [$this->line($plan, $quantity, $price, (float) $plan->tax_rate)],
+                'lines' => [$this->line($plan, $quantity, $price, (float) $plan->tax_rate) + (! empty($data['line_description']) ? ['description' => $data['line_description']] : [])],
                 'frequency' => $plan->cycle, 'interval' => max(1, (int) $plan->interval),
                 'start_date' => $billFrom->toDateString(), 'next_run_date' => $billFrom->toDateString(),
                 'invoice_type' => 'standard', 'auto_send' => (bool) ($data['auto_send'] ?? false),

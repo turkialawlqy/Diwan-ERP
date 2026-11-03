@@ -94,6 +94,26 @@ export default [
         ],
     },
     {
+        key: 'clinic', label: 'nav.clinic', icon: UsersIcon, color: 'indigo',
+        children: [{ label: 'nav.clinic_patients', route: 'clinic.patients.index', path: '/clinic/patients' }],
+    },
+    {
+        key: 'gym', label: 'nav.gym', icon: UsersIcon, color: 'indigo',
+        children: [
+            { label: 'nav.gym_checkin', route: 'gym.checkin', path: '/gym/checkin' },
+            { label: 'nav.gym_attendance', route: 'gym.attendance', path: '/gym/attendance' },
+        ],
+    },
+    { key: 'workshop', label: 'nav.workshop', icon: WrenchScrewdriverIcon, route: 'workshop.vehicles.index', path: '/workshop/vehicles' },
+    {
+        key: 'real_estate', label: 'nav.real_estate', icon: BuildingOffice2Icon, color: 'indigo',
+        children: [
+            { label: 'nav.re_properties', route: 'real-estate.properties.index', path: '/real-estate/properties' },
+            { label: 'nav.re_leases', route: 'real-estate.leases.index', path: '/real-estate/leases' },
+            { label: 'nav.re_report', route: 'real-estate.report', path: '/real-estate/report' },
+        ],
+    },
+    {
         key: 'work_orders', label: 'nav.work_orders', icon: WorkOrderIcon, color: 'indigo',
         children: [
             { label: 'nav.work_orders_mine', route: 'work-orders.mine.index', path: '/work-orders/mine' },

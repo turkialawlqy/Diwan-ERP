@@ -197,6 +197,39 @@ return [
             ],
         ],
 
+        'clinic' => [
+            'ar' => 'العيادات (ملف المريض)', 'en' => 'Clinic',
+            'resources' => [
+                'patients' => ['ar' => 'ملفات المرضى', 'en' => 'Patient Files', 'actions' => ['view', 'create', 'edit']],
+                'visits' => ['ar' => 'سجل الزيارات الطبية', 'en' => 'Medical Visits', 'actions' => ['view', 'create', 'edit']],
+            ],
+        ],
+
+        'gym' => [
+            'ar' => 'النوادي الرياضية', 'en' => 'Gym',
+            'resources' => [
+                'checkin' => ['ar' => 'تسجيل حضور الأعضاء', 'en' => 'Member Check-in', 'actions' => ['use']],
+                'attendance' => ['ar' => 'تقرير الحضور', 'en' => 'Attendance Report', 'actions' => ['view']],
+            ],
+        ],
+
+        'workshop' => [
+            'ar' => 'الورش (بطاقات السيارات)', 'en' => 'Workshop',
+            'resources' => [
+                'vehicles' => ['ar' => 'مركبات العملاء', 'en' => 'Customer Vehicles', 'actions' => ['view', 'create', 'edit', 'delete']],
+            ],
+        ],
+
+        'real_estate' => [
+            'ar' => 'العقارات وإدارة الأملاك', 'en' => 'Real Estate',
+            'resources' => [
+                'properties' => ['ar' => 'العقارات', 'en' => 'Properties', 'actions' => ['view', 'create', 'edit', 'delete']],
+                'units' => ['ar' => 'الوحدات', 'en' => 'Units', 'actions' => ['view', 'create', 'edit', 'delete']],
+                'leases' => ['ar' => 'عقود الإيجار', 'en' => 'Leases', 'actions' => ['view', 'create', 'edit']],
+                'reports' => ['ar' => 'تقارير العقارات', 'en' => 'Real Estate Reports', 'actions' => ['view']],
+            ],
+        ],
+
         'work_orders' => [
             'ar' => 'أوامر العمل الميدانية', 'en' => 'Work Orders',
             'resources' => [
@@ -354,7 +387,7 @@ return [
         'documents.pdf' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view', 'sales.orders.print', 'sales.debit_notes.print', 'sales.payments.print', 'purchases.payments.print', 'finance.expenses.view', 'finance.revenues.view', 'accounting.journals.view', 'purchases.invoices.print', 'purchases.orders.print'],
         'documents.dispatches' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view', 'sales.orders.print', 'sales.debit_notes.print', 'sales.payments.print', 'purchases.payments.print', 'finance.expenses.view', 'finance.revenues.view', 'accounting.journals.view', 'purchases.invoices.print', 'purchases.orders.print'],
         'documents.send' => ['sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view', 'sales.orders.print', 'sales.debit_notes.print', 'sales.payments.print', 'purchases.payments.print', 'finance.expenses.view', 'finance.revenues.view', 'accounting.journals.view', 'purchases.invoices.print', 'purchases.orders.print'],
-        'lookup.customers' => ['work_orders.orders.create', 'work_orders.orders.edit', 'bookings.bookings.create', 'bookings.packages.create', 'portal.users.create', 'contracts.contracts.create', 'contracts.contracts.edit', 'support.tickets.create', 'sales.clients.view', 'sales.invoices.create', 'sales.subscriptions.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.returns.create', 'sales.payments.create', 'sales.debit_notes.create', 'sales.price_lists.edit', 'pos.terminal.use', 'accounting.cheques.create', 'projects.projects.create', 'projects.projects.edit'],
+        'lookup.customers' => ['clinic.patients.create', 'workshop.vehicles.create', 'workshop.vehicles.edit', 'real_estate.leases.create', 'work_orders.orders.create', 'work_orders.orders.edit', 'bookings.bookings.create', 'bookings.packages.create', 'portal.users.create', 'contracts.contracts.create', 'contracts.contracts.edit', 'support.tickets.create', 'sales.clients.view', 'sales.invoices.create', 'sales.subscriptions.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.returns.create', 'sales.payments.create', 'sales.debit_notes.create', 'sales.price_lists.edit', 'pos.terminal.use', 'accounting.cheques.create', 'projects.projects.create', 'projects.projects.edit'],
         'lookup.products' => ['inventory.products.view', 'sales.invoices.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.price_lists.edit', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.requests.create', 'inventory.transfers.create', 'inventory.counts.create', 'inventory.assembly.create', 'projects.costs.create', 'pos.terminal.use'],
         'lookup.lines.import' => ['inventory.products.view', 'sales.invoices.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.price_lists.edit', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.requests.create', 'inventory.transfers.create', 'inventory.counts.create', 'inventory.assembly.create', 'projects.costs.create', 'pos.terminal.use', 'accounting.journals.create'],
         'lookup.lines.template' => ['inventory.products.view', 'sales.invoices.create', 'sales.recurring.create', 'sales.recurring.edit', 'sales.quotations.create', 'sales.orders.create', 'sales.price_lists.edit', 'purchases.invoices.create', 'purchases.orders.create', 'purchases.requests.create', 'inventory.transfers.create', 'inventory.counts.create', 'inventory.assembly.create', 'projects.costs.create', 'pos.terminal.use', 'accounting.journals.create'],
@@ -874,6 +907,21 @@ return [
         'portal.users.resend' => 'portal.users.edit',
         'portal.users.destroy' => 'portal.users.delete',
         'contracts.share' => 'contracts.contracts.edit',
+
+        'settings.sector-packs' => 'admin.settings.view', 'settings.sector-packs.apply' => 'admin.settings.edit',
+        'clinic.patients.index' => 'clinic.patients.view', 'clinic.patients.show' => 'clinic.patients.view', 'clinic.patients.create' => 'clinic.patients.create', 'clinic.patients.store' => 'clinic.patients.create',
+        'clinic.patients.edit' => 'clinic.patients.edit', 'clinic.patients.update' => 'clinic.patients.edit',
+        'clinic.visits.store' => 'clinic.visits.create', 'clinic.visits.update' => 'clinic.visits.edit', 'clinic.visits.create' => 'clinic.visits.create', 'clinic.visits.edit' => 'clinic.visits.edit',
+        'gym.checkin' => 'gym.checkin.use', 'gym.checkin.scan' => 'gym.checkin.use', 'gym.attendance' => 'gym.attendance.view',
+        'workshop.vehicles.index' => 'workshop.vehicles.view', 'workshop.vehicles.show' => 'workshop.vehicles.view', 'workshop.vehicles.create' => 'workshop.vehicles.create', 'workshop.vehicles.store' => 'workshop.vehicles.create',
+        'workshop.vehicles.edit' => 'workshop.vehicles.edit', 'workshop.vehicles.update' => 'workshop.vehicles.edit', 'workshop.vehicles.destroy' => 'workshop.vehicles.delete',
+        'real-estate.properties.index' => 'real_estate.properties.view', 'real-estate.properties.show' => 'real_estate.properties.view', 'real-estate.properties.create' => 'real_estate.properties.create',
+        'real-estate.properties.store' => 'real_estate.properties.create', 'real-estate.properties.edit' => 'real_estate.properties.edit', 'real-estate.properties.update' => 'real_estate.properties.edit',
+        'real-estate.properties.destroy' => 'real_estate.properties.delete',
+        'real-estate.units.create' => 'real_estate.units.create', 'real-estate.units.store' => 'real_estate.units.create', 'real-estate.units.edit' => 'real_estate.units.edit',
+        'real-estate.units.update' => 'real_estate.units.edit', 'real-estate.units.destroy' => 'real_estate.units.delete',
+        'real-estate.leases.index' => 'real_estate.leases.view', 'real-estate.leases.show' => 'real_estate.leases.view', 'real-estate.leases.create' => 'real_estate.leases.create',
+        'real-estate.leases.store' => 'real_estate.leases.create', 'real-estate.leases.end' => 'real_estate.leases.edit', 'real-estate.report' => 'real_estate.reports.view',
 
         'work-orders.index' => 'work_orders.orders.view', 'work-orders.show' => 'work_orders.orders.view', 'work-orders.board' => 'work_orders.orders.view',
         'work-orders.create' => 'work_orders.orders.create', 'work-orders.store' => 'work_orders.orders.create',

@@ -1,0 +1,27 @@
+<?php
+
+namespace App\Models;
+
+use App\Traits\Auditable;
+use App\Traits\BelongsToCompany;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class PatientVisit extends Model
+{
+    use Auditable, BelongsToCompany;
+
+    protected $fillable = ['company_id', 'patient_file_id', 'booking_id', 'doctor_id', 'visit_date', 'complaint', 'diagnosis', 'treatment', 'prescription', 'next_visit_date', 'attachments', 'created_by'];
+
+    protected $casts = ['visit_date' => 'date', 'next_visit_date' => 'date', 'attachments' => 'array'];
+
+    public function patient(): BelongsTo
+    {
+        return $this->belongsTo(PatientFile::class, 'patient_file_id');
+    }
+
+    public function doctor(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'doctor_id');
+    }
+}

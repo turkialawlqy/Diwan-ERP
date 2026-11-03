@@ -7,10 +7,13 @@ use App\Models\Booking;
 use App\Models\Contract;
 use App\Models\Customer;
 use App\Models\CustomerSubscription;
+use App\Models\CustomerVehicle;
 use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
+use App\Models\Lease;
+use App\Models\PatientFile;
 use App\Models\Product;
 use App\Models\Project;
 use App\Models\PurchaseInvoice;
@@ -101,6 +104,27 @@ class SearchController extends Controller
                     ->where(fn ($q) => $q->where('number', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)))
                     ->latest('starts_at')->select('id', 'number', 'customer_id', 'bookable_service_id', 'starts_at', 'status'),
                 'present' => fn ($r) => ['title' => $r->number.' — '.($r->customer?->name ?? ''), 'code' => (string) $r->number, 'subtitle' => ($r->service?->name ?? '').' · '.$r->starts_at->format('Y-m-d H:i').' · '.(Booking::STATUSES[$r->status] ?? $r->status), 'url' => route('bookings.show', $r->id)],
+            ],
+            'patients' => [
+                'label' => 'ملفات المرضى', 'permission' => 'clinic.patients.view',
+                'query' => fn ($like) => PatientFile::query()->with('customer:id,name,phone')
+                    ->where(fn ($q) => $q->where('file_number', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)->orWhere('phone', 'like', $like)))
+                    ->latest('id')->select('id', 'file_number', 'customer_id'),
+                'present' => fn ($r) => ['title' => $r->customer?->name ?? $r->file_number, 'code' => (string) $r->file_number, 'subtitle' => (string) $r->customer?->phone, 'url' => route('clinic.patients.show', $r->id)],
+            ],
+            'vehicles' => [
+                'label' => 'مركبات العملاء', 'permission' => 'workshop.vehicles.view',
+                'query' => fn ($like) => CustomerVehicle::query()->with('customer:id,name')
+                    ->where(fn ($q) => $q->where('plate', 'like', $like)->orWhere('vin', 'like', $like)->orWhere('model', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)))
+                    ->latest('id')->select('id', 'plate', 'make', 'model', 'year', 'customer_id'),
+                'present' => fn ($r) => ['title' => $r->label(), 'code' => (string) $r->plate, 'subtitle' => (string) $r->customer?->name, 'url' => route('workshop.vehicles.show', $r->id)],
+            ],
+            'leases' => [
+                'label' => 'عقود الإيجار', 'permission' => 'real_estate.leases.view',
+                'query' => fn ($like) => Lease::query()->with(['customer:id,name', 'unit:id,unit_number,property_id'])
+                    ->where(fn ($q) => $q->where('number', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like))->orWhereHas('unit', fn ($u) => $u->where('unit_number', 'like', $like)))
+                    ->latest('id')->select('id', 'number', 'customer_id', 'property_unit_id', 'status'),
+                'present' => fn ($r) => ['title' => $r->number.' — '.($r->customer?->name ?? ''), 'code' => (string) $r->number, 'subtitle' => 'وحدة '.($r->unit?->unit_number ?? '').' · '.(Lease::STATUSES[$r->status] ?? $r->status), 'url' => route('real-estate.leases.show', $r->id)],
             ],
             'work_orders' => [
                 'label' => 'أوامر العمل', 'permission' => 'work_orders.orders.view',

@@ -16,6 +16,7 @@ use App\Http\Controllers\BillingController;
 use App\Http\Controllers\Bookings;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\Clinic;
 use App\Http\Controllers\CompanySettingController;
 use App\Http\Controllers\Contracts\ContractController;
 use App\Http\Controllers\Contracts\ContractTemplateController;
@@ -36,6 +37,7 @@ use App\Http\Controllers\Finance\ExpenseController;
 use App\Http\Controllers\Finance\RevenueController;
 use App\Http\Controllers\Finance\TransferController;
 use App\Http\Controllers\FreeformTemplateController;
+use App\Http\Controllers\Gym;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\HR\EmployeeController;
 use App\Http\Controllers\HR\HrOperationsController;
@@ -66,6 +68,7 @@ use App\Http\Controllers\PurchaseInvoiceController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\Purchases as P;
 use App\Http\Controllers\QuotationController;
+use App\Http\Controllers\RealEstate;
 use App\Http\Controllers\RecycleBinController;
 use App\Http\Controllers\ReleaseNotesController;
 use App\Http\Controllers\Reports\InsightsController;
@@ -80,6 +83,7 @@ use App\Http\Controllers\Sales\RecurringInvoiceController;
 use App\Http\Controllers\Sales\ServicePlanController;
 use App\Http\Controllers\Sales\SubscriptionController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\SectorPackController;
 use App\Http\Controllers\SelfUpdateController;
 use App\Http\Controllers\StockCountController;
 use App\Http\Controllers\StockTransferController;
@@ -96,6 +100,7 @@ use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\WorkOrders;
+use App\Http\Controllers\Workshop;
 use App\Http\Controllers\ZatcaController;
 use App\Models\PlatformPage;
 use App\Models\SubscriptionPlan;
@@ -913,6 +918,58 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::put('/{portalUser}', [PortalUserController::class, 'update'])->name('update');
         Route::post('/{portalUser}/resend', [PortalUserController::class, 'resend'])->name('resend');
         Route::delete('/{portalUser}', [PortalUserController::class, 'destroy'])->name('destroy');
+    });
+
+    // Sector packs and the light sector modules
+    Route::get('/settings/sector-packs', [SectorPackController::class, 'index'])->name('settings.sector-packs');
+    Route::post('/settings/sector-packs/{pack}', [SectorPackController::class, 'apply'])->name('settings.sector-packs.apply');
+
+    Route::prefix('clinic')->name('clinic.')->group(function () {
+        Route::get('/patients', [Clinic\PatientController::class, 'index'])->name('patients.index');
+        Route::get('/patients/create', [Clinic\PatientController::class, 'create'])->name('patients.create');
+        Route::post('/patients', [Clinic\PatientController::class, 'store'])->name('patients.store');
+        Route::get('/patients/{patient}', [Clinic\PatientController::class, 'show'])->whereNumber('patient')->name('patients.show');
+        Route::get('/patients/{patient}/edit', [Clinic\PatientController::class, 'edit'])->whereNumber('patient')->name('patients.edit');
+        Route::put('/patients/{patient}', [Clinic\PatientController::class, 'update'])->whereNumber('patient')->name('patients.update');
+        Route::post('/patients/{patient}/visits', [Clinic\PatientController::class, 'storeVisit'])->whereNumber('patient')->name('visits.store');
+        Route::post('/visits/{visit}', [Clinic\PatientController::class, 'updateVisit'])->whereNumber('visit')->name('visits.update');
+    });
+
+    Route::prefix('gym')->name('gym.')->group(function () {
+        Route::get('/checkin', [Gym\CheckinController::class, 'index'])->name('checkin');
+        Route::post('/checkin', [Gym\CheckinController::class, 'scan'])->middleware('throttle:120,1')->name('checkin.scan');
+        Route::get('/attendance', [Gym\CheckinController::class, 'attendance'])->name('attendance');
+    });
+
+    Route::prefix('workshop')->name('workshop.')->group(function () {
+        Route::get('/vehicles', [Workshop\VehicleController::class, 'index'])->name('vehicles.index');
+        Route::get('/vehicles/create', [Workshop\VehicleController::class, 'create'])->name('vehicles.create');
+        Route::post('/vehicles', [Workshop\VehicleController::class, 'store'])->name('vehicles.store');
+        Route::get('/vehicles/{vehicle}', [Workshop\VehicleController::class, 'show'])->whereNumber('vehicle')->name('vehicles.show');
+        Route::get('/vehicles/{vehicle}/edit', [Workshop\VehicleController::class, 'edit'])->whereNumber('vehicle')->name('vehicles.edit');
+        Route::put('/vehicles/{vehicle}', [Workshop\VehicleController::class, 'update'])->whereNumber('vehicle')->name('vehicles.update');
+        Route::delete('/vehicles/{vehicle}', [Workshop\VehicleController::class, 'destroy'])->whereNumber('vehicle')->name('vehicles.destroy');
+    });
+
+    Route::prefix('real-estate')->name('real-estate.')->group(function () {
+        Route::get('/properties', [RealEstate\PropertyController::class, 'index'])->name('properties.index');
+        Route::get('/properties/create', [RealEstate\PropertyController::class, 'create'])->name('properties.create');
+        Route::post('/properties', [RealEstate\PropertyController::class, 'store'])->name('properties.store');
+        Route::get('/properties/{property}', [RealEstate\PropertyController::class, 'show'])->whereNumber('property')->name('properties.show');
+        Route::get('/properties/{property}/edit', [RealEstate\PropertyController::class, 'edit'])->whereNumber('property')->name('properties.edit');
+        Route::put('/properties/{property}', [RealEstate\PropertyController::class, 'update'])->whereNumber('property')->name('properties.update');
+        Route::delete('/properties/{property}', [RealEstate\PropertyController::class, 'destroy'])->whereNumber('property')->name('properties.destroy');
+        Route::get('/units/create', [RealEstate\UnitController::class, 'create'])->name('units.create');
+        Route::post('/units', [RealEstate\UnitController::class, 'store'])->name('units.store');
+        Route::get('/units/{unit}/edit', [RealEstate\UnitController::class, 'edit'])->whereNumber('unit')->name('units.edit');
+        Route::put('/units/{unit}', [RealEstate\UnitController::class, 'update'])->whereNumber('unit')->name('units.update');
+        Route::delete('/units/{unit}', [RealEstate\UnitController::class, 'destroy'])->whereNumber('unit')->name('units.destroy');
+        Route::get('/leases', [RealEstate\LeaseController::class, 'index'])->name('leases.index');
+        Route::get('/leases/create', [RealEstate\LeaseController::class, 'create'])->name('leases.create');
+        Route::post('/leases', [RealEstate\LeaseController::class, 'store'])->name('leases.store');
+        Route::get('/leases/{lease}', [RealEstate\LeaseController::class, 'show'])->whereNumber('lease')->name('leases.show');
+        Route::post('/leases/{lease}/end', [RealEstate\LeaseController::class, 'end'])->whereNumber('lease')->name('leases.end');
+        Route::get('/report', [RealEstate\LeaseController::class, 'report'])->name('report');
     });
 
     // Field-service work orders

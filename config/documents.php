@@ -47,6 +47,8 @@ return [
         'contract' => ['table' => 'contracts', 'column' => 'number', 'prefix' => 'CTR-', 'pad' => 5, 'yearly' => true, 'label' => 'عقد', 'area' => 'sales', 'module' => 'contracts'],
         'booking' => ['table' => 'bookings', 'column' => 'number', 'prefix' => 'BKG-', 'pad' => 5, 'yearly' => true, 'label' => 'حجز', 'area' => 'sales', 'module' => 'bookings'],
         'work_order' => ['table' => 'work_orders', 'column' => 'number', 'prefix' => 'WO-', 'pad' => 5, 'yearly' => true, 'label' => 'أمر عمل', 'area' => 'sales', 'module' => 'work_orders'],
+        'patient_file' => ['table' => 'patient_files', 'column' => 'file_number', 'prefix' => 'PF-', 'pad' => 5, 'yearly' => false, 'label' => 'ملف مريض', 'area' => 'parties', 'module' => 'clinic'],
+        'lease' => ['table' => 'leases', 'column' => 'number', 'prefix' => 'LSE-', 'pad' => 5, 'yearly' => true, 'label' => 'عقد إيجار', 'area' => 'sales', 'module' => 'real_estate'],
         'customer_package' => ['table' => 'customer_packages', 'column' => 'number', 'prefix' => 'PKG-', 'pad' => 5, 'yearly' => false, 'label' => 'باقة زيارات', 'area' => 'sales', 'module' => 'bookings'],
         'customer' => ['table' => 'customers', 'column' => 'code', 'prefix' => 'C-', 'pad' => 5, 'yearly' => false, 'label' => 'كود العميل', 'area' => 'parties'],
         'supplier' => ['table' => 'suppliers', 'column' => 'code', 'prefix' => 'S-', 'pad' => 5, 'yearly' => false, 'label' => 'كود المورد', 'area' => 'parties'],

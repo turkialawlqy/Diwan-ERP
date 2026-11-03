@@ -20,6 +20,10 @@ return [
         'portal.' => 'portal',
         'bookings.' => 'bookings',
         'work-orders.' => 'work_orders',
+        'clinic.' => 'clinic',
+        'gym.' => 'gym',
+        'workshop.' => 'workshop',
+        'real-estate.' => 'real_estate',
         'api.' => 'api',
         'webhooks.' => 'api',
     ],
@@ -27,7 +31,7 @@ return [
     'modules' => [
         'sales' => 'المبيعات', 'pos' => 'نقاط البيع', 'inventory' => 'المستودعات', 'purchases' => 'المشتريات',
         'accounting' => 'المحاسبة والمالية', 'projects' => 'المقاولات والمشاريع', 'equipment' => 'المعدات والتأجير والصيانة', 'manufacturing' => 'التصنيع والمصانع', 'hr' => 'الموارد البشرية والرواتب',
-        'zatca' => 'الربط مع فاتورة (المرحلة الثانية)', 'crm' => 'إدارة العملاء المحتملين', 'support' => 'خدمة العملاء والتذاكر', 'contracts' => 'إدارة العقود', 'portal' => 'بوابة العملاء', 'bookings' => 'الحجوزات والمواعيد', 'work_orders' => 'أوامر العمل الميدانية', 'api' => 'الواجهة البرمجية API',
+        'zatca' => 'الربط مع فاتورة (المرحلة الثانية)', 'crm' => 'إدارة العملاء المحتملين', 'support' => 'خدمة العملاء والتذاكر', 'contracts' => 'إدارة العقود', 'portal' => 'بوابة العملاء', 'bookings' => 'الحجوزات والمواعيد', 'work_orders' => 'أوامر العمل الميدانية', 'clinic' => 'العيادات والمراكز الطبية', 'gym' => 'النوادي والمراكز الرياضية', 'workshop' => 'الورش وصيانة السيارات', 'real_estate' => 'العقارات وإدارة الأملاك', 'api' => 'الواجهة البرمجية API',
     ],
 
     // Modules a company may switch off itself (الإعدادات ← الوحدات): their menus, pages and search disappear, the data stays.
@@ -43,6 +47,10 @@ return [
         'portal' => 'بوابة العملاء (الفواتير والتذاكر والعقود والاشتراكات والمشاريع)',
         'bookings' => 'الحجوزات والمواعيد (الموارد والخدمات والتقويم وباقات الزيارات)',
         'work_orders' => 'أوامر العمل الميدانية (الفنيون والوقت والقطع والتوقيع والفوترة)',
+        'clinic' => 'العيادات (ملف المريض وسجل الزيارات)',
+        'gym' => 'النوادي الرياضية (تسجيل الحضور والتحقق من العضوية)',
+        'workshop' => 'الورش (بطاقة السيارة وتذكير الصيانة الدورية)',
+        'real_estate' => 'العقارات (الوحدات وعقود الإيجار وفوترة الإيجار)',
     ],
 
     // Days a lapsed subscription keeps working before the company becomes read-only.

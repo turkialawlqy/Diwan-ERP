@@ -3,12 +3,14 @@
 namespace App\Services\WorkOrders;
 
 use App\Models\Booking;
+use App\Models\CustomerVehicle;
 use App\Models\Employee;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Notifications\ErpAlert;
 use App\Services\Documents\DocumentNumberService;
+use App\Services\Sectors\WorkshopService;
 use App\Services\Support\SlaService;
 use App\Services\TenantManager;
 use Illuminate\Support\Carbon;
@@ -41,6 +43,8 @@ class WorkOrderService
             throw ValidationException::withMessages(['customer_id' => 'اختر العميل.']);
         }
 
+        $this->assertVehicle($data['vehicle_id'] ?? null, (int) $customerId);
+
         return DB::transaction(function () use ($data, $user, $ticket, $booking, $customerId) {
             $start = ! empty($data['scheduled_start']) ? Carbon::parse($data['scheduled_start']) : ($booking?->starts_at);
             $order = WorkOrder::create([
@@ -52,6 +56,9 @@ class WorkOrderService
                 'project_id' => $data['project_id'] ?? $ticket?->project_id,
                 'equipment_id' => $data['equipment_id'] ?? $ticket?->equipment_id,
                 'work_type_id' => $data['work_type_id'] ?? null,
+                'vehicle_id' => $data['vehicle_id'] ?? null,
+                'odometer_in' => $data['odometer_in'] ?? null,
+                'property_unit_id' => $data['property_unit_id'] ?? $ticket?->property_unit_id,
                 'title' => $data['title'] ?? $ticket?->subject ?? 'أمر عمل',
                 'description' => $data['description'] ?? $ticket?->description,
                 'site_address' => $data['site_address'] ?? null,
@@ -75,9 +82,10 @@ class WorkOrderService
     public function update(WorkOrder $order, array $data): WorkOrder
     {
         $this->assertOpen($order);
+        $this->assertVehicle($data['vehicle_id'] ?? $order->vehicle_id, (int) ($data['customer_id'] ?? $order->customer_id));
 
         return DB::transaction(function () use ($order, $data) {
-            $order->update(collect($data)->only(['customer_id', 'work_type_id', 'title', 'description', 'site_address', 'site_phone', 'priority', 'scheduled_start', 'scheduled_end', 'assigned_to', 'warehouse_id', 'equipment_id', 'project_id'])->all());
+            $order->update(collect($data)->only(['customer_id', 'work_type_id', 'vehicle_id', 'odometer_in', 'property_unit_id', 'title', 'description', 'site_address', 'site_phone', 'priority', 'scheduled_start', 'scheduled_end', 'assigned_to', 'warehouse_id', 'equipment_id', 'project_id'])->all());
             if (array_key_exists('crew', $data)) {
                 $this->syncCrew($order, $data['crew'] ?? []);
             }
@@ -134,6 +142,8 @@ class WorkOrderService
             if ($order->ticket_id && ($ticket = Ticket::find($order->ticket_id)) && $ticket->isActive()) {
                 $this->sla->setStatus($ticket, 'resolved');
             }
+
+            app(WorkshopService::class)->onCompleted($order->fresh());
 
             return $order;
         });
@@ -205,7 +215,7 @@ class WorkOrderService
     /** The reminder tick: a scheduled order whose start passed without anyone starting it; forgotten timers. */
     public function tick(): array
     {
-        $done = ['late' => 0, 'timers' => $this->time->closeStale($this->settings->all()['stale_timer_hours'])];
+        $done = ['late' => 0, 'timers' => $this->time->closeStale($this->settings->all()['stale_timer_hours']), 'service_reminders' => app(WorkshopService::class)->remind()];
         WorkOrder::with('customer:id,name')->whereIn('status', ['new', 'scheduled'])->whereNotNull('scheduled_start')->where('scheduled_start', '<', now()->subMinutes(30))->get()
             ->each(function (WorkOrder $o) use (&$done) {
                 $state = $o->reminder_state ?? [];
@@ -220,6 +230,14 @@ class WorkOrderService
             });
 
         return $done;
+    }
+
+    /** A vehicle must belong to the order's customer. */
+    protected function assertVehicle(?int $vehicleId, int $customerId): void
+    {
+        if ($vehicleId && ! CustomerVehicle::where('customer_id', $customerId)->whereKey($vehicleId)->exists()) {
+            throw ValidationException::withMessages(['vehicle_id' => 'هذه المركبة لا تخص عميل الأمر.']);
+        }
     }
 
     protected function syncCrew(WorkOrder $order, array $ids): void
