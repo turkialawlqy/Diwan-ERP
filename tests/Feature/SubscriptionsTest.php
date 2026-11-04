@@ -8,6 +8,7 @@ use App\Models\CustomerSubscription;
 use App\Models\Invoice;
 use App\Models\ServicePlan;
 use App\Services\Accounting\AccountingSetupService;
+use App\Services\Sales\InvoiceChanges;
 use App\Services\Sales\RecurringInvoiceRunner;
 use App\Services\Subscriptions\SubscriptionService;
 use App\Services\TenantManager;
@@ -162,6 +163,68 @@ class SubscriptionsTest extends TestCase
         app(RecurringInvoiceRunner::class)->runDue();
         $this->assertSame($basic->id, $sub->fresh()->service_plan_id);
         $this->assertEquals(345.0, (float) Invoice::orderByDesc('id')->first()->total);
+    }
+
+    public function test_the_upgrade_difference_is_listed_with_the_subscription_and_cannot_be_deleted(): void
+    {
+        $basic = $this->plan(['price' => 300]);
+        $pro = $this->plan(['name' => 'الباقة المتقدمة', 'price' => 600]);
+        $sub = $this->subscribe($basic);
+        Carbon::setTestNow('2026-06-30 10:00:00');
+        $this->service()->changePlan($sub->fresh(), $pro);
+        $diff = Invoice::orderByDesc('id')->first();
+
+        $this->assertSame($sub->id, $diff->customer_subscription_id);
+        $this->assertCount(2, $this->service()->invoices($sub->fresh()));
+        $this->assertNotNull(app(InvoiceChanges::class)->blocker($diff));
+        $this->assertNotNull(app(InvoiceChanges::class)->blocker(Invoice::orderBy('id')->first())); // a billed period
+    }
+
+    public function test_moving_to_a_plan_of_another_cycle_starts_its_period_today_less_the_unused_days(): void
+    {
+        $monthly = $this->plan(['price' => 300]);
+        $yearly = $this->plan(['name' => 'سنوي', 'price' => 3000, 'cycle' => 'yearly']); // 250 / month: more per month? no — cheaper
+        $premium = $this->plan(['name' => 'سنوي متقدم', 'price' => 4800, 'cycle' => 'yearly']); // 400 / month
+        $sub = $this->subscribe($monthly); // paid 15 Jun -> 15 Jul
+
+        // Cheaper per month → waits for the renewal (it is not an upgrade because it covers 12 months).
+        Carbon::setTestNow('2026-06-30 10:00:00');
+        $this->assertNull($this->service()->changePlan($sub->fresh(), $yearly));
+        $this->assertSame($yearly->id, $sub->fresh()->pending_plan_id);
+        $sub->update(['pending_plan_id' => null]);
+
+        // Dearer per month → the yearly period starts today, less 15 unused days of the month (150).
+        $invoice = $this->service()->changePlan($sub->fresh(), $premium);
+        $this->assertEquals(4650.0, (float) $invoice->subtotal);
+        $template = $sub->fresh()->recurring;
+        $this->assertSame('yearly', $template->frequency);
+        $this->assertSame('2027-06-30', $template->next_run_date->toDateString());
+        $this->assertCount(2, $this->service()->invoices($sub->fresh()));
+    }
+
+    public function test_resuming_after_the_renewal_date_starts_a_new_period_without_billing_twice(): void
+    {
+        $sub = $this->subscribe($this->plan()); // billed 15 Jun, renews 15 Jul
+        $this->service()->pause($sub->fresh());
+        Carbon::setTestNow('2026-08-03 09:00:00');
+        $this->service()->resume($sub->fresh());
+        app(RecurringInvoiceRunner::class)->runDue();
+        $this->assertSame(2, Invoice::count());   // one new period from 3 Aug
+        $this->assertSame('2026-09-03', $sub->fresh()->recurring->next_run_date->toDateString());
+
+        Carbon::setTestNow('2026-08-15 09:00:00'); // the old billing day must not bill again
+        app(RecurringInvoiceRunner::class)->runDue();
+        $this->assertSame(2, Invoice::count());
+    }
+
+    public function test_a_subscription_template_cannot_be_changed_from_the_recurring_invoices_screen(): void
+    {
+        $sub = $this->subscribe($this->plan());
+        $template = $sub->recurring;
+        $this->post(route('sales.recurring.toggle', $template->id))->assertSessionHasErrors('recurring');
+        $this->delete(route('sales.recurring.destroy', $template->id))->assertSessionHasErrors('recurring');
+        $this->assertSame('active', $template->fresh()->status);
+        $this->get(route('sales.recurring.index'))->assertInertia(fn ($p) => $p->where('templates.data.0.subscription_id', $sub->id));
     }
 
     public function test_an_unpaid_invoice_makes_it_past_due_and_paying_recovers_it(): void

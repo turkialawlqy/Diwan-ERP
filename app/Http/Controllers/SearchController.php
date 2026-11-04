@@ -74,12 +74,12 @@ class SearchController extends Controller
     }
 
     /** key => label, permission, query($like, $term), present($row) → title, code, subtitle, url */
-    /** Permission names share the route prefixes of their module (hr., projects. ...). */
+    /** The kind's module is off for the company, its plan or the working branch. */
     protected function moduleOff(string $permission): bool
     {
         $company = app(TenantManager::class)->getCompany();
 
-        return $company && app(PlanGuard::class)->unavailable($company, $permission);
+        return $company && app(PlanGuard::class)->permissionUnavailable($company, $permission);
     }
 
     protected function kinds(): array

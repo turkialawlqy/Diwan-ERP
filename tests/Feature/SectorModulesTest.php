@@ -20,6 +20,7 @@ use App\Models\WorkType;
 use App\Notifications\BookingMessage;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Bookings\PackageService;
+use App\Services\Sales\RecurringInvoiceRunner;
 use App\Services\Sectors\GymCheckinService;
 use App\Services\Sectors\LeaseService;
 use App\Services\Sectors\WorkshopService;
@@ -299,5 +300,30 @@ class SectorModulesTest extends TestCase
         } catch (ValidationException $e) {
             $this->assertArrayHasKey($key, $e->errors());
         }
+    }
+
+    public function test_rent_stops_at_the_lease_end_and_the_lease_ends_on_its_own(): void
+    {
+        $unit = $this->unit();
+        $lease = $this->lease($unit, ['start_date' => '2026-06-15', 'end_date' => '2026-09-14']); // 3 months
+        foreach (['2026-07-15', '2026-08-15', '2026-09-15', '2026-10-15', '2026-11-15'] as $day) {
+            Carbon::setTestNow($day.' 02:00:00');
+            app(RecurringInvoiceRunner::class)->runDue();
+        }
+        $this->assertCount(3, app(LeaseService::class)->invoices($lease)); // Jun, Jul, Aug — nothing after the end
+
+        Carbon::setTestNow('2026-09-15 01:00:00');
+        $this->artisan('erp:contracts')->assertSuccessful();
+        $this->assertSame('ended', $lease->fresh()->status);
+        $this->assertSame('vacant', $unit->fresh()->status);
+    }
+
+    public function test_a_rent_plan_the_user_switched_off_is_not_reused(): void
+    {
+        $first = $this->lease($this->unit('101'));
+        $plan = CustomerSubscription::findOrFail($first->subscription_id)->plan;
+        $plan->update(['is_active' => false]);
+        $second = $this->lease($this->unit('102'));
+        $this->assertNotSame($plan->id, CustomerSubscription::findOrFail($second->subscription_id)->service_plan_id);
     }
 }

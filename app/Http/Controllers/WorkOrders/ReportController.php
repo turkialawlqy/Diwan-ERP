@@ -22,6 +22,7 @@ class ReportController extends Controller
         $to = Carbon::parse($f['to'] ?? now());
 
         $rows = TimeEntry::with(['employee:id,name', 'workOrder:id,number,title'])->whereNotNull('ended_at')
+            ->whereHas('workOrder') // the orders of the branches the user works in
             ->whereDate('started_at', '>=', $from)->whereDate('started_at', '<=', $to)
             ->when($f['employee'] ?? null, fn ($q, $e) => $q->where('employee_id', $e))
             ->orderBy('started_at')->get();

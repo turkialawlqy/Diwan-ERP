@@ -23,6 +23,7 @@ class SettingsController extends Controller
             'max_advance_days' => 'required|integer|min:1|max:730',
             'auto_confirm' => 'nullable|boolean',
             'reminder_hours' => ['nullable', 'regex:/^\s*\d+(\s*,\s*\d+)*\s*$/'],
+            'deposit_on_cancel' => 'nullable|in:credit,forfeit',
         ], ['reminder_hours.regex' => 'اكتب ساعات التذكير أرقامًا تفصلها فاصلة مثل 24,2.']);
         $settings->save($data);
 

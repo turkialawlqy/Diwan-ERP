@@ -37,6 +37,8 @@ class InvoiceChanges
         'bookings' => 'حجز',
         'work_orders' => 'أمر عمل',
         'customer_packages' => 'باقة زيارات',
+        'recurring_invoice_runs' => 'فاتورة دورية / اشتراك (فترة مفوترة)',
+        'tickets' => 'تذكرة دعم',
     ];
 
     public function __construct(protected PostingService $posting, protected StockService $stock, protected InvoiceService $invoices) {}
@@ -46,6 +48,9 @@ class InvoiceChanges
     {
         if (TaxProfile::forBranch($invoice->branch_id ? (int) $invoice->branch_id : null)->einvoicing()) {
             return 'فواتير هذا الفرع خاضعة للفوترة الإلكترونية ولا تُعدَّل ولا تُحذف؛ صحّحها بإشعار دائن أو مدين.';
+        }
+        if ($invoice->customer_subscription_id) {
+            return 'الفاتورة صادرة من اشتراك عميل؛ صحّحها بإشعار دائن.';
         }
         if ($invoice->sales_order_id || $invoice->delivery_note_id) {
             return 'الفاتورة صادرة من أمر بيع أو إذن تسليم؛ صحّحها بإشعار دائن.';

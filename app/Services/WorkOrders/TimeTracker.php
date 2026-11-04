@@ -89,7 +89,9 @@ class TimeTracker
         if ($entry->isRunning()) {
             throw ValidationException::withMessages(['timer' => 'أوقف المؤقت أولًا.']);
         }
-        if ($entry->workOrder && ! $entry->workOrder->isOpen()) {
+        // Unscoped: an order the user cannot see is still closed (never «no order, so editable»).
+        $order = WorkOrder::withoutGlobalScopes()->find($entry->work_order_id);
+        if (! $order || ! $order->isOpen()) {
             throw ValidationException::withMessages(['status' => 'أمر العمل مغلق.']);
         }
         $entry->update(['minutes' => $minutes, 'billable' => $billable, 'ended_at' => $entry->started_at->copy()->addMinutes($minutes), 'labour_cost' => round($minutes / 60 * $this->costRate($entry->employee), 2)]);

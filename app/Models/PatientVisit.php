@@ -25,12 +25,4 @@ class PatientVisit extends Model
     {
         return $this->belongsTo(Employee::class, 'doctor_id');
     }
-
-    /** Belongs to the branch of its parent record. */
-    public function inheritedBranchId(): ?int
-    {
-        $id = PatientFile::withoutGlobalScopes()->whereKey($this->patient_file_id)->value('branch_id');
-
-        return $id ? (int) $id : null;
-    }
 }

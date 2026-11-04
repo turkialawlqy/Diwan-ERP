@@ -221,6 +221,9 @@ class WorkOrdersTest extends TestCase
         $this->assertEqualsWithDelta((float) JournalEntryLine::sum('debit'), (float) JournalEntryLine::sum('credit'), 0.001);
 
         $this->assertValidation(fn () => $billing->invoice($invoiced->fresh()), 'status'); // not twice
+        // A second click that read the order before the first finished (still «done» in memory) is refused under the lock.
+        $this->assertValidation(fn () => $billing->invoice($done), 'status');
+        $this->assertSame(1, Invoice::count());
     }
 
     public function test_an_order_with_nothing_billable_is_refused_and_a_cancelled_order_returns_its_parts(): void

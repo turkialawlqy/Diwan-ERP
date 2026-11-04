@@ -20,7 +20,7 @@ const form = useForm({
     customer_id: b?.customer_id || (pre.customer ? Number(pre.customer) : null),
     bookable_service_id: b?.bookable_service_id || (pre.service ? Number(pre.service) : ''),
     booking_resource_id: b?.booking_resource_id || (pre.resource ? Number(pre.resource) : ''),
-    date: preDate, time: preTime, deposit_amount: b ? Number(b.deposit_amount) : 0, notes: b?.notes || '', starts_at: '',
+    date: preDate, time: preTime, deposit_amount: b ? Number(b.deposit_amount) : 0, deposit_method: 'cash', notes: b?.notes || '', starts_at: '',
 });
 useUnsavedGuard(form);
 
@@ -61,7 +61,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
                 <SlotPicker v-model="form.time" :url="route('bookings.slots')" :service="form.bookable_service_id" :resource="form.booking_resource_id" :date="form.date" :ignore="b?.id" @picked="onPicked" />
                 <p v-if="form.time && resourceName" class="text-3xs text-slate-500 mt-1">المورد: {{ resourceName }}</p>
             </Field>
-            <Field v-if="!b" label="العربون المستلم" :error="form.errors.deposit_amount" hint="يُخصم من الفاتورة عند الإنجاز"><input v-model.number="form.deposit_amount" type="text" inputmode="decimal" data-num :class="input" data-deposit /></Field>
+            <Field v-if="!b" label="العربون المستلم" :error="form.errors.deposit_amount" hint="يُسجَّل سند قبض باسم العميل الآن، ويُخصم من الفاتورة عند الإنجاز"><div class="flex gap-2"><input v-model.number="form.deposit_amount" type="text" inputmode="decimal" data-num :class="input" data-deposit /><select v-if="Number(form.deposit_amount) > 0" v-model="form.deposit_method" :class="input" class="w-32" data-deposit-method><option value="cash">نقدًا</option><option value="card">بطاقة</option><option value="bank_transfer">تحويل</option></select></div></Field>
             <Field label="ملاحظات" :error="form.errors.notes" class="md:col-span-2"><textarea v-model="form.notes" rows="2" :class="input"></textarea></Field>
             <p v-if="service" class="md:col-span-2 text-slate-500">السعر: <span class="font-mono font-bold">{{ money(service.price) }}</span> — يُحتسب خصم العضوية تلقائيًا، وتُخصم زيارة من باقة العميل إن وُجدت.</p>
             <div class="md:col-span-2 flex gap-2 pt-2 border-t border-slate-100">

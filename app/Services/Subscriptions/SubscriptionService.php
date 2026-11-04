@@ -62,6 +62,8 @@ class SubscriptionService
                 'lines' => [$this->line($plan, $quantity, $price, (float) $plan->tax_rate) + (! empty($data['line_description']) ? ['description' => $data['line_description']] : [])],
                 'frequency' => $plan->cycle, 'interval' => max(1, (int) $plan->interval),
                 'start_date' => $billFrom->toDateString(), 'next_run_date' => $billFrom->toDateString(),
+                // A fixed term (a lease): no period starts on or after the last day.
+                'end_date' => ! empty($data['end_date']) ? Carbon::parse($data['end_date'])->subDay()->toDateString() : null,
                 'invoice_type' => 'standard', 'auto_send' => (bool) ($data['auto_send'] ?? false),
                 'status' => 'active', 'created_by' => auth()->id(),
             ]);
@@ -99,9 +101,15 @@ class SubscriptionService
         if ($subscription->status !== 'paused') {
             throw ValidationException::withMessages(['status' => 'الاشتراك غير موقوف.']);
         }
-        // The paused time is not billed: the next invoice is not earlier than today.
+        // The paused time is not billed. Resumed before the paid period ran out: nothing changes. Resumed after it:
+        // a new period starts today and the billing day moves to today (else the old day of the month would bill
+        // a few days later as if a whole period had passed).
         $template = $subscription->recurring;
-        $template?->update(['status' => 'active', 'next_run_date' => max($template->next_run_date, today())->toDateString()]);
+        if ($template && $template->next_run_date->lt(today())) {
+            $template->update(['status' => 'active', 'start_date' => today()->toDateString(), 'next_run_date' => today()->toDateString()]);
+        } else {
+            $template?->update(['status' => 'active']);
+        }
         $subscription->update(['status' => $this->hasPendingTrial($subscription) ? 'trial' : 'active']);
     }
 
@@ -141,42 +149,85 @@ class SubscriptionService
         }
 
         $newPrice = (float) $plan->price;
-        $downgrade = $newPrice * (float) $subscription->quantity < (float) $subscription->unit_price * (float) $subscription->quantity - 0.005;
+        $template = $subscription->recurring;
+        $oldMonths = $template ? $this->months($template) : $subscription->plan->months();
+        // Compared per month, so a yearly plan is not «more expensive» than a monthly one just for covering 12 months.
+        $downgrade = $newPrice / $plan->months() < (float) $subscription->unit_price / $oldMonths - 0.005;
         if ($when === 'renewal' || $downgrade) {
             $subscription->update(['pending_plan_id' => $plan->id]);
 
             return null;
         }
 
-        return DB::transaction(function () use ($subscription, $plan, $newPrice) {
+        return DB::transaction(function () use ($subscription, $plan, $newPrice, $template, $oldMonths) {
             $invoice = null;
-            $template = $subscription->recurring;
+            $paid = $template && $template->generated_count > 0 && $subscription->status !== 'trial';
 
-            // Something is already paid for the current period: bill the difference for what is left of it.
-            if ($template && $template->generated_count > 0) {
-                $periodEnd = $template->next_run_date->copy();
-                $periodStart = $periodEnd->copy()->subMonthsNoOverflow($this->months($template));
-                $days = max(1, $periodStart->diffInDays($periodEnd));
-                $left = max(0, min($days, today()->diffInDays($periodEnd, false)));
-                $oldDaily = (float) $subscription->unit_price / $days;
-                $newDaily = $newPrice / $days;
-                $amount = round(($newDaily - $oldDaily) * $left * (float) $subscription->quantity, 2);
-
+            if ($paid && $plan->months() === $oldMonths) {
+                // Same cycle: bill the difference for what is left of the paid period; the renewal date stays.
+                [$days, $left] = $this->leftOfPeriod($template, $oldMonths);
+                $amount = round(($newPrice - (float) $subscription->unit_price) / $days * $left * (float) $subscription->quantity, 2);
                 if ($amount > 0.004) {
-                    $invoice = $this->invoices->create([
-                        'customer_id' => $subscription->customer_id, 'branch_id' => $subscription->branch_id,
-                        'invoice_date' => today()->toDateString(), 'supply_date' => today()->toDateString(), 'due_date' => today()->toDateString(),
-                        'invoice_type' => 'standard', 'payment_method' => 'credit', 'payment_status' => 'unpaid',
-                        'notes' => 'فرق ترقية الخطة من «'.$subscription->plan->name.'» إلى «'.$plan->name.'» عن '.$left.' يوم — '.$subscription->number,
-                    ], [['product_id' => $plan->product_id, 'item_name' => 'فرق ترقية الخطة: '.$plan->name, 'quantity' => 1, 'unit_price' => $amount, 'discount' => 0, 'tax_rate' => (float) $plan->tax_rate]],
-                        ['issue_stock' => false, 'check_credit' => false]);
+                    $invoice = $this->bill($subscription, $plan, [['product_id' => $plan->product_id, 'item_name' => 'فرق ترقية الخطة: '.$plan->name, 'quantity' => 1, 'unit_price' => $amount, 'discount' => 0, 'tax_rate' => (float) $plan->tax_rate]],
+                        'فرق ترقية الخطة من «'.$subscription->plan->name.'» إلى «'.$plan->name.'» عن '.$left.' يوم — '.$subscription->number);
                 }
+                $this->applyPlan($subscription, $plan, $newPrice);
+
+                return $invoice;
+            }
+
+            if ($paid) {
+                // Another cycle: the new plan's first period starts today, less what is left unused of the paid one.
+                [$days, $left] = $this->leftOfPeriod($template, $oldMonths);
+                $credit = round((float) $subscription->unit_price / $days * $left * (float) $subscription->quantity, 2);
+                $gross = round($newPrice * (float) $subscription->quantity, 2);
+                $this->applyPlan($subscription, $plan, $newPrice);
+                $invoice = $this->bill($subscription, $plan, [['product_id' => $plan->product_id, 'item_name' => $plan->name, 'quantity' => (float) $subscription->quantity, 'unit_price' => $newPrice,
+                    'discount' => min($gross, $credit), 'tax_rate' => (float) $plan->tax_rate]],
+                    'بداية الخطة «'.$plan->name.'» مع خصم رصيد '.$left.' يوم غير مستخدمة من الخطة السابقة — '.$subscription->number, today());
+                $template->refresh();
+                $template->start_date = today(); // the billing day moves to today first, then the next date follows it
+                $template->next_run_date = $template->nextAfter(today());
+                $template->generated_count = $template->generated_count + 1;
+                $template->save();
+
+                return $invoice;
             }
 
             $this->applyPlan($subscription, $plan, $newPrice);
 
-            return $invoice;
+            return null;
         });
+    }
+
+    /** [days in the current paid period, days of it still ahead]. */
+    protected function leftOfPeriod(RecurringInvoice $template, int $months): array
+    {
+        $periodEnd = $template->next_run_date->copy();
+        $periodStart = $periodEnd->copy()->subMonthsNoOverflow($months);
+        $days = max(1, $periodStart->diffInDays($periodEnd));
+
+        return [$days, (int) max(0, min($days, today()->diffInDays($periodEnd, false)))];
+    }
+
+    /**
+     * An invoice the subscription issues outside the regular run (upgrade). With $period it is the
+     * first invoice of a new period and is recorded as that period's run, so it lists with the rest.
+     */
+    protected function bill(CustomerSubscription $subscription, ServicePlan $plan, array $lines, string $notes, ?Carbon $period = null): Invoice
+    {
+        $invoice = $this->invoices->create([
+            'customer_id' => $subscription->customer_id, 'branch_id' => $subscription->branch_id,
+            'invoice_date' => today()->toDateString(), 'supply_date' => today()->toDateString(), 'due_date' => today()->toDateString(),
+            'invoice_type' => 'standard', 'payment_method' => 'credit', 'payment_status' => 'unpaid', 'notes' => $notes,
+        ], $lines, ['issue_stock' => false, 'check_credit' => false]);
+        // Linked to the subscription like its regular invoices (shown on its page and in the portal, counted for «متعثر»).
+        $invoice->forceFill(['customer_subscription_id' => $subscription->id])->save();
+        if ($period && ! RecurringInvoiceRun::where('recurring_invoice_id', $subscription->recurring_invoice_id)->whereDate('period_date', $period)->exists()) {
+            RecurringInvoiceRun::create(['recurring_invoice_id' => $subscription->recurring_invoice_id, 'period_date' => $period->toDateString(), 'invoice_id' => $invoice->id]);
+        }
+
+        return $invoice;
     }
 
     /** Apply a plan change that was waiting for the renewal. */
@@ -202,7 +253,7 @@ class SubscriptionService
     {
         $ids = RecurringInvoiceRun::where('recurring_invoice_id', $subscription->recurring_invoice_id)->whereNotNull('invoice_id')->pluck('invoice_id');
 
-        return Invoice::whereIn('id', $ids)->latest('invoice_date')->get(['id', 'invoice_number', 'invoice_date', 'due_date', 'total', 'paid_amount', 'remaining_amount', 'payment_status']);
+        return Invoice::where(fn ($q) => $q->whereIn('id', $ids)->orWhere('customer_subscription_id', $subscription->id))->latest('invoice_date')->latest('id')->get(['id', 'invoice_number', 'invoice_date', 'due_date', 'total', 'paid_amount', 'remaining_amount', 'payment_status']);
     }
 
     /** Monthly recurring revenue (net of tax) of the live subscriptions. */

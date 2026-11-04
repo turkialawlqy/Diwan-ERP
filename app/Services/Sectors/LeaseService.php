@@ -11,6 +11,7 @@ use App\Services\Contracts\ContractService;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Subscriptions\SubscriptionService;
 use App\Services\Tax\TaxProfile;
+use App\Support\BranchScopeSwitch;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -44,13 +45,14 @@ class LeaseService
             }
 
             $cycle = $data['cycle'];
-            $plan = ServicePlan::firstOrCreate(['name' => self::PLAN_NAMES[$cycle]], ['code' => $this->numbers->next('service_plan'), 'price' => 0, 'tax_rate' => TaxProfile::rate(), 'cycle' => $cycle, 'interval' => 1, 'trial_days' => 0, 'is_active' => true]);
-            $months = max(1, $start->diffInMonths($end->copy()->addDay()));
+            $plan = $this->rentPlan($cycle);
+            $months = max(1, (int) round($start->diffInMonths($end->copy()->addDay())));
             $template = ! empty($data['template_id']) ? ContractTemplate::find($data['template_id']) : null;
 
             $subscription = $this->subscriptions->start([
                 'customer_id' => $data['customer_id'], 'service_plan_id' => $plan->id, 'quantity' => 1, 'unit_price' => $data['rent_amount'], 'start_date' => $start->toDateString(),
                 'line_description' => 'إيجار '.$unit->label(), 'notes' => 'عقد إيجار — '.$unit->label(),
+                'end_date' => $end->copy()->addDay()->toDateString(), 'branch_id' => $unit->branch_id, // billing stops at the lease end; endExpired() closes it
             ]);
 
             $contract = $this->contracts->create([
@@ -90,6 +92,35 @@ class LeaseService
 
             return $lease;
         });
+    }
+
+    /**
+     * The rent plan of a cycle: one shared plan the system owns (no trial, active, price set per lease).
+     * A plan the user renamed, switched off or gave a trial is never reused.
+     */
+    protected function rentPlan(string $cycle): ServicePlan
+    {
+        return BranchScopeSwitch::off(function () use ($cycle) {
+            $plan = ServicePlan::where('name', self::PLAN_NAMES[$cycle])->where('cycle', $cycle)->where('interval', 1)
+                ->where('is_active', true)->where('trial_days', 0)->whereNull('branch_id')->first();
+
+            return $plan ?? ServicePlan::create(['name' => self::PLAN_NAMES[$cycle], 'code' => $this->numbers->next('service_plan'), 'price' => 0, 'tax_rate' => TaxProfile::rate(),
+                'cycle' => $cycle, 'interval' => 1, 'trial_days' => 0, 'is_active' => true, 'branch_id' => null]);
+        });
+    }
+
+    /** Nightly: leases past their end date end on their own (billing already stopped at the end date). */
+    public function endExpired(): int
+    {
+        $n = 0;
+        Lease::where('status', 'active')->whereDate('end_date', '<', today())->orderBy('id')->chunkById(200, function ($leases) use (&$n) {
+            foreach ($leases as $lease) {
+                $this->end($lease, 'انتهاء مدة عقد الإيجار');
+                $n++;
+            }
+        });
+
+        return $n;
     }
 
     /** Invoices issued so far for the lease. */

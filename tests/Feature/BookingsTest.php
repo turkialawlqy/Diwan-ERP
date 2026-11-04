@@ -2,18 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Models\Account;
 use App\Models\BookableService;
 use App\Models\Booking;
 use App\Models\BookingResource;
+use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Customer;
+use App\Models\CustomerPayment;
 use App\Models\Invoice;
+use App\Models\JournalEntryLine;
 use App\Models\PublicHoliday;
 use App\Models\ServicePlan;
 use App\Models\User;
 use App\Models\VisitPackage;
 use App\Notifications\BookingMessage;
 use App\Services\Accounting\AccountingSetupService;
+use App\Services\Accounting\AccountMap;
 use App\Services\Bookings\AvailabilityService;
 use App\Services\Bookings\BookingReminders;
 use App\Services\Bookings\BookingService;
@@ -312,5 +317,52 @@ class BookingsTest extends TestCase
 
         $this->book('2026-06-16 10:00');
         $this->delete(route('bookings.resources.destroy', $this->resource->id))->assertSessionHasErrors('resource');
+    }
+
+    public function test_a_deposit_is_a_receipt_that_settles_the_invoice_when_done(): void
+    {
+        $booking = $this->book('2026-06-16 10:00', ['deposit_amount' => 40, 'deposit_method' => 'bank_transfer']);
+        $payment = CustomerPayment::findOrFail($booking->fresh()->deposit_payment_id);
+        $this->assertEquals(40.0, (float) $payment->amount);
+        $this->assertSame('bank_transfer', $payment->payment_method);
+        $this->assertSame('held', $booking->fresh()->deposit_status);
+        $this->assertEquals(-40.0, (float) $this->customer->fresh()->current_balance); // in credit from today
+
+        $done = app(BookingService::class)->complete($booking->fresh());
+        $invoice = Invoice::findOrFail($done->invoice_id);
+        $this->assertEquals(115.0, (float) $invoice->total);
+        $this->assertEquals(75.0, (float) $invoice->remaining_amount);   // the deposit settled 40 of it
+        $this->assertSame('applied', $done->fresh()->deposit_status);
+        $this->assertEquals(75.0, (float) $this->customer->fresh()->current_balance);
+        $this->assertEqualsWithDelta((float) JournalEntryLine::sum('debit'), (float) JournalEntryLine::sum('credit'), 0.001);
+    }
+
+    public function test_a_cancelled_booking_keeps_the_deposit_as_credit_or_forfeits_it(): void
+    {
+        $kept = $this->book('2026-06-16 10:00', ['deposit_amount' => 30]);
+        app(BookingService::class)->cancel($kept->fresh(), 'ظرف');
+        $this->assertSame('credited', $kept->fresh()->deposit_status);
+        $this->assertEquals(-30.0, (float) $this->customer->fresh()->current_balance);
+
+        $this->company->setSetting('bookings_deposit_on_cancel', 'forfeit', 'bookings', 'string');
+        $lost = $this->book('2026-06-16 13:00', ['deposit_amount' => 20]);
+        app(BookingService::class)->noShow($lost->fresh());
+        $this->assertSame('forfeited', $lost->fresh()->deposit_status);
+        $this->assertEquals(-30.0, (float) $this->customer->fresh()->current_balance); // the forfeited 20 is income now
+        $other = Account::find(app(AccountMap::class)->id('other_revenue'));
+        $this->assertEquals(20.0, abs(round((float) $other->balance, 2)));
+    }
+
+    public function test_a_shared_resource_is_one_calendar_for_every_branch(): void
+    {
+        $a = Branch::create(['name_ar' => 'أ', 'code' => 'A', 'is_main' => true, 'is_active' => true]);
+        $b = Branch::create(['name_ar' => 'ب', 'code' => 'B', 'is_active' => true]);
+        $this->post(route('context.branch'), ['branch_id' => $a->id]);
+        $this->book('2026-06-16 10:00'); // the resource has no branch: shared
+        $this->post(route('context.branch'), ['branch_id' => $b->id]);
+
+        $this->assertNotContains('10:00', $this->times());
+        $this->expectException(ValidationException::class);
+        $this->book('2026-06-16 10:00');
     }
 }

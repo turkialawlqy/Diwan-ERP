@@ -203,8 +203,17 @@ class WorkOrderController extends Controller
         return back()->with('success', 'أُضيفت الساعات');
     }
 
+    /** A time entry is reached only through an order the user may see (other branches' answer 404). */
+    protected function visible(TimeEntry $entry): TimeEntry
+    {
+        abort_unless($entry->work_order_id && WorkOrder::whereKey($entry->work_order_id)->exists(), 404);
+
+        return $entry;
+    }
+
     public function updateTime(Request $request, TimeEntry $entry)
     {
+        $this->visible($entry);
         $data = $request->validate(['minutes' => 'required|integer|min:0|max:1440', 'billable' => 'nullable|boolean']);
         $this->time->edit($entry, (int) $data['minutes'], $request->boolean('billable', true));
 
@@ -213,6 +222,7 @@ class WorkOrderController extends Controller
 
     public function stopTime(TimeEntry $entry)
     {
+        $this->visible($entry);
         $this->time->stop($entry);
 
         return back()->with('success', 'أُوقف المؤقت');
