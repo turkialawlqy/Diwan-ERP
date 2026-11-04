@@ -298,4 +298,10 @@ class ContractsTest extends TestCase
         $this->get(route('contracts.index'))->assertForbidden();
         $this->post(route('contracts.submit', $c->id))->assertForbidden();
     }
+
+    public function test_the_contract_prints_as_a_text_document(): void
+    {
+        $c = $this->make(['body' => "البند الأول\nالبند الثاني"]);
+        $this->get(route('documents.pdf', ['type' => 'contract', 'id' => $c->id]))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+    }
 }

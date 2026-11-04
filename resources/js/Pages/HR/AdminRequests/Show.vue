@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { computed, reactive, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -31,6 +32,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
         <Head :title="`طلب إداري ${r.number}`" />
         <PageHeader :title="`${r.number} — ${r.title}`" :crumbs="[{ label: 'الطلبات الإدارية', href: canView ? route('hr.admin-requests.index') : route('hr.admin-requests.inbox') }, { label: r.number }]">
             <template #actions>
+                <ShareDocument v-if="$can('hr.admin_requests.view')" type="admin_request" :id="r.id" />
                 <button v-if="r.status === 'draft' && $can('hr.admin_requests.create')" @click="send" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold" data-send><PaperAirplaneIcon class="w-4 h-4" /> إرسال الطلب</button>
                 <Link v-if="r.status === 'draft' && $can('hr.admin_requests.edit')" :href="route('hr.admin-requests.edit', r.id)" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">تعديل</Link>
             </template>

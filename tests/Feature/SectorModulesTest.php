@@ -350,4 +350,11 @@ class SectorModulesTest extends TestCase
         $this->lease($this->unit('102'));
         $this->assertEquals(450.0, (float) Invoice::latest('id')->firstOrFail()->tax_amount); // 3000 × 15 %
     }
+
+    public function test_the_lease_prints_as_a_text_document(): void
+    {
+        $lease = $this->lease($this->unit());
+        $res = $this->get(route('documents.pdf', ['type' => 'lease', 'id' => $lease->id]))->assertOk();
+        $this->assertSame('application/pdf', $res->headers->get('Content-Type'));
+    }
 }

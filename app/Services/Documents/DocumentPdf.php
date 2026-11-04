@@ -2,11 +2,16 @@
 
 namespace App\Services\Documents;
 
+use App\Models\AdminRequest;
+use App\Models\AdminRequestLine;
 use App\Models\Company;
+use App\Models\Contract;
+use App\Models\ContractObligation;
 use App\Models\CreditNote;
 use App\Models\Currency;
 use App\Models\Customer;
 use App\Models\Invoice;
+use App\Models\Lease;
 use App\Models\PrintTemplate;
 use App\Models\ProgressBilling;
 use App\Models\Quotation;
@@ -34,6 +39,13 @@ class DocumentPdf
     /** @return array{content: string, filename: string} */
     public function make(Model $document, ?int $templateId = null): array
     {
+        // Contracts, leases and summons are text documents (no item table): their own layout, no designer kind.
+        if ($text = $this->textDocument($document)) {
+            $data = $text + $this->common($document->company_id);
+
+            return ['content' => $this->renderer->render('pdf.text-document', $data, [], $data['title'].' '.$data['number']), 'filename' => $this->filename($data['number'])];
+        }
+
         // Free-form designs (and kinds that only print free-form) take over.
         $freeform = app(FreeformTemplates::class);
         if ($layout = $freeform->resolve($document, $templateId)) {
@@ -201,6 +213,54 @@ class DocumentPdf
             'notes' => $billing->notes,
             'terms' => null,
         ];
+    }
+
+    /** Contract / lease / administrative request as a text document, or null for the other types. */
+    protected function textDocument(Model $document): ?array
+    {
+        $date = fn ($d) => $d ? Carbon::parse($d)->format('Y-m-d') : null;
+
+        if ($document instanceof Contract) {
+            $document->loadMissing(['customer', 'supplier', 'obligations']);
+
+            return [
+                'title' => 'عقد', 'title_en' => 'Contract', 'number' => $document->number,
+                'meta' => array_filter(['رقم العقد' => $document->number, 'العنوان' => $document->title, 'الطرف الثاني' => $document->partyName(), 'النوع' => Contract::KINDS[$document->kind] ?? $document->kind,
+                    'البداية' => $date($document->start_date), 'النهاية' => $date($document->end_date), 'القيمة' => $document->value ? number_format((float) $document->value, 2) : null,
+                    'شروط الدفع' => $document->payment_terms, 'الحالة' => Contract::STATUSES[$document->status] ?? $document->status]),
+                'body' => $document->body,
+                'columns' => ['الالتزام', 'النوع', 'الاستحقاق', 'المبلغ'],
+                'rows' => $document->obligations->map(fn ($o) => [$o->title, ContractObligation::KINDS[$o->kind] ?? $o->kind, $date($o->due_date), $o->amount ? number_format((float) $o->amount, 2) : ''])->all(),
+                'signatures' => ['الطرف الأول', 'الطرف الثاني'],
+            ];
+        }
+        if ($document instanceof Lease) {
+            $document->loadMissing(['customer', 'unit.property', 'contract']);
+
+            return [
+                'title' => 'عقد إيجار', 'title_en' => 'Lease Agreement', 'number' => $document->number,
+                'meta' => array_filter(['رقم العقد' => $document->number, 'المستأجر' => $document->customer?->name, 'العقار' => $document->unit?->property?->name, 'الوحدة' => $document->unit?->unit_number,
+                    'البداية' => $date($document->start_date), 'النهاية' => $date($document->end_date), 'الإيجار' => number_format((float) $document->rent_amount, 2).' / '.(Lease::CYCLES[$document->cycle] ?? $document->cycle),
+                    'مبلغ التأمين' => $document->security_deposit ? number_format((float) $document->security_deposit, 2) : null, 'الضريبة' => $document->residential ? 'معفى (إيجار سكني)' : 'خاضع للقيمة المضافة']),
+                'body' => $document->contract?->body,
+                'signatures' => ['المؤجّر', 'المستأجر'],
+            ];
+        }
+        if ($document instanceof AdminRequest) {
+            $document->loadMissing(['lines.employee', 'lines.department', 'requester:id,name']);
+
+            return [
+                'title' => 'طلب إداري — استدعاء', 'title_en' => 'Administrative Request', 'number' => $document->number,
+                'meta' => array_filter(['رقم الطلب' => $document->number, 'الموضوع' => $document->title, 'الموعد' => $document->attend_at?->format('Y-m-d H:i'), 'المكان' => $document->location,
+                    'مقدّم الطلب' => $document->requester?->name, 'الحالة' => AdminRequest::STATUSES[$document->status] ?? $document->status]),
+                'body' => $document->body,
+                'columns' => ['الموظف', 'الرقم الوظيفي', 'الإدارة', 'الحالة'],
+                'rows' => $document->lines->map(fn ($l) => [$l->employee?->name, $l->employee?->employee_number, $l->department?->name, AdminRequestLine::STATUSES[$l->status] ?? $l->status])->all(),
+                'signatures' => ['مقدّم الطلب', 'الاعتماد'],
+            ];
+        }
+
+        return null;
     }
 
     /** Adds the Hijri date after the document's first date (company setting, on by default). */

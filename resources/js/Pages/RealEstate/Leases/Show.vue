@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -18,6 +19,7 @@ const d = (v) => (v ? String(v).slice(0, 10) : '—');
         <Head :title="`عقد ${lease.number}`" />
         <PageHeader :title="`${lease.number} — ${lease.unit_label}`" :crumbs="[{ label: 'العقارات', href: route('real-estate.properties.index') }, { label: 'عقود الإيجار', href: route('real-estate.leases.index') }, { label: lease.number }]">
             <template #actions>
+                <ShareDocument v-if="$can('real_estate.leases.view')" type="lease" :id="lease.id" />
                 <Link v-if="$can('work_orders.orders.create')" :href="route('work-orders.create', { customer: lease.customer_id, unit: lease.property_unit_id })" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">طلب صيانة</Link>
                 <button v-if="lease.status === 'active' && $can('real_estate.leases.edit')" type="button" class="px-4 py-2 rounded-xl border border-rose-200 text-rose-700 text-xs font-bold" @click="ending = true" data-end-lease>إنهاء العقد</button>
             </template>

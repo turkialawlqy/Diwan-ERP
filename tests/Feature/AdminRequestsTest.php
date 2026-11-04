@@ -268,4 +268,11 @@ class AdminRequestsTest extends TestCase
         Notification::assertNotSentTo($this->salesManager, ErpAlert::class);
         Notification::assertSentTo($this->owner, ErpAlert::class);
     }
+
+    public function test_the_summons_prints_as_a_pdf(): void
+    {
+        $request = $this->sent();
+        $this->get(route('documents.pdf', ['type' => 'admin_request', 'id' => $request->id]))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->actingAs($this->salesManager)->get(route('documents.pdf', ['type' => 'admin_request', 'id' => $request->id]))->assertForbidden(); // only those who may view all requests
+    }
 }

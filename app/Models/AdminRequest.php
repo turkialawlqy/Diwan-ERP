@@ -30,4 +30,10 @@ class AdminRequest extends Model
     {
         return $this->belongsTo(User::class, 'requested_by');
     }
+
+    /** A summons carries no amount (the share message asks for one). */
+    public function getPrintTotalAttribute(): float
+    {
+        return 0.0;
+    }
 }
