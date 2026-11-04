@@ -29,7 +29,10 @@ class ContractTemplateController extends Controller
 
     public function store(Request $request)
     {
-        ContractTemplate::create($this->validated($request));
+        $template = ContractTemplate::create($this->validated($request));
+        if ($json = $this->createdResponse($request, $template, $template->name)) {
+            return $json;
+        }
 
         return redirect()->route('contracts.templates.index')->with('success', 'تمت إضافة النموذج');
     }

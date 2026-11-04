@@ -3,6 +3,7 @@
 namespace App\Services\Documents;
 
 use App\Jobs\SendDocumentEmail;
+use App\Models\Booking;
 use App\Models\Company;
 use App\Models\CreditNote;
 use App\Models\Customer;
@@ -19,6 +20,7 @@ use App\Models\Quotation;
 use App\Models\Revenue;
 use App\Models\SalesOrder;
 use App\Models\SupplierPayment;
+use App\Models\WorkOrder;
 use App\Support\CurrencyNames;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\URL;
@@ -44,6 +46,8 @@ class DocumentSharing
         'journal' => ['model' => JournalEntry::class, 'permission' => 'accounting.journals.view', 'label' => 'القيد', 'number' => 'entry_number', 'total' => 'total_debit'],
         'purchase_invoice' => ['model' => PurchaseInvoice::class, 'permission' => 'purchases.invoices.print', 'label' => 'فاتورة المشتريات', 'number' => 'invoice_number', 'total' => 'total'],
         'purchase_order' => ['model' => PurchaseOrder::class, 'permission' => 'purchases.orders.print', 'label' => 'أمر الشراء', 'number' => 'order_number', 'total' => 'total'],
+        'work_order' => ['model' => WorkOrder::class, 'permission' => 'work_orders.orders.view', 'label' => 'بطاقة أمر العمل', 'number' => 'number', 'total' => 'print_total'],
+        'booking' => ['model' => Booking::class, 'permission' => 'bookings.bookings.view', 'label' => 'تأكيد الحجز', 'number' => 'number', 'total' => 'price'],
         'statement' => ['model' => Customer::class, 'permission' => 'sales.clients.view', 'label' => 'كشف الحساب', 'number' => 'code', 'total' => 'current_balance'],
     ];
 

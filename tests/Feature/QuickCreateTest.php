@@ -79,9 +79,9 @@ class QuickCreateTest extends TestCase
     /** New dropdowns on the master-data lists must use SelectCreate (or be a documented filter). */
     public function test_master_data_dropdowns_use_select_create(): void
     {
-        $lists = ['warehouses', 'branchWarehouses', 'bankAccounts', 'boxes', 'accounts', 'expenseAccounts', 'revenueAccounts', 'chartAccounts', 'costCenters', 'categories', 'categoriesList', 'units', 'unitsList', 'employees', 'departments', 'positions', 'shifts', 'workCenters', 'suppliers', 'products', 'customers', 'parentAccounts'];
+        $lists = ['warehouses', 'branchWarehouses', 'bankAccounts', 'boxes', 'accounts', 'expenseAccounts', 'revenueAccounts', 'chartAccounts', 'costCenters', 'categories', 'categoriesList', 'units', 'unitsList', 'employees', 'departments', 'positions', 'shifts', 'workCenters', 'suppliers', 'products', 'customers', 'parentAccounts', 'technicians', 'doctors', 'rentalUnits', 'plans', 'templates', 'usable', 'servicePlans', 'resources', 'services', 'properties'];
         // Report filters and fixed lists are not creation points (the portal customer only picks a category, staff own them; the timesheet's technician is a report filter).
-        $allowed = ['Reports/', 'Accounting/Mappings', 'TrialBalance', 'Ledger/Index', 'IncomeStatement', 'POS/Terminal', 'VatFields', 'Equipment/Index', 'Products/Index', 'Reconciliations', 'EquipmentForm', 'Inventory/Reports', 'Portal/TicketForm', 'WorkOrders/Timesheet', 'HR/AdminRequests/Index'];
+        $allowed = ['Reports/', 'Accounting/Mappings', 'TrialBalance', 'Ledger/Index', 'IncomeStatement', 'POS/Terminal', 'VatFields', 'Equipment/Index', 'Products/Index', 'Reconciliations', 'EquipmentForm', 'Inventory/Reports', 'Portal/TicketForm', 'WorkOrders/Timesheet', 'HR/AdminRequests/Index', 'WorkOrders/Index', 'Sales/Subscriptions/Index', 'Bookings/Index', 'Templates/Designer', 'SuperAdmin/', 'Quality/Inspections'];
 
         $offenders = [];
         $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(resource_path('js')));

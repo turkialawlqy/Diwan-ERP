@@ -1,4 +1,5 @@
 <script setup>
+import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import { computed, ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -82,7 +83,7 @@ const btn = 'px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold te
         <Dialog :show="planDialog" title="تغيير خطة الاشتراك" @close="planDialog = false">
             <div class="space-y-3 text-xs">
                 <Field label="الخطة الجديدة" :error="planForm.errors.service_plan_id">
-                    <select v-model="planForm.service_plan_id" class="w-full rounded-xl border-slate-200 text-xs" data-new-plan-select><option value="">اختر...</option><option v-for="p in plans" :key="p.id" :value="p.id">{{ p.name }} — {{ money(p.price) }} / {{ cycles[p.cycle] }}</option></select>
+                    <SelectCreate v-model="planForm.service_plan_id" :options="plans" entity="service_plan" :label="(p) => `${p.name} — ${money(p.price)} / ${cycles[p.cycle] || ''}`" placeholder="اختر..." data-new-plan-select />
                 </Field>
                 <Field label="متى يسري" hint="الترقية الفورية تُصدر فاتورة بفرق السعر عن المدة المتبقية. التخفيض يسري عند التجديد دائمًا.">
                     <select v-model="planForm.when" class="w-full rounded-xl border-slate-200 text-xs"><option value="now">فورًا (مع فاتورة فرق الترقية)</option><option value="renewal">عند التجديد القادم</option></select>

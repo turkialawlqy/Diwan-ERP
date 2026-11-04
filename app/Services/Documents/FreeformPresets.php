@@ -35,6 +35,8 @@ class FreeformPresets
             'quotation' => "رقم العرض: {{doc.number}}\nالتاريخ: {{doc.date}}\nالتاريخ الهجري: {{doc.hijri_date}}\nصالح حتى: {{doc.valid_until}}",
             'sales_order', 'purchase_order' => "رقم الأمر: {{doc.number}}\nالتاريخ: {{doc.date}}\nالتاريخ الهجري: {{doc.hijri_date}}\nتاريخ التسليم: {{doc.delivery_date}}",
             'purchase_invoice' => "رقم الفاتورة: {{doc.number}}\nفاتورة المورد: {{doc.supplier_invoice}}\nالتاريخ: {{doc.date}}\nالاستحقاق: {{doc.due_date}}\nالدفع: {{doc.payment_method}}",
+            'work_order' => "رقم الأمر: {{doc.number}}\nالموعد: {{doc.appointment}}\nالفني: {{doc.technician}}\nالحالة: {{doc.status}}\nالعمل: {{doc.subject}}",
+            'booking' => "رقم الحجز: {{doc.number}}\nالموعد: {{doc.appointment}}\nالمختص: {{doc.resource}}\nالحالة: {{doc.status}}\nالعربون: {{doc.deposit}}",
             default => "رقم الإشعار: {{doc.number}}\nالتاريخ: {{doc.date}}\nالفاتورة الأصلية: {{doc.original_number}}\nالسبب: {{doc.reason}}",
         };
         $withQr = in_array($kind, ['invoice', 'credit_note', 'debit_note'], true);

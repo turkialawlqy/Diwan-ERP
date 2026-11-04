@@ -99,4 +99,10 @@ class WorkOrder extends Model
             $this->forceFill(['customer_signature_path' => null, 'signed_by' => null, 'signed_at' => null])->save();
         }
     }
+
+    /** What the job is worth so far (for the share message). */
+    public function getPrintTotalAttribute(): float
+    {
+        return round((float) $this->labour_amount + (float) $this->parts_amount, 2);
+    }
 }

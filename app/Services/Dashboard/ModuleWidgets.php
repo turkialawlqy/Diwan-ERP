@@ -18,6 +18,7 @@ use App\Models\MaintenanceOrder;
 use App\Models\MemberCheckin;
 use App\Models\PatientFile;
 use App\Models\PatientVisit;
+use App\Models\PortalUser;
 use App\Models\PosOrder;
 use App\Models\PosSession;
 use App\Models\ProductionOrder;
@@ -113,6 +114,11 @@ class ModuleWidgets
             'crm' => ['title' => 'العملاء المحتملون', 'permission' => 'crm.leads.view', 'link' => 'crm.leads.index', 'metrics' => fn () => [
                 ['فرص مفتوحة', Lead::whereNotIn('status', ['won', 'lost'])->count(), 'crm.leads.index'],
                 ['متابعات مستحقة', Lead::whereNotIn('status', ['won', 'lost'])->whereNotNull('next_follow_up')->where('next_follow_up', '<=', now())->count(), 'crm.leads.index', 'warn'],
+            ]],
+            'portal' => ['title' => 'بوابة العملاء', 'permission' => 'portal.users.view', 'link' => 'portal.users.index', 'metrics' => fn () => [
+                ['مستخدمون نشطون', PortalUser::where('status', 'active')->count(), 'portal.users.index', 'good'],
+                ['دخلوا هذا الشهر', PortalUser::where('last_login_at', '>=', now()->startOfMonth())->count(), 'portal.users.index'],
+                ['حجوزات من البوابة هذا الشهر', Booking::where('source', 'portal')->where('created_at', '>=', now()->startOfMonth())->count(), 'bookings.index'],
             ]],
             'pos' => ['title' => 'نقاط البيع', 'permission' => ['pos.terminal.use', 'pos.history.view'], 'link' => 'pos.history', 'metrics' => fn () => [
                 ['مبيعات اليوم', number_format((float) PosOrder::where('status', 'completed')->whereDate('created_at', $today())->sum('total'), 0), 'pos.history', 'good'],

@@ -23,6 +23,7 @@ use App\Services\Bookings\AvailabilityService;
 use App\Services\Bookings\BookingReminders;
 use App\Services\Bookings\BookingService;
 use App\Services\Bookings\PackageService;
+use App\Services\Documents\TemplateData;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -364,5 +365,13 @@ class BookingsTest extends TestCase
         $this->assertNotContains('10:00', $this->times());
         $this->expectException(ValidationException::class);
         $this->book('2026-06-16 10:00');
+    }
+
+    public function test_the_booking_confirmation_prints_as_a_pdf(): void
+    {
+        $b = $this->book('2026-06-16 10:00', ['deposit_amount' => 30]);
+        $this->get(route('documents.pdf', ['type' => 'booking', 'id' => $b->id]))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $fields = app(TemplateData::class)->build($b->fresh())['fields'];
+        $this->assertSame('30.00', $fields['doc.deposit']);
     }
 }

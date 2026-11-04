@@ -25,11 +25,13 @@ const form = useForm({
 });
 useUnsavedGuard(form);
 
-const usable = computed(() => props.templates.filter((t) => t.kind === form.kind || t.kind === 'other'));
+const created = ref([]); // templates made from the dropdown on this page
+const allTemplates = computed(() => [...props.templates, ...created.value]);
+const usable = computed(() => allTemplates.value.filter((t) => t.kind === form.kind || t.kind === 'other'));
 const template = ref('');
 const applyTemplate = (id) => {
     template.value = id;
-    const t = props.templates.find((x) => String(x.id) === String(id));
+    const t = allTemplates.value.find((x) => String(x.id) === String(id));
     if (t && (!form.body || window.confirm('استبدال نص العقد بنص النموذج؟'))) { form.body = t.body; form.template_id = t.id; }
 };
 const addObligation = () => form.obligations.push({ id: null, title: '', kind: 'payment', due_date: form.start_date, amount: '', notes: '', done: false });
@@ -77,7 +79,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
             <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
                 <div class="flex items-center justify-between gap-2">
                     <h2 class="font-bold text-slate-800">نص العقد</h2>
-                    <select v-if="usable.length" :value="template" @change="applyTemplate($event.target.value)" class="rounded-xl border-slate-200 text-xs"><option value="">استعمال نموذج...</option><option v-for="t in usable" :key="t.id" :value="t.id">{{ t.name }}</option></select>
+                    <div class="w-56"><SelectCreate :model-value="template" @update:model-value="applyTemplate" @created="(t) => created.push(t)" :options="usable" entity="contract_template" :label="(t) => t.name" placeholder="استعمال نموذج..." data-template-select /></div>
                 </div>
                 <textarea v-model="form.body" rows="14" class="w-full rounded-xl border-slate-200 text-xs leading-relaxed" placeholder="بنود العقد..." data-body></textarea>
                 <Field v-if="editing" label="ملاحظة على التعديل" hint="تُحفظ مع الإصدار الجديد عند تغيير النص"><input v-model="form.version_note" maxlength="255" :class="input" /></Field>

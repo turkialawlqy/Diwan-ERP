@@ -1,4 +1,5 @@
 <script setup>
+import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -42,7 +43,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
                 <form v-if="$can('clinic.visits.create')" @submit.prevent="save" class="bg-white border border-slate-200 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-3" data-visit-form>
                     <h2 class="font-bold md:col-span-2">زيارة جديدة</h2>
                     <Field label="التاريخ *" :error="form.errors.visit_date"><DatePicker v-model="form.visit_date" /></Field>
-                    <Field label="الطبيب" :error="form.errors.doctor_id"><select v-model="form.doctor_id" :class="input"><option value="">—</option><option v-for="x in doctors" :key="x.id" :value="x.id">{{ x.name }}</option></select></Field>
+                    <Field label="الطبيب" :error="form.errors.doctor_id"><SelectCreate v-model="form.doctor_id" :options="doctors" entity="employee" :label="(x) => x.name" placeholder="—" /></Field>
                     <Field label="الشكوى" :error="form.errors.complaint" class="md:col-span-2"><textarea v-model="form.complaint" rows="2" :class="input" data-complaint></textarea></Field>
                     <Field label="التشخيص" :error="form.errors.diagnosis"><textarea v-model="form.diagnosis" rows="2" :class="input" data-diagnosis></textarea></Field>
                     <Field label="العلاج" :error="form.errors.treatment"><textarea v-model="form.treatment" rows="2" :class="input"></textarea></Field>

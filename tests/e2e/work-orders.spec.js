@@ -37,7 +37,8 @@ test('work orders: office assigns, technician finishes on the phone, office invo
     await pickFromLookup(page, page.getByPlaceholder('ابحث بالاسم').first(), 'ع');
     await page.locator('[data-title]').fill(title);
     await pickOption(page, page.locator('[data-select-create] input').first(), typeName);
-    await page.locator('[data-lead]').selectOption({ label: techName });
+    await page.locator('[data-lead] input').first().fill(techName);
+    await page.locator('[data-select-list] button:not([data-create-option])', { hasText: techName }).first().click();
     await page.locator('[data-date-picker] input').first().fill(new Date(Date.now() + 86400000).toISOString().slice(0, 10));
     await page.locator('[data-date-picker] input').first().press('Escape');
     await page.locator('[data-add-task]').click();
@@ -82,7 +83,8 @@ test('work orders: office assigns, technician finishes on the phone, office invo
     // time can only be added while the order is open: reopen first
     await page.getByRole('button', { name: 'إعادة فتح' }).click();
     await expect(page.locator('[data-status]')).toHaveText('قيد التنفيذ');
-    await page.locator('[data-time-employee]').selectOption({ label: techName });
+    await page.locator('[data-time-employee] input').first().fill(techName);
+    await page.locator('[data-select-list] button:not([data-create-option])', { hasText: techName }).first().click();
     await page.locator('[data-time-minutes]').fill('90');
     await page.locator('[data-add-time]').click();
     await page.locator('[data-complete]').click();

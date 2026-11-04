@@ -15,6 +15,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkType;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
+use App\Services\Documents\TemplateData;
 use App\Services\Inventory\StockService;
 use App\Services\Support\SlaService;
 use App\Services\TenantManager;
@@ -299,5 +300,16 @@ class WorkOrdersTest extends TestCase
         } catch (ValidationException $e) {
             $this->assertArrayHasKey($key, $e->errors());
         }
+    }
+
+    public function test_the_job_card_prints_and_shares_as_a_pdf(): void
+    {
+        $o = $this->order();
+        app(TimeTracker::class)->addManual($o, $this->tech, 60, Carbon::parse('2026-06-15 06:00'));
+        $res = $this->get(route('documents.pdf', ['type' => 'work_order', 'id' => $o->id]))->assertOk();
+        $this->assertSame('application/pdf', $res->headers->get('Content-Type'));
+        $data = app(TemplateData::class)->build($o->fresh());
+        $this->assertSame($o->number, $data['fields']['doc.number']);
+        $this->assertCount(1, $data['items']); // the billable hour
     }
 }

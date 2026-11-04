@@ -70,7 +70,7 @@ class TimeTracker
     protected function assertNoOverlap(int $employeeId, Carbon $start, Carbon $end, ?int $ignore = null): void
     {
         $clash = TimeEntry::where('employee_id', $employeeId)->when($ignore, fn ($q) => $q->where('id', '!=', $ignore))
-            ->where('started_at', '<', $end)->where(fn ($q) => $q->whereNull('ended_at')->orWhere('ended_at', '>', $start))->first();
+            ->where('started_at', '<', $end)->where(fn ($q) => $q->whereNull('ended_at')->orWhere(fn ($w) => $w->where('ended_at', '>', $start)->where('minutes', '>', 0)))->first(); // a timer stopped after seconds bills nothing
         if ($clash) {
             throw ValidationException::withMessages(['minutes' => 'لهذا الفني وقت مسجّل يتداخل مع هذه المدة (من '.$clash->started_at->format('H:i').').']);
         }
