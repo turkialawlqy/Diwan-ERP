@@ -69,16 +69,21 @@ class PortalLoginService
 
         /** @var PortalLoginCode|null $row */
         $row = $user->codes()->whereNull('used_at')->where('expires_at', '>', now())->latest('id')->first();
-        if (! $row || $row->attempts >= self::MAX_ATTEMPTS) {
+        if (! $row) {
             return null;
         }
 
-        $row->increment('attempts');
+        // Atomic: a try counts only if it took one of the 5 slots, so parallel guesses cannot pass the limit.
+        if (! PortalLoginCode::whereKey($row->id)->whereNull('used_at')->where('attempts', '<', self::MAX_ATTEMPTS)->increment('attempts')) {
+            return null;
+        }
         if (! hash_equals($row->code_hash, $this->hash($user, preg_replace('/\D/', '', $code)))) {
             return null;
         }
-
-        $row->update(['used_at' => now()]);
+        // Single use, also under two simultaneous correct submissions: only the one that marks it wins.
+        if (! PortalLoginCode::whereKey($row->id)->whereNull('used_at')->update(['used_at' => now()])) {
+            return null;
+        }
         $user->forceFill(['last_login_at' => now()])->save();
 
         return $user;

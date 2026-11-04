@@ -57,8 +57,20 @@ class BookingService
             throw ValidationException::withMessages(['booking_resource_id' => 'هذا المورد لا يقدّم الخدمة المختارة.']);
         }
 
-        return DB::transaction(function () use ($data, $source, $user, $portalUser, $service, $customer, $start, $resource, $enforce) {
+        $any = empty($data['booking_resource_id']);
+
+        return DB::transaction(function () use ($data, $source, $user, $portalUser, $service, $customer, $start, $resource, $enforce, $any) {
             BookingResource::whereKey($resource->id)->lockForUpdate()->first(); // two people cannot take the same slot
+            if ($any && ! $this->availability->isFree($resource, $service, $start, $enforce)) {
+                // «Any resource» and this one was just taken: another free one that serves the service.
+                foreach ($service->resources()->where('is_active', true)->whereKeyNot($resource->id)->get() as $other) {
+                    BookingResource::whereKey($other->id)->lockForUpdate()->first();
+                    if ($this->availability->isFree($other, $service, $start, $enforce)) {
+                        $resource = $other;
+                        break;
+                    }
+                }
+            }
             if (! $this->availability->isFree($resource, $service, $start, $enforce)) {
                 throw ValidationException::withMessages(['starts_at' => 'هذا الموعد غير متاح، اختر وقتًا آخر.']);
             }

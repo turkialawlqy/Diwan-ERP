@@ -59,6 +59,10 @@ trait BranchScoped
         if (app()->runningInConsole() && ! app()->runningUnitTests()) {
             return null;
         }
+        // The customer portal is the customer's view: a staff member signed in on the same browser must not narrow it to his branch.
+        if (request()->routeIs('customer-portal.*')) {
+            return null;
+        }
         $user = auth()->user();
 
         return $user instanceof User && $user->company_id ? $user : null;

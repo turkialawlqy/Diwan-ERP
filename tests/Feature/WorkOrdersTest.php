@@ -180,6 +180,11 @@ class WorkOrdersTest extends TestCase
         $png = 'data:image/png;base64,'.base64_encode("\x89PNG\r\n\x1a\n".str_repeat('x', 20));
         $this->service()->sign($o, 'مدير الموقع', $png);
         $this->assertNotNull($o->fresh()->customer_signature_path);
+        // Hours added after signing: the customer signs again.
+        app(TimeTracker::class)->addManual($o->fresh(), $this->tech, 15, Carbon::parse('2026-06-15 06:00'));
+        $this->assertNull($o->fresh()->customer_signature_path);
+        $this->assertValidation(fn () => $this->service()->complete($o->fresh()), 'signature');
+        $this->service()->sign($o->fresh(), 'مدير الموقع', $png);
 
         $done = $this->service()->complete($o->fresh(), 'تم الإصلاح');
         $this->assertSame('done', $done->status);

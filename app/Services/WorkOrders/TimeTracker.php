@@ -87,6 +87,7 @@ class TimeTracker
         }
         $start = $startedAt ?? now()->subMinutes($minutes);
         $this->assertNoOverlap($employee->id, $start, $start->copy()->addMinutes($minutes));
+        $order->voidSignature();
 
         return TimeEntry::create([
             'work_order_id' => $order->id, 'employee_id' => $employee->id, 'started_at' => $start, 'ended_at' => $start->copy()->addMinutes($minutes), 'minutes' => $minutes,
@@ -106,6 +107,7 @@ class TimeTracker
             throw ValidationException::withMessages(['status' => 'أمر العمل مغلق.']);
         }
         $this->assertNoOverlap($entry->employee_id, $entry->started_at, $entry->started_at->copy()->addMinutes($minutes), $entry->id);
+        $order->voidSignature();
         $entry->update(['minutes' => $minutes, 'billable' => $billable, 'ended_at' => $entry->started_at->copy()->addMinutes($minutes), 'labour_cost' => round($minutes / 60 * $this->costRate($entry->employee), 2)]);
 
         return $entry;

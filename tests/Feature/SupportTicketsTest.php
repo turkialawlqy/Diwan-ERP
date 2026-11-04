@@ -200,6 +200,8 @@ class SupportTicketsTest extends TestCase
         $this->post($post, ['rating' => 5, 'comment' => 'خدمة ممتازة'])->assertOk()->assertSee('شكرًا لتقييمك');
         $this->assertSame(5, $t->fresh()->rating);
         $this->post($post, ['rating' => 9])->assertSessionHasErrors('rating');
+        $this->post($post, ['rating' => 1])->assertOk(); // the link cannot change a given rating
+        $this->assertSame(5, $t->fresh()->rating);
     }
 
     public function test_categories_and_the_pages_follow_permissions_and_the_module_switch(): void

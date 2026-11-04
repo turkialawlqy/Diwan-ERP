@@ -61,7 +61,11 @@ class PortalAuthTest extends TestCase
     public function test_the_full_code_flow_signs_the_customer_in_and_logout_ends_it(): void
     {
         $this->get($this->url('customer-portal.home'))->assertRedirect($this->url('customer-portal.login'));
-        $this->get($this->url('customer-portal.login'))->assertOk()->assertInertia(fn ($p) => $p->component('Portal/Login'));
+        $props = $this->get($this->url('customer-portal.login'))->assertOk()->viewData('page')['props'];
+        // No account details of the company for a visitor.
+        $this->assertNull($props['tenant']['tax_number'] ?? null);
+        $this->assertNull($props['subscription'] ?? null);
+        $this->assertSame([], $props['currencies'] ?? []);
 
         $code = $this->requestCode();
         $this->assertMatchesRegularExpression('/^\d{6}$/', $code);
