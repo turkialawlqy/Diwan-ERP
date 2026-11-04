@@ -107,6 +107,9 @@ class ContractService
             throw ValidationException::withMessages(['status' => 'يُفعَّل العقد المعتمد فقط.']);
         }
         $contract->update(['status' => 'active', 'signed_at' => $contract->signed_at ?? today()]);
+        if ($contract->parent_contract_id) {
+            Contract::whereKey($contract->parent_contract_id)->whereIn('status', ['active', 'expired'])->update(['status' => 'renewed']);
+        }
     }
 
     public function terminate(Contract $contract, string $reason): void
@@ -117,8 +120,12 @@ class ContractService
         $contract->update(['status' => 'terminated', 'terminated_at' => today(), 'termination_reason' => $reason]);
     }
 
-    /** A new contract continuing this one for its renewal term; the old one becomes «مجدَّد». */
-    public function renew(Contract $contract): Contract
+    /**
+     * A new contract continuing this one for its renewal term. Renewed by hand it goes through the value
+     * approval rules like any new contract; the automatic renewal (agreed in the contract) starts approved.
+     * The old one keeps running until the new one starts, then becomes «مجدَّد».
+     */
+    public function renew(Contract $contract, bool $automatic = false): Contract
     {
         if (! in_array($contract->status, ['active', 'expired'], true)) {
             throw ValidationException::withMessages(['status' => 'يُجدَّد العقد الساري أو المنتهي فقط.']);
@@ -126,8 +133,11 @@ class ContractService
         if (! $contract->end_date || ! $contract->renewal_term_months) {
             throw ValidationException::withMessages(['renewal_term_months' => 'حدّد تاريخ نهاية ومدة التجديد بالأشهر في العقد.']);
         }
+        if (Contract::where('parent_contract_id', $contract->id)->whereNotIn('status', ['rejected', 'terminated'])->exists()) {
+            throw ValidationException::withMessages(['status' => 'لهذا العقد تجديد قائم بالفعل.']);
+        }
 
-        return DB::transaction(function () use ($contract) {
+        return DB::transaction(function () use ($contract, $automatic) {
             $start = $contract->end_date->copy()->addDay();
             $end = $start->copy()->addMonthsNoOverflow((int) $contract->renewal_term_months)->subDay();
 
@@ -136,21 +146,34 @@ class ContractService
                 'title' => $contract->title, 'kind' => $contract->kind, 'party_type' => $contract->party_type,
                 'customer_id' => $contract->customer_id, 'supplier_id' => $contract->supplier_id, 'template_id' => $contract->template_id,
                 'project_id' => $contract->project_id, 'subscription_id' => $contract->subscription_id,
-                'status' => 'active', 'start_date' => $start->toDateString(), 'end_date' => $end->toDateString(),
+                'status' => $automatic ? 'approved' : 'draft', 'start_date' => $start->toDateString(), 'end_date' => $end->toDateString(),
+                'shared_with_customer' => $contract->shared_with_customer, 'requires_acceptance' => $contract->requires_acceptance,
                 'value' => $contract->value, 'payment_terms' => $contract->payment_terms, 'auto_renew' => $contract->auto_renew,
                 'renewal_term_months' => $contract->renewal_term_months, 'renewal_notice_days' => $contract->renewal_notice_days,
                 'body' => $contract->body, 'version' => 1, 'parent_contract_id' => $contract->id, 'signed_at' => today(),
                 'attachments' => $contract->attachments, 'created_by' => auth()->id() ?? $contract->created_by,
             ]);
             $this->snapshot($new, 'تجديد للعقد '.$contract->number);
-            $contract->update(['status' => 'renewed']);
+            if ($automatic) {
+                $this->activateIfDue($new);
+            } else {
+                $this->submit($new); // approval by value; activates on its start date
+            }
+            if ($contract->status === 'expired') {
+                $contract->update(['status' => 'renewed']);
+            }
 
-            return $new;
+            return $new->refresh();
         });
     }
 
     public function completeObligation(ContractObligation $obligation, bool $done = true): void
     {
+        // Through the contract (branch scoped): another branch's obligation answers 404.
+        $contract = Contract::findOrFail($obligation->contract_id);
+        if (! in_array($contract->status, ['approved', 'active'], true)) {
+            throw ValidationException::withMessages(['status' => 'التزامات العقد '.(Contract::STATUSES[$contract->status] ?? $contract->status).' لا تُعدَّل.']);
+        }
         $obligation->update($done
             ? ['status' => 'done', 'done_at' => now(), 'done_by' => auth()->id()]
             : ['status' => 'pending', 'done_at' => null, 'done_by' => null, 'reminder_state' => null]);
@@ -167,14 +190,19 @@ class ContractService
         $today = ($today ?? now())->copy()->startOfDay();
         $done = ['activated' => 0, 'renewed' => 0, 'expired' => 0, 'reminders' => 0];
 
-        Contract::where('status', 'approved')->whereDate('start_date', '<=', $today)->each(function (Contract $c) use (&$done) {
+        Contract::where('status', 'approved')->whereDate('start_date', '<=', $today)->lazyById(200)->each(function (Contract $c) use (&$done) {
             $this->activate($c);
             $done['activated']++;
         });
 
-        Contract::where('status', 'active')->whereNotNull('end_date')->whereDate('end_date', '<', $today)->each(function (Contract $c) use (&$done) {
+        Contract::where('status', 'active')->whereNotNull('end_date')->whereDate('end_date', '<', $today)->lazyById(200)->each(function (Contract $c) use (&$done) {
+            if (Contract::where('parent_contract_id', $c->id)->whereNotIn('status', ['rejected', 'terminated'])->exists()) {
+                $c->update(['status' => 'renewed']); // renewed ahead of time: the new contract takes over
+
+                return;
+            }
             if ($c->auto_renew && $c->renewal_term_months) {
-                $new = $this->renew($c);
+                $new = $this->renew($c, true);
                 $this->notify($c, 'contract_renewed', 'جُدِّد العقد '.$c->number, "العقد {$c->number} ({$c->title}) جُدِّد تلقائيًا بالعقد {$new->number}.", 'info', $new->id);
                 $done['renewed']++;
             } else {

@@ -125,7 +125,7 @@ class SectorPackService
 
                 foreach ($def['service_plans'] ?? [] as $row) {
                     [, $new] = $this->first($branchId, ServicePlan::class, $row['name'], ['code' => fn () => $this->numbers->next('service_plan'), 'price' => $row['price'], 'tax_rate' => TaxProfile::rate(), 'cycle' => $row['cycle'],
-                        'interval' => 1, 'trial_days' => 0, 'booking_discount_percent' => $row['booking_discount_percent'] ?? 0, 'is_active' => true]);
+                        'interval' => 1, 'trial_days' => 0, 'booking_discount_percent' => $row['booking_discount_percent'] ?? 0, 'is_membership' => (bool) ($row['membership'] ?? false), 'is_active' => true]);
                     $count('service_plans', $new);
                 }
 
@@ -201,9 +201,14 @@ class SectorPackService
         $disabled = array_values(array_diff($this->plans->disabledModules($company), $modules));
         $company->setSetting('disabled_modules', $disabled, 'general', 'json');
 
-        // A branch that lists its activities gets the pack's added (a branch with no list already runs them all).
-        if ($branchId && ($branch = Branch::find($branchId)) && $branch->modules !== null) {
-            $branch->update(['modules' => array_values(array_unique(array_merge($branch->modules, array_intersect($modules, array_keys(config('saas.optional_modules'))))))]);
+        // A branch that lists its activities gets the pack's added (a branch with no list already runs them all);
+        // a shared pack (no branch) reaches every branch that lists its activities.
+        $optional = array_intersect($modules, array_keys(config('saas.optional_modules')));
+        $branches = $branchId ? Branch::whereKey($branchId)->get() : Branch::whereNotNull('modules')->get();
+        foreach ($branches as $branch) {
+            if ($branch->modules !== null) {
+                $branch->update(['modules' => array_values(array_unique(array_merge($branch->modules, $optional)))]);
+            }
         }
     }
 

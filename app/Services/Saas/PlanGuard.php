@@ -95,6 +95,25 @@ class PlanGuard
         return $module !== null && ! $this->hasModuleHere($company, $module);
     }
 
+    /**
+     * The module a permission belongs to: its first segment when that is a module key (work_orders.orders.view
+     * → work_orders), else by the route prefixes (finance.… → accounting). Route names use dashes (work-orders.)
+     * while permissions use underscores, so the route map alone misses them.
+     */
+    public function moduleForPermission(?string $permission): ?string
+    {
+        $first = $permission ? strtok($permission, '.') : null;
+
+        return $first && array_key_exists($first, config('saas.modules')) ? $first : $this->moduleForRoute($permission);
+    }
+
+    public function permissionUnavailable(Company $company, ?string $permission): bool
+    {
+        $module = $this->moduleForPermission($permission);
+
+        return $module !== null && ! $this->hasModuleHere($company, $module);
+    }
+
     public function moduleForRoute(?string $routeName): ?string
     {
         foreach (config('saas.route_modules') as $prefix => $module) {

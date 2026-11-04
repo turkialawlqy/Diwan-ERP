@@ -41,13 +41,20 @@ class SlaService
             $now = now();
             $sla = $this->policy($priority);
 
-            return Ticket::create(array_merge($data, [
+            $ticket = Ticket::create(array_merge($data, [
                 'number' => $this->numbers->next('ticket', $now),
                 'priority' => $priority, 'status' => 'open',
                 'first_response_due_at' => $now->copy()->addMinutes($sla['first_response_minutes']),
                 'resolution_due_at' => $now->copy()->addMinutes($sla['resolution_minutes']),
                 'created_by' => auth()->id(),
             ]));
+            if ($ticket->assigned_to) {
+                $this->assigned($ticket);
+            } elseif (! auth()->id()) { // opened by the customer from the portal
+                $this->alertTeam($ticket, 'ticket_new', 'تذكرة جديدة من العميل: '.$ticket->number, $ticket->subject.($ticket->customer ? ' — '.$ticket->customer->name : ''));
+            }
+
+            return $ticket;
         });
     }
 
@@ -68,12 +75,17 @@ class SlaService
                 }
                 if ($ticket->status === 'open') {
                     $ticket->status = 'pending'; // the ball is with the customer
+                    $this->pause($ticket);
                 }
             } elseif ($type === 'customer' && in_array($ticket->status, ['pending', 'resolved'], true)) {
+                $this->resume($ticket);
                 $ticket->status = 'open';
                 $ticket->resolved_at = null;
             }
             $ticket->save();
+            if ($type === 'customer') {
+                $this->alertTeam($ticket, 'ticket_reply', 'رد العميل على التذكرة '.$ticket->number, mb_substr($body, 0, 140));
+            }
 
             if ($type === 'public') {
                 $this->tellCustomer($ticket);
@@ -108,7 +120,13 @@ class SlaService
             return;
         }
 
+        if ($ticket->status === 'pending') {
+            $this->resume($ticket);
+        }
         $ticket->status = $status;
+        if ($status === 'pending') {
+            $this->pause($ticket);
+        }
         if (in_array($status, ['resolved', 'closed'], true)) {
             $ticket->resolved_at ??= now();
             $ticket->resolution_breached = $ticket->resolution_due_at && $ticket->resolved_at->gt($ticket->resolution_due_at);
@@ -159,14 +177,14 @@ class SlaService
 
         Ticket::whereIn('status', ['open', 'pending'])->where(function ($q) use ($now) {
             $q->where(fn ($w) => $w->whereNull('first_response_at')->where('response_breached', false)->where('first_response_due_at', '<', $now))
-                ->orWhere(fn ($w) => $w->where('resolution_breached', false)->where('resolution_due_at', '<', $now));
-        })->with(['customer:id,name', 'assignee:id'])->each(function (Ticket $t) use ($now, &$flagged) {
+                ->orWhere(fn ($w) => $w->where('status', 'open')->where('resolution_breached', false)->where('resolution_due_at', '<', $now)); // waiting for the customer: clock stopped
+        })->with(['customer:id,name', 'assignee:id'])->lazyById(200)->each(function (Ticket $t) use ($now, &$flagged) {
             $kinds = [];
             if (! $t->first_response_at && ! $t->response_breached && $t->first_response_due_at && $t->first_response_due_at->lt($now)) {
                 $t->response_breached = true;
                 $kinds[] = 'الرد الأول';
             }
-            if (! $t->resolution_breached && $t->resolution_due_at && $t->resolution_due_at->lt($now)) {
+            if ($t->status === 'open' && ! $t->resolution_breached && $t->resolution_due_at && $t->resolution_due_at->lt($now)) {
                 $t->resolution_breached = true;
                 $kinds[] = 'الحل';
             }
@@ -178,11 +196,49 @@ class SlaService
 
             $title = 'تجاوز مهلة '.implode(' و', $kinds).': '.$t->number;
             $body = $t->subject.($t->customer ? ' — '.$t->customer->name : '');
-            $recipients = $t->assignee ? collect([$t->assignee]) : User::where('company_id', $t->company_id)->where('status', 'active')->get()->filter(fn (User $u) => $u->can('support.tickets.edit'));
-            $recipients->each(fn (User $u) => $u->notify(new ErpAlert('ticket_sla_breach', $title, $body, route('support.tickets.show', $t->id, false), 'danger')));
+            $this->alertTeam($t, 'ticket_sla_breach', $title, $body, 'danger');
         });
 
         return $flagged;
+    }
+
+    /** The ticket waits for the customer: its resolution clock stops. */
+    protected function pause(Ticket $ticket): void
+    {
+        $ticket->sla_paused_at ??= now();
+    }
+
+    /** Back with the team: the deadline moves on by the time it waited. */
+    protected function resume(Ticket $ticket): void
+    {
+        if ($ticket->sla_paused_at && $ticket->resolution_due_at && ! $ticket->resolution_breached) {
+            $ticket->resolution_due_at = $ticket->resolution_due_at->copy()->addSeconds((int) $ticket->sla_paused_at->diffInSeconds(now()));
+        }
+        $ticket->sla_paused_at = null;
+    }
+
+    /** Tell the one the ticket was just assigned to. */
+    public function assigned(Ticket $ticket): void
+    {
+        $user = $ticket->assigned_to ? User::find($ticket->assigned_to) : null;
+        if ($user && $user->status === 'active' && $user->id !== auth()->id()) { // not when taking it oneself
+            $user->notify(new ErpAlert('ticket_assigned', 'أُسندت إليك التذكرة '.$ticket->number, $ticket->subject, route('support.tickets.show', $ticket->id, false), 'info'));
+        }
+    }
+
+    /** The assignee, or (unassigned) everyone who may work the ticket's branch. */
+    protected function alertTeam(Ticket $ticket, string $kind, string $title, string $body, string $level = 'info'): void
+    {
+        $assignee = $ticket->assigned_to ? User::where('status', 'active')->find($ticket->assigned_to) : null;
+        $recipients = $assignee ? collect([$assignee]) : $this->agents($ticket->company_id, $ticket->branch_id);
+        $recipients->each(fn (User $u) => $u->notify(new ErpAlert($kind, $title, $body, route('support.tickets.show', $ticket->id, false), $level)));
+    }
+
+    /** Active staff who may work tickets (of that branch). */
+    public function agents(int $companyId, ?int $branchId = null)
+    {
+        return User::where('company_id', $companyId)->where('status', 'active')->where('is_super_admin', false)->orderBy('name')->get()
+            ->filter(fn (User $u) => ($u->isCompanyOwner() || $u->can('support.tickets.edit')) && ($branchId === null || $u->canUseBranch($branchId)))->values();
     }
 
     /** Support numbers for the dashboard strip. */

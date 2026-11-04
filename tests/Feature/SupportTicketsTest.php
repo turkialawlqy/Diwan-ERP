@@ -200,6 +200,8 @@ class SupportTicketsTest extends TestCase
         $this->post($post, ['rating' => 5, 'comment' => 'خدمة ممتازة'])->assertOk()->assertSee('شكرًا لتقييمك');
         $this->assertSame(5, $t->fresh()->rating);
         $this->post($post, ['rating' => 9])->assertSessionHasErrors('rating');
+        $this->post($post, ['rating' => 1])->assertOk(); // the link cannot change a given rating
+        $this->assertSame(5, $t->fresh()->rating);
     }
 
     public function test_categories_and_the_pages_follow_permissions_and_the_module_switch(): void
@@ -222,5 +224,29 @@ class SupportTicketsTest extends TestCase
         $this->actingAs($this->userWithRole($this->company, 'warehouse_keeper'));
         $this->get(route('support.tickets.index'))->assertForbidden();
         $this->post(route('support.tickets.reply', $t->id), ['body' => 'x', 'type' => 'public'])->assertForbidden();
+    }
+
+    public function test_the_clock_stops_while_waiting_for_the_customer_and_the_team_hears_about_replies(): void
+    {
+        $agent = $this->userWithRole($this->company, 'sales');
+        $t = $this->open(['priority' => 'urgent', 'assigned_to' => $agent->id]); // resolve by 14:00
+        $this->assertSame(1, $agent->fresh()->notifications()->count()); // told about the assignment
+
+        $this->sla()->reply($t->fresh(), auth()->user(), 'نحتاج صورة الفاتورة', 'public'); // waits for the customer
+        Carbon::setTestNow('2026-06-15 16:00:00'); // past the deadline, but the ball is with the customer
+        $this->sla()->checkBreaches();
+        $this->assertFalse($t->fresh()->resolution_breached);
+
+        $this->sla()->reply($t->fresh(), null, 'هذه الصورة', 'customer'); // back after 6 hours
+        $this->assertSame('2026-06-15 20:00:00', $t->fresh()->resolution_due_at->format('Y-m-d H:i:s'));
+        $this->assertSame(2, $agent->fresh()->notifications()->count()); // told about the customer's reply
+    }
+
+    public function test_a_ticket_is_assigned_only_to_someone_who_works_tickets(): void
+    {
+        $t = $this->open();
+        $outsider = $this->userWithRole($this->company, 'employee');
+        $this->patch(route('support.tickets.update', $t->id), ['assigned_to' => $outsider->id])->assertSessionHasErrors('assigned_to');
+        $this->assertNull($t->fresh()->assigned_to);
     }
 }

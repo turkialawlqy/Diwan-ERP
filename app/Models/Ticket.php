@@ -14,11 +14,11 @@ class Ticket extends Model
 {
     use Auditable, BelongsToCompany, BranchScoped;
 
-    protected $fillable = ['company_id', 'branch_id', 'number', 'customer_id', 'contact_name', 'contact_phone', 'contact_email', 'property_unit_id', 'subject', 'description', 'channel', 'priority', 'status',
+    protected $fillable = ['sla_paused_at', 'company_id', 'branch_id', 'number', 'customer_id', 'contact_name', 'contact_phone', 'contact_email', 'property_unit_id', 'subject', 'description', 'channel', 'priority', 'status',
         'category_id', 'assigned_to', 'first_response_due_at', 'resolution_due_at', 'first_response_at', 'resolved_at', 'closed_at', 'response_breached', 'resolution_breached',
         'rating', 'rating_comment', 'subscription_id', 'invoice_id', 'project_id', 'equipment_id', 'created_by', 'portal_user_id'];
 
-    protected $casts = ['first_response_due_at' => 'datetime', 'resolution_due_at' => 'datetime', 'first_response_at' => 'datetime', 'resolved_at' => 'datetime', 'closed_at' => 'datetime',
+    protected $casts = ['sla_paused_at' => 'datetime', 'first_response_due_at' => 'datetime', 'resolution_due_at' => 'datetime', 'first_response_at' => 'datetime', 'resolved_at' => 'datetime', 'closed_at' => 'datetime',
         'response_breached' => 'boolean', 'resolution_breached' => 'boolean'];
 
     public const STATUSES = ['open' => 'مفتوحة', 'pending' => 'بانتظار العميل', 'resolved' => 'محلولة', 'closed' => 'مغلقة'];

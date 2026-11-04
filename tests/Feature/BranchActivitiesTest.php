@@ -10,10 +10,13 @@ use App\Models\Company;
 use App\Models\ContractTemplate;
 use App\Models\Customer;
 use App\Models\CustomerVehicle;
+use App\Models\Employee;
 use App\Models\Lease;
 use App\Models\PatientFile;
+use App\Models\PatientVisit;
 use App\Models\Property;
 use App\Models\PropertyUnit;
+use App\Models\TimeEntry;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkType;
@@ -167,9 +170,11 @@ class BranchActivitiesTest extends TestCase
         $service = BookableService::create(['name' => 'خدمة'.$branch->id, 'duration_minutes' => 30, 'price' => 10, 'tax_rate' => 0, 'branch_id' => $branch->id]);
 
         $patientCustomer = Customer::create(['name' => 'مريض'.$branch->id, 'customer_type' => 'individual', 'status' => 'active']);
+        $patient = PatientFile::create(['customer_id' => $patientCustomer->id, 'file_number' => 'PF-'.$branch->id, 'branch_id' => $branch->id]);
+        PatientVisit::create(['patient_file_id' => $patient->id, 'visit_date' => '2026-06-15', 'branch_id' => $branch->id]);
 
         return [
-            'patient' => PatientFile::create(['customer_id' => $patientCustomer->id, 'file_number' => 'PF-'.$branch->id, 'branch_id' => $branch->id]),
+            'patient' => $patient,
             'order' => WorkOrder::create(['number' => 'WO-'.$branch->id, 'customer_id' => $this->customer->id, 'title' => 'x', 'branch_id' => $branch->id]),
             'vehicle' => CustomerVehicle::create(['customer_id' => $this->customer->id, 'plate' => 'V'.$branch->id, 'branch_id' => $branch->id]),
             'booking' => Booking::create(['number' => 'BKG-'.$branch->id, 'customer_id' => $this->customer->id, 'bookable_service_id' => $service->id, 'booking_resource_id' => $resource->id,
@@ -187,8 +192,9 @@ class BranchActivitiesTest extends TestCase
         $this->actingAs($a);
         $this->post(route('context.branch'), ['branch_id' => $this->general->id]);
 
-        $this->get(route('clinic.patients.show', $mine['patient']->id))->assertOk();
-        $this->get(route('clinic.patients.show', $other['patient']->id))->assertNotFound();
+        // A patient file is the customer's one file for the company; its visits stay in their branch.
+        $this->get(route('clinic.patients.show', $other['patient']->id))->assertOk()->assertInertia(fn ($p) => $p->has('visits', 0));
+        $this->get(route('clinic.patients.show', $mine['patient']->id))->assertOk()->assertInertia(fn ($p) => $p->has('visits', 1));
         $this->get(route('work-orders.show', $mine['order']->id))->assertOk();
         $this->get(route('work-orders.show', $other['order']->id))->assertNotFound();
         $this->get(route('workshop.vehicles.show', $mine['vehicle']->id))->assertOk();
@@ -199,7 +205,7 @@ class BranchActivitiesTest extends TestCase
         $this->get(route('real-estate.leases.show', $other['lease']->id))->assertNotFound();
 
         // lists carry only my branch's rows
-        $this->get(route('clinic.patients.index'))->assertInertia(fn ($p) => $p->has('patients.data', 1)->where('patients.data.0.id', $mine['patient']->id));
+        $this->get(route('clinic.patients.index'))->assertInertia(fn ($p) => $p->has('patients.data', 2)); // one file per patient, company-wide
         $this->get(route('work-orders.index'))->assertInertia(fn ($p) => $p->has('orders.data', 1));
         $this->get(route('bookings.index'))->assertInertia(fn ($p) => $p->has('bookings.data', 1));
 
@@ -231,7 +237,7 @@ class BranchActivitiesTest extends TestCase
         $this->assertSame($this->clinic->id, PatientFile::firstOrFail()->branch_id);
 
         try {
-            PatientFile::create(['customer_id' => Customer::create(['name' => 'آخر', 'customer_type' => 'individual', 'status' => 'active'])->id, 'file_number' => 'PF-X', 'branch_id' => $this->general->id]);
+            CustomerVehicle::create(['customer_id' => $this->customer->id, 'plate' => 'X-1', 'branch_id' => $this->general->id]);
             $this->fail('a branch outside the user\'s own must be refused');
         } catch (ValidationException $e) {
             $this->assertArrayHasKey('branch_id', $e->errors());
@@ -271,5 +277,46 @@ class BranchActivitiesTest extends TestCase
         $this->post(route('settings.sector-packs.apply', 'workshop'))->assertSessionHasNoErrors(); // owner: a shared catalogue
         $this->assertNull(WorkType::withoutGlobalScopes()->where('name', 'فحص شامل')->whereNull('branch_id')->value('branch_id'));
         $this->post(route('settings.sector-packs.apply', 'workshop'), ['branch_id' => 99999])->assertSessionHasErrors('branch_id');
+    }
+
+    public function test_time_entries_of_another_branchs_order_are_out_of_reach(): void
+    {
+        $other = $this->records($this->clinic)['order'];
+        $tech = Employee::create(['name' => 'فني', 'employee_number' => 'T1', 'job_title' => 'فني', 'hire_date' => '2026-01-01', 'basic_salary' => 1, 'status' => 'active']);
+        $entry = TimeEntry::create(['work_order_id' => $other->id, 'employee_id' => $tech->id, 'started_at' => '2026-06-15 08:00', 'ended_at' => '2026-06-15 09:00', 'minutes' => 60, 'billable' => true, 'labour_cost' => 10]);
+
+        $u = $this->staff([$this->general]);
+        app(PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
+        $u->givePermissionTo(['work_orders.orders.edit', 'work_orders.timesheets.view']);
+        $this->actingAs($u->fresh());
+        $this->post(route('context.branch'), ['branch_id' => $this->general->id]);
+
+        $this->put(route('work-orders.time.update', $entry->id), ['minutes' => 600])->assertNotFound();
+        $this->post(route('work-orders.time.stop', $entry->id))->assertNotFound();
+        $this->assertSame(60, $entry->fresh()->minutes);
+        $this->get(route('work-orders.timesheet', ['from' => '2026-06-01', 'to' => '2026-06-30']))->assertOk()->assertInertia(fn ($p) => $p->has('entries', 0));
+    }
+
+    public function test_a_patient_with_a_file_in_another_branch_keeps_it(): void
+    {
+        $customer = Customer::create(['name' => 'مريض', 'customer_type' => 'individual', 'status' => 'active']);
+        PatientFile::create(['customer_id' => $customer->id, 'file_number' => 'PF-1', 'branch_id' => $this->clinic->id]);
+        $this->asStaff([$this->general]);
+        $this->post(route('clinic.patients.store'), ['customer_id' => $customer->id])->assertSessionHasErrors('customer_id'); // a message, not a 500
+        $this->assertSame(1, PatientFile::count());
+    }
+
+    public function test_search_leaves_out_systems_the_branch_does_not_run(): void
+    {
+        $this->records($this->shop);
+        $this->asStaff([$this->clinic, $this->shop], $this->clinic); // clinic branch: no work orders, no real estate
+        $kinds = collect($this->getJson(route('search', ['q' => 'WO-']))->assertOk()->json('kinds'))->pluck('key');
+        $this->assertNotContains('work_orders', $kinds);
+        $this->assertNotContains('leases', $kinds);
+        $this->assertContains('patients', $kinds);
+
+        $this->post(route('context.branch'), ['branch_id' => $this->shop->id]);
+        $kinds = collect($this->getJson(route('search', ['q' => 'WO-']))->json('kinds'))->pluck('key');
+        $this->assertContains('work_orders', $kinds);
     }
 }

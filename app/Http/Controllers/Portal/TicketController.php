@@ -79,6 +79,9 @@ class TicketController extends PortalController
         $this->needs($request, 'support');
         $ticket = $this->scope()->tickets()->findOrFail($ticket);
         abort_if($ticket->isActive(), 404);
+        if ($ticket->rating) {
+            return back()->with('error', 'قيّمت هذه التذكرة من قبل.');
+        }
         $data = $request->validate(['rating' => 'required|integer|min:1|max:5', 'comment' => 'nullable|string|max:2000']);
         $ticket->update(['rating' => $data['rating'], 'rating_comment' => $data['comment'] ?? null]);
 

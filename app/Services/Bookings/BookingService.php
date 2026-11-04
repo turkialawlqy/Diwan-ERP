@@ -57,8 +57,20 @@ class BookingService
             throw ValidationException::withMessages(['booking_resource_id' => 'هذا المورد لا يقدّم الخدمة المختارة.']);
         }
 
-        return DB::transaction(function () use ($data, $source, $user, $portalUser, $service, $customer, $start, $resource, $enforce) {
+        $any = empty($data['booking_resource_id']);
+
+        return DB::transaction(function () use ($data, $source, $user, $portalUser, $service, $customer, $start, $resource, $enforce, $any) {
             BookingResource::whereKey($resource->id)->lockForUpdate()->first(); // two people cannot take the same slot
+            if ($any && ! $this->availability->isFree($resource, $service, $start, $enforce)) {
+                // «Any resource» and this one was just taken: another free one that serves the service.
+                foreach ($service->resources()->where('is_active', true)->whereKeyNot($resource->id)->get() as $other) {
+                    BookingResource::whereKey($other->id)->lockForUpdate()->first();
+                    if ($this->availability->isFree($other, $service, $start, $enforce)) {
+                        $resource = $other;
+                        break;
+                    }
+                }
+            }
             if (! $this->availability->isFree($resource, $service, $start, $enforce)) {
                 throw ValidationException::withMessages(['starts_at' => 'هذا الموعد غير متاح، اختر وقتًا آخر.']);
             }
@@ -82,12 +94,16 @@ class BookingService
                 'source' => $source,
                 'price' => $price,
                 'member_discount' => $discount,
-                'deposit_amount' => $deposit,
+                'deposit_amount' => 0, // set by the receipt below
                 'customer_package_id' => $data['customer_package_id'] ?? null,
                 'portal_user_id' => $portalUser?->id,
                 'notes' => $data['notes'] ?? null,
                 'created_by' => $user?->id,
             ]);
+
+            if ($deposit > 0) {
+                app(BookingDeposits::class)->receive($booking, $deposit, $data['deposit_method'] ?? 'cash', isset($data['deposit_bank_account_id']) ? (int) $data['deposit_bank_account_id'] : null);
+            }
 
             if ($source === 'portal') {
                 $this->alertStaff($booking, 'booking_new', 'حجز جديد من البوابة', "{$booking->number} — {$customer->name} — {$service->name} ".$start->format('Y-m-d H:i'), 'info');
@@ -146,7 +162,12 @@ class BookingService
                 throw ValidationException::withMessages(['status' => "لا يمكن إلغاء الحجز قبل أقل من {$booking->service->free_cancel_hours} ساعة من موعده، تواصل معنا."]);
             }
         }
-        $booking->update(['status' => 'cancelled', 'cancel_reason' => $reason, 'cancelled_at' => now()]);
+        DB::transaction(function () use (&$booking, $reason) {
+            $booking = Booking::whereKey($booking->id)->lockForUpdate()->firstOrFail();
+            $this->assertOpen($booking); // not completed meanwhile
+            $booking->update(['status' => 'cancelled', 'cancel_reason' => $reason, 'cancelled_at' => now()]);
+            app(BookingDeposits::class)->release($booking);
+        });
         $this->tellCustomer($booking, 'تم إلغاء حجزك '.$booking->number, $reason ? ["السبب: {$reason}"] : []);
         if ($byCustomer) {
             $this->alertStaff($booking, 'booking_cancelled', 'ألغى العميل حجزًا', "{$booking->number} — {$booking->customer->name} — ".$booking->starts_at->format('Y-m-d H:i'), 'warning');
@@ -158,7 +179,12 @@ class BookingService
     public function noShow(Booking $booking): Booking
     {
         $this->assertOpen($booking);
-        $booking->update(['status' => 'no_show']);
+        DB::transaction(function () use (&$booking) {
+            $booking = Booking::whereKey($booking->id)->lockForUpdate()->firstOrFail();
+            $this->assertOpen($booking);
+            $booking->update(['status' => 'no_show']);
+            app(BookingDeposits::class)->release($booking);
+        });
 
         return $booking;
     }
@@ -185,14 +211,13 @@ class BookingService
                 $this->packages->use($package, $booking);
                 $booking->update(['status' => 'completed', 'customer_package_id' => $package->id]);
             } elseif ($net > 0) {
-                $deposit = min((float) $booking->deposit_amount, $net);
                 $invoice = $this->invoices->create([
                     'customer_id' => $booking->customer_id,
+                    'branch_id' => $booking->branch_id,
                     'invoice_date' => now()->toDateString(),
                     'supply_date' => $booking->starts_at->toDateString(),
-                    'payment_method' => $deposit > 0 ? 'cash' : 'credit',
+                    'payment_method' => 'credit',
                     'payment_status' => 'unpaid',
-                    'paid_amount' => $deposit,
                     'reference_number' => $booking->number,
                     'notes' => "حجز {$booking->number} — ".$booking->starts_at->format('Y-m-d H:i'),
                 ], [[
@@ -205,8 +230,12 @@ class BookingService
                     'tax_rate' => (float) $service->tax_rate,
                 ]], ['issue_stock' => false, 'check_credit' => false]);
                 $booking->update(['status' => 'completed', 'invoice_id' => $invoice->id]);
+                app(BookingDeposits::class)->apply($booking, $invoice->fresh()); // the deposit received earlier settles it
             } else {
                 $booking->update(['status' => 'completed']); // free (100 % member discount)
+            }
+            if ($package || $net <= 0) {
+                app(BookingDeposits::class)->credit($booking); // nothing to settle: the deposit stays the customer's credit
             }
 
             return $booking;

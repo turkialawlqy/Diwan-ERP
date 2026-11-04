@@ -12,6 +12,7 @@ use App\Models\CustomerGroup;
 use App\Models\Department;
 use App\Models\JobPosition;
 use App\Models\Product;
+use App\Models\Property;
 use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\Warehouse;
@@ -102,8 +103,15 @@ class LookupController extends Controller
             'work_centers' => [WorkCenter::class, 'name', fn ($m) => $m->name],
             'customer_groups' => [CustomerGroup::class, 'code', fn ($m) => $m->name],
             'accounts' => [Account::class, 'code', fn ($m) => $m->code.' - '.$m->name_ar],
+            'customers' => [Customer::class, 'name', fn ($m) => $m->name],
+            'properties' => [Property::class, 'name', fn ($m) => $m->name],
         ];
         abort_unless(isset($lists[$name]), 404);
+        // Customer names only for those who may pick a customer somewhere (the same rule as the customer search).
+        if ($name === 'customers') {
+            $user = auth()->user();
+            abort_unless($user && ($user->isCompanyOwner() || collect((array) (config('erp_permissions.routes')['lookup.customers'] ?? []))->contains(fn ($p) => $user->can($p))), 403);
+        }
         [$model, $order, $label] = $lists[$name];
 
         $query = $model::query();

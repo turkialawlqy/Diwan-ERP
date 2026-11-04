@@ -41,7 +41,7 @@ class LeaseController extends Controller
     {
         $data = $request->validate([
             'customer_id' => 'required|tenant_exists:customers,id', 'property_unit_id' => 'required|tenant_exists:property_units,id', 'start_date' => 'required|date', 'end_date' => 'required|date',
-            'rent_amount' => 'required|numeric|min:0.01', 'cycle' => 'required|in:monthly,quarterly,yearly', 'security_deposit' => 'nullable|numeric|min:0', 'template_id' => 'nullable|tenant_exists:contract_templates,id',
+            'rent_amount' => 'required|numeric|min:0.01', 'cycle' => 'required|in:monthly,quarterly,yearly', 'security_deposit' => 'nullable|numeric|min:0', 'residential' => 'boolean', 'template_id' => 'nullable|tenant_exists:contract_templates,id',
         ], [], ['customer_id' => 'المستأجر', 'property_unit_id' => 'الوحدة', 'rent_amount' => 'قيمة الإيجار']);
         $lease = $this->leases->create($data);
 

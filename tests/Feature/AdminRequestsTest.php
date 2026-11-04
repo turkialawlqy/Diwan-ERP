@@ -177,7 +177,7 @@ class AdminRequestsTest extends TestCase
         $this->assertInvalid(fn () => $s->notify($line->fresh(), $specialist, false, null, ''));     // reason needed
         $s->notify($line->fresh(), $specialist, false, null, 'الهاتف مغلق');
         $this->assertSame('unreachable', $line->fresh()->status);
-        $this->assertSame('completed', $request->fresh()->status); // every line final
+        $this->assertSame('completed_partial', $request->fresh()->status); // every line final, but nobody was reached
 
         // Another attempt reopens the request.
         $s->reopen($line->fresh(), $this->salesManager);
@@ -236,5 +236,43 @@ class AdminRequestsTest extends TestCase
     {
         $request = $this->sent();
         $this->getJson(route('search', ['q' => $request->number]))->assertOk()->assertJsonFragment(['code' => $request->number]);
+    }
+
+    public function test_a_manager_sees_only_his_department_lines_and_no_drafts(): void
+    {
+        $draft = $this->service()->create(['title' => 'مسودة'], [$this->ali->id], $this->owner);
+        $request = $this->sent();
+        $this->actingAs($this->salesManager);
+        $this->get(route('hr.admin-requests.show', $draft))->assertForbidden();
+        $this->get(route('hr.admin-requests.show', $request))->assertOk()->assertInertia(fn ($p) => $p->has('lines', 1)->where('lines.0.employee_id', $this->ali->id));
+    }
+
+    public function test_the_specialist_list_holds_only_active_users_of_the_company_who_may_handle(): void
+    {
+        $request = $this->sent([$this->ali]);
+        $inactive = $this->userWithRole($this->company, 'employee');
+        app(PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
+        $inactive->givePermissionTo('hr.admin_requests.handle');
+        $inactive->forceFill(['status' => 'inactive'])->save();
+        $ids = collect($this->get(route('hr.admin-requests.show', $request))->viewData('page')['props']['handlers'])->pluck('id');
+        $this->assertContains($this->salesManager->id, $ids);
+        $this->assertNotContains($inactive->id, $ids);
+        $this->assertInvalid(fn () => $this->service()->assign($this->service()->receive($request->lines()->first(), $this->owner), $this->owner, $inactive->id));
+    }
+
+    public function test_a_manager_without_an_active_account_passes_his_lines_to_the_central_party(): void
+    {
+        Notification::fake();
+        $this->salesManager->forceFill(['status' => 'inactive'])->save();
+        $this->sent([$this->ali]);
+        Notification::assertNotSentTo($this->salesManager, ErpAlert::class);
+        Notification::assertSentTo($this->owner, ErpAlert::class);
+    }
+
+    public function test_the_summons_prints_as_a_pdf(): void
+    {
+        $request = $this->sent();
+        $this->get(route('documents.pdf', ['type' => 'admin_request', 'id' => $request->id]))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->actingAs($this->salesManager)->get(route('documents.pdf', ['type' => 'admin_request', 'id' => $request->id]))->assertForbidden(); // only those who may view all requests
     }
 }

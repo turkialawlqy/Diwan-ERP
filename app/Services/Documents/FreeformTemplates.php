@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 class FreeformTemplates
 {
     /** Kinds that always print free-form (no quick designer layout exists). */
-    public const FREEFORM_ONLY = ['sales_order', 'debit_note', 'receipt', 'payment', 'expense', 'revenue', 'journal', 'purchase_invoice', 'purchase_order'];
+    public const FREEFORM_ONLY = ['sales_order', 'debit_note', 'receipt', 'payment', 'expense', 'revenue', 'journal', 'purchase_invoice', 'purchase_order', 'work_order', 'booking'];
 
     /** Template types whose "default" flag is shared: one default per group. */
     public const GROUPS = ['invoice' => ['invoice', 'invoice_a4']];

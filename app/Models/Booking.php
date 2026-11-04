@@ -14,7 +14,7 @@ class Booking extends Model
     use Auditable, BelongsToCompany, BranchScoped;
 
     protected $fillable = ['company_id', 'branch_id', 'number', 'customer_id', 'bookable_service_id', 'booking_resource_id', 'starts_at', 'ends_at', 'status', 'source',
-        'price', 'member_discount', 'deposit_amount', 'invoice_id', 'customer_package_id', 'portal_user_id', 'cancel_reason', 'cancelled_at', 'reminder_state', 'notes', 'created_by'];
+        'price', 'member_discount', 'deposit_amount', 'deposit_payment_id', 'deposit_status', 'invoice_id', 'customer_package_id', 'portal_user_id', 'cancel_reason', 'cancelled_at', 'reminder_state', 'notes', 'created_by'];
 
     protected $casts = ['starts_at' => 'datetime', 'ends_at' => 'datetime', 'cancelled_at' => 'datetime', 'price' => 'decimal:2', 'member_discount' => 'decimal:2',
         'deposit_amount' => 'decimal:2', 'reminder_state' => 'array'];

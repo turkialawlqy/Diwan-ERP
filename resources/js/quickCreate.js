@@ -232,6 +232,32 @@ export const quickCreate = {
             text('address', 'العنوان'),
         ],
     },
+    property_unit: {
+        title: 'وحدة عقارية جديدة', route: 'real-estate.units.store', seed: 'unit_number', label: (r) => r.label || r.unit_number,
+        fields: () => [
+            { key: 'property_id', label: 'العقار', type: 'select', lookup: 'properties', entity: 'property', required: true, span: 2 },
+            text('unit_number', 'رقم الوحدة', { required: true }),
+            { key: 'type', label: 'النوع', type: 'select', default: 'apartment', options: [{ value: 'apartment', label: 'شقة' }, { value: 'shop', label: 'محل' }, { value: 'office', label: 'مكتب' }, { value: 'warehouse', label: 'مستودع' }, { value: 'room', label: 'غرفة' }] },
+            num('rent_amount', 'الإيجار المقترح'),
+        ],
+    },
+    contract_template: {
+        title: 'نموذج عقد جديد', route: 'contracts.templates.store', seed: 'name', label: (r) => r.name, size: 'lg',
+        fields: () => [
+            text('name', 'اسم النموذج', { required: true, span: 2 }),
+            { key: 'kind', label: 'نوع العقد', type: 'select', default: 'service', options: [{ value: 'sales', label: 'بيع' }, { value: 'purchase', label: 'شراء' }, { value: 'service', label: 'خدمة' }, { value: 'lease', label: 'إيجار' }, { value: 'other', label: 'أخرى' }] },
+            { key: 'body', label: 'نص النموذج', type: 'textarea', required: true, span: 2 },
+        ],
+    },
+    visit_package: {
+        title: 'باقة زيارات جديدة', route: 'bookings.packages.store', seed: 'name', label: (r) => r.name,
+        fields: () => [
+            text('name', 'اسم الباقة', { required: true, span: 2 }),
+            num('visits', 'عدد الزيارات', { step: '1', default: 10, required: true }),
+            num('price', 'السعر', { required: true }),
+            num('valid_days', 'الصلاحية بالأيام', { step: '1', default: '' }),
+        ],
+    },
     nationality: {
         title: 'جنسية جديدة', route: 'hr.nationalities.store', seed: 'name_ar',
         fields: () => [

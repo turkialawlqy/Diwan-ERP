@@ -18,6 +18,7 @@ use App\Models\MaintenanceOrder;
 use App\Models\MemberCheckin;
 use App\Models\PatientFile;
 use App\Models\PatientVisit;
+use App\Models\PortalUser;
 use App\Models\PosOrder;
 use App\Models\PosSession;
 use App\Models\ProductionOrder;
@@ -42,7 +43,7 @@ class ModuleWidgets
     public function __construct(protected PlanGuard $guard) {}
 
     /**
-     * module => [title, permission (any of), link route, metrics closure → [[label, value, route?, tone?]]].
+     * module => [title, permission (any of), link route, metrics closure → [[label, value, route?, tone?, permission?]]].
      * Tones: neutral | good | warn | danger.
      */
     public function definitions(): array
@@ -68,7 +69,7 @@ class ModuleWidgets
             'contracts' => ['title' => 'العقود', 'permission' => 'contracts.contracts.view', 'link' => 'contracts.index', 'metrics' => fn () => [
                 ['عقود سارية', Contract::where('status', 'active')->count(), 'contracts.index', 'good'],
                 ['تنتهي خلال 30 يومًا', Contract::where('status', 'active')->whereBetween('end_date', [$today(), now()->addDays(30)->toDateString()])->count(), 'contracts.index', 'warn'],
-                ['التزامات متأخرة', ContractObligation::where('status', 'pending')->where('due_date', '<', $today())->count(), 'contracts.index', 'danger'],
+                ['التزامات متأخرة', ContractObligation::where('status', 'pending')->where('due_date', '<', $today())->whereHas('contract', fn ($q) => $q->whereIn('status', ['active', 'approved']))->count(), 'contracts.index', 'danger'],
             ]],
             'subscriptions' => ['title' => 'اشتراكات العملاء', 'module' => 'sales', 'permission' => 'sales.subscriptions.view', 'link' => 'sales.subscriptions.index', 'metrics' => fn () => [
                 ['اشتراكات سارية', CustomerSubscription::whereIn('status', ['trial', 'active', 'past_due'])->count(), 'sales.subscriptions.index', 'good'],
@@ -76,9 +77,9 @@ class ModuleWidgets
                 ['متعثرة', CustomerSubscription::where('status', 'past_due')->count(), 'sales.subscriptions.index', 'danger'],
             ]],
             'hr' => ['title' => 'الموارد البشرية', 'permission' => ['hr.leaves.view', 'hr.admin_requests.view', 'hr.admin_requests.handle'], 'link' => 'hr.leaves.index', 'metrics' => fn () => [
-                ['إجازات بانتظار القرار', LeaveRequest::where('status', 'pending')->count(), 'hr.leaves.index', 'warn'],
-                ['سلف بانتظار القرار', EmployeeLoan::where('status', 'pending')->count(), 'hr.loans.index', 'warn'],
-                ['موظفون مطلوب تبليغهم', AdminRequestLine::whereNotIn('status', AdminRequestLine::FINAL)->whereHas('request', fn ($q) => $q->where('status', '!=', 'draft'))->count(), 'hr.admin-requests.inbox'],
+                ['إجازات بانتظار القرار', LeaveRequest::where('status', 'pending')->count(), 'hr.leaves.index', 'warn', 'hr.leaves.view'],
+                ['سلف بانتظار القرار', EmployeeLoan::where('status', 'pending')->count(), 'hr.loans.index', 'warn', 'hr.loans.view'],
+                ['موظفون مطلوب تبليغهم', AdminRequestLine::whereNotIn('status', AdminRequestLine::FINAL)->whereHas('request', fn ($q) => $q->where('status', '!=', 'draft'))->count(), 'hr.admin-requests.inbox', 'neutral', ['hr.admin_requests.view', 'hr.admin_requests.manage']],
             ]],
             'clinic' => ['title' => 'العيادات', 'permission' => 'clinic.patients.view', 'link' => 'clinic.patients.index', 'metrics' => fn () => [
                 ['زيارات اليوم', PatientVisit::whereDate('visit_date', $today())->count(), 'clinic.patients.index', 'good'],
@@ -114,6 +115,11 @@ class ModuleWidgets
                 ['فرص مفتوحة', Lead::whereNotIn('status', ['won', 'lost'])->count(), 'crm.leads.index'],
                 ['متابعات مستحقة', Lead::whereNotIn('status', ['won', 'lost'])->whereNotNull('next_follow_up')->where('next_follow_up', '<=', now())->count(), 'crm.leads.index', 'warn'],
             ]],
+            'portal' => ['title' => 'بوابة العملاء', 'permission' => 'portal.users.view', 'link' => 'portal.users.index', 'metrics' => fn () => [
+                ['مستخدمون نشطون', PortalUser::where('status', 'active')->count(), 'portal.users.index', 'good'],
+                ['دخلوا هذا الشهر', PortalUser::where('last_login_at', '>=', now()->startOfMonth())->count(), 'portal.users.index'],
+                ['حجوزات من البوابة هذا الشهر', Booking::where('source', 'portal')->where('created_at', '>=', now()->startOfMonth())->count(), 'bookings.index'],
+            ]],
             'pos' => ['title' => 'نقاط البيع', 'permission' => ['pos.terminal.use', 'pos.history.view'], 'link' => 'pos.history', 'metrics' => fn () => [
                 ['مبيعات اليوم', number_format((float) PosOrder::where('status', 'completed')->whereDate('created_at', $today())->sum('total'), 0), 'pos.history', 'good'],
                 ['ورديات مفتوحة', PosSession::where('status', 'opened')->count(), 'pos.registers.index'],
@@ -139,8 +145,13 @@ class ModuleWidgets
             if ($isHidden && ! $all) {
                 continue;
             }
-            $out[] = ['key' => $key, 'title' => $def['title'], 'link' => $def['link'], 'hidden' => $isHidden]
-                + ($isHidden ? ['metrics' => []] : ['metrics' => $this->metrics($company->id, $scope, $key, $def)]);
+            // A number with its own permission shows only to those who hold it (company-wide HR figures...).
+            $metrics = $isHidden ? [] : collect($this->metrics($company->id, $scope, $key, $def))
+                ->filter(fn ($m) => empty($m['permission']) || $this->allowed($user, $m['permission']))->map(fn ($m) => collect($m)->except('permission')->all())->values()->all();
+            if (! $isHidden && ! $metrics) {
+                continue;
+            }
+            $out[] = ['key' => $key, 'title' => $def['title'], 'link' => $def['link'], 'hidden' => $isHidden, 'metrics' => $metrics];
         }
 
         return $out;
@@ -150,7 +161,7 @@ class ModuleWidgets
     protected function metrics(int $companyId, string $scope, string $key, array $def): array
     {
         return Cache::remember("dashboard:widgets:{$companyId}:{$scope}:{$key}", now()->addMinutes(5), fn () => collect($def['metrics']())
-            ->map(fn ($m) => ['label' => $m[0], 'value' => (string) $m[1], 'route' => $m[2] ?? null, 'tone' => $m[3] ?? 'neutral'])->all());
+            ->map(fn ($m) => ['label' => $m[0], 'value' => (string) $m[1], 'route' => $m[2] ?? null, 'tone' => $m[3] ?? 'neutral', 'permission' => $m[4] ?? null])->all());
     }
 
     protected function allowed(User $user, string|array $permission): bool

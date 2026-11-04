@@ -7,6 +7,7 @@ use App\Models\AdminRequest;
 use App\Models\Booking;
 use App\Models\Contract;
 use App\Models\Customer;
+use App\Models\CustomerPackage;
 use App\Models\CustomerSubscription;
 use App\Models\CustomerVehicle;
 use App\Models\Employee;
@@ -17,6 +18,8 @@ use App\Models\Lease;
 use App\Models\PatientFile;
 use App\Models\Product;
 use App\Models\Project;
+use App\Models\Property;
+use App\Models\PropertyUnit;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
 use App\Models\Quotation;
@@ -74,12 +77,12 @@ class SearchController extends Controller
     }
 
     /** key => label, permission, query($like, $term), present($row) → title, code, subtitle, url */
-    /** Permission names share the route prefixes of their module (hr., projects. ...). */
+    /** The kind's module is off for the company, its plan or the working branch. */
     protected function moduleOff(string $permission): bool
     {
         $company = app(TenantManager::class)->getCompany();
 
-        return $company && app(PlanGuard::class)->unavailable($company, $permission);
+        return $company && app(PlanGuard::class)->permissionUnavailable($company, $permission);
     }
 
     protected function kinds(): array
@@ -126,6 +129,21 @@ class SearchController extends Controller
                     ->where(fn ($q) => $q->where('number', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like))->orWhereHas('unit', fn ($u) => $u->where('unit_number', 'like', $like)))
                     ->latest('id')->select('id', 'number', 'customer_id', 'property_unit_id', 'status'),
                 'present' => fn ($r) => ['title' => $r->number.' — '.($r->customer?->name ?? ''), 'code' => (string) $r->number, 'subtitle' => 'وحدة '.($r->unit?->unit_number ?? '').' · '.(Lease::STATUSES[$r->status] ?? $r->status), 'url' => route('real-estate.leases.show', $r->id)],
+            ],
+            'properties' => [
+                'label' => 'العقارات', 'permission' => 'real_estate.properties.view',
+                'query' => fn ($like) => Property::query()->where(fn ($q) => $q->where('name', 'like', $like)->orWhere('address', 'like', $like))->orderBy('name')->select('id', 'name', 'address'),
+                'present' => fn ($r) => ['title' => $r->name, 'code' => '', 'subtitle' => (string) $r->address, 'url' => route('real-estate.properties.show', $r->id)],
+            ],
+            'property_units' => [
+                'label' => 'الوحدات العقارية', 'permission' => 'real_estate.units.view',
+                'query' => fn ($like) => PropertyUnit::query()->with('property:id,name')->where('unit_number', 'like', $like)->orderBy('unit_number')->select('id', 'property_id', 'unit_number', 'status'),
+                'present' => fn ($r) => ['title' => ($r->property?->name ?? '').' — '.$r->unit_number, 'code' => (string) $r->unit_number, 'subtitle' => PropertyUnit::STATUSES[$r->status] ?? $r->status, 'url' => route('real-estate.properties.show', $r->property_id)],
+            ],
+            'customer_packages' => [
+                'label' => 'باقات العملاء', 'permission' => 'bookings.packages.view',
+                'query' => fn ($like) => CustomerPackage::query()->with('customer:id,name')->where(fn ($q) => $q->where('number', 'like', $like)->orWhere('name', 'like', $like)->orWhereHas('customer', fn ($c) => $c->where('name', 'like', $like)))->latest('id')->select('id', 'number', 'name', 'customer_id', 'status'),
+                'present' => fn ($r) => ['title' => $r->name.' — '.($r->customer?->name ?? ''), 'code' => (string) $r->number, 'subtitle' => (string) $r->status, 'url' => route('bookings.customer-packages.show', $r->id)],
             ],
             'work_orders' => [
                 'label' => 'أوامر العمل', 'permission' => 'work_orders.orders.view',

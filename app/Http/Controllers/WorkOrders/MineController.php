@@ -135,6 +135,7 @@ class MineController extends Controller
     public function photo(Request $request, int $order)
     {
         [$order] = $this->mine($order);
+        abort_unless($order->isOpen(), 422, 'أمر العمل مغلق.');
         $request->validate(['file' => 'required|file|max:10240|mimes:jpg,jpeg,png,webp'], [], ['file' => 'الصورة']);
         $stored = FileController::storeForTenant($request->file('file'), 'work-orders');
         $order->attachments()->create(['path' => $stored['path'], 'name' => $request->file('file')->getClientOriginalName(), 'kind' => 'photo', 'uploaded_by' => $request->user()->id]);

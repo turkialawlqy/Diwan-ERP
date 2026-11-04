@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\PatientFile;
 use App\Models\PatientVisit;
+use App\Services\ActiveBranch;
 use App\Services\Documents\DocumentNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -44,7 +45,8 @@ class PatientController extends Controller
         if (PatientFile::where('customer_id', $data['customer_id'])->exists()) {
             throw ValidationException::withMessages(['customer_id' => 'لهذا العميل ملف مريض بالفعل.']);
         }
-        $patient = PatientFile::create($data + ['file_number' => $this->numbers->next('patient_file'), 'created_by' => $request->user()->id]);
+        $patient = PatientFile::create($data + ['file_number' => $this->numbers->next('patient_file'), 'created_by' => $request->user()->id,
+            'branch_id' => app(ActiveBranch::class)->forWrite()]); // where it was opened
 
         return redirect()->route('clinic.patients.show', $patient->id)->with('success', 'فُتح ملف المريض '.$patient->file_number);
     }

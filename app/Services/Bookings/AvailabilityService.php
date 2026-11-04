@@ -72,7 +72,8 @@ class AvailabilityService
     public function slots(BookableService $service, ?BookingResource $resource, Carbon $day, bool $enforceWindow = true): Collection
     {
         $resources = $resource ? collect([$resource]) : $service->resources()->where('is_active', true)->get();
-        $load = Booking::whereIn('booking_resource_id', $resources->pluck('id'))->whereDate('starts_at', $day)->whereIn('status', Booking::BLOCKING)
+        // Every branch's bookings count: a shared resource (no branch) is one calendar, whoever booked it.
+        $load = Booking::withoutGlobalScope('branch')->whereIn('booking_resource_id', $resources->pluck('id'))->whereDate('starts_at', $day)->whereIn('status', Booking::BLOCKING)
             ->selectRaw('booking_resource_id, count(*) as n')->groupBy('booking_resource_id')->pluck('n', 'booking_resource_id');
 
         $byTime = [];
@@ -102,7 +103,7 @@ class AvailabilityService
     /** @return Collection<int, array{start:Carbon,end:Carbon}> occupied intervals (booking length + its service's buffer) */
     protected function busy(BookingResource $resource, Carbon $day, ?int $ignoreBookingId): Collection
     {
-        return Booking::with('service:id,buffer_minutes')->where('booking_resource_id', $resource->id)->whereIn('status', Booking::BLOCKING)
+        return Booking::withoutGlobalScope('branch')->with(['service' => fn ($q) => $q->withoutGlobalScope('branch')->select('id', 'buffer_minutes')])->where('booking_resource_id', $resource->id)->whereIn('status', Booking::BLOCKING)
             ->where('starts_at', '<', $day->copy()->addDay()->addHours(6))->where('ends_at', '>', $day->copy()->subHours(6))
             ->when($ignoreBookingId, fn ($q) => $q->where('id', '!=', $ignoreBookingId))->get()
             ->map(fn (Booking $b) => ['start' => $b->starts_at, 'end' => $b->ends_at->copy()->addMinutes((int) $b->service?->buffer_minutes)]);

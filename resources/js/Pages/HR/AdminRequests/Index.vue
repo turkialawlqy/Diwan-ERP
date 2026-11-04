@@ -10,7 +10,7 @@ import { PlusIcon } from '@heroicons/vue/24/outline';
 const props = defineProps({ requests: Object, filters: Object, statuses: Object, departments: Array, employees: Array });
 const f = reactive({ ...props.filters });
 const go = () => router.get(route('hr.admin-requests.index'), Object.fromEntries(Object.entries(f).filter(([, v]) => v)), { preserveState: true, replace: true });
-const tone = { draft: 'text-slate-500', new: 'text-sky-700', processing: 'text-amber-700', completed: 'text-emerald-700' };
+const tone = { draft: 'text-slate-500', new: 'text-sky-700', processing: 'text-amber-700', completed: 'text-emerald-700', completed_partial: 'text-rose-600' };
 const when = (v) => (v ? String(v).replace('T', ' ').slice(0, 16) : '—');
 </script>
 

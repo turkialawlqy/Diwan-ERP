@@ -40,6 +40,7 @@ class PartsService
                     'date' => now()->toDateString(), 'source' => $part, 'reference' => $order->number]);
                 $part->update(['unit_cost' => round($value / $quantity, 4)]);
             }
+            $order->voidSignature();
 
             return $part;
         });

@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { computed, ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -38,6 +39,7 @@ const input = 'rounded-xl border-slate-200 text-xs';
         <Head :title="`أمر عمل ${o.number}`" />
         <PageHeader :title="`${o.number} — ${o.title}`" :crumbs="[{ label: 'أوامر العمل', href: route('work-orders.index') }, { label: o.number }]">
             <template #actions>
+                <ShareDocument v-if="$can('work_orders.orders.view')" type="work_order" :id="o.id" />
                 <template v-if="open && $can('work_orders.orders.edit')">
                     <button v-if="o.status === 'in_progress'" type="button" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600" @click="act('work-orders.hold')">تعليق</button>
                     <button type="button" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold" @click="completing = true" data-complete>إنجاز</button>
@@ -76,7 +78,7 @@ const input = 'rounded-xl border-slate-200 text-xs';
                         <tr v-if="!o.time_entries.length"><td class="py-5 text-center text-slate-400">لا وقت مسجَّل.</td></tr>
                     </tbody></table>
                     <form v-if="open && $can('work_orders.orders.edit')" class="p-3 border-t border-slate-100 flex flex-wrap items-center gap-2" @submit.prevent="addTime">
-                        <select v-model="time.employee_id" required :class="input" data-time-employee><option value="">الفني</option><option v-for="t in technicians" :key="t.id" :value="t.id">{{ t.name }}</option></select>
+                        <SelectCreate v-model="time.employee_id" required :options="technicians" entity="employee" :label="(t) => t.name" placeholder="الفني" data-time-employee />
                         <input v-model.number="time.minutes" type="text" inputmode="decimal" data-num :class="input" class="w-20 font-mono" data-time-minutes /> دقيقة
                         <label class="flex items-center gap-1"><input v-model="time.billable" type="checkbox" class="rounded border-slate-300" /> قابلة للفوترة</label>
                         <button type="submit" :disabled="time.processing" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold" data-add-time>إضافة ساعات</button>

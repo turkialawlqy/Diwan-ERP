@@ -2,6 +2,7 @@
 
 namespace App\Services\Documents;
 
+use App\Models\Booking;
 use App\Models\Company;
 use App\Models\CreditNote;
 use App\Models\Currency;
@@ -19,7 +20,9 @@ use App\Models\SalesOrder;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Models\User;
+use App\Models\WorkOrder;
 use App\Services\Tax\TaxProfile;
+use App\Services\WorkOrders\WorkOrderBilling;
 use App\Support\CurrencyNames;
 use App\Support\Hijri;
 use App\Support\Tafqeet;
@@ -50,6 +53,8 @@ class TemplateData
         'journal' => ['قيد يومية', JournalEntry::class, true],
         'purchase_invoice' => ['فاتورة مشتريات', PurchaseInvoice::class, true],
         'purchase_order' => ['أمر شراء', PurchaseOrder::class, true],
+        'work_order' => ['بطاقة أمر عمل', WorkOrder::class, true],
+        'booking' => ['حجز', Booking::class, true],
     ];
 
     public const METHODS = ['cash' => 'نقداً', 'credit' => 'آجل', 'bank_transfer' => 'تحويل بنكي', 'card' => 'بطاقة', 'mada' => 'مدى', 'cheque' => 'شيك',
@@ -88,6 +93,8 @@ class TemplateData
             'journal' => $this->journal($document),
             'purchase_invoice' => $this->purchaseInvoice($document),
             'purchase_order' => $this->purchaseOrder($document),
+            'work_order' => $this->workOrder($document),
+            'booking' => $this->booking($document),
         };
 
         $currency = $this->currency($document);
@@ -131,6 +138,14 @@ class TemplateData
                 $kind === 'journal' ? ['doc.description', 'بيان القيد'] : null,
                 $kind === 'purchase_invoice' ? ['doc.supplier_invoice', 'رقم فاتورة المورد'] : null,
                 $kind === 'purchase_order' ? ['doc.delivery_date', 'تاريخ التوريد المتوقع'] : null,
+                in_array($kind, ['work_order', 'booking'], true) ? ['doc.appointment', 'الموعد'] : null,
+                in_array($kind, ['work_order', 'booking'], true) ? ['doc.status', 'الحالة'] : null,
+                $kind === 'work_order' ? ['doc.subject', 'العمل المطلوب'] : null,
+                $kind === 'work_order' ? ['doc.technician', 'الفني'] : null,
+                $kind === 'work_order' ? ['doc.site', 'عنوان الموقع'] : null,
+                $kind === 'work_order' ? ['doc.signed_by', 'وقّع العميل'] : null,
+                $kind === 'booking' ? ['doc.resource', 'المورد / المختص'] : null,
+                $kind === 'booking' ? ['doc.deposit', 'العربون المستلم'] : null,
                 $kind === 'invoice' ? ['doc.payment_type', 'نقدي / آجل'] : null,
                 $voucher ? ['doc.bank', 'البنك / الصندوق'] : null,
                 $voucher ? ['doc.for', 'وذلك عن (الفاتورة)'] : null,
@@ -206,6 +221,7 @@ class TemplateData
             'credit_note' => ['إشعار دائن', 'Credit Note'], 'debit_note' => ['إشعار مدين', 'Debit Note'], 'receipt' => ['سند قبض', 'Receipt Voucher'],
             'payment' => ['سند صرف', 'Payment Voucher'], 'expense' => ['سند صرف', 'Payment Voucher'], 'revenue' => ['سند قبض', 'Receipt Voucher'],
             'journal' => ['قيد يومية', 'Journal Voucher'], 'purchase_invoice' => ['فاتورة مشتريات', 'Purchase Invoice'], 'purchase_order' => ['أمر شراء', 'Purchase Order'],
+            'work_order' => ['بطاقة أمر عمل', 'Job Card'], 'booking' => ['تأكيد حجز', 'Booking Confirmation'],
         ];
 
         $fields = $this->company($company) + [
@@ -432,6 +448,46 @@ class TemplateData
                 'doc.delivery_date' => $this->date($order->expected_delivery_date ?? null), 'doc.notes' => $order->notes,
                 'doc.salesperson' => $order->creator?->name,
             ] + $this->supplier($order->supplier) + $this->totals($order->items, $order->discount ?? 0, $order->tax_amount, $order->total),
+        ];
+    }
+
+    /** The job card: billable hours and parts as lines, the customer's signature status. */
+    protected function workOrder(WorkOrder $order): array
+    {
+        $order->loadMissing(['customer', 'lead:id,name', 'workType']);
+        $lines = collect(app(WorkOrderBilling::class)->preview($order)['lines'])->map(fn ($l) => (object) ($l + ['discount' => 0, 'tax_rate' => $l['tax_rate'] ?? 0]));
+        $tax = round($lines->sum(fn ($l) => $l->quantity * $l->unit_price * $l->tax_rate / 100), 2);
+        $net = round($lines->sum(fn ($l) => $l->quantity * $l->unit_price), 2);
+
+        return [
+            'date' => ($order->scheduled_start ?? $order->created_at)?->toDateString(),
+            'amount' => $net + $tax,
+            'items' => $lines->values()->map(fn ($l, $i) => $this->row($i + 1, '', $l->item_name, $l->description ?? null, '', (float) $l->quantity, (float) $l->unit_price, 0, (float) $l->tax_rate))->all(),
+            'fields' => $this->doc('بطاقة أمر عمل', 'Job Card', $order->number, $order->scheduled_start ?? $order->created_at, $order->created_at) + [
+                'doc.appointment' => $order->scheduled_start?->format('Y-m-d H:i'), 'doc.status' => WorkOrder::STATUSES[$order->status] ?? $order->status,
+                'doc.subject' => $order->title, 'doc.technician' => $order->lead?->name, 'doc.site' => $order->site_address,
+                'doc.signed_by' => $order->signed_by ? $order->signed_by.' — '.$order->signed_at?->format('Y-m-d H:i') : '', 'doc.notes' => $order->completion_notes ?: $order->description,
+                'doc.reference' => $order->workType?->name,
+            ] + $this->customer($order->customer) + $this->totals($lines, 0, $tax, $net + $tax),
+        ];
+    }
+
+    protected function booking(Booking $booking): array
+    {
+        $booking->loadMissing(['customer', 'service', 'resource']);
+        $line = (object) ['item_name' => $booking->service?->name ?? 'حجز', 'quantity' => 1, 'unit_price' => (float) $booking->price, 'discount' => (float) $booking->member_discount, 'tax_rate' => (float) ($booking->service?->tax_rate ?? 0)];
+        $net = round($line->unit_price - $line->discount, 2);
+        $tax = round($net * $line->tax_rate / 100, 2);
+
+        return [
+            'date' => $booking->starts_at?->toDateString(),
+            'amount' => $net + $tax,
+            'items' => [$this->row(1, '', $line->item_name, $booking->starts_at?->format('Y-m-d H:i'), '', 1, $line->unit_price, $line->discount, $line->tax_rate)],
+            'fields' => $this->doc('تأكيد حجز', 'Booking Confirmation', $booking->number, $booking->starts_at, $booking->created_at) + [
+                'doc.appointment' => $booking->starts_at?->format('Y-m-d H:i').' — '.$booking->ends_at?->format('H:i'),
+                'doc.status' => Booking::STATUSES[$booking->status] ?? $booking->status, 'doc.resource' => $booking->resource?->name,
+                'doc.deposit' => $this->money((float) $booking->deposit_amount), 'doc.notes' => $booking->notes,
+            ] + $this->customer($booking->customer) + $this->totals(collect([$line]), $line->discount, $tax, $net + $tax, (float) $booking->deposit_amount, max(0, $net + $tax - (float) $booking->deposit_amount)),
         ];
     }
 

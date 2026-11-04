@@ -19,7 +19,7 @@ class AdminRequest extends Model
 
     protected $casts = ['attend_at' => 'datetime', 'sent_at' => 'datetime', 'completed_at' => 'datetime'];
 
-    public const STATUSES = ['draft' => 'مسودة', 'new' => 'جديد', 'processing' => 'قيد المعالجة', 'completed' => 'مكتمل'];
+    public const STATUSES = ['draft' => 'مسودة', 'new' => 'جديد', 'processing' => 'قيد المعالجة', 'completed' => 'مكتمل', 'completed_partial' => 'مكتمل مع تعذر'];
 
     public function lines(): HasMany
     {
@@ -29,5 +29,11 @@ class AdminRequest extends Model
     public function requester(): BelongsTo
     {
         return $this->belongsTo(User::class, 'requested_by');
+    }
+
+    /** A summons carries no amount (the share message asks for one). */
+    public function getPrintTotalAttribute(): float
+    {
+        return 0.0;
     }
 }

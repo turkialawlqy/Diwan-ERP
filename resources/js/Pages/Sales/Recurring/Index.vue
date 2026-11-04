@@ -88,9 +88,12 @@ onMounted(() => { if (props.prefill) create(props.prefill); });
                     </div>
                     <div class="flex flex-wrap gap-2">
                         <button v-if="$can('sales.recurring.edit') && t.status === 'active'" @click="runNow(t)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">إصدار المستحق الآن</button>
-                        <button v-if="$can('sales.recurring.edit') && t.status !== 'ended'" @click="toggle(t)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">{{ t.status === 'active' ? 'إيقاف مؤقت' : 'استئناف' }}</button>
-                        <button v-if="$can('sales.recurring.edit')" @click="edit(t)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">تعديل</button>
-                        <button v-if="$can('sales.recurring.delete')" @click="remove(t)" class="px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 font-bold">حذف</button>
+                        <Link v-if="t.subscription_id" :href="route('sales.subscriptions.show', t.subscription_id)" class="px-3 py-1.5 rounded-xl border border-indigo-200 text-indigo-700 font-bold" data-owned-by-subscription>تُدار من الاشتراك</Link>
+                        <template v-else>
+                            <button v-if="$can('sales.recurring.edit') && t.status !== 'ended'" @click="toggle(t)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">{{ t.status === 'active' ? 'إيقاف مؤقت' : 'استئناف' }}</button>
+                            <button v-if="$can('sales.recurring.edit')" @click="edit(t)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">تعديل</button>
+                            <button v-if="$can('sales.recurring.delete')" @click="remove(t)" class="px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 font-bold">حذف</button>
+                        </template>
                     </div>
                 </div>
                 <div v-if="t.runs?.length" class="mt-3 flex flex-wrap gap-2">

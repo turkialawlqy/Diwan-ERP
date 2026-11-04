@@ -68,16 +68,20 @@ class AdminRequestController extends Controller
     public function show(Request $request, AdminRequest $adminRequest): Response
     {
         $user = $request->user();
-        $lines = $adminRequest->lines()->with(['employee:id,name,employee_number,job_title,phone', 'department:id,name', 'handler:id,name', 'assignee:id,name', 'events.user:id,name'])->get();
         $canView = $user->can('hr.admin_requests.view');
-        $mine = $lines->filter(fn ($l) => $this->service->canHandle($user, $l));
-        abort_unless($canView || $mine->isNotEmpty(), 403);
+        $lines = $adminRequest->lines()->with(['employee:id,name,employee_number,job_title,phone', 'department:id,name', 'handler:id,name', 'assignee:id,name', 'events.user:id,name'])->get();
+        // A department manager / specialist sees only his own lines, and nothing of a draft.
+        if (! $canView) {
+            abort_if($adminRequest->status === 'draft', 403);
+            $lines = $lines->filter(fn ($l) => $this->service->canHandle($user, $l))->values();
+            abort_if($lines->isEmpty(), 403);
+        }
 
         return Inertia::render('HR/AdminRequests/Show', [
             'adminRequest' => $adminRequest->load('requester:id,name')->toArray(),
-            'lines' => $lines->map(fn ($l) => $l->toArray() + ['can_handle' => $mine->contains('id', $l->id), 'can_manage' => $this->service->canHandle($user, $l, false)])->values(),
+            'lines' => $lines->map(fn ($l) => $l->toArray() + ['can_handle' => $this->service->canHandle($user, $l), 'can_manage' => $this->service->canHandle($user, $l, false)])->values(),
             'statuses' => AdminRequest::STATUSES, 'lineStatuses' => AdminRequestLine::STATUSES, 'channels' => AdminRequestLine::CHANNELS, 'flow' => AdminRequestLine::FLOW,
-            'handlers' => User::orderBy('name')->get(['id', 'name'])->filter(fn (User $u) => $u->can('hr.admin_requests.handle') || $u->can('hr.admin_requests.manage'))->values(),
+            'handlers' => $this->service->handlerCandidates($adminRequest)->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name])->values(),
             'canView' => $canView,
         ]);
     }

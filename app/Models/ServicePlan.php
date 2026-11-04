@@ -14,9 +14,9 @@ class ServicePlan extends Model
 {
     use Auditable, BelongsToCompany, BranchScoped;
 
-    protected $fillable = ['company_id', 'branch_id', 'code', 'name', 'description', 'price', 'tax_rate', 'cycle', 'interval', 'trial_days', 'booking_discount_percent', 'product_id', 'is_active'];
+    protected $fillable = ['company_id', 'branch_id', 'code', 'name', 'description', 'price', 'tax_rate', 'cycle', 'interval', 'trial_days', 'booking_discount_percent', 'is_membership', 'product_id', 'is_active'];
 
-    protected $casts = ['price' => 'decimal:2', 'tax_rate' => 'decimal:2', 'is_active' => 'boolean'];
+    protected $casts = ['price' => 'decimal:2', 'tax_rate' => 'decimal:2', 'is_active' => 'boolean', 'is_membership' => 'boolean'];
 
     public const CYCLES = ['monthly' => 'شهري', 'quarterly' => 'ربع سنوي', 'yearly' => 'سنوي'];
 

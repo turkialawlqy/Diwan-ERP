@@ -44,6 +44,9 @@ class SectorPackController extends Controller
             abort(403, 'لا تملك صلاحية العمل على هذا الفرع.');
         }
         if ($id === null && $allowed !== null) {
+            if ($request->isMethod('get')) {
+                return $this->allowedBranches()->first()?->id; // the page opens on the user's first branch
+            }
             abort(422, 'اختر الفرع الذي تُطبَّق عليه الحزمة.');
         }
 

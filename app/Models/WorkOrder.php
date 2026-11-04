@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 /** A job sent to a customer's site: crew, checklist, time, parts, sign-off and billing. */
 class WorkOrder extends Model
@@ -88,5 +89,20 @@ class WorkOrder extends Model
     public function hasTechnician(int $employeeId): bool
     {
         return (int) $this->assigned_to === $employeeId || $this->crew()->whereKey($employeeId)->exists();
+    }
+
+    /** The customer signed for what was done: changing the parts or the hours afterwards needs a new signature. */
+    public function voidSignature(): void
+    {
+        if ($this->customer_signature_path) {
+            Storage::disk('local')->delete($this->customer_signature_path);
+            $this->forceFill(['customer_signature_path' => null, 'signed_by' => null, 'signed_at' => null])->save();
+        }
+    }
+
+    /** What the job is worth so far (for the share message). */
+    public function getPrintTotalAttribute(): float
+    {
+        return round((float) $this->labour_amount + (float) $this->parts_amount, 2);
     }
 }

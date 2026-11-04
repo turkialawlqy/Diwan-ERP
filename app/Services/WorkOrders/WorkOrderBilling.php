@@ -46,6 +46,10 @@ class WorkOrderBilling
 
         return DB::transaction(function () use ($order) {
             $order = WorkOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            // Checked again under the lock: a second click waiting on it must not bill the order again.
+            if ($order->status !== 'done' || $order->invoice_id) {
+                throw ValidationException::withMessages(['status' => 'فُوتِر هذا الأمر بالفعل.']);
+            }
             $preview = $this->preview($order);
             if (! $preview['lines']) {
                 throw ValidationException::withMessages(['status' => 'لا شيء للفوترة: لا ساعات قابلة للفوترة (تحقق من نوع العمل) ولا قطع.']);
@@ -54,6 +58,7 @@ class WorkOrderBilling
             // Stock already left when the parts were consumed; the invoice books the cost of goods once, from this cost.
             $invoice = $this->invoices->create([
                 'customer_id' => $order->customer_id,
+                'branch_id' => $order->branch_id, // the order's branch, not the one the user happens to work in
                 'invoice_date' => now()->toDateString(),
                 'supply_date' => ($order->completed_at ?? now())->toDateString(),
                 'payment_method' => 'credit',

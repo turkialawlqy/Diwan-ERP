@@ -183,12 +183,21 @@ class ContractsTest extends TestCase
         $this->post(route('contracts.renew', $c->id))->assertSessionHasNoErrors();
 
         $new = Contract::where('parent_contract_id', $c->id)->firstOrFail();
-        $this->assertSame('renewed', $c->fresh()->status);
-        $this->assertSame('active', $new->status);
+        // Renewed ahead of time: the running contract keeps running, the new one is approved and waits for its start.
+        $this->assertSame('active', $c->fresh()->status);
+        $this->assertSame('approved', $new->status);
+        $this->post(route('contracts.renew', $c->id))->assertSessionHasErrors('status'); // not twice
         $this->assertSame('2027-06-15', $new->start_date->toDateString());
         $this->assertSame('2028-06-14', $new->end_date->toDateString());
         $this->assertSame('CTR-27-00001', $new->number);
         $this->assertSame(1, $new->version);
+
+        // On its start date the new one takes over.
+        Carbon::setTestNow('2027-06-15 01:00:00');
+        app(ContractService::class)->nightly();
+        $this->assertSame('active', $new->fresh()->status);
+        $this->assertSame('renewed', $c->fresh()->status);
+        Carbon::setTestNow('2026-06-15 10:00:00');
 
         // Nothing to renew with: no term.
         $other = $this->make(['renewal_term_months' => null]);
@@ -288,5 +297,11 @@ class ContractsTest extends TestCase
         $this->actingAs($this->userWithRole($this->company, 'warehouse_keeper'));
         $this->get(route('contracts.index'))->assertForbidden();
         $this->post(route('contracts.submit', $c->id))->assertForbidden();
+    }
+
+    public function test_the_contract_prints_as_a_text_document(): void
+    {
+        $c = $this->make(['body' => "البند الأول\nالبند الثاني"]);
+        $this->get(route('documents.pdf', ['type' => 'contract', 'id' => $c->id]))->assertOk()->assertHeader('Content-Type', 'application/pdf');
     }
 }

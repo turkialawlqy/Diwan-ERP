@@ -94,6 +94,8 @@ class BookingController extends Controller
             'booking_resource_id' => 'nullable|tenant_exists:booking_resources,id',
             'starts_at' => 'required|date_format:Y-m-d H:i',
             'deposit_amount' => 'nullable|numeric|min:0',
+            'deposit_method' => 'nullable|in:cash,card,bank_transfer',
+            'deposit_bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
             'notes' => 'nullable|string|max:2000',
         ], [], ['customer_id' => 'العميل', 'bookable_service_id' => 'الخدمة', 'starts_at' => 'الموعد']);
 

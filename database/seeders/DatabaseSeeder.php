@@ -18,6 +18,9 @@ use Spatie\Permission\PermissionRegistrar;
 
 class DatabaseSeeder extends Seeder
 {
+    /** Modules added to every plan that includes sales (see the 2026_11_0x module migrations). */
+    protected const SALES_ADDONS = ['support', 'contracts', 'portal', 'bookings', 'work_orders', 'clinic', 'gym', 'workshop', 'real_estate'];
+
     /**
      * Seed the application's database.
      */
@@ -167,7 +170,8 @@ class DatabaseSeeder extends Seeder
             'max_branches' => 1,
             'max_invoices_per_month' => 300,
             'features' => ['sales', 'inventory', 'pos', 'reports_basic'],
-            'modules' => ['sales', 'pos', 'inventory', 'purchases', 'accounting'],
+            // Same set the 1.7.0 migrations give existing plans that sell «sales» (a fresh install gets them too).
+            'modules' => ['sales', 'pos', 'inventory', 'purchases', 'accounting', ...self::SALES_ADDONS],
             'max_warehouses' => 1,
             'max_employees' => 5,
             'trial_days' => 14,
@@ -188,7 +192,7 @@ class DatabaseSeeder extends Seeder
             'max_branches' => 3,
             'max_invoices_per_month' => 2000,
             'features' => ['sales', 'inventory', 'pos', 'purchases', 'finance', 'reports_advanced'],
-            'modules' => ['sales', 'pos', 'inventory', 'purchases', 'accounting', 'hr', 'crm', 'zatca'],
+            'modules' => ['sales', 'pos', 'inventory', 'purchases', 'accounting', 'hr', 'crm', 'zatca', ...self::SALES_ADDONS],
             'max_warehouses' => 5,
             'max_employees' => 50,
             'trial_days' => 14,

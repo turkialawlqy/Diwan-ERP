@@ -26,11 +26,9 @@ class PatientVisit extends Model
         return $this->belongsTo(Employee::class, 'doctor_id');
     }
 
-    /** Belongs to the branch of its parent record. */
-    public function inheritedBranchId(): ?int
+    /** Medical content stays out of the audit log (who changed the record is still logged). */
+    public function auditSecretFields(): array
     {
-        $id = PatientFile::withoutGlobalScopes()->whereKey($this->patient_file_id)->value('branch_id');
-
-        return $id ? (int) $id : null;
+        return ['complaint', 'diagnosis', 'treatment', 'prescription', 'attachments'];
     }
 }

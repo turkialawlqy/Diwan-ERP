@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { computed, ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -27,6 +28,7 @@ const doComplete = () => done.transform((d) => ({ ...d, customer_package_id: d.u
         <Head :title="`حجز ${b.number}`" />
         <PageHeader :title="`${b.number} — ${b.customer?.name}`" :crumbs="[{ label: 'الحجوزات', href: route('bookings.calendar') }, { label: b.number }]">
             <template #actions>
+                <ShareDocument v-if="$can('bookings.bookings.view')" type="booking" :id="b.id" />
                 <template v-if="open && $can('bookings.bookings.edit')">
                     <button v-if="b.status === 'pending'" type="button" class="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold" @click="post('bookings.confirm')" data-confirm>تأكيد</button>
                     <button type="button" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold" @click="completing = true" data-complete>إنجاز</button>

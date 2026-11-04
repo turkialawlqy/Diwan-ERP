@@ -38,7 +38,7 @@ class SelfServiceController extends Controller
             'employee' => $employee->only(['id', 'name', 'employee_number', 'job_title', 'hire_date', 'id_expiry', 'passport_expiry', 'iban']) + [
                 'department' => $employee->departmentRef?->name, 'position' => $employee->position?->title,
             ],
-            'adminLines' => AdminRequestLine::where('employee_id', $employee->id)->whereHas('request', fn ($q) => $q->where('status', '!=', 'draft'))->with('request:id,title,attend_at,location')->latest('id')->limit(20)->get()
+            'adminLines' => AdminRequestLine::where('employee_id', $employee->id)->whereHas('request', fn ($q) => $q->withoutGlobalScope('branch')->where('status', '!=', 'draft'))->with(['request' => fn ($q) => $q->withoutGlobalScope('branch')->select('id', 'title', 'attend_at', 'location')])->latest('id')->limit(20)->get()
                 ->map(fn ($l) => ['id' => $l->id, 'title' => $l->request->title, 'attend_at' => $l->request->attend_at, 'location' => $l->request->location, 'status_label' => AdminRequestLine::STATUSES[$l->status] ?? $l->status])->values(),
             'leaveBalance' => $leaves->balance($employee),
             'leaveRequests' => $employee->leaveRequests->sortByDesc('start_date')->values(),

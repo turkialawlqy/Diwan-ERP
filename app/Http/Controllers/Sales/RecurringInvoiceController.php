@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
+use App\Models\CustomerSubscription;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\RecurringInvoice;
@@ -21,7 +22,8 @@ class RecurringInvoiceController extends Controller
         $templates = RecurringInvoice::with(['customer:id,name,email', 'runs' => fn ($q) => $q->latest('period_date')->limit(12)->with('invoice:id,invoice_number,total,currency_code,payment_status')])
             ->orderByRaw("CASE status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END")->orderBy('next_run_date')
             ->paginate($this->perPage($request));
-        $templates->getCollection()->each(fn ($t) => $t->setAttribute('estimated_total', $t->estimatedTotal()));
+        $owned = CustomerSubscription::withoutGlobalScopes()->whereIn('recurring_invoice_id', $templates->getCollection()->pluck('id'))->pluck('id', 'recurring_invoice_id');
+        $templates->getCollection()->each(fn ($t) => $t->setAttribute('estimated_total', $t->estimatedTotal())->setAttribute('subscription_id', $owned[$t->id] ?? null));
 
         // "Make recurring" from an existing invoice prefills the form.
         $prefill = null;
@@ -50,6 +52,7 @@ class RecurringInvoiceController extends Controller
 
     public function update(Request $request, RecurringInvoice $recurring)
     {
+        $this->assertNotSubscription($recurring);
         $data = $this->validated($request);
         // A new start date before anything was issued moves the first issue.
         if ($recurring->generated_count === 0) {
@@ -62,6 +65,7 @@ class RecurringInvoiceController extends Controller
 
     public function toggle(RecurringInvoice $recurring)
     {
+        $this->assertNotSubscription($recurring);
         abort_if($recurring->status === 'ended', 422, 'انتهت هذه الفاتورة الدورية.');
         $recurring->update(['status' => $recurring->status === 'active' ? 'paused' : 'active']);
 
@@ -81,9 +85,21 @@ class RecurringInvoiceController extends Controller
 
     public function destroy(RecurringInvoice $recurring)
     {
+        $this->assertNotSubscription($recurring);
         $recurring->delete();
 
         return back()->with('success', 'تم حذف الفاتورة الدورية (الفواتير الصادرة تبقى كما هي)');
+    }
+
+    /**
+     * A subscription's (or lease's) template is driven by the subscription: pausing, editing or deleting it
+     * here would bill out of step with it. It is managed from the subscription page.
+     */
+    protected function assertNotSubscription(RecurringInvoice $recurring): void
+    {
+        if (CustomerSubscription::withoutGlobalScopes()->where('recurring_invoice_id', $recurring->id)->exists()) {
+            throw ValidationException::withMessages(['recurring' => 'هذه الفاتورة الدورية تابعة لاشتراك عميل؛ تُدار من صفحة الاشتراك (إيقاف أو تغيير خطة أو إلغاء).']);
+        }
     }
 
     protected function validated(Request $request): array

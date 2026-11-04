@@ -1,4 +1,5 @@
 <script setup>
+import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { computed, ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -40,6 +41,7 @@ const toggle = (o) => router.post(route('contracts.obligations.toggle', o.id), {
         <Head :title="`عقد ${c.number}`" />
         <PageHeader :title="`${c.number} — ${c.title}`" :subtitle="`الإصدار ${c.version}`" :crumbs="[{ label: 'العقود', href: route('contracts.index') }, { label: c.number }]">
             <template #actions>
+                <ShareDocument v-if="$can('contracts.contracts.view')" type="contract" :id="contract.id" />
                 <template v-if="$can('contracts.contracts.edit')">
                     <Link v-if="editable" :href="route('contracts.edit', c.id)" :class="btn" data-edit>تعديل</Link>
                     <button v-if="editable" type="button" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold" @click="post('contracts.submit')" data-submit>إرسال للاعتماد</button>

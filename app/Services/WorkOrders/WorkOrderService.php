@@ -167,6 +167,10 @@ class WorkOrderService
         }
 
         return DB::transaction(function () use ($order, $reason) {
+            $order = WorkOrder::whereKey($order->id)->lockForUpdate()->firstOrFail(); // not while it is being invoiced
+            if (in_array($order->status, ['invoiced', 'cancelled'], true)) {
+                throw ValidationException::withMessages(['status' => 'لا يمكن إلغاء هذا الأمر.']);
+            }
             foreach ($order->timeEntries()->whereNull('ended_at')->get() as $entry) {
                 $this->time->stop($entry);
             }
@@ -215,8 +219,8 @@ class WorkOrderService
     /** The reminder tick: a scheduled order whose start passed without anyone starting it; forgotten timers. */
     public function tick(): array
     {
-        $done = ['late' => 0, 'timers' => $this->time->closeStale($this->settings->all()['stale_timer_hours']), 'service_reminders' => app(WorkshopService::class)->remind()];
-        WorkOrder::with('customer:id,name')->whereIn('status', ['new', 'scheduled'])->whereNotNull('scheduled_start')->where('scheduled_start', '<', now()->subMinutes(30))->get()
+        $done = ['late' => 0, 'timers' => $this->time->closeStale($this->settings->all()['stale_timer_hours']), 'service_reminders' => 0];
+        WorkOrder::with(['customer' => fn ($q) => $q->withTrashed()->select('id', 'name')])->whereIn('status', ['new', 'scheduled'])->whereNotNull('scheduled_start')->where('scheduled_start', '<', now()->subMinutes(30))->get()
             ->each(function (WorkOrder $o) use (&$done) {
                 $state = $o->reminder_state ?? [];
                 if (! empty($state['late'])) {
@@ -225,7 +229,7 @@ class WorkOrderService
                 $o->update(['reminder_state' => $state + ['late' => true]]);
                 $url = route('work-orders.show', $o->id, false);
                 User::where('company_id', $o->company_id)->where('status', 'active')->get()->filter(fn (User $u) => $u->can('work_orders.orders.view'))
-                    ->each(fn (User $u) => $u->notify(new ErpAlert('work_order_late', 'أمر عمل تأخر بدؤه', "{$o->number} — {$o->customer->name} — ".$o->scheduled_start->format('Y-m-d H:i'), $url, 'warning')));
+                    ->each(fn (User $u) => $u->notify(new ErpAlert('work_order_late', 'أمر عمل تأخر بدؤه', "{$o->number} — {$o->customer?->name} — ".$o->scheduled_start->format('Y-m-d H:i'), $url, 'warning')));
                 $done['late']++;
             });
 

@@ -3,7 +3,10 @@
 namespace App\Services\Documents;
 
 use App\Jobs\SendDocumentEmail;
+use App\Models\AdminRequest;
+use App\Models\Booking;
 use App\Models\Company;
+use App\Models\Contract;
 use App\Models\CreditNote;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
@@ -12,6 +15,7 @@ use App\Models\DocumentDispatch;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
+use App\Models\Lease;
 use App\Models\ProgressBilling;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
@@ -19,6 +23,7 @@ use App\Models\Quotation;
 use App\Models\Revenue;
 use App\Models\SalesOrder;
 use App\Models\SupplierPayment;
+use App\Models\WorkOrder;
 use App\Support\CurrencyNames;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\URL;
@@ -44,6 +49,11 @@ class DocumentSharing
         'journal' => ['model' => JournalEntry::class, 'permission' => 'accounting.journals.view', 'label' => 'القيد', 'number' => 'entry_number', 'total' => 'total_debit'],
         'purchase_invoice' => ['model' => PurchaseInvoice::class, 'permission' => 'purchases.invoices.print', 'label' => 'فاتورة المشتريات', 'number' => 'invoice_number', 'total' => 'total'],
         'purchase_order' => ['model' => PurchaseOrder::class, 'permission' => 'purchases.orders.print', 'label' => 'أمر الشراء', 'number' => 'order_number', 'total' => 'total'],
+        'work_order' => ['model' => WorkOrder::class, 'permission' => 'work_orders.orders.view', 'label' => 'بطاقة أمر العمل', 'number' => 'number', 'total' => 'print_total'],
+        'booking' => ['model' => Booking::class, 'permission' => 'bookings.bookings.view', 'label' => 'تأكيد الحجز', 'number' => 'number', 'total' => 'price'],
+        'contract' => ['model' => Contract::class, 'permission' => 'contracts.contracts.view', 'label' => 'العقد', 'number' => 'number', 'total' => 'value'],
+        'lease' => ['model' => Lease::class, 'permission' => 'real_estate.leases.view', 'label' => 'عقد الإيجار', 'number' => 'number', 'total' => 'rent_amount'],
+        'admin_request' => ['model' => AdminRequest::class, 'permission' => 'hr.admin_requests.view', 'label' => 'الطلب الإداري', 'number' => 'number', 'total' => 'print_total'],
         'statement' => ['model' => Customer::class, 'permission' => 'sales.clients.view', 'label' => 'كشف الحساب', 'number' => 'code', 'total' => 'current_balance'],
     ];
 
@@ -73,6 +83,7 @@ class DocumentSharing
             $document instanceof ProgressBilling => $document->project?->customer,
             $document instanceof SupplierPayment => null,
             // Supplier documents, vouchers and journal entries have no customer.
+            $document instanceof Contract => $document->party_type === 'customer' ? $document->customer : null,
             ! isset($document->customer_id) => null,
             default => $document->customer,
         };

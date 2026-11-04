@@ -15,6 +15,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkType;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
+use App\Services\Documents\TemplateData;
 use App\Services\Inventory\StockService;
 use App\Services\Support\SlaService;
 use App\Services\TenantManager;
@@ -121,7 +122,9 @@ class WorkOrdersTest extends TestCase
         $time->start($b, $this->tech); // free again
         $this->assertSame(1, $time->closeStale(16) + 1);
 
-        $manual = $time->addManual($a, $this->tech, 30, null, false, 'تنقل');
+        // The same minutes cannot be entered twice for the technician (here: under the timer that ran 08:00–09:30).
+        $this->assertValidation(fn () => $time->addManual($a, $this->tech, 30, Carbon::parse('2026-06-15 09:00'), false), 'minutes');
+        $manual = $time->addManual($a, $this->tech, 30, Carbon::parse('2026-06-15 07:00'), false, 'تنقل');
         $this->assertFalse($manual->billable);
         $this->assertSame(['minutes' => 120, 'billable_minutes' => 90, 'cost' => 60.0], $time->totals($a->fresh()));
     }
@@ -178,6 +181,11 @@ class WorkOrdersTest extends TestCase
         $png = 'data:image/png;base64,'.base64_encode("\x89PNG\r\n\x1a\n".str_repeat('x', 20));
         $this->service()->sign($o, 'مدير الموقع', $png);
         $this->assertNotNull($o->fresh()->customer_signature_path);
+        // Hours added after signing: the customer signs again.
+        app(TimeTracker::class)->addManual($o->fresh(), $this->tech, 15, Carbon::parse('2026-06-15 06:00'));
+        $this->assertNull($o->fresh()->customer_signature_path);
+        $this->assertValidation(fn () => $this->service()->complete($o->fresh()), 'signature');
+        $this->service()->sign($o->fresh(), 'مدير الموقع', $png);
 
         $done = $this->service()->complete($o->fresh(), 'تم الإصلاح');
         $this->assertSame('done', $done->status);
@@ -221,6 +229,9 @@ class WorkOrdersTest extends TestCase
         $this->assertEqualsWithDelta((float) JournalEntryLine::sum('debit'), (float) JournalEntryLine::sum('credit'), 0.001);
 
         $this->assertValidation(fn () => $billing->invoice($invoiced->fresh()), 'status'); // not twice
+        // A second click that read the order before the first finished (still «done» in memory) is refused under the lock.
+        $this->assertValidation(fn () => $billing->invoice($done), 'status');
+        $this->assertSame(1, Invoice::count());
     }
 
     public function test_an_order_with_nothing_billable_is_refused_and_a_cancelled_order_returns_its_parts(): void
@@ -289,5 +300,16 @@ class WorkOrdersTest extends TestCase
         } catch (ValidationException $e) {
             $this->assertArrayHasKey($key, $e->errors());
         }
+    }
+
+    public function test_the_job_card_prints_and_shares_as_a_pdf(): void
+    {
+        $o = $this->order();
+        app(TimeTracker::class)->addManual($o, $this->tech, 60, Carbon::parse('2026-06-15 06:00'));
+        $res = $this->get(route('documents.pdf', ['type' => 'work_order', 'id' => $o->id]))->assertOk();
+        $this->assertSame('application/pdf', $res->headers->get('Content-Type'));
+        $data = app(TemplateData::class)->build($o->fresh());
+        $this->assertSame($o->number, $data['fields']['doc.number']);
+        $this->assertCount(1, $data['items']); // the billable hour
     }
 }

@@ -80,9 +80,10 @@ class HandleInertiaRequests extends Middleware
                 'countries' => Branch::query()->pluck('country_code')->map(fn ($c) => $c ?: ($currentTenant->country_code ?: 'SA'))
                     ->push($currentTenant->country_code ?: 'SA')->unique()->values()->all(),
                 'language' => $currentTenant->language ?? 'ar',
-                'tax_number' => $currentTenant->tax_number,
-                'status' => $currentTenant->status,
-                'trial_ends_at' => $currentTenant->trial_ends_at?->format('Y-m-d'),
+                // Account details only for the company's staff (a portal visitor, signed in or not, sees none).
+                'tax_number' => $user ? $currentTenant->tax_number : null,
+                'status' => $user ? $currentTenant->status : null,
+                'trial_ends_at' => $user ? $currentTenant->trial_ends_at?->format('Y-m-d') : null,
             ] : null,
             // Top bar: the branch being worked in (all = viewing every allowed branch) and the fiscal year.
             'branchSwitcher' => fn () => $currentTenant && $user && $user->company_id ? app(ActiveBranch::class)->switcher() : null,
@@ -96,11 +97,11 @@ class HandleInertiaRequests extends Middleware
             // Country-specific features on for the active branch (ZATCA, zakat, GOSI...).
             'features' => fn () => $currentTenant && $user ? CountryFeatures::enabled() : [],
             // Currencies the company uses (forms show a currency picker when > 1).
-            'currencies' => fn () => $currentTenant ? Currency::orderByDesc('is_default')->orderBy('code')
+            'currencies' => fn () => $currentTenant && $user ? Currency::orderByDesc('is_default')->orderBy('code')
                 ->get(['code', 'name_ar', 'symbol_ar', 'exchange_rate'])->toArray() : [],
             'impersonation' => $tenantManager->getImpersonationData(),
             'unreadNotifications' => fn () => $user ? $user->unreadNotifications()->count() : 0,
-            'subscription' => fn () => $currentTenant ? [
+            'subscription' => fn () => $currentTenant && $user ? [
                 'state' => app(PlanGuard::class)->state($currentTenant),
                 'ends_at' => ($currentTenant->status === 'trial' ? $currentTenant->trial_ends_at : $currentTenant->subscription_ends_at)?->format('Y-m-d'),
             ] : null,

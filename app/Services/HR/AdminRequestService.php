@@ -95,7 +95,7 @@ class AdminRequestService
         $central = $this->centralUsers($request);
         $byUser = [];
         foreach ($lines->groupBy('department_id') as $departmentId => $group) {
-            $manager = $this->managerUser($departmentId ?: null);
+            $manager = $this->managerUser($departmentId ?: null, $request->branch_id);
             foreach ($manager ? [$manager] : $central as $user) {
                 $byUser[$user->id]['user'] = $user;
                 $byUser[$user->id]['count'] = ($byUser[$user->id]['count'] ?? 0) + $group->count();
@@ -114,7 +114,7 @@ class AdminRequestService
     public function assign(AdminRequestLine $line, User $by, int $assigneeId, ?string $note = null): AdminRequestLine
     {
         $assignee = User::find($assigneeId);
-        if (! $assignee || ! $this->isHandlerCandidate($assignee)) {
+        if (! $assignee || ! $this->isHandlerCandidate($assignee, AdminRequest::withoutGlobalScopes()->find($line->admin_request_id))) {
             throw ValidationException::withMessages(['assignee_user_id' => 'المختص المختار لا يملك صلاحية معالجة الطلبات الإدارية.']);
         }
         $line = $this->move($line, 'assigned', $by, ['assignee_user_id' => $assignee->id], $note, handler: true);
@@ -186,12 +186,14 @@ class AdminRequestService
         if ($statuses->isEmpty() || $request->status === 'draft') {
             return $request;
         }
-        $status = $statuses->every(fn ($s) => in_array($s, AdminRequestLine::FINAL, true)) ? 'completed'
+        $status = $statuses->every(fn ($s) => in_array($s, AdminRequestLine::FINAL, true))
+            ? ($statuses->contains('unreachable') ? 'completed_partial' : 'completed')
             : ($statuses->every(fn ($s) => $s === 'new') ? 'new' : 'processing');
         if ($status !== $request->status) {
-            $request->update(['status' => $status, 'completed_at' => $status === 'completed' ? now() : null]);
-            if ($status === 'completed' && ($requester = $request->requester)) {
-                $this->alert($requester, 'admin_request_done', 'اكتمل طلب إداري', "{$request->number} — {$request->title}", route('hr.admin-requests.show', $request, false));
+            $closed = in_array($status, ['completed', 'completed_partial'], true);
+            $request->update(['status' => $status, 'completed_at' => $closed ? now() : null]);
+            if ($closed && ($requester = $request->requester)) {
+                $this->alert($requester, 'admin_request_done', $status === 'completed' ? 'اكتمل طلب إداري' : 'انتهى طلب إداري مع تعذر تبليغ بعض الموظفين', "{$request->number} — {$request->title}", route('hr.admin-requests.show', $request, false));
             }
         }
 
@@ -212,12 +214,14 @@ class AdminRequestService
     }
 
     /** The user account of a department's manager (null when it has none, or he has no account). */
-    public function managerUser(?int $departmentId): ?User
+    public function managerUser(?int $departmentId, ?int $branchId = null): ?User
     {
         $managerEmployee = $departmentId ? Department::find($departmentId)?->manager_employee_id : null;
         $userId = $managerEmployee ? Employee::find($managerEmployee)?->user_id : null;
+        $user = $userId ? User::where('status', 'active')->find($userId) : null;
 
-        return $userId ? User::find($userId) : null;
+        // A manager without an active account, or who cannot open the request's branch, is skipped: the central party handles it.
+        return $user && ($branchId === null || $user->canUseBranch($branchId)) ? $user : null;
     }
 
     /** Department ids the user manages as an employee. */
@@ -240,14 +244,22 @@ class AdminRequestService
         return $allowAssignee && $line->assignee_user_id === $user->id;
     }
 
-    protected function isHandlerCandidate(User $user): bool
+    /** Active users of the request's company who may handle requests and work in its branch. */
+    public function handlerCandidates(AdminRequest $request)
     {
-        return $user->status !== 'inactive' && ($user->can('hr.admin_requests.handle') || $user->can('hr.admin_requests.manage'));
+        return User::where('company_id', $request->company_id)->where('status', 'active')->where('is_super_admin', false)->orderBy('name')->get()
+            ->filter(fn (User $u) => $this->isHandlerCandidate($u, $request))->values();
+    }
+
+    protected function isHandlerCandidate(User $user, ?AdminRequest $request = null): bool
+    {
+        return $user->status === 'active' && (! $request || ((int) $user->company_id === (int) $request->company_id && ($request->branch_id === null || $user->canUseBranch($request->branch_id))))
+            && ($user->isCompanyOwner() || $user->can('hr.admin_requests.handle') || $user->can('hr.admin_requests.manage'));
     }
 
     protected function centralUsers(AdminRequest $request): Collection
     {
-        return User::where('company_id', $request->company_id)->get()->filter(fn (User $u) => $this->isCentral($u) && ($request->branch_id === null || $u->canUseBranch($request->branch_id)));
+        return User::where('company_id', $request->company_id)->where('status', 'active')->get()->filter(fn (User $u) => $this->isCentral($u) && ($request->branch_id === null || $u->canUseBranch($request->branch_id)));
     }
 
     protected function assertDraft(AdminRequest $request, string $message = 'لا يُعدَّل الطلب بعد إرساله.'): void

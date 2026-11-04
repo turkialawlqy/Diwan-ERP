@@ -39,8 +39,8 @@ class UnitController extends Controller
     {
         $data = $this->validated($request, $unit);
         // A rented unit stays rented until its lease ends.
-        if ($unit->status === 'occupied') {
-            unset($data['status']);
+        if ($unit->status === 'occupied' || empty($data['status'])) {
+            unset($data['status']); // never cleared: an empty value keeps the current status
         }
         $unit->update($data);
 

@@ -7,7 +7,7 @@ use App\Services\TenantManager;
 /** Company-wide booking rules (the «إعدادات الحجوزات» page). */
 class BookingSettings
 {
-    public const DEFAULTS = ['slot_step' => 30, 'min_notice_hours' => 2, 'max_advance_days' => 60, 'auto_confirm' => true, 'reminder_hours' => '24,2'];
+    public const DEFAULTS = ['slot_step' => 30, 'min_notice_hours' => 2, 'max_advance_days' => 60, 'auto_confirm' => true, 'reminder_hours' => '24,2', 'deposit_on_cancel' => 'credit'];
 
     public function get(string $key)
     {
@@ -24,6 +24,8 @@ class BookingSettings
             'max_advance_days' => max(1, (int) $this->get('max_advance_days')),
             'auto_confirm' => filter_var($this->get('auto_confirm'), FILTER_VALIDATE_BOOLEAN),
             'reminder_hours' => (string) $this->get('reminder_hours'),
+            // A cancelled / no-show booking's deposit: kept as the customer's credit, or forfeited as income.
+            'deposit_on_cancel' => $this->get('deposit_on_cancel') === 'forfeit' ? 'forfeit' : 'credit',
         ];
     }
 
@@ -43,5 +45,8 @@ class BookingSettings
         }
         $company->setSetting('bookings_auto_confirm', ! empty($data['auto_confirm']) ? '1' : '0', 'bookings', 'string');
         $company->setSetting('bookings_reminder_hours', (string) ($data['reminder_hours'] ?? ''), 'bookings', 'string');
+        if (isset($data['deposit_on_cancel'])) {
+            $company->setSetting('bookings_deposit_on_cancel', $data['deposit_on_cancel'] === 'forfeit' ? 'forfeit' : 'credit', 'bookings', 'string');
+        }
     }
 }
