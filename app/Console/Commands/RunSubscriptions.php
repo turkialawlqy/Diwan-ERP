@@ -15,10 +15,15 @@ class RunSubscriptions extends Command
 
     public function handle(TenantManager $tenants, SubscriptionService $service): int
     {
-        Company::query()->where('status', '!=', 'suspended')->each(function (Company $company) use ($tenants, $service) {
-            $done = $tenants->runAs($company, fn () => $service->nightly());
-            if (array_sum($done)) {
-                $this->line($company->name.': '.json_encode($done));
+        Company::query()->where('status', '!=', 'suspended')->lazyById(100)->each(function (Company $company) use ($tenants, $service) {
+            try {
+                $done = $tenants->runAs($company, fn () => $service->nightly());
+                if (array_sum($done)) {
+                    $this->line($company->name.': '.json_encode($done));
+                }
+            } catch (\Throwable $e) { // one company's bad record must not stop the others
+                report($e);
+                $this->error($company->name.': '.$e->getMessage());
             }
         });
 

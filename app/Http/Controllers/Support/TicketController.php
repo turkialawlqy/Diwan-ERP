@@ -9,6 +9,7 @@ use App\Models\Ticket;
 use App\Models\User;
 use App\Services\Support\SlaService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -90,7 +91,7 @@ class TicketController extends Controller
             'ticket' => $ticket,
             'subscription' => $subscription,
             'overdue' => $ticket->isOverdue(),
-            'agents' => $this->agents(),
+            'agents' => $this->agents($ticket->branch_id),
             'categories' => SupportCategory::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'surveyLink' => $ticket->isActive() ? null : $this->sla->surveyLink($ticket),
             'statuses' => Ticket::STATUSES, 'priorities' => Ticket::PRIORITIES, 'channels' => Ticket::CHANNELS,
@@ -108,13 +109,17 @@ class TicketController extends Controller
             'unassign' => 'nullable|boolean',
         ]);
 
+        $before = $ticket->assigned_to;
         if ($request->has('assigned_to') || ! empty($data['unassign'])) {
-            $ticket->assigned_to = ! empty($data['unassign']) ? null : $this->agentId($data['assigned_to'] ?? null);
+            $ticket->assigned_to = ! empty($data['unassign']) ? null : $this->agentId($data['assigned_to'] ?? null, $ticket->branch_id);
         }
         if (array_key_exists('category_id', $data)) {
             $ticket->category_id = $data['category_id'];
         }
         $ticket->save();
+        if ($ticket->assigned_to && $ticket->assigned_to !== $before) {
+            $this->sla->assigned($ticket);
+        }
         if (! empty($data['priority'])) {
             $this->sla->setPriority($ticket, $data['priority']);
         }
@@ -133,14 +138,21 @@ class TicketController extends Controller
         return back()->with('success', $data['type'] === 'internal' ? 'أُضيفت الملاحظة الداخلية' : 'تم إرسال الرد');
     }
 
-    /** Users the ticket can be assigned to: active staff of the company. */
-    protected function agents()
+    /** Users the ticket can be assigned to: active staff who may work tickets (in its branch). */
+    protected function agents(?int $branchId = null)
     {
-        return User::where('company_id', auth()->user()->company_id)->where('status', 'active')->where('is_super_admin', false)->orderBy('name')->limit(300)->get(['id', 'name']);
+        return $this->sla->agents(auth()->user()->company_id, $branchId)->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name])->values();
     }
 
-    protected function agentId(?int $id): ?int
+    protected function agentId(?int $id, ?int $branchId = null): ?int
     {
-        return $id && User::where('company_id', auth()->user()->company_id)->whereKey($id)->exists() ? $id : null;
+        if (! $id) {
+            return null;
+        }
+        if (! $this->agents($branchId)->contains('id', $id)) {
+            throw ValidationException::withMessages(['assigned_to' => 'لا يمكن الإسناد لمستخدم لا يعمل على التذاكر في هذا الفرع.']);
+        }
+
+        return $id;
     }
 }

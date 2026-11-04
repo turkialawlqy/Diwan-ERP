@@ -25,4 +25,10 @@ class PatientVisit extends Model
     {
         return $this->belongsTo(Employee::class, 'doctor_id');
     }
+
+    /** Medical content stays out of the audit log (who changed the record is still logged). */
+    public function auditSecretFields(): array
+    {
+        return ['complaint', 'diagnosis', 'treatment', 'prescription', 'attachments'];
+    }
 }

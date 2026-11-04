@@ -32,4 +32,10 @@ class PatientFile extends Model
     {
         return $this->hasMany(PatientVisit::class)->orderByDesc('visit_date')->orderByDesc('id');
     }
+
+    /** Medical content stays out of the audit log (who changed the record is still logged). */
+    public function auditSecretFields(): array
+    {
+        return ['allergies', 'chronic_conditions', 'blood_type', 'notes', 'emergency_contact'];
+    }
 }

@@ -121,7 +121,9 @@ class WorkOrdersTest extends TestCase
         $time->start($b, $this->tech); // free again
         $this->assertSame(1, $time->closeStale(16) + 1);
 
-        $manual = $time->addManual($a, $this->tech, 30, null, false, 'تنقل');
+        // The same minutes cannot be entered twice for the technician (here: under the timer that ran 08:00–09:30).
+        $this->assertValidation(fn () => $time->addManual($a, $this->tech, 30, Carbon::parse('2026-06-15 09:00'), false), 'minutes');
+        $manual = $time->addManual($a, $this->tech, 30, Carbon::parse('2026-06-15 07:00'), false, 'تنقل');
         $this->assertFalse($manual->billable);
         $this->assertSame(['minutes' => 120, 'billable_minutes' => 90, 'cost' => 60.0], $time->totals($a->fresh()));
     }

@@ -17,6 +17,7 @@ const form = useForm({
     interval: props.plan?.interval || 1,
     trial_days: props.plan?.trial_days || 0,
     booking_discount_percent: props.plan?.booking_discount_percent || 0,
+    is_membership: props.plan?.is_membership || false,
     product_id: props.plan?.product_id || '',
     is_active: props.plan ? !!props.plan.is_active : true,
 });
@@ -39,6 +40,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
             <Field label="كل كم دورة" :error="form.errors.interval" hint="1 = كل دورة، 2 = كل دورتين..."><input v-model="form.interval" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
             <Field label="أيام التجربة المجانية" :error="form.errors.trial_days" hint="لا تُصدر فاتورة قبل انتهائها"><input v-model="form.trial_days" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
             <Field label="خصم الأعضاء على الحجوزات %" :error="form.errors.booking_discount_percent" hint="يحصل عليه المشترك على كل حجوزاته (100 = مجانية)"><input v-model="form.booking_discount_percent" type="text" inputmode="decimal" data-num :class="input" class="font-mono" data-booking-discount /></Field>
+            <label class="flex items-center gap-2 text-xs font-bold text-slate-600"><input type="checkbox" v-model="form.is_membership" data-is-membership /> عضوية (تسمح بالدخول في شاشة استقبال النادي)</label>
             <Field label="صنف الخدمة في الفاتورة (اختياري)" :error="form.errors.product_id" hint="صنف خدمي من المخزون يظهر في سطر الفاتورة.">
                 <SelectCreate v-model="form.product_id" :options="products" entity="product" :label="(p) => p.name_ar" placeholder="بدون صنف" />
             </Field>

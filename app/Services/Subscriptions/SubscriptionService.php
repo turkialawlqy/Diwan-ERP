@@ -59,7 +59,7 @@ class SubscriptionService
             $template = RecurringInvoice::create([
                 'customer_id' => $customer->id, 'branch_id' => $data['branch_id'] ?? null,
                 'name' => 'اشتراك: '.$plan->name.' — '.$customer->name,
-                'lines' => [$this->line($plan, $quantity, $price, (float) $plan->tax_rate) + (! empty($data['line_description']) ? ['description' => $data['line_description']] : [])],
+                'lines' => [array_merge($this->line($plan, $quantity, $price, (float) $plan->tax_rate), ! empty($data['line_description']) ? ['description' => $data['line_description']] : [], $data['line_extra'] ?? [])],
                 'frequency' => $plan->cycle, 'interval' => max(1, (int) $plan->interval),
                 'start_date' => $billFrom->toDateString(), 'next_run_date' => $billFrom->toDateString(),
                 // A fixed term (a lease): no period starts on or after the last day.
@@ -130,6 +130,9 @@ class SubscriptionService
     /** Undo «إلغاء في نهاية الفترة» before it takes effect. */
     public function keep(CustomerSubscription $subscription): void
     {
+        if (! $subscription->isLive() || ! $subscription->cancel_at_period_end) {
+            throw ValidationException::withMessages(['status' => 'لا يوجد إلغاء مجدول لهذا الاشتراك.']);
+        }
         $subscription->update(['cancel_at_period_end' => false, 'auto_renew' => true, 'cancel_reason' => null]);
     }
 
@@ -143,6 +146,9 @@ class SubscriptionService
     {
         if (! $subscription->isLive() && $subscription->status !== 'paused') {
             throw ValidationException::withMessages(['status' => 'لا يمكن تغيير خطة اشتراك منتهٍ.']);
+        }
+        if (! $plan->is_active) {
+            throw ValidationException::withMessages(['service_plan_id' => 'هذه الخطة غير نشطة.']);
         }
         if ($plan->id === $subscription->service_plan_id) {
             throw ValidationException::withMessages(['service_plan_id' => 'الاشتراك على هذه الخطة بالفعل.']);
@@ -256,11 +262,11 @@ class SubscriptionService
         return Invoice::where(fn ($q) => $q->whereIn('id', $ids)->orWhere('customer_subscription_id', $subscription->id))->latest('invoice_date')->latest('id')->get(['id', 'invoice_number', 'invoice_date', 'due_date', 'total', 'paid_amount', 'remaining_amount', 'payment_status']);
     }
 
-    /** Monthly recurring revenue (net of tax) of the live subscriptions. */
+    /** Monthly recurring revenue (net of tax) of the live subscriptions, by the cycle each one is billed on. */
     public function mrr(): float
     {
-        return round(CustomerSubscription::with('plan')->whereIn('status', ['active', 'past_due'])->get()
-            ->sum(fn ($s) => (float) $s->quantity * $s->plan->monthlyEquivalent((float) $s->unit_price)), 2);
+        return round(CustomerSubscription::with('recurring')->whereIn('status', ['active', 'past_due'])->get()
+            ->sum(fn ($s) => (float) $s->quantity * (float) $s->unit_price / max(1, $s->recurring ? $this->months($s->recurring) : 1)), 2);
     }
 
     /**
@@ -275,7 +281,7 @@ class SubscriptionService
         $today = ($today ?? now())->copy()->startOfDay();
         $done = ['trial_ended' => 0, 'plan_changed' => 0, 'ended' => 0, 'past_due' => 0, 'recovered' => 0, 'reminders' => 0];
 
-        CustomerSubscription::with(['recurring', 'plan', 'customer:id,name'])->whereIn('status', ['trial', 'active', 'past_due'])->orderBy('id')->each(function ($s) use ($today, &$done) {
+        CustomerSubscription::with(['recurring', 'plan', 'customer:id,name'])->whereIn('status', ['trial', 'active', 'past_due'])->lazyById(200)->each(function ($s) use ($today, &$done) {
             $renews = $s->recurring?->next_run_date;
 
             if ($s->status === 'trial' && $s->trial_ends_at && $s->trial_ends_at->lte($today)) {
@@ -283,7 +289,9 @@ class SubscriptionService
                 $done['trial_ended']++;
             }
 
-            if ($renews && $renews->lte($today)) {
+            // The first renewal after a trial is the first paid period, not an «end» (unless cancelled).
+            $firstPaid = $s->recurring && (int) $s->recurring->generated_count === 0 && ! $s->cancel_at_period_end;
+            if ($renews && $renews->lte($today) && ! $firstPaid) {
                 if ($s->cancel_at_period_end || ! $s->auto_renew) {
                     $this->end($s, $s->cancel_at_period_end ? 'cancelled' : 'expired', $s->cancel_reason);
                     $done['ended']++;
@@ -336,12 +344,12 @@ class SubscriptionService
         return $subscription->trial_ends_at && $subscription->trial_ends_at->gt(today());
     }
 
-    /** Mark / unmark «متعثر» from the latest unpaid invoice. Returns 1 when newly marked. */
+    /** Mark / unmark «متعثر»: any invoice of the subscription still unpaid past its due date and the grace days. Returns 1 when newly marked. */
     protected function syncPastDue(CustomerSubscription $s, Carbon $today, array &$done): int
     {
-        $latest = $this->invoices($s)->first();
-        $overdue = $latest && $latest->payment_status !== 'paid' && $latest->due_date
-            && $latest->due_date->copy()->addDays(self::GRACE_DAYS)->lt($today);
+        $latest = $this->invoices($s)->filter(fn ($i) => $i->payment_status !== 'paid' && (float) $i->remaining_amount > 0.004 && $i->due_date
+            && $i->due_date->copy()->addDays(self::GRACE_DAYS)->lt($today))->sortBy('due_date')->first(); // the oldest one still owed
+        $overdue = (bool) $latest;
 
         if ($overdue && $s->status === 'active') {
             $s->update(['status' => 'past_due']);

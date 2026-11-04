@@ -98,7 +98,14 @@ class SectorModulesTest extends TestCase
 
     public function test_the_gym_checkin_allows_live_members_and_explains_every_denial(): void
     {
-        $plan = ServicePlan::create(['code' => 'PLN-1', 'name' => 'عضوية', 'price' => 100, 'tax_rate' => 0, 'cycle' => 'monthly', 'trial_days' => 0, 'is_active' => true]);
+        $plan = ServicePlan::create(['code' => 'PLN-1', 'name' => 'عضوية', 'price' => 100, 'tax_rate' => 0, 'cycle' => 'monthly', 'trial_days' => 0, 'is_active' => true, 'is_membership' => true]);
+        // Another kind of subscription (not a membership) never lets anyone in.
+        $other = ServicePlan::create(['code' => 'PLN-2', 'name' => 'صيانة شهرية', 'price' => 50, 'tax_rate' => 0, 'cycle' => 'monthly', 'trial_days' => 0, 'is_active' => true]);
+        $stranger = Customer::create(['name' => 'غير عضو', 'customer_type' => 'individual', 'status' => 'active', 'code' => 'C-00099']);
+        app(SubscriptionService::class)->start(['customer_id' => $stranger->id, 'service_plan_id' => $other->id, 'quantity' => 1, 'start_date' => '2026-06-15']);
+        $this->assertFalse(app(GymCheckinService::class)->scan('C-00099')['allowed']);
+        MemberCheckin::query()->delete();
+
         $sub = app(SubscriptionService::class)->start(['customer_id' => $this->customer->id, 'service_plan_id' => $plan->id, 'quantity' => 1, 'start_date' => '2026-06-15']);
         $gym = app(GymCheckinService::class);
 
@@ -136,8 +143,13 @@ class SectorModulesTest extends TestCase
 
         $this->assertTrue($gym->scan('C-00001')['allowed']);
         $this->assertSame(1, $pack->fresh()->remaining());
+        $this->assertTrue($gym->scan('C-00001')['allowed']); // a second scan the same day: in, no visit used
+        $this->assertSame(1, $pack->fresh()->remaining());
+
+        Carbon::setTestNow('2026-06-16 09:00:00');
         $this->assertTrue($gym->scan('C-00001')['allowed']);
         $this->assertSame('used_up', $pack->fresh()->status);
+        Carbon::setTestNow('2026-06-17 09:00:00');
         $this->assertFalse($gym->scan('C-00001')['allowed']); // nothing left
         $this->assertSame(2, $pack->usages()->count());
     }
@@ -325,5 +337,17 @@ class SectorModulesTest extends TestCase
         $plan->update(['is_active' => false]);
         $second = $this->lease($this->unit('102'));
         $this->assertNotSame($plan->id, CustomerSubscription::findOrFail($second->subscription_id)->service_plan_id);
+    }
+
+    public function test_residential_rent_is_vat_exempt_and_commercial_rent_is_not(): void
+    {
+        $this->lease($this->unit('101'), ['residential' => true]);
+        $home = Invoice::latest('id')->firstOrFail();
+        $this->assertEquals(0.0, (float) $home->tax_amount);
+        $this->assertSame('E', $home->items()->first()->vat_category);
+        $this->assertSame('VATEX-SA-30', $home->items()->first()->vat_exemption_code);
+
+        $this->lease($this->unit('102'));
+        $this->assertEquals(450.0, (float) Invoice::latest('id')->firstOrFail()->tax_amount); // 3000 × 15 %
     }
 }

@@ -6,8 +6,10 @@ use App\Models\Customer;
 use App\Models\CustomerPackage;
 use App\Models\CustomerSubscription;
 use App\Models\MemberCheckin;
+use App\Models\ServicePlan;
 use App\Models\User;
 use App\Services\Bookings\PackageService;
+use Illuminate\Support\Facades\DB;
 
 /** Reception check-in: is this member allowed in (live subscription or a covering visit package)? Every try is logged. */
 class GymCheckinService
@@ -28,18 +30,34 @@ class GymCheckinService
             return ['allowed' => false, 'reason' => 'الكود غير معروف', 'customer' => null, 'subscription' => null, 'package' => null];
         }
 
-        $subs = CustomerSubscription::with('plan:id,name')->where('customer_id', $customer->id)->get();
+        // A membership or package is the customer's, valid in every branch.
+        $subs = CustomerSubscription::withoutGlobalScope('branch')->with(['plan' => fn ($q) => $q->withoutGlobalScope('branch')->select('id', 'name', 'is_membership')])
+            ->where('customer_id', $customer->id)->get()
+            ->filter(fn ($s) => $s->plan && ($s->plan->is_membership || ! $this->hasMembershipPlans() && ! in_array($s->plan->name, LeaseService::PLAN_NAMES, true)))->values();
         $live = $subs->first(fn ($s) => in_array($s->status, ['trial', 'active'], true));
+
+        // Already let in today: in again without using another visit.
+        $today = MemberCheckin::withoutGlobalScope('branch')->where('customer_id', $customer->id)->where('allowed', true)->whereNotNull('customer_package_id')
+            ->whereDate('checked_in_at', today())->latest('id')->first(); // a visit already taken from a package today
+        if (! $live && $today) {
+            $this->log($customer->id, $today->subscription_id, $today->customer_package_id, $code, $method, true, 'دخول ثانٍ اليوم (لا يُخصم)', $by);
+
+            return $this->result(true, null, $customer, null, $today->customer_package_id ? CustomerPackage::withoutGlobalScope('branch')->find($today->customer_package_id) : null);
+        }
         if ($live) {
             $this->log($customer->id, $live->id, null, $code, $method, true, null, $by);
 
             return $this->result(true, null, $customer, $live, null);
         }
 
-        $package = CustomerPackage::where('customer_id', $customer->id)->where('status', 'active')->get()->first(fn ($p) => $p->covers(null, today()) || ($p->remaining() > 0 && (! $p->expires_at || $p->expires_at->gte(today()))));
+        // Only a general package (not one bought for a particular service, like personal training).
+        $package = CustomerPackage::withoutGlobalScope('branch')->where('customer_id', $customer->id)->where('status', 'active')->get()
+            ->first(fn ($p) => ! $p->bookable_service_id && ($p->covers(null, today()) || ($p->remaining() > 0 && (! $p->expires_at || $p->expires_at->gte(today())))));
         if ($package) {
-            $this->packages->useForCheckin($package, 'دخول النادي');
-            $this->log($customer->id, null, $package->id, $code, $method, true, null, $by);
+            DB::transaction(function () use ($package, $customer, $code, $method, $by) {
+                $this->log($customer->id, null, $package->id, $code, $method, true, null, $by); // first: refuses in «all branches» before a visit is used
+                $this->packages->useForCheckin($package, 'دخول النادي');
+            });
 
             return $this->result(true, null, $customer, null, $package->fresh());
         }
@@ -84,6 +102,11 @@ class GymCheckinService
             'subscription' => $sub ? ['plan' => $sub->plan?->name, 'status' => $sub->status, 'renews_on' => $sub->recurring?->next_run_date?->toDateString()] : null,
             'package' => $package ? ['name' => $package->name, 'remaining' => $package->remaining(), 'expires_at' => $package->expires_at?->toDateString()] : null,
         ];
+    }
+
+    protected function hasMembershipPlans(): bool
+    {
+        return ServicePlan::withoutGlobalScope('branch')->where('is_membership', true)->exists();
     }
 
     protected function log(?int $customerId, ?int $subId, ?int $packageId, string $code, string $method, bool $allowed, ?string $reason, ?User $by): void

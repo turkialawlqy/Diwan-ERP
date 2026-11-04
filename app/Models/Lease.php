@@ -13,7 +13,7 @@ class Lease extends Model
 {
     use Auditable, BelongsToCompany, BranchScoped;
 
-    protected $fillable = ['company_id', 'branch_id', 'number', 'property_unit_id', 'customer_id', 'contract_id', 'subscription_id', 'start_date', 'end_date', 'rent_amount', 'cycle', 'security_deposit',
+    protected $fillable = ['company_id', 'branch_id', 'number', 'property_unit_id', 'customer_id', 'contract_id', 'subscription_id', 'start_date', 'end_date', 'rent_amount', 'cycle', 'security_deposit', 'residential',
         'status', 'ended_on', 'end_reason', 'created_by'];
 
     protected $casts = ['start_date' => 'date', 'end_date' => 'date', 'ended_on' => 'date', 'rent_amount' => 'decimal:2', 'security_deposit' => 'decimal:2'];

@@ -35,7 +35,8 @@ trait Auditable
 
     protected function auditFilter(array $attributes): array
     {
-        $exclude = array_merge(static::$auditExclude, $this->getHidden());
+        // A model may keep sensitive fields (medical data...) out of the log: auditSecretFields().
+        $exclude = array_merge(static::$auditExclude, $this->getHidden(), method_exists($this, 'auditSecretFields') ? $this->auditSecretFields() : []);
 
         return array_diff_key($attributes, array_flip($exclude));
     }

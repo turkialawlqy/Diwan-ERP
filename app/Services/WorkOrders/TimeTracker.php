@@ -66,6 +66,16 @@ class TimeTracker
         return $entry;
     }
 
+    /** The same technician cannot be billed twice for the same minutes (another entry or his running timer). */
+    protected function assertNoOverlap(int $employeeId, Carbon $start, Carbon $end, ?int $ignore = null): void
+    {
+        $clash = TimeEntry::where('employee_id', $employeeId)->when($ignore, fn ($q) => $q->where('id', '!=', $ignore))
+            ->where('started_at', '<', $end)->where(fn ($q) => $q->whereNull('ended_at')->orWhere('ended_at', '>', $start))->first();
+        if ($clash) {
+            throw ValidationException::withMessages(['minutes' => 'لهذا الفني وقت مسجّل يتداخل مع هذه المدة (من '.$clash->started_at->format('H:i').').']);
+        }
+    }
+
     /** Hours entered after the fact (office, or a technician who forgot the timer). */
     public function addManual(WorkOrder $order, Employee $employee, int $minutes, ?Carbon $startedAt = null, bool $billable = true, ?string $note = null): TimeEntry
     {
@@ -76,6 +86,7 @@ class TimeTracker
             throw ValidationException::withMessages(['minutes' => 'المدة من دقيقة إلى 24 ساعة.']);
         }
         $start = $startedAt ?? now()->subMinutes($minutes);
+        $this->assertNoOverlap($employee->id, $start, $start->copy()->addMinutes($minutes));
 
         return TimeEntry::create([
             'work_order_id' => $order->id, 'employee_id' => $employee->id, 'started_at' => $start, 'ended_at' => $start->copy()->addMinutes($minutes), 'minutes' => $minutes,
@@ -94,6 +105,7 @@ class TimeTracker
         if (! $order || ! $order->isOpen()) {
             throw ValidationException::withMessages(['status' => 'أمر العمل مغلق.']);
         }
+        $this->assertNoOverlap($entry->employee_id, $entry->started_at, $entry->started_at->copy()->addMinutes($minutes), $entry->id);
         $entry->update(['minutes' => $minutes, 'billable' => $billable, 'ended_at' => $entry->started_at->copy()->addMinutes($minutes), 'labour_cost' => round($minutes / 60 * $this->costRate($entry->employee), 2)]);
 
         return $entry;

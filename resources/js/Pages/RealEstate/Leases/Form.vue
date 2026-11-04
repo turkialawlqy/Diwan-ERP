@@ -10,7 +10,7 @@ import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import { today } from '@/utils/format';
 
 const props = defineProps({ rentalUnits: Array, templates: Array, unitId: Number, cycles: Object });
-const form = useForm({ customer_id: null, property_unit_id: props.unitId || '', start_date: today(), end_date: '', rent_amount: 0, cycle: 'monthly', security_deposit: 0, template_id: '' });
+const form = useForm({ customer_id: null, property_unit_id: props.unitId || '', start_date: today(), end_date: '', rent_amount: 0, cycle: 'monthly', security_deposit: 0, template_id: '', residential: true });
 useUnsavedGuard(form);
 const unit = computed(() => props.rentalUnits.find((u) => u.id === form.property_unit_id));
 watch(() => form.property_unit_id, () => { if (unit.value && !Number(form.rent_amount)) form.rent_amount = unit.value.rent_amount; }, { immediate: true });
@@ -28,6 +28,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
             <Field label="نهاية العقد *" :error="form.errors.end_date"><DatePicker v-model="form.end_date" required /></Field>
             <Field label="دورة الإيجار *" :error="form.errors.cycle"><select v-model="form.cycle" :class="input"><option v-for="(l, k) in cycles" :key="k" :value="k">{{ l }}</option></select></Field>
             <Field label="قيمة الإيجار لكل دورة *" :error="form.errors.rent_amount"><input v-model.number="form.rent_amount" type="text" inputmode="decimal" data-num :class="input" class="font-mono" data-lease-rent /></Field>
+            <label class="flex items-center gap-2 text-xs font-bold text-slate-600 md:col-span-2"><input type="checkbox" v-model="form.residential" data-residential /> إيجار سكني (معفى من ضريبة القيمة المضافة — VATEX-SA-30)؛ ألغِ التحديد للإيجار التجاري</label>
             <Field label="مبلغ التأمين" :error="form.errors.security_deposit"><input v-model.number="form.security_deposit" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
             <Field label="نموذج العقد" :error="form.errors.template_id"><select v-model="form.template_id" :class="input"><option value="">بدون نص جاهز</option><option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }}</option></select></Field>
             <p class="md:col-span-3 text-slate-500">يُنشأ عقد إيجار واشتراك إيجار تُصدر فواتيره تلقائيًا في مواعيدها، وتصبح الوحدة «مؤجَّرة».</p>

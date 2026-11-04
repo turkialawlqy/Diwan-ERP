@@ -81,6 +81,7 @@ class ServicePlanController extends Controller
             'interval' => 'nullable|integer|min:1|max:12',
             'trial_days' => 'nullable|integer|min:0|max:365',
             'booking_discount_percent' => 'nullable|integer|min:0|max:100',
+            'is_membership' => 'boolean',
             'product_id' => 'nullable|tenant_exists:products,id',
             'is_active' => 'boolean',
         ], [], ['name' => 'اسم الخطة', 'price' => 'السعر', 'cycle' => 'دورة الفوترة']);
@@ -95,6 +96,7 @@ class ServicePlanController extends Controller
         $data['booking_discount_percent'] ??= 0;
         $data['tax_rate'] ??= TaxProfile::rate();
         $data['is_active'] = (bool) ($data['is_active'] ?? true);
+        $data['is_membership'] = (bool) ($data['is_membership'] ?? false);
 
         return $data;
     }

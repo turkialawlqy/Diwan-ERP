@@ -52,9 +52,9 @@ return [
                 ['name' => 'باقة 10 جلسات تدريب شخصي', 'service' => 'تدريب شخصي', 'visits' => 10, 'price' => 1300, 'valid_days' => 90],
             ],
             'service_plans' => [
-                ['name' => 'عضوية شهرية', 'price' => 250, 'cycle' => 'monthly', 'booking_discount_percent' => 50],
-                ['name' => 'عضوية ربع سنوية', 'price' => 650, 'cycle' => 'quarterly', 'booking_discount_percent' => 50],
-                ['name' => 'عضوية سنوية', 'price' => 2200, 'cycle' => 'yearly', 'booking_discount_percent' => 100],
+                ['name' => 'عضوية شهرية', 'price' => 250, 'cycle' => 'monthly', 'membership' => true, 'booking_discount_percent' => 50],
+                ['name' => 'عضوية ربع سنوية', 'price' => 650, 'cycle' => 'quarterly', 'membership' => true, 'booking_discount_percent' => 50],
+                ['name' => 'عضوية سنوية', 'price' => 2200, 'cycle' => 'yearly', 'membership' => true, 'booking_discount_percent' => 100],
             ],
             'support_categories' => ['العضويات', 'الحصص والمدربون'],
             'contract_templates' => [

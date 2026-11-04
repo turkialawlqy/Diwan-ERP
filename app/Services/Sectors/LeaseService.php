@@ -26,7 +26,7 @@ class LeaseService
 
     public function __construct(protected ContractService $contracts, protected SubscriptionService $subscriptions, protected DocumentNumberService $numbers) {}
 
-    /** @param array $data customer_id, property_unit_id, start_date, end_date, rent_amount, cycle, security_deposit?, template_id? */
+    /** @param array $data customer_id, property_unit_id, start_date, end_date, rent_amount, cycle, security_deposit?, template_id?, residential? (VAT-exempt) */
     public function create(array $data): Lease
     {
         $start = Carbon::parse($data['start_date'])->startOfDay();
@@ -52,7 +52,9 @@ class LeaseService
             $subscription = $this->subscriptions->start([
                 'customer_id' => $data['customer_id'], 'service_plan_id' => $plan->id, 'quantity' => 1, 'unit_price' => $data['rent_amount'], 'start_date' => $start->toDateString(),
                 'line_description' => 'إيجار '.$unit->label(), 'notes' => 'عقد إيجار — '.$unit->label(),
-                'end_date' => $end->copy()->addDay()->toDateString(), 'branch_id' => $unit->branch_id, // billing stops at the lease end; endExpired() closes it
+                'end_date' => $end->copy()->addDay()->toDateString(), 'branch_id' => $unit->branch_id,
+                // Residential rent: VAT-exempt real-estate supply (Article 30).
+                'line_extra' => ! empty($data['residential']) ? ['tax_rate' => 0, 'vat_category' => 'E', 'vat_exemption_code' => 'VATEX-SA-30'] : [], // billing stops at the lease end; endExpired() closes it
             ]);
 
             $contract = $this->contracts->create([
@@ -65,7 +67,7 @@ class LeaseService
             $lease = Lease::create([
                 'number' => $this->numbers->next('lease', $start), 'property_unit_id' => $unit->id, 'customer_id' => $data['customer_id'], 'contract_id' => $contract->id,
                 'subscription_id' => $subscription->id, 'start_date' => $start, 'end_date' => $end, 'rent_amount' => $data['rent_amount'], 'cycle' => $cycle,
-                'security_deposit' => $data['security_deposit'] ?? 0, 'status' => 'active', 'created_by' => auth()->id(),
+                'security_deposit' => $data['security_deposit'] ?? 0, 'residential' => ! empty($data['residential']), 'status' => 'active', 'created_by' => auth()->id(),
             ]);
             $unit->update(['status' => 'occupied']);
 

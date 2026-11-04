@@ -16,10 +16,15 @@ class RunBookings extends Command
 
     public function handle(TenantManager $tenants, BookingReminders $reminders, PlanGuard $plans): int
     {
-        Company::query()->where('status', '!=', 'suspended')->each(function (Company $company) use ($tenants, $reminders, $plans) {
-            $done = $tenants->runAs($company, fn () => $plans->hasModule($company, 'bookings') ? $reminders->tick() : []);
-            if (array_sum($done)) {
-                $this->line($company->name.': '.json_encode($done));
+        Company::query()->where('status', '!=', 'suspended')->lazyById(100)->each(function (Company $company) use ($tenants, $reminders, $plans) {
+            try {
+                $done = $tenants->runAs($company, fn () => $plans->hasModule($company, 'bookings') ? $reminders->tick() : []);
+                if (array_sum($done)) {
+                    $this->line($company->name.': '.json_encode($done));
+                }
+            } catch (\Throwable $e) { // one company's bad record must not stop the others
+                report($e);
+                $this->error($company->name.': '.$e->getMessage());
             }
         });
 

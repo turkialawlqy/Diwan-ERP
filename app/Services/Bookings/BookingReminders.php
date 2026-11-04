@@ -45,7 +45,7 @@ class BookingReminders
                 $b->update(['reminder_state' => $state + ['unconfirmed' => true]]);
                 $url = route('bookings.show', $b->id, false);
                 User::where('company_id', $b->company_id)->where('status', 'active')->get()->filter(fn (User $u) => $u->can('bookings.bookings.edit'))
-                    ->each(fn (User $u) => $u->notify(new ErpAlert('booking_unconfirmed', 'حجز لم يُؤكَّد يقترب موعده', "{$b->number} — {$b->customer->name} — ".$b->starts_at->format('Y-m-d H:i'), $url, 'warning')));
+                    ->each(fn (User $u) => $u->notify(new ErpAlert('booking_unconfirmed', 'حجز لم يُؤكَّد يقترب موعده', "{$b->number} — {$b->customer?->name} — ".$b->starts_at->format('Y-m-d H:i'), $url, 'warning')));
                 $done['unconfirmed']++;
             });
 

@@ -17,11 +17,17 @@ class RunContracts extends Command
 
     public function handle(TenantManager $tenants, ContractService $service): int
     {
-        Company::query()->where('status', '!=', 'suspended')->each(function (Company $company) use ($tenants, $service) {
-            $done = $tenants->runAs($company, fn () => $service->nightly()
-                + ['leases_ended' => app(PlanGuard::class)->hasModule($company, 'real_estate') ? app(LeaseService::class)->endExpired() : 0]);
-            if (array_sum($done)) {
-                $this->line($company->name.': '.json_encode($done));
+        Company::query()->where('status', '!=', 'suspended')->lazyById(100)->each(function (Company $company) use ($tenants, $service) {
+            try {
+                $guard = app(PlanGuard::class);
+                $done = $tenants->runAs($company, fn () => ($guard->hasModule($company, 'contracts') ? $service->nightly() : [])
+                    + ['leases_ended' => app(PlanGuard::class)->hasModule($company, 'real_estate') ? app(LeaseService::class)->endExpired() : 0]);
+                if (array_sum($done)) {
+                    $this->line($company->name.': '.json_encode($done));
+                }
+            } catch (\Throwable $e) { // one company's bad record must not stop the others
+                report($e);
+                $this->error($company->name.': '.$e->getMessage());
             }
         });
 

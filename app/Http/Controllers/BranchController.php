@@ -138,7 +138,8 @@ class BranchController extends Controller
             'tax_registered' => 'boolean',
             'commercial_registration' => 'nullable|string|max:30',
             'modules' => 'nullable|array',
-            'modules.*' => ['string', Rule::in(array_keys($this->activityOptions()))],
+            // Any known activity: one the company has since switched off stays on the list (it shows again when switched on).
+            'modules.*' => ['string', Rule::in(array_keys(config('saas.optional_modules')))],
         ], [], ['country_code' => 'الدولة', 'tax_number' => 'الرقم الضريبي']);
 
         $company = app(TenantManager::class)->getCompany();
