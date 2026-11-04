@@ -26,26 +26,33 @@ class AvailabilityService
     public function slotsFor(BookingResource $resource, BookableService $service, Carbon $day, bool $enforceWindow = true, ?int $ignoreBookingId = null): Collection
     {
         $day = $day->copy()->startOfDay();
-        if (! $resource->is_active || ($enforceWindow && ! $this->withinWindow($day)) || PublicHoliday::covers($day)) {
+        $clock = BookingClock::now($resource->branch_id); // the resource's branch has its own wall clock
+        if (! $resource->is_active || ($enforceWindow && ! $this->withinWindow($day, $clock)) || PublicHoliday::covers($day)) {
             return collect();
         }
 
-        $intervals = $resource->hours()->where('weekday', $day->isoWeekday())->get();
-        if ($intervals->isEmpty()) {
+        // Hours that end after midnight (22:00–02:00) belong to the day they start on and run into the next:
+        // such a row also opens the early hours of the day after it.
+        $own = $resource->hours()->where('weekday', $day->isoWeekday())->get();
+        $before = $resource->hours()->where('weekday', $day->copy()->subDay()->isoWeekday())->get()->filter(fn ($h) => $h->end_time <= $h->start_time);
+        if ($own->isEmpty() && $before->isEmpty()) {
             return collect();
         }
+        $windows = $own->map(fn ($h) => [$day->copy()->setTimeFromTimeString($h->start_time), $this->endOf($day, $h)])
+            ->concat($before->map(fn ($h) => [$day->copy()->subDay()->setTimeFromTimeString($h->start_time), $day->copy()->setTimeFromTimeString($h->end_time)]));
 
         $step = $this->settings->all()['slot_step'];
         $duration = (int) $service->duration_minutes;
-        $earliest = $enforceWindow ? now()->addHours($this->settings->all()['min_notice_hours']) : null;
+        $earliest = $enforceWindow ? $clock->copy()->addHours($this->settings->all()['min_notice_hours']) : null;
         $busy = $this->busy($resource, $day, $ignoreBookingId);
         $offs = ResourceTimeOff::where('booking_resource_id', $resource->id)->where('starts_at', '<', $day->copy()->endOfDay())->where('ends_at', '>', $day)->get();
         $slots = collect();
 
-        foreach ($intervals as $hours) {
-            $from = $day->copy()->setTimeFromTimeString($hours->start_time);
-            $to = $day->copy()->setTimeFromTimeString($hours->end_time);
+        foreach ($windows as [$from, $to]) {
             for ($start = $from->copy(); $start->copy()->addMinutes($duration)->lte($to); $start->addMinutes($step)) {
+                if ($start->lt($day) || $start->gte($day->copy()->addDay())) {
+                    continue; // a start on the other day is that day's slot
+                }
                 $end = $start->copy()->addMinutes($duration);
                 $occupiedEnd = $end->copy()->addMinutes((int) $service->buffer_minutes);
                 if ($earliest && $start->lt($earliest)) {
@@ -95,9 +102,19 @@ class AvailabilityService
         return $this->slotsFor($resource, $service, $start, $enforceWindow, $ignoreBookingId)->contains('time', $start->format('H:i'));
     }
 
-    protected function withinWindow(Carbon $day): bool
+    protected function withinWindow(Carbon $day, ?Carbon $clock = null): bool
     {
-        return $day->gte(today()) && $day->lte(today()->addDays($this->settings->all()['max_advance_days']));
+        $today = ($clock ?? now())->copy()->startOfDay();
+
+        return $day->gte($today) && $day->lte($today->copy()->addDays($this->settings->all()['max_advance_days']));
+    }
+
+    /** End of a weekly row on the day it starts: after midnight when it ends at or before its start. */
+    protected function endOf(Carbon $day, $hours): Carbon
+    {
+        $end = $day->copy()->setTimeFromTimeString($hours->end_time);
+
+        return $hours->end_time <= $hours->start_time ? $end->addDay() : $end;
     }
 
     /** @return Collection<int, array{start:Carbon,end:Carbon}> occupied intervals (booking length + its service's buffer) */

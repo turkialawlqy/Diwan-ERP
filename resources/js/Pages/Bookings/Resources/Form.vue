@@ -39,7 +39,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
 
             <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-3">
                 <div class="flex items-center justify-between"><h2 class="font-bold text-slate-800">ساعات العمل الأسبوعية</h2><button type="button" class="text-indigo-600 font-bold" @click="fillWeek" data-fill-week>دوام 9–5 من السبت إلى الخميس</button></div>
-                <p class="text-slate-500">أضف أكثر من فترة في اليوم نفسه لتمثيل الاستراحة. اليوم بلا فترات = إجازة.</p>
+                <p class="text-slate-500">أضف أكثر من فترة في اليوم نفسه لتمثيل الاستراحة. اليوم بلا فترات = إجازة. نهاية قبل البداية (مثل 22:00 — 02:00) = دوام يمتد بعد منتصف الليل ويُحسب من يوم بدايته.</p>
                 <div v-for="d in dayOrder" :key="d" class="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2">
                     <span class="w-20 font-bold">{{ days[d] }}</span>
                     <template v-for="(h, i) in form.hours" :key="i">

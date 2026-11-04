@@ -20,11 +20,13 @@ use App\Notifications\BookingMessage;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
 use App\Services\Bookings\AvailabilityService;
+use App\Services\Bookings\BookingClock;
 use App\Services\Bookings\BookingReminders;
 use App\Services\Bookings\BookingService;
 use App\Services\Bookings\PackageService;
 use App\Services\Documents\TemplateData;
 use App\Services\TenantManager;
+use App\Support\BranchScopeSwitch;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
@@ -313,7 +315,7 @@ class BookingsTest extends TestCase
         $this->assertSame(1, $coach->hours()->count());
         $this->assertTrue($coach->services()->whereKey($this->service->id)->exists());
 
-        $this->post(route('bookings.resources.store'), ['name' => 'خطأ', 'type' => 'staff', 'hours' => [['weekday' => 1, 'start_time' => '10:00', 'end_time' => '09:00']]])->assertSessionHasErrors('hours');
+        $this->post(route('bookings.resources.store'), ['name' => 'خطأ', 'type' => 'staff', 'hours' => [['weekday' => 1, 'start_time' => '10:00', 'end_time' => '10:00']]])->assertSessionHasErrors('hours'); // the same time twice
         $this->postJson(route('bookings.services.store'), ['name' => 'قص', 'duration_minutes' => 20, 'price' => 30])->assertCreated();
 
         $this->book('2026-06-16 10:00');
@@ -373,5 +375,45 @@ class BookingsTest extends TestCase
         $this->get(route('documents.pdf', ['type' => 'booking', 'id' => $b->id]))->assertOk()->assertHeader('Content-Type', 'application/pdf');
         $fields = app(TemplateData::class)->build($b->fresh())['fields'];
         $this->assertSame('30.00', $fields['doc.deposit']);
+    }
+
+    public function test_a_shift_past_midnight_belongs_to_its_start_day_and_opens_the_next_morning(): void
+    {
+        $night = BookingResource::create(['name' => 'مناوب ليلي', 'type' => 'staff', 'capacity' => 1, 'is_active' => true]);
+        $night->hours()->create(['weekday' => 2, 'start_time' => '22:00', 'end_time' => '02:00']); // Tuesday night
+        $this->service->resources()->attach($night->id);
+
+        $tuesday = $this->times('2026-06-16', $night);
+        $this->assertContains('22:00', $tuesday);
+        $this->assertContains('23:00', $tuesday);
+        $this->assertNotContains('00:00', $tuesday);          // after midnight is Wednesday's list
+        $wednesday = $this->times('2026-06-17', $night);
+        $this->assertContains('00:00', $wednesday);
+        $this->assertContains('01:00', $wednesday);           // 01:00–02:00 still inside the shift
+        $this->assertNotContains('02:00', $wednesday);
+        $this->assertSame([], $this->times('2026-06-18', $night));
+
+        $b = $this->book('2026-06-17 00:30', ['booking_resource_id' => $night->id]);
+        $this->assertSame('2026-06-17 00:30', $b->starts_at->format('Y-m-d H:i'));
+        $this->assertNotContains('00:30', $this->times('2026-06-17', $night));
+    }
+
+    public function test_a_branch_in_another_time_zone_counts_the_notice_on_its_own_clock(): void
+    {
+        $uae = Branch::create(['name_ar' => 'فرع بعيد', 'code' => 'FAR', 'is_active' => true, 'country_code' => 'SA', 'timezone' => 'Pacific/Auckland']); // far ahead of Riyadh
+        $this->assertGreaterThan(8 * 3600, BookingClock::offsetSeconds($uae->id));
+        $this->assertSame(0, BookingClock::offsetSeconds(null));
+
+        $near = BookingResource::create(['name' => 'مورد بعيد', 'type' => 'room', 'capacity' => 1, 'is_active' => true, 'branch_id' => $uae->id]);
+        $near->hours()->create(['weekday' => 1, 'start_time' => '00:00', 'end_time' => '12:00']);
+        $this->service->resources()->attach($near->id);
+        // Monday 15 Jun 08:00 in Riyadh is already evening there: Monday's morning is over, so no slot for it with a notice window.
+        $slots = app(AvailabilityService::class)->slotsFor($near, $this->service, Carbon::parse('2026-06-15'), true)->pluck('time')->all();
+        $this->assertSame([], $slots);
+        // The same resource without a branch (Riyadh clock) still has its late-morning slots.
+        $local = BranchScopeSwitch::off(fn () => BookingResource::create(['name' => 'مورد محلي', 'type' => 'room', 'capacity' => 1, 'is_active' => true])); // no branch: the company's clock
+        $local->hours()->create(['weekday' => 1, 'start_time' => '00:00', 'end_time' => '12:00']);
+        $this->service->resources()->attach($local->id);
+        $this->assertContains('11:00', app(AvailabilityService::class)->slotsFor($local, $this->service, Carbon::parse('2026-06-15'), true)->pluck('time')->all());
     }
 }

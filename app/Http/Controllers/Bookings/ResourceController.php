@@ -106,8 +106,9 @@ class ResourceController extends Controller
         ], [], ['name' => 'الاسم']);
 
         foreach ($data['hours'] ?? [] as $h) {
-            if ($h['end_time'] <= $h['start_time']) {
-                throw ValidationException::withMessages(['hours' => 'نهاية الدوام يجب أن تكون بعد بدايته.']);
+            // An end before the start means the shift runs past midnight (22:00–02:00); the same time twice is nothing.
+            if ($h['end_time'] === $h['start_time']) {
+                throw ValidationException::withMessages(['hours' => 'نهاية الدوام يجب أن تختلف عن بدايته.']);
             }
         }
         foreach ($data['time_offs'] ?? [] as $o) {

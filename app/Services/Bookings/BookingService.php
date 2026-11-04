@@ -158,7 +158,7 @@ class BookingService
         $this->assertOpen($booking);
         if ($byCustomer) {
             $limit = $booking->starts_at->copy()->subHours((int) $booking->service->free_cancel_hours);
-            if (now()->gt($limit)) {
+            if (BookingClock::now($booking->branch_id)->gt($limit)) {
                 throw ValidationException::withMessages(['status' => "لا يمكن إلغاء الحجز قبل أقل من {$booking->service->free_cancel_hours} ساعة من موعده، تواصل معنا."]);
             }
         }
