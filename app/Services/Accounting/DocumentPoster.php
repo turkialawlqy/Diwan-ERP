@@ -229,18 +229,24 @@ class DocumentPoster
      */
     public function supplierPayment(SupplierPayment $payment): JournalEntry
     {
+        // Withholding tax on a payment to a non-resident: the supplier's account is cleared for the gross amount,
+        // the cash leaves for the net amount and the difference is owed to the tax authority.
+        $withheld = round((float) $payment->wht_amount, 2);
+        $paid = round((float) $payment->amount - $withheld, 2);
+
         return $this->posting->post([
             'rate' => (float) ($payment->exchange_rate ?: 1),
             'date' => $payment->payment_date,
             'reference' => $payment->payment_number,
             'description' => "سند صرف للمورد رقم {$payment->payment_number}",
             'source' => $payment,
-            'lines' => [
+            'lines' => array_filter([
                 ['role' => 'payables', 'debit' => (float) $payment->amount, 'description' => "سداد للمورد - {$payment->payment_number}", 'party_type' => 'supplier', 'party_id' => $payment->supplier_id],
                 $payment->payment_method === 'cheque'
-                    ? ['role' => 'cheques_payable', 'credit' => (float) $payment->amount, 'description' => "شيك صادر - سند صرف {$payment->payment_number}"]
-                    : ['account_id' => $this->cashAccount($payment->bank_account_id, $payment->payment_method), 'credit' => (float) $payment->amount, 'description' => "سند صرف {$payment->payment_number}"],
-            ],
+                    ? ['role' => 'cheques_payable', 'credit' => $paid, 'description' => "شيك صادر - سند صرف {$payment->payment_number}"]
+                    : ['account_id' => $this->cashAccount($payment->bank_account_id, $payment->payment_method), 'credit' => $paid, 'description' => "سند صرف {$payment->payment_number}"],
+                $withheld > 0 ? ['role' => 'wht_payable', 'credit' => $withheld, 'description' => "ضريبة استقطاع - سند صرف {$payment->payment_number}"] : null,
+            ]),
         ]);
     }
 

@@ -552,9 +552,12 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::put('/guarantees/{guarantee}', [PR\GuaranteeController::class, 'update'])->name('guarantees.update');
         Route::post('/subcontracts/{subcontract}/advance', [PR\ProjectCostController::class, 'subcontractAdvance'])->name('subcontracts.advance');
         Route::post('/subcontracts/{subcontract}/certify', [PR\ProjectCostController::class, 'certify'])->name('subcontracts.certify');
+        Route::post('/subcontracts/{subcontract}/release-retention', [PR\ProjectCostController::class, 'releaseSubcontractRetention'])->name('subcontracts.release-retention');
         Route::get('/{project}', [PR\ProjectController::class, 'show'])->name('show');
         Route::put('/{project}', [PR\ProjectController::class, 'update'])->name('update');
         Route::put('/{project}/boq', [PR\ProjectController::class, 'updateBoq'])->name('boq.update');
+        Route::put('/{project}/progress', [PR\ProjectController::class, 'updateProgress'])->name('progress.update');
+        Route::post('/{project}/wip', [PR\ProjectController::class, 'postWip'])->name('wip.post');
         Route::post('/{project}/advance', [PR\ProjectController::class, 'advance'])->name('advance');
         Route::post('/{project}/retention/release', [PR\ProjectController::class, 'releaseRetention'])->name('retention.release');
         Route::post('/{project}/variations', [PR\ProjectController::class, 'storeVariation'])->name('variations.store');
@@ -720,6 +723,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::get('/reports/cash-flow', [A\FinancialReportController::class, 'cashFlow'])->name('reports.cash-flow');
         Route::get('/reports/aging', [A\FinancialReportController::class, 'aging'])->name('reports.aging');
         Route::get('/reports/vat-return', [A\FinancialReportController::class, 'vatReturn'])->name('reports.vat-return');
+        Route::get('/reports/withholding', [A\FinancialReportController::class, 'withholding'])->name('reports.withholding');
         Route::post('/reports/vat-return/settle', [A\FinancialReportController::class, 'settleVat'])->name('reports.vat-return.settle');
         Route::delete('/reports/vat-settlements/{settlement}', [A\FinancialReportController::class, 'cancelVatSettlement'])->name('reports.vat-settlements.cancel');
 

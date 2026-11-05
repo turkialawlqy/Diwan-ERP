@@ -12,7 +12,7 @@ class Subcontract extends Model
 {
     use Auditable, BelongsToCompany;
 
-    protected $fillable = ['company_id', 'project_id', 'supplier_id', 'number', 'scope', 'contract_value', 'retention_percent', 'advance_paid', 'advance_recovered', 'certified_to_date', 'retention_held', 'status', 'start_date', 'end_date'];
+    protected $fillable = ['company_id', 'project_id', 'supplier_id', 'number', 'scope', 'contract_value', 'retention_percent', 'advance_paid', 'advance_recovered', 'certified_to_date', 'retention_held', 'retention_released', 'status', 'start_date', 'end_date'];
 
     protected $casts = ['start_date' => 'date', 'end_date' => 'date'];
 

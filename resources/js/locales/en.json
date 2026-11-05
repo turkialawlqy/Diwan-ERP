@@ -126,6 +126,7 @@
         "cash_flow": "Cash Flow",
         "aging": "Aging",
         "vat_return": "VAT Return",
+        "withholding": "Withholding Tax",
         "stock_transfers": "Stock Transfers",
         "assembly": "Assembly & BOM",
         "item_card": "Item Card",

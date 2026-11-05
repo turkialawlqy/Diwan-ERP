@@ -8,7 +8,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { today } from '@/utils/format';
 
-const props = defineProps({ suppliers: Array, unpaidInvoices: Array });
+const props = defineProps({ suppliers: Array, unpaidInvoices: Array, whtRates: { type: Object, default: () => ({}) } });
 
 const form = useForm({
     supplier_id: props.suppliers?.[0]?.id || '',
@@ -26,6 +26,10 @@ const form = useForm({
 });
 useUnsavedGuard(form);
 
+const supplier = computed(() => props.suppliers.find((s) => s.id === form.supplier_id));
+// Withholding tax on a non-resident supplier's payment (the rate of his category).
+const whtRate = computed(() => (supplier.value?.is_non_resident ? Number(props.whtRates[supplier.value.wht_category || 'other'] ?? 0) : 0));
+const whtAmount = computed(() => Math.round((Number(form.amount) || 0) * whtRate.value) / 100);
 const filteredInvoices = ref([]);
 // Spreading one payment over several invoices: an amount per open invoice, or «oldest first».
 const alloc = ref({});
@@ -85,6 +89,10 @@ const submitPayment = () => form.transform((d) => {
                                 </select>
                             </div>
             
+                            <p v-if="whtRate > 0" class="col-span-full rounded-xl bg-amber-50 text-amber-800 px-3 py-2 font-bold" data-wht-note>
+                                مورد غير مقيم: تُستقطع ضريبة {{ whtRate }}% = {{ formatCurrency(whtAmount) }} ﷼، والمدفوع فعليًا {{ formatCurrency((Number(form.amount) || 0) - whtAmount) }} ﷼ (تُورَّد للهيئة).
+                            </p>
+
                             <div v-if="!form.purchase_invoice_id && openInvoices.length" class="col-span-full border border-slate-200 rounded-xl p-3 space-y-2" data-allocation>
                                 <div class="flex flex-wrap items-center justify-between gap-2">
                                     <span class="font-bold text-slate-700">توزيع المبلغ على عدة فواتير (اختياري)</span>

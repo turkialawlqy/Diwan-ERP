@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Supplier;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Purchases\SupplierStatement;
+use App\Services\Tax\WithholdingTax;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -62,12 +63,12 @@ class SupplierController extends Controller
      */
     public function create()
     {
-        return Inertia::render('Purchases/Suppliers/Form');
+        return Inertia::render('Purchases/Suppliers/Form', ['whtCategories' => WithholdingTax::categories()]);
     }
 
     public function edit(Supplier $supplier)
     {
-        return Inertia::render('Purchases/Suppliers/Form', ['supplier' => $supplier]);
+        return Inertia::render('Purchases/Suppliers/Form', ['supplier' => $supplier, 'whtCategories' => WithholdingTax::categories()]);
     }
 
     public function store(Request $request)
@@ -83,6 +84,9 @@ class SupplierController extends Controller
             'bank_name' => 'nullable|string|max:100',
             'iban' => 'nullable|string|max:50',
             'opening_balance' => 'nullable|numeric',
+            'is_non_resident' => 'nullable|boolean',
+            'wht_category' => 'nullable|in:'.implode(',', array_keys(config('wht.categories'))),
+            'country' => 'nullable|string|max:60',
         ]);
 
         $companyId = app(TenantManager::class)->getTenantId()
@@ -151,6 +155,9 @@ class SupplierController extends Controller
             'bank_name' => 'nullable|string|max:100',
             'iban' => 'nullable|string|max:50',
             'status' => 'required|in:active,inactive',
+            'is_non_resident' => 'nullable|boolean',
+            'wht_category' => 'nullable|in:'.implode(',', array_keys(config('wht.categories'))),
+            'country' => 'nullable|string|max:60',
         ]);
 
         $supplier->update($validated);

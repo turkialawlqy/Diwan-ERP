@@ -4,7 +4,7 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 
-const props = defineProps({ supplier: { type: Object, default: null } });
+const props = defineProps({ supplier: { type: Object, default: null }, whtCategories: { type: Array, default: () => [] } });
 
 const editingSupplier = props.supplier?.id ? props.supplier : null;
 
@@ -20,6 +20,9 @@ const form = useForm({
     iban: props.supplier?.iban || '',
     opening_balance: props.supplier?.opening_balance ?? 0,
     status: props.supplier?.status || 'active',
+    is_non_resident: !!props.supplier?.is_non_resident,
+    wht_category: props.supplier?.wht_category || '',
+    country: props.supplier?.country || '',
 });
 useUnsavedGuard(form);
 
@@ -91,6 +94,20 @@ const submitSupplier = () => (editingSupplier
                                         placeholder="vendor@company.com" 
                                         class="w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-indigo-500"
                                     />
+                                </div>
+                                <div class="col-span-full border border-slate-200 rounded-xl p-3 grid sm:grid-cols-3 gap-3" data-wht-fields>
+                                    <label class="inline-flex items-center gap-2 font-bold text-slate-700"><input type="checkbox" v-model="form.is_non_resident" data-non-resident /> مورد غير مقيم (تُستقطع الضريبة من مدفوعاته)</label>
+                                    <div v-if="form.is_non_resident">
+                                        <label class="block font-bold text-slate-700 mb-1">نوع الدفعة (نسبة الاستقطاع)</label>
+                                        <select v-model="form.wht_category" class="w-full rounded-xl border border-slate-200 px-3 py-2">
+                                            <option value="">أخرى</option>
+                                            <option v-for="c in whtCategories" :key="c.key" :value="c.key">{{ c.label }} — {{ c.rate }}%</option>
+                                        </select>
+                                    </div>
+                                    <div v-if="form.is_non_resident">
+                                        <label class="block font-bold text-slate-700 mb-1">الدولة</label>
+                                        <input v-model="form.country" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                                    </div>
                                 </div>
                                 <div>
                                     <label class="block font-bold text-slate-700 mb-1">اسم البنك</label>

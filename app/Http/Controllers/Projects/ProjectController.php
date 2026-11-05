@@ -15,9 +15,11 @@ use App\Models\Warehouse;
 use App\Rules\AllowedBranch;
 use App\Services\Projects\ProjectReport;
 use App\Services\Projects\ProjectService;
+use App\Services\Projects\ProjectWip;
 use App\Services\TenantManager;
 use App\Support\BranchOptions;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ProjectController extends Controller
@@ -77,6 +79,7 @@ class ProjectController extends Controller
         return Inertia::render('Projects/Show', [
             'project' => $project,
             'summary' => $report->summary($project),
+            'wip' => app(ProjectWip::class)->figures($project),
             'boq' => $project->boqItems()->orderBy('sort')->get(),
             'billings' => ProgressBilling::where('project_id', $project->id)->with('invoice:id,invoice_number,zatca_status,payment_status')->orderBy('sequence')->get(),
             'variations' => ProjectVariation::where('project_id', $project->id)->orderBy('id')->get(),
@@ -91,6 +94,13 @@ class ProjectController extends Controller
 
     public function update(Request $request, Project $project)
     {
+        $closing = $request->input('status') === 'closed' && $project->status !== 'closed';
+        if ($closing && ProgressBilling::where('project_id', $project->id)->where('status', 'draft')->exists()) {
+            throw ValidationException::withMessages(['status' => 'لا يُغلق مشروع فيه مستخلصات مسودة؛ اعتمدها أو احذفها أولاً.']);
+        }
+        $unreleased = round((float) $project->retention_held - (float) $project->retention_released, 2)
+            + round((float) Subcontract::where('project_id', $project->id)->sum('retention_held') - (float) Subcontract::where('project_id', $project->id)->sum('retention_released'), 2);
+
         $project->update($request->validate([
             'name' => 'required|string|max:255',
             'status' => 'required|in:planning,active,on_hold,completed,closed',
@@ -103,7 +113,8 @@ class ProjectController extends Controller
             'location' => 'nullable|string|max:255',
         ]));
 
-        return back()->with('success', 'تم تحديث بيانات المشروع');
+        return back()->with('success', 'تم تحديث بيانات المشروع')
+            ->with($closing && $unreleased > 0.004 ? ['warning' => 'أُغلق المشروع وما زالت محتجزات غير مفرج عنها: '.number_format($unreleased, 2)] : []);
     }
 
     public function updateBoq(Request $request, Project $project)
@@ -112,6 +123,24 @@ class ProjectController extends Controller
         $this->projects->syncBoq($project, $validated['boq'] ?? []);
 
         return back()->with('success', 'تم حفظ جدول الكميات');
+    }
+
+    /** Executed quantities per BOQ line (work done to date), the basis of revenue by progress. */
+    public function updateProgress(Request $request, Project $project, ProjectWip $wip)
+    {
+        $v = $request->validate(['lines' => 'required|array|max:5000', 'lines.*.boq_item_id' => 'required|integer', 'lines.*.executed_quantity' => 'required|numeric|min:0']);
+        $wip->updateProgress($project, $v['lines']);
+
+        return back()->with('success', 'تم تحديث نسب الإنجاز');
+    }
+
+    /** Post the contract asset / liability for a period end (reversed the next day). */
+    public function postWip(Request $request, Project $project, ProjectWip $wip)
+    {
+        $v = $request->validate(['date' => 'required|date']);
+        $entry = $wip->post($project, $v['date']);
+
+        return back()->with($entry ? 'success' : 'warning', $entry ? 'رُحِّلت تسوية الإيراد بالإنجاز وستُعكس تلقائيًا في اليوم التالي' : 'لا فرق بين الإيراد بالإنجاز والمفوتر؛ لا قيد مطلوب.');
     }
 
     public function advance(Request $request, Project $project)

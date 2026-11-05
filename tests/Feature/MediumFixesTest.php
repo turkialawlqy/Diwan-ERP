@@ -2,20 +2,26 @@
 
 namespace Tests\Feature;
 
+use App\Models\Account;
 use App\Models\Cheque;
 use App\Models\Company;
 use App\Models\CreditNote;
 use App\Models\Customer;
 use App\Models\FiscalYear;
+use App\Models\JournalEntry;
 use App\Models\Supplier;
+use App\Models\SupplierPayment;
 use App\Services\Accounting\AccountingException;
 use App\Services\Accounting\AccountingSetupService;
+use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\PartyBalanceReconciler;
 use App\Services\Accounting\YearEndClosing;
 use App\Services\Sales\InvoiceService;
+use App\Services\Tax\WithholdingReport;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /** Medium-severity audit fixes: guards against orphaned or inconsistent records. */
@@ -110,5 +116,36 @@ class MediumFixesTest extends TestCase
         $reconciler->differences($this->company->id, true);
         $this->assertEquals(1150, $customer->fresh()->current_balance);
         $this->assertSame([], $reconciler->differences($this->company->id));
+    }
+
+    public function test_a_payment_to_a_non_resident_supplier_withholds_tax_and_cancelling_reverses_it(): void
+    {
+        $supplier = Supplier::create(['name' => 'Foreign Co', 'status' => 'active', 'is_non_resident' => true, 'wht_category' => 'services', 'country' => 'US']);
+        $resident = Supplier::create(['name' => 'مورد محلي', 'status' => 'active']);
+        $map = app(AccountMap::class);
+        $balance = fn (string $role) => round((float) Account::find($map->id($role, $this->company->id))->balance, 2);
+
+        $this->post(route('purchases.payments.store'), ['supplier_id' => $supplier->id, 'amount' => 10000, 'payment_date' => '2026-06-20', 'payment_method' => 'cash'])->assertSessionHasNoErrors();
+        $payment = SupplierPayment::firstOrFail();
+        $this->assertSame([5.0, 500.0], [(float) $payment->wht_rate, (float) $payment->wht_amount]);
+        $this->assertSame(500.0, $balance('wht_payable'));
+        $cashOut = (float) DB::table('journal_entry_lines')->where('journal_entry_id', JournalEntry::where('source_id', $payment->id)->value('id'))->where('credit', '>', 0)->where('account_id', '!=', $map->id('wht_payable', $this->company->id))->sum('credit');
+        $this->assertSame(9500.0, $cashOut);
+
+        // A resident supplier is not cut, and the rate can be overridden on the voucher.
+        $this->post(route('purchases.payments.store'), ['supplier_id' => $resident->id, 'amount' => 1000, 'payment_date' => '2026-06-21', 'payment_method' => 'cash'])->assertSessionHasNoErrors();
+        $this->assertSame(500.0, $balance('wht_payable'));
+        $this->post(route('purchases.payments.store'), ['supplier_id' => $supplier->id, 'amount' => 1000, 'wht_rate' => 15, 'payment_date' => '2026-06-22', 'payment_method' => 'cash'])->assertSessionHasNoErrors();
+        $this->assertSame(650.0, $balance('wht_payable'));
+
+        // The return lists what was cut: 500 + 150 = 650 to remit, and the page and the export agree.
+        $report = app(WithholdingReport::class)->build(Carbon::parse('2026-06-01'), Carbon::parse('2026-06-30'));
+        $this->assertSame([2, 650.0, 11000.0], [count($report['rows']), $report['totals']['withheld'], $report['totals']['gross']]);
+        $this->get(route('accounting.reports.withholding', ['start_date' => '2026-06-01', 'end_date' => '2026-06-30']))->assertOk()->assertInertia(fn ($p) => $p->where('report.totals.withheld', 650));
+        $this->get(route('reports.export', ['report' => 'withholding', 'format' => 'xlsx', 'start_date' => '2026-06-01', 'end_date' => '2026-06-30']))->assertOk();
+
+        $this->post(route('purchases.payments.cancel', $payment), ['reason' => 'خطأ'])->assertSessionHasNoErrors();
+        $this->assertSame(150.0, $balance('wht_payable'));
+        $this->assertSame(150.0, app(WithholdingReport::class)->build(Carbon::parse('2026-06-01'), Carbon::parse('2026-06-30'))['totals']['withheld']);
     }
 }

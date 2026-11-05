@@ -22,6 +22,9 @@ class SupplierPayment extends Model
         'currency_code',
         'exchange_rate',
         'bank_account_id',
+        'wht_rate',
+        'wht_amount',
+        'wht_category',
         'company_id',
         'supplier_id',
         'purchase_invoice_id',
@@ -35,6 +38,8 @@ class SupplierPayment extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'wht_amount' => 'decimal:2',
+        'wht_rate' => 'decimal:2',
         'payment_date' => 'date',
     ];
 

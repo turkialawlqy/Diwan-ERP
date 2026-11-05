@@ -5,6 +5,7 @@ namespace App\Services\Reports;
 use App\Models\Supplier;
 use App\Services\Accounting\AccountingReports;
 use App\Services\Purchases\SupplierStatement;
+use App\Services\Tax\WithholdingReport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -27,6 +28,7 @@ class ReportCatalog
         'sales-analysis' => 'reports.sales.export',
         'purchases-analysis' => 'reports.purchases.export',
         'supplier-statement' => 'purchases.suppliers.export',
+        'withholding' => 'accounting.vat_return.export',
     ];
 
     public function __construct(protected AccountingReports $reports) {}
@@ -48,6 +50,7 @@ class ReportCatalog
             'sales-analysis' => $this->analysis($request, 'sales'),
             'purchases-analysis' => $this->analysis($request, 'purchases'),
             'supplier-statement' => $this->supplierStatement($request),
+            'withholding' => $this->withholding($request),
         };
     }
 
@@ -216,6 +219,20 @@ class ReportCatalog
 
         return $this->table('كشف حساب المورد: '.$supplier->name, ($from ? 'من '.$from->toDateString().' ' : '').'إلى '.($to ?? now())->toDateString(), [
             ['date', 'التاريخ'], ['type_ar', 'النوع'], ['reference', 'المرجع'], ['notes', 'البيان'], ['debit', 'مدين (دفع/مرتجع)', 'money'], ['credit', 'دائن (فاتورة)', 'money'], ['balance', 'الرصيد', 'money'],
+        ], $rows, [count($rows) - 1]);
+    }
+
+    protected function withholding(Request $request): array
+    {
+        $quarter = now()->firstOfQuarter();
+        [$from, $to] = $this->range($request, $quarter, $quarter->copy()->lastOfQuarter());
+        $r = app(WithholdingReport::class)->build($from, $to);
+
+        $rows = $r['rows'];
+        $rows[] = ['date' => '', 'number' => '', 'supplier' => 'الإجمالي', 'country' => '', 'category' => '', 'gross' => $r['totals']['gross'], 'rate' => null, 'withheld' => $r['totals']['withheld']];
+
+        return $this->table('إقرار ضريبة الاستقطاع', $this->period($from, $to), [
+            ['date', 'التاريخ'], ['number', 'السند'], ['supplier', 'المورد'], ['country', 'الدولة'], ['category', 'نوع الدفعة'], ['gross', 'المبلغ الإجمالي', 'money'], ['rate', 'النسبة %'], ['withheld', 'المستقطع', 'money'],
         ], $rows, [count($rows) - 1]);
     }
 

@@ -162,6 +162,25 @@ class HrPayrollTest extends TestCase
         $leaves->request($e, ['leave_type_id' => $annual->id, 'start_date' => '2026-07-05', 'end_date' => '2026-07-06']);
     }
 
+    public function test_half_day_leave_counts_half_and_hajj_is_granted_once_after_two_years(): void
+    {
+        $leaves = app(LeaveService::class);
+        $e = $this->employee(['hire_date' => '2025-06-15']);
+        $annual = LeaveType::where('code', 'annual')->first();
+        $hajj = LeaveType::where('code', 'hajj')->first();
+
+        $half = $leaves->request($e, ['leave_type_id' => $annual->id, 'start_date' => '2026-07-01', 'end_date' => '2026-07-01', 'half_day' => true]);
+        $this->assertSame(0.5, (float) $half->days);
+        $this->assertThrows(fn () => $leaves->request($e, ['leave_type_id' => $annual->id, 'start_date' => '2026-07-05', 'end_date' => '2026-07-06', 'half_day' => true]), ValidationException::class);
+
+        // One year of service: no hajj yet.
+        $this->assertThrows(fn () => $leaves->request($e, ['leave_type_id' => $hajj->id, 'start_date' => '2026-08-01', 'end_date' => '2026-08-10']), ValidationException::class);
+
+        $veteran = $this->employee(['name' => 'قديم', 'hire_date' => '2018-01-01']);
+        $leaves->request($veteran, ['leave_type_id' => $hajj->id, 'start_date' => '2026-08-01', 'end_date' => '2026-08-10']);
+        $this->assertThrows(fn () => $leaves->request($veteran, ['leave_type_id' => $hajj->id, 'start_date' => '2027-08-01', 'end_date' => '2027-08-10']), ValidationException::class);
+    }
+
     public function test_end_of_service_rules_and_settlement(): void
     {
         $finance = app(EmployeeFinanceService::class);

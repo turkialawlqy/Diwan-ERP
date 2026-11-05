@@ -221,6 +221,7 @@ export default [
             { label: 'nav.cash_flow', route: 'accounting.reports.cash-flow', path: '/accounting/reports/cash-flow' },
             { label: 'nav.aging', route: 'accounting.reports.aging', path: '/accounting/reports/aging' },
             { label: 'nav.vat_return', route: 'accounting.reports.vat-return', path: '/accounting/reports/vat-return', feature: 'vat_return' },
+            { label: 'nav.withholding', route: 'accounting.reports.withholding', path: '/accounting/reports/withholding', feature: 'vat_return' },
         ],
     },
     {

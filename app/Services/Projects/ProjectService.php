@@ -528,6 +528,37 @@ class ProjectService
         });
     }
 
+    /**
+     * Release retention held from a subcontractor: it moves from «retention payable» to what we owe him
+     * on his account (to be paid like any bill).
+     */
+    public function releaseSubcontractRetention(Subcontract $subcontract, float $amount, string $date): void
+    {
+        DB::transaction(function () use ($subcontract, $amount, $date) {
+            $subcontract = Subcontract::with('project')->whereKey($subcontract->id)->lockForUpdate()->firstOrFail();
+            $open = (float) $subcontract->retention_held - (float) $subcontract->retention_released;
+            if ($amount <= 0 || $amount > $open + 0.005) {
+                throw ValidationException::withMessages(['amount' => 'المبلغ يتجاوز محتجزات المقاول القائمة ('.number_format($open, 2).').']);
+            }
+
+            $party = ['party_type' => 'supplier', 'party_id' => $subcontract->supplier_id];
+            $cc = $subcontract->project->cost_center_id;
+            $this->posting->post([
+                'date' => $date,
+                'reference' => $subcontract->number,
+                'description' => "الإفراج عن محتجزات مقاول الباطن {$subcontract->number}",
+                'source' => $subcontract,
+                'lines' => [
+                    ['role' => 'retention_payable', 'debit' => $amount, 'cost_center_id' => $cc] + $party,
+                    ['role' => 'payables', 'credit' => $amount] + $party,
+                ],
+            ]);
+
+            Supplier::whereKey($subcontract->supplier_id)->increment('current_balance', $amount);
+            $subcontract->update(['retention_released' => round((float) $subcontract->retention_released + $amount, 2)]);
+        });
+    }
+
     // ----- Project costs -----
 
     /**

@@ -10,6 +10,7 @@ use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\TaxSettlementService;
 use App\Services\HR\EmployeeFinanceService;
 use App\Services\Reports\ReportComparison;
+use App\Services\Tax\WithholdingReport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -96,6 +97,20 @@ class FinancialReportController extends Controller
             'byBranch' => array_values(array_filter($this->reports->taxByBranch($from, $to), fn ($row) => auth()->user()?->canUseBranch($row['branch_id']) ?? true)),
             'filters' => ['start_date' => $from->toDateString(), 'end_date' => $to->toDateString()],
             'settlement' => app(TaxSettlementService::class)->preview($from, $to),
+        ]);
+    }
+
+    /** Withholding tax of a period (quarter by default): what was cut from non-resident suppliers and is owed to the authority. */
+    public function withholding(Request $request): Response
+    {
+        $v = $request->validate(['start_date' => 'nullable|date', 'end_date' => 'nullable|date|after_or_equal:start_date']);
+        $quarter = now()->firstOfQuarter();
+        $from = Carbon::parse($v['start_date'] ?? $quarter->toDateString());
+        $to = Carbon::parse($v['end_date'] ?? $quarter->copy()->lastOfQuarter()->toDateString());
+
+        return Inertia::render('Accounting/Reports/Withholding', [
+            'report' => app(WithholdingReport::class)->build($from, $to),
+            'filters' => ['start_date' => $from->toDateString(), 'end_date' => $to->toDateString()],
         ]);
     }
 

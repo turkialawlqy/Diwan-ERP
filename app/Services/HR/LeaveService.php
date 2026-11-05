@@ -68,11 +68,30 @@ class LeaveService
         $start = Carbon::parse($data['start_date']);
         $end = Carbon::parse($data['end_date']);
         $days = (int) round($start->diffInDays($end)) + 1;
+        // Half a day: one day only, counted as 0.5.
+        $half = ! empty($data['half_day']);
+        if ($half && ! $start->isSameDay($end)) {
+            throw ValidationException::withMessages(['half_day' => 'نصف اليوم لا يكون إلا ليوم واحد.']);
+        }
         // Official holidays inside annual leave are not taken from the balance (Art. 112).
         if ($type->deducts_balance) {
             $days -= PublicHoliday::daysBetween($start, $end);
             if ($days <= 0) {
                 throw ValidationException::withMessages(['start_date' => 'الفترة كلها عطلة رسمية؛ لا حاجة لطلب إجازة.']);
+            }
+        }
+
+        if ($half) {
+            $days = 0.5;
+        }
+
+        // Hajj leave is granted once in the whole service, after two years with the employer (Labor Law Art. 114).
+        if ($type->code === 'hajj') {
+            if (! $employee->hire_date || $employee->hire_date->copy()->addYears(2)->gt($start)) {
+                throw ValidationException::withMessages(['leave_type_id' => 'إجازة الحج تُمنح بعد سنتين من الخدمة.']);
+            }
+            if (LeaveRequest::where('employee_id', $employee->id)->where('leave_type_id', $type->id)->whereIn('status', ['pending', 'approved'])->exists()) {
+                throw ValidationException::withMessages(['leave_type_id' => 'إجازة الحج تُمنح مرة واحدة طوال الخدمة.']);
             }
         }
 

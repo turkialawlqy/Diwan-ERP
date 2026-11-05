@@ -154,6 +154,7 @@ class HrOperationsController extends Controller
             'leave_type_id' => 'required|tenant_exists:leave_types,id',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
+            'half_day' => 'nullable|boolean',
             'reason' => 'nullable|string|max:1000',
         ]);
         $leaves->request(Employee::findOrFail($validated['employee_id']), $validated);
