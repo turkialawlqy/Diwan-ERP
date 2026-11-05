@@ -99,7 +99,7 @@ const submitSupplier = () => (editingSupplier
                                     <label class="inline-flex items-center gap-2 font-bold text-slate-700"><input type="checkbox" v-model="form.is_non_resident" data-non-resident /> مورد غير مقيم (تُستقطع الضريبة من مدفوعاته)</label>
                                     <div v-if="form.is_non_resident">
                                         <label class="block font-bold text-slate-700 mb-1">نوع الدفعة (نسبة الاستقطاع)</label>
-                                        <select v-model="form.wht_category" class="w-full rounded-xl border border-slate-200 px-3 py-2">
+                                        <select v-model="form.wht_category" class="w-full rounded-xl border border-slate-200 ps-3 pe-8 py-2">
                                             <option value="">أخرى</option>
                                             <option v-for="c in whtCategories" :key="c.key" :value="c.key">{{ c.label }} — {{ c.rate }}%</option>
                                         </select>
