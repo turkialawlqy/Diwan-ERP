@@ -251,6 +251,36 @@ class HrPayrollTest extends TestCase
         app(PayrollService::class)->generate(2026, 5); // the other branch's run must not hide the first
     }
 
+    public function test_attendance_and_leave_cannot_change_inside_an_approved_payroll_month(): void
+    {
+        $employee = $this->employee();
+        $service = app(PayrollService::class);
+        $payroll = $service->generate(2026, 6);
+        $service->approve($payroll);
+
+        $attendance = app(AttendanceService::class);
+        $this->assertThrows(fn () => $attendance->record($employee, '2026-06-10', '08:00', '16:00'), ValidationException::class);
+        $this->assertThrows(fn () => $attendance->import("employee_number,date,check_in,check_out\n{$employee->employee_number},2026-06-11,08:00,16:00"), ValidationException::class);
+    }
+
+    public function test_penalties_above_the_deduction_cap_carry_to_next_month_and_come_back_on_reopen(): void
+    {
+        $employee = $this->employee();                                   // wage 13,500: cap 50% = 6,750
+        EmployeeAdjustment::create(['employee_id' => $employee->id, 'year' => 2026, 'month' => 6, 'type' => 'penalty', 'amount' => 8000]);
+        $service = app(PayrollService::class);
+
+        $payroll = $service->generate(2026, 6);
+        $item = $payroll->items()->where('employee_id', $employee->id)->firstOrFail();
+        $this->assertSame(6750.0, (float) $item->other_deductions);
+
+        $service->approve($payroll);
+        $carried = EmployeeAdjustment::where('employee_id', $employee->id)->where('year', 2026)->where('month', 7)->get();
+        $this->assertSame([1250.0], $carried->map(fn ($a) => (float) $a->amount)->all());
+
+        $service->unapprove($payroll->fresh());
+        $this->assertSame(0, EmployeeAdjustment::where('year', 2026)->where('month', 7)->count());
+    }
+
     public function test_a_wrong_draft_settlement_can_be_dropped_and_the_loan_is_read_again_on_approval(): void
     {
         $e = $this->employee();

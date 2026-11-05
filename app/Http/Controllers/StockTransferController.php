@@ -156,7 +156,9 @@ class StockTransferController extends Controller
                 $item->update(['received_quantity' => $received]);
             }
 
-            $poster->stockInTransit($transfer, $receivedValue, now(), "استلام تحويل {$transfer->transfer_number}", true);
+            // The goods arrive in the destination warehouse's branch (the send entry stayed with the source branch).
+            $toBranch = Warehouse::withoutGlobalScopes()->whereKey($transfer->to_warehouse_id)->value('branch_id');
+            $poster->stockInTransit($transfer, $receivedValue, now(), "استلام تحويل {$transfer->transfer_number}", true, $toBranch ? (int) $toBranch : null);
 
             // Goods lost in transit.
             $shortage = round($sentValue - $receivedValue, 2);

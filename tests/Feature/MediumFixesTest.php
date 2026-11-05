@@ -10,6 +10,7 @@ use App\Models\FiscalYear;
 use App\Models\Supplier;
 use App\Services\Accounting\AccountingException;
 use App\Services\Accounting\AccountingSetupService;
+use App\Services\Accounting\PartyBalanceReconciler;
 use App\Services\Accounting\YearEndClosing;
 use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
@@ -92,5 +93,22 @@ class MediumFixesTest extends TestCase
         $this->post(route('sales.payments.store'), $base + ['cheque_due_date' => '2026-06-01'])->assertSessionHasErrors('cheque_due_date');
         $this->post(route('sales.payments.store'), $base + ['cheque_due_date' => '2026-09-15'])->assertSessionHasNoErrors();
         $this->assertSame('2026-09-15', Cheque::firstOrFail()->due_date->toDateString());
+    }
+
+    public function test_stored_party_balances_are_compared_with_the_ledger_and_can_be_fixed(): void
+    {
+        $customer = Customer::create(['name' => 'عميل', 'customer_type' => 'commercial', 'status' => 'active']);
+        app(InvoiceService::class)->create(['customer_id' => $customer->id, 'invoice_date' => '2026-06-01', 'due_date' => '2026-06-01'],
+            [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 1000, 'tax_rate' => 15]], ['issue_stock' => false]);
+        $customer->forceFill(['current_balance' => 40])->saveQuietly();           // drifted
+
+        $reconciler = app(PartyBalanceReconciler::class);
+        $rows = $reconciler->differences($this->company->id);
+        $this->assertSame([40.0, 1150.0], [$rows[0]['stored'], $rows[0]['ledger']]);
+        $this->assertEquals(40, $customer->fresh()->current_balance);
+
+        $reconciler->differences($this->company->id, true);
+        $this->assertEquals(1150, $customer->fresh()->current_balance);
+        $this->assertSame([], $reconciler->differences($this->company->id));
     }
 }

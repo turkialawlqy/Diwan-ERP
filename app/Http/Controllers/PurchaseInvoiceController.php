@@ -229,6 +229,8 @@ class PurchaseInvoiceController extends Controller
                     'tax_rate' => $taxRate,
                     'tax_amount' => $lineTax,
                     'total' => $lineTotal,
+                    'unit_id' => $item['unit_id'] ?? null,
+                    'unit_factor' => app(DocumentStock::class)->factorOf($item['product_id'] ?? null, $item['unit_id'] ?? null),
                 ];
             }
 

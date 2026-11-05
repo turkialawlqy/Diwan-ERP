@@ -798,6 +798,11 @@ class AccountingReports
             ->selectRaw('COALESCE(SUM(amount),0) as amount, COALESCE(SUM(tax_amount),0) as vat')->first();
         $add(7, 'amount', (float) $hiredIn->amount, (float) $hiredIn->vat);
 
+        // Import / freight charges that carry input VAT (landed costs).
+        $landed = DB::table('landed_costs')->where('company_id', $companyId)->whereBetween('date', $range)->where('tax_amount', '>', 0)
+            ->selectRaw('COALESCE(SUM(amount),0) as amount, COALESCE(SUM(tax_amount),0) as vat')->first();
+        $add(7, 'amount', (float) $landed->amount, (float) $landed->vat);
+
         $assets = DB::table('fixed_assets')->where('company_id', $companyId)->whereBetween('acquisition_date', $range)->where('acquisition_vat', '>', 0)
             ->selectRaw('COALESCE(SUM(cost),0) as amount, COALESCE(SUM(acquisition_vat),0) as vat')->first();
         $add(7, 'amount', (float) $assets->amount, (float) $assets->vat);

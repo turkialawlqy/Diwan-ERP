@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\Payroll;
 use App\Models\PublicHoliday;
 use App\Services\Settings\CompanyPolicy;
 use Illuminate\Support\Carbon;
@@ -112,6 +113,14 @@ class LeaveService
                 throw ValidationException::withMessages(['leave' => 'الطلب ليس قيد الانتظار.']);
             }
             EmployeeFinanceService::assertNotOwnRequest($request->employee);
+            // Leave inside a month whose payroll is already approved would change pay that was settled.
+            if ($approve) {
+                for ($m = Carbon::parse($request->start_date)->startOfMonth(); $m->lte(Carbon::parse($request->end_date)); $m->addMonth()) {
+                    if (Payroll::where('year', $m->year)->where('month', $m->month)->where('status', '!=', 'draft')->exists()) {
+                        throw ValidationException::withMessages(['leave' => 'مسير شهر '.$m->format('m/Y').' معتمد؛ لا تُعتمد إجازة داخله قبل إعادته إلى مسودة.']);
+                    }
+                }
+            }
             // Another request may have used the balance since this one was filed.
             if ($approve && $request->type?->deducts_balance) {
                 $available = $this->balance($request->employee, Carbon::parse($request->start_date))['balance'];

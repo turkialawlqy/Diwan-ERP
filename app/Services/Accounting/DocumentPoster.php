@@ -588,7 +588,7 @@ class DocumentPoster
     /**
      * Goods sent between warehouses: parked in "goods in transit" until received.
      */
-    public function stockInTransit($source, float $value, $date, string $description, bool $received = false): ?JournalEntry
+    public function stockInTransit($source, float $value, $date, string $description, bool $received = false, ?int $branchId = null): ?JournalEntry
     {
         $value = round($value, 2);
         if ($value <= 0) {
@@ -599,6 +599,7 @@ class DocumentPoster
             'date' => $date,
             'description' => $description,
             'source' => $source,
+            'branch_id' => $branchId,
             'lines' => $received
                 ? [['role' => 'inventory', 'debit' => $value], ['role' => 'goods_in_transit', 'credit' => $value]]
                 : [['role' => 'goods_in_transit', 'debit' => $value], ['role' => 'inventory', 'credit' => $value]],

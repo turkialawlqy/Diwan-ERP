@@ -5,8 +5,10 @@ namespace App\Services\Sales;
 use App\Models\CreditNote;
 use App\Models\Customer;
 use App\Models\DebitNote;
+use App\Models\JournalEntryLine;
 use App\Models\PaymentAllocation;
 use App\Services\Accounting\ExchangeRates;
+use App\Services\Accounting\PartyAccounts;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
@@ -77,6 +79,15 @@ class CustomerStatement
 
         DebitNote::where('customer_id', $customer->id)->where('status', '!=', 'draft')->get()
             ->each(fn ($n) => $rows->push($this->row($day($n->debit_note_date, $n->created_at), 1, 'debit_note', 'إشعار مدين', $n->debit_note_number, $base($n, $n->total), 0, $note($n, $n->total, $n->reason ?: 'إشعار مدين'))));
+
+        // Manual and adjustment journal entries posted against this customer's account belong on the statement too.
+        JournalEntryLine::withoutGlobalScopes()
+            ->join('journal_entries as e', 'e.id', '=', 'journal_entry_lines.journal_entry_id')
+            ->where('e.company_id', $customer->company_id)->where('e.status', 'posted')->whereIn('e.entry_type', ['manual', 'adjustment'])
+            ->where('journal_entry_lines.party_type', 'customer')->where('journal_entry_lines.party_id', $customer->id)
+            ->whereIn('journal_entry_lines.account_id', app(PartyAccounts::class)->receivableAccountIds($customer->company_id))
+            ->get(['e.entry_number', 'e.date', 'e.description', 'journal_entry_lines.debit', 'journal_entry_lines.credit'])
+            ->each(fn ($l) => $rows->push($this->row($day(Carbon::parse($l->date)), $l->debit > 0 ? 1 : 3, 'journal', 'قيد يومية', (string) $l->entry_number, (float) $l->debit, (float) $l->credit, $l->description ?: 'قيد يومية')));
 
         $rows = $rows->sortBy(fn ($r) => $r['date'].'_'.$r['order_key'])->values();
 

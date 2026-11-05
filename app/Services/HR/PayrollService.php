@@ -162,6 +162,16 @@ class PayrollService
             }
             EmployeeAdjustment::where('year', $payroll->year)->where('month', $payroll->month)->whereNull('payroll_id')->update(['payroll_id' => $payroll->id]);
 
+            // Penalties above the legal deduction cap are not lost: they are taken from the next month's salary.
+            [$nextYear, $nextMonth] = $payroll->month === 12 ? [$payroll->year + 1, 1] : [$payroll->year, $payroll->month + 1];
+            foreach ($payroll->items as $item) {
+                $excess = (float) ($item->breakdown['penalty_excess'] ?? 0);
+                if ($excess > 0.004) {
+                    EmployeeAdjustment::create(['employee_id' => $item->employee_id, 'year' => $nextYear, 'month' => $nextMonth, 'type' => 'deduction', 'amount' => $excess,
+                        'description' => "مرحَّل من مسير {$payroll->month}/{$payroll->year} (تجاوز سقف الخصم) [carry:{$payroll->id}]", 'created_by' => auth()->id()]);
+                }
+            }
+
             $payroll->update(['status' => 'approved', 'approved_by' => auth()->id(), 'approved_at' => now()]);
         });
     }
@@ -202,6 +212,7 @@ class PayrollService
                 }
             }
             EmployeeAdjustment::where('payroll_id', $payroll->id)->update(['payroll_id' => null]);
+            EmployeeAdjustment::where('description', 'like', '%[carry:'.$payroll->id.']')->whereNull('payroll_id')->delete();
 
             $payroll->update(['status' => 'draft', 'approved_by' => null, 'approved_at' => null]);
         });

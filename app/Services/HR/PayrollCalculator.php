@@ -127,6 +127,8 @@ class PayrollCalculator
 
         // Loans and penalties within half the wage (Art. 92).
         $cap = max(0, round($gross * CompanyPolicy::get('hr.max_deduction_ratio', 0.5), 2));
+        // What the cap leaves unapplied (from this month's adjustments, not recurring pay items) moves to next month.
+        $penaltyExcess = round(max(0, min($penalties - $cap, $penalties - $fixedDeductions)), 2);
         $penalties = min($penalties, $cap);
         // Disciplinary fines are not the employer's income (Art. 72): they are held for the workers' fund.
         $disciplinary = min($disciplinary, $penalties);
@@ -164,6 +166,7 @@ class PayrollCalculator
                 'gosi_base' => $gosiBase,
                 'loan_due' => $loanDue,
                 'deduction_cap' => $cap,
+                'penalty_excess' => $penaltyExcess,
                 'penalties' => $disciplinary,
             ],
         ];

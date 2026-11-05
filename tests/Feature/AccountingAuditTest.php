@@ -18,9 +18,11 @@ use App\Models\Invoice;
 use App\Models\PosRegister;
 use App\Models\PosSession;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\StockLayer;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\Accounting\AccountingReports;
@@ -229,6 +231,18 @@ class AccountingAuditTest extends TestCase
             ->assertSessionHasErrors('total');
     }
 
+    public function test_statement_includes_manual_journal_entries_for_the_customer(): void
+    {
+        $receivables = app(AccountMap::class)->id('receivables', $this->company->id);
+        $revenue = app(AccountMap::class)->id('other_revenue', $this->company->id);
+        app(PostingService::class)->post(['date' => '2026-06-10', 'description' => 'تسوية يدوية', 'entry_type' => 'manual', 'lines' => [
+            ['account_id' => $receivables, 'debit' => 300, 'party_type' => 'customer', 'party_id' => $this->customer->id], ['account_id' => $revenue, 'credit' => 300]]]);
+
+        $statement = app(CustomerStatement::class)->build($this->customer->fresh());
+        $this->assertSame(300.0, round((float) $statement['closing'], 2));
+        $this->assertSame('journal', $statement['transactions']->last()['type']);
+    }
+
     public function test_statement_does_not_count_allocated_receipts_twice(): void
     {
         $invoice = app(InvoiceService::class)->create(['customer_id' => $this->customer->id, 'invoice_date' => '2026-06-10', 'payment_method' => 'credit'],
@@ -293,6 +307,25 @@ class AccountingAuditTest extends TestCase
         $this->assertSame(0.0, $this->balance('payables'));
     }
 
+    public function test_a_purchase_return_in_cartons_issues_the_base_units(): void
+    {
+        [$warehouse, $supplier, $item] = $this->purchaseSetup();
+        $carton = Unit::create(['name_ar' => 'كرتونة', 'code' => 'CTN']);
+        ProductUnit::create(['product_id' => $item->id, 'unit_id' => $carton->id, 'factor' => 12, 'is_default' => false]);
+        $stock = app(StockService::class);
+        $cycle = app(PurchaseCycleService::class);
+        $receipt = $cycle->receive(null, ['supplier_id' => $supplier->id, 'warehouse_id' => $warehouse->id, 'receipt_date' => '2026-06-01'],
+            [['product_id' => $item->id, 'item_name' => 'صنف مخزني', 'quantity' => 2, 'unit_id' => $carton->id, 'unit_cost' => 120]]);
+        $this->assertSame(24.0, $stock->onHand($item->id));
+        $invoice = $cycle->invoiceReceipts(['supplier_id' => $supplier->id, 'invoice_date' => '2026-06-02', 'payment_method' => 'credit'],
+            [['goods_receipt_item_id' => $receipt->items->first()->id, 'quantity' => 2, 'unit_price' => 120, 'tax_rate' => 15]]);
+
+        $cycle->returnInvoice($invoice, ['return_date' => '2026-06-03', 'reason' => 'تالف', 'warehouse_id' => $warehouse->id],
+            [['purchase_invoice_item_id' => $invoice->items->first()->id, 'quantity' => 1]]);
+
+        $this->assertSame(12.0, $stock->onHand($item->id)); // one carton out = 12 pieces, not 1
+    }
+
     public function test_service_lines_skip_grni_and_price_variance_follows_the_stock(): void
     {
         [$warehouse, $supplier, $item] = $this->purchaseSetup();
@@ -348,6 +381,11 @@ class AccountingAuditTest extends TestCase
             ->assertSessionHasErrors('vendor_tax_number');
         $this->post(route('finance.expenses.store'), ['title' => 'صيانة', 'category' => 'صيانة', 'amount' => 1000, 'taxable' => true, 'vendor_tax_number' => '310000000000003',
             'expense_date' => '2026-06-10', 'payment_method' => 'cash'])->assertSessionHasNoErrors();
+        $this->assertSame(150.0, $this->balance('vat_input'));
+
+        // A free-typed VAT figure must match the tax rate.
+        $this->post(route('finance.expenses.store'), ['title' => 'صيانة', 'category' => 'صيانة', 'amount' => 1000, 'taxable' => true, 'tax_amount' => 37, 'vendor_tax_number' => '310000000000003',
+            'expense_date' => '2026-06-10', 'payment_method' => 'cash'])->assertSessionHasErrors('tax_amount');
         $this->assertSame(150.0, $this->balance('vat_input'));
     }
 

@@ -10,7 +10,7 @@ class GoodsReceiptItem extends Model
 {
     use BelongsToCompany;
 
-    protected $fillable = ['company_id', 'goods_receipt_id', 'purchase_order_item_id', 'product_id', 'item_name', 'quantity', 'invoiced_quantity', 'unit_cost', 'batch_number', 'expiry_date', 'serials'];
+    protected $fillable = ['company_id', 'goods_receipt_id', 'purchase_order_item_id', 'product_id', 'item_name', 'quantity', 'invoiced_quantity', 'unit_cost', 'batch_number', 'expiry_date', 'serials', 'unit_id', 'unit_factor'];
 
     protected $casts = ['quantity' => 'decimal:4', 'invoiced_quantity' => 'decimal:4', 'unit_cost' => 'decimal:4', 'expiry_date' => 'date', 'serials' => 'array'];
 

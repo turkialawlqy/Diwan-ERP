@@ -95,6 +95,9 @@ class ExpenseController extends Controller
         if ($tax > 0 && empty($validated['vendor_tax_number'])) {
             throw ValidationException::withMessages(['vendor_tax_number' => 'ضريبة المدخلات تُسترد فقط بفاتورة ضريبية من مورد مسجل: أدخل الرقم الضريبي للمورد.']);
         }
+        if ($tax > 0 && ! TaxProfile::current()->vatMatches((float) $validated['amount'], $tax)) {
+            throw ValidationException::withMessages(['tax_amount' => 'الضريبة يجب أن تكون '.TaxProfile::current()->ratesLabel().' من المبلغ قبل الضريبة.']);
+        }
         $total = $validated['amount'] + $tax;
 
         $expense = DB::transaction(function () use ($validated, $tax, $total, $replace) {
