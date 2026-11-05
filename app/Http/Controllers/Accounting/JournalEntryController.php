@@ -14,6 +14,7 @@ use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\PartyAccounts;
 use App\Services\Accounting\PostingService;
+use App\Services\Workflow\ApprovalGate;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -107,6 +108,10 @@ class JournalEntryController extends Controller
 
         if ($status === JournalEntry::STATUS_POSTED && ! $request->user()->can('accounting.journals.post')) {
             abort(403, 'ليس لديك صلاحية ترحيل القيود. احفظ القيد كمسودة.');
+        }
+
+        if ($status === JournalEntry::STATUS_POSTED) {
+            app(ApprovalGate::class)->check('journal', ApprovalGate::keyFor(['d' => $validated['date'], 'desc' => $validated['description'], 'lines' => collect($validated['lines'])->map(fn ($l) => [$l['account_id'] ?? null, (float) ($l['debit'] ?? 0), (float) ($l['credit'] ?? 0)])->all()]), (float) collect($validated['lines'])->sum(fn ($l) => (float) ($l['debit'] ?? 0)), 'قيد يدوي: '.$validated['description']);
         }
 
         $entry = $this->posting->post([

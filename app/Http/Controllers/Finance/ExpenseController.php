@@ -11,6 +11,7 @@ use App\Models\Project;
 use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Tax\TaxProfile;
+use App\Services\Workflow\ApprovalGate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -99,6 +100,7 @@ class ExpenseController extends Controller
             throw ValidationException::withMessages(['tax_amount' => 'الضريبة يجب أن تكون '.TaxProfile::current()->ratesLabel().' من المبلغ قبل الضريبة.']);
         }
         $total = $validated['amount'] + $tax;
+        app(ApprovalGate::class)->check('expense', ApprovalGate::keyFor(['t' => $validated['title'], 'a' => round((float) $validated['amount'], 2), 'd' => $validated['expense_date'] ?? null, 'acc' => (int) ($validated['account_id'] ?? 0), 'r' => $replace?->id]), (float) $total, 'مصروف: '.$validated['title']);
 
         $expense = DB::transaction(function () use ($validated, $tax, $total, $replace) {
             // Editing: undo the old voucher (entry and box balance), keep its record and number.

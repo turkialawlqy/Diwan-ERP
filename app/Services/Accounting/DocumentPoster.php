@@ -89,7 +89,7 @@ class DocumentPoster
             'reference' => $invoice->invoice_number,
             'description' => "فاتورة مبيعات رقم {$invoice->invoice_number} - {$customer}",
             'source' => $invoice,
-            'lines' => $lines,
+            'lines' => $this->withDimensions($lines, [$revenueRole, 'cogs'], $invoice->cost_center_id, $invoice->project_id),
         ]);
     }
 
@@ -166,6 +166,35 @@ class DocumentPoster
      *   Dr Inventory (stock items) / Purchases (non stock)   Dr VAT input
      *   Cr Payables (unpaid part)   Cr Cash/Bank (paid part)
      */
+    protected bool $enforce = false;
+
+    /** The next invoice posted is one a person distributes by cost centre / project: the analytical policy applies. */
+    public function enforceDimensions(bool $enforce = true): static
+    {
+        $this->enforce = $enforce;
+
+        return $this;
+    }
+
+    /**
+     * The document's cost centre and project on its revenue / expense lines (the ones the analytical policy asks about).
+     * Settlement lines (cash, VAT, parties, stock) stay without.
+     */
+    protected function withDimensions(array $lines, array $roles, $costCenterId, $projectId): array
+    {
+        // Set by the caller for the next posting only: a sales / purchase form is held to the policy, system documents are not.
+        $enforce = $this->enforce;
+        $this->enforce = false;
+
+        return array_map(function ($line) use ($roles, $costCenterId, $projectId, $enforce) {
+            if (! is_array($line) || ! in_array($line['role'] ?? null, $roles, true)) {
+                return $line;
+            }
+
+            return $line + ['cost_center_id' => $costCenterId ?: null, 'project_id' => $projectId ?: null, 'dimensions' => $enforce];
+        }, $lines);
+    }
+
     public function purchaseInvoice(PurchaseInvoice $invoice): JournalEntry
     {
         $invoice->loadMissing('items.product', 'supplier');
@@ -220,7 +249,7 @@ class DocumentPoster
             'reference' => $invoice->supplier_invoice_number ?: $invoice->invoice_number,
             'description' => "فاتورة مشتريات رقم {$invoice->invoice_number} - {$supplier}",
             'source' => $invoice,
-            'lines' => $lines,
+            'lines' => $this->withDimensions($lines, ['purchases_cogs'], $invoice->cost_center_id, $invoice->project_id),
         ]);
     }
 

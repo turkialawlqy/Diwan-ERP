@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { ref } from 'vue';
@@ -213,6 +214,7 @@ const formatCurrency = (val) => {
                 </div>
             </div>
         </div>
+        <AttachmentsPanel kind="purchase-invoice" :id="invoice.id" class="mt-4" />
     </AppLayout>
 </template>
 

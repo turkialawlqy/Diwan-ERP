@@ -11,6 +11,7 @@ use App\Services\Accounting\ExchangeRates;
 use App\Services\Purchases\SupplierPaymentAllocator;
 use App\Services\Tax\WithholdingTax;
 use App\Services\TenantManager;
+use App\Services\Workflow\ApprovalGate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -107,6 +108,8 @@ class SupplierPaymentController extends Controller
                 : WithholdingTax::rate($whtCategory);
         }
         $whtAmount = round((float) $validated['amount'] * $whtRate / 100, 2);
+
+        app(ApprovalGate::class)->check('supplier_payment', ApprovalGate::keyFor(['s' => (int) $validated['supplier_id'], 'a' => round((float) $validated['amount'], 2), 'd' => $validated['payment_date'], 'i' => (int) ($validated['purchase_invoice_id'] ?? 0), 'm' => $validated['payment_method']]), (float) $validated['amount'], 'سند صرف لمورد '.$supplier->name);
 
         $allocations = empty($validated['purchase_invoice_id']) ? ($validated['allocations'] ?? null) : null;
         if ($allocations !== null && round(array_sum(array_column($allocations, 'amount')), 2) > (float) $validated['amount'] + 0.005) {

@@ -12,6 +12,7 @@ use App\Services\Sales\InvoiceService;
 use App\Services\Sales\SalesCycleService;
 use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
+use App\Services\Workflow\ApprovalGate;
 use App\Services\Zatca\EInvoiceManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -168,6 +169,10 @@ class CreditNoteController extends Controller
         $profile = ! empty($validated['invoice_id']) ? TaxProfile::forDocument(Invoice::findOrFail($validated['invoice_id'])) : TaxProfile::current();
         if ((float) $validated['tax_amount'] > 0 && ! $profile->vatMatches((float) $validated['subtotal'], (float) $validated['tax_amount'])) {
             throw ValidationException::withMessages(['tax_amount' => 'ضريبة الإشعار يجب أن تكون '.$profile->ratesLabel().' من المبلغ، أو صفراً للتوريدات الصفرية والمعفاة.']);
+        }
+
+        if ($validated['status'] !== 'draft') {
+            app(ApprovalGate::class)->check('credit_note', ApprovalGate::keyFor(['c' => (int) $validated['customer_id'], 'i' => (int) $validated['invoice_id'], 'd' => $validated['credit_note_date'], 't' => round((float) $validated['total'], 2)]), (float) $validated['total'], 'إشعار دائن بقيمة '.number_format((float) $validated['total'], 2));
         }
 
         $tenantManager = app(TenantManager::class);

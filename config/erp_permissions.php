@@ -304,6 +304,7 @@ return [
                 'approvals' => ['ar' => 'قواعد الاعتماد', 'en' => 'Approval Rules', 'actions' => ['view', 'manage']],
                 'zatca' => ['ar' => 'الفوترة الإلكترونية (هيئة الزكاة)', 'en' => 'ZATCA E-Invoicing', 'actions' => ['view', 'export', 'manage']],
                 'audit' => ['ar' => 'سجل التدقيق', 'en' => 'Audit Log', 'actions' => ['view']],
+                'attachments' => ['ar' => 'مرفقات المستندات', 'en' => 'Document Attachments', 'actions' => ['view', 'create', 'delete']],
                 'recycle_bin' => ['ar' => 'سلة المحذوفات', 'en' => 'Recycle Bin', 'actions' => ['view', 'manage']],
                 'data_scope' => ['ar' => 'الوصول لكل الفروع', 'en' => 'Access All Branches', 'actions' => ['manage']],
             ],
@@ -385,6 +386,10 @@ return [
         'system.update.apply' => '@authenticated',
         'context.fiscal-year' => '@authenticated',
         'files.show' => '@authenticated',
+        'attachments.index' => 'admin.attachments.view',
+        'attachments.download' => 'admin.attachments.view',
+        'attachments.store' => 'admin.attachments.create',
+        'attachments.destroy' => 'admin.attachments.delete',
         'company.logo' => '@authenticated',
         // Each document type re-checks its own permission in DocumentShareController.
         'documents.pdf' => ['contracts.contracts.view', 'real_estate.leases.view', 'hr.admin_requests.view', 'work_orders.orders.view', 'bookings.bookings.view', 'sales.invoices.print', 'sales.returns.print', 'sales.quotations.print', 'projects.billings.print', 'sales.clients.view', 'sales.orders.print', 'sales.debit_notes.print', 'sales.payments.print', 'purchases.payments.print', 'finance.expenses.view', 'finance.revenues.view', 'accounting.journals.view', 'purchases.invoices.print', 'purchases.orders.print'],
@@ -553,6 +558,8 @@ return [
         'api.v1.invoices.store' => 'sales.invoices.create',
         'api.v1.invoices.show' => 'sales.invoices.view',
         'approval-rules.index' => 'admin.approvals.view',
+        // Each request re-checks its own document type's approver permission in ApprovalRuleController::decide.
+        'approval-requests.decide' => '@authenticated',
         'approval-rules.store' => 'admin.approvals.manage',
         'approval-rules.destroy' => 'admin.approvals.manage',
         'accounting.accounts.index' => 'accounting.accounts.view',

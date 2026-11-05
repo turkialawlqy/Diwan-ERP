@@ -11,6 +11,7 @@ use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\PostingService;
 use App\Services\Settings\CompanyPolicy;
+use App\Services\Workflow\ApprovalGate;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -55,6 +56,7 @@ class EmployeeFinanceService
 
     public function approveLoan(EmployeeLoan $loan, ?int $bankAccountId): void
     {
+        app(ApprovalGate::class)->check('loan', ApprovalGate::keyOf($loan), (float) $loan->amount, 'سلفة موظف '.($loan->employee?->name ?? ''));
         DB::transaction(function () use ($loan, $bankAccountId) {
             $loan = EmployeeLoan::whereKey($loan->id)->lockForUpdate()->firstOrFail();
             self::assertNotOwnRequest($loan->employee);
@@ -245,6 +247,7 @@ class EmployeeFinanceService
 
     public function approveSettlement(EndOfServiceSettlement $settlement): void
     {
+        app(ApprovalGate::class)->check('settlement', ApprovalGate::keyOf($settlement), (float) $settlement->net_amount, 'مخالصة نهاية خدمة '.($settlement->employee?->name ?? ''));
         DB::transaction(function () use ($settlement) {
             $settlement = EndOfServiceSettlement::with('employee')->whereKey($settlement->id)->lockForUpdate()->firstOrFail();
             if ($settlement->status !== 'draft') {

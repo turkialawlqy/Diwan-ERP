@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import DimensionFields from '@/Components/Documents/DimensionFields.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
@@ -183,5 +184,6 @@ const submitRevenue = () => (editing ? form.put(route('finance.revenues.update',
                             </div>
                         </form>
         </div>
+        <AttachmentsPanel v-if="revenue?.id" kind="revenue" :id="revenue.id" class="mt-4" />
     </AppLayout>
 </template>

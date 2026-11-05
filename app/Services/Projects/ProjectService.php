@@ -22,6 +22,7 @@ use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
 use App\Services\Sales\InvoiceService;
 use App\Services\Tax\TaxProfile;
+use App\Services\Workflow\ApprovalGate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -313,6 +314,8 @@ class ProjectService
      */
     public function approveBilling(ProgressBilling $billing): Invoice
     {
+        app(ApprovalGate::class)->check('progress_billing', ApprovalGate::keyOf($billing), (float) $billing->current_value, 'مستخلص '.$billing->number);
+
         return DB::transaction(function () use ($billing) {
             $billing = ProgressBilling::with('items.boqItem')->whereKey($billing->id)->lockForUpdate()->firstOrFail();
             if ($billing->status !== 'draft') {

@@ -5,7 +5,8 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import Field from '@/Components/UI/Field.vue';
 import { money } from '@/utils/format';
 
-const props = defineProps({ rules: Array, types: Object, recent: Array });
+const props = defineProps({ rules: Array, types: Object, recent: Array, requests: { type: Array, default: () => [] } });
+const decide = (r, decision) => router.post(route('approval-requests.decide', { approvalRequest: r.id, decision }), {}, { preserveScroll: true });
 const form = useForm({ document_type: Object.keys(props.types)[0], min_amount: 0, is_active: true });
 const save = () => form.post(route('approval-rules.store'), { onSuccess: () => form.reset('min_amount') });
 const destroy = (rule) => { if (confirm('حذف القاعدة؟')) router.delete(route('approval-rules.destroy', rule.id)); };
@@ -16,6 +17,19 @@ const actions = { submitted: 'أُرسل', approved: 'اعتُمد', rejected: '
     <AppLayout>
         <Head title="قواعد الاعتماد" />
         <PageHeader title="قواعد الاعتماد" subtitle="المستندات التي تبلغ الحد تنتظر اعتماد مستخدم يملك صلاحية الاعتماد، ولا يعتمد المنشئ مستنده" :crumbs="[{ label: 'الإعدادات' }, { label: 'قواعد الاعتماد' }]" />
+        <div v-if="requests.length" class="bg-white border border-amber-200 rounded-2xl p-4 mb-4 text-xs" data-approval-requests>
+            <h3 class="font-black text-slate-700 mb-2">طلبات بانتظار القرار ({{ requests.length }})</h3>
+            <div v-for="r in requests" :key="r.id" class="flex items-center gap-3 py-1.5 border-t border-slate-100" data-approval-request>
+                <span class="px-2 py-0.5 rounded-lg bg-slate-100 font-bold">{{ types[r.document_type] || r.document_type }}</span>
+                <span class="flex-1">{{ r.description }}</span>
+                <span class="font-mono">{{ money(r.amount) }}</span>
+                <span class="text-slate-400">{{ r.requester?.name }}</span>
+                <template v-if="r.can_decide">
+                    <button @click="decide(r, 'approve')" data-approve class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold">اعتماد</button>
+                    <button @click="decide(r, 'reject')" class="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 font-bold">رفض</button>
+                </template>
+            </div>
+        </div>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl overflow-hidden">
                 <table class="w-full text-xs">

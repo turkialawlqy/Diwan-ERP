@@ -2,6 +2,7 @@
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import { useFixedDropdown } from '@/composables/useFixedDropdown';
 import DatePicker from '@/Components/UI/DatePicker.vue';
+import DimensionFields from '@/Components/Documents/DimensionFields.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { taxRate } from '@/utils/tax';
@@ -37,6 +38,9 @@ import CustomerModal from '../Clients/CustomerModal.vue';
 import { today } from '@/utils/format';
 
 const props = defineProps({
+    costCenters: { type: Array, default: () => [] },
+    projects: { type: Array, default: () => [] },
+    dimensionPolicy: { type: Object, default: () => ({}) },
     customers: Array,
     products: Array,
     categories: Array,
@@ -84,6 +88,8 @@ const form = useForm({
     bank_account_id: '',
     paid_amount: 0,
     notes: 'شكراً لتعاملكم معنا.',
+    cost_center_id: '',
+    project_id: '',
     terms: 'تستحق هذه الفاتورة خلال المدة المتفق عليها. تخضع لضريبة القيمة المضافة وفق أنظمة هيئة الزكاة والضريبة والجمارك بالمملكة العربية السعودية.',
     items: [
         {
@@ -116,6 +122,8 @@ if (editing) {
         bank_account_id: editing.bank_account_id || '',
         paid_amount: Number(editing.paid_amount) || 0,
         notes: editing.notes || '',
+        cost_center_id: editing.cost_center_id || '',
+        project_id: editing.project_id || '',
         terms: editing.terms || '',
         items: (editing.items || []).map((i) => ({
             product_id: i.product_id, item_name: i.item_name, description: i.description || '', quantity: Number(i.quantity),
@@ -927,6 +935,11 @@ const importLines = (lines, replace) => {
                             <PlusIcon class="w-4 h-4 stroke-2" />
                             <span>إضافة بند جديد للفاتورة</span>
                         </button>
+                    </div>
+
+                    <!-- Analytical dimensions: the cost centre and project this invoice's revenue belongs to -->
+                    <div v-if="costCenters.length || projects.length" class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs" data-invoice-dimensions>
+                        <DimensionFields v-model:cost-center="form.cost_center_id" v-model:project="form.project_id" :policy="dimensionPolicy" :cost-centers="costCenters" :projects="projects" :errors="form.errors" />
                     </div>
 
                     <!-- Notes & Terms -->

@@ -8,6 +8,7 @@ use App\Http\Controllers\Accounting\TrialBalanceController;
 use App\Http\Controllers\ActiveContextController;
 use App\Http\Controllers\ApprovalRuleController;
 use App\Http\Controllers\AssemblyController;
+use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\LocalSetupController;
@@ -271,6 +272,12 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/lines/import', [LineImportController::class, 'import'])->name('lines.import');
         Route::get('/lines/template', [LineImportController::class, 'template'])->name('lines.template');
     });
+
+    // Files attached to documents (invoices, bills, vouchers, journals, quotations, orders).
+    Route::get('/attachments/file/{attachment}', [AttachmentController::class, 'download'])->name('attachments.download');
+    Route::delete('/attachments/{attachment}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
+    Route::get('/attachments/{kind}/{id}', [AttachmentController::class, 'index'])->name('attachments.index')->whereNumber('id');
+    Route::post('/attachments/{kind}/{id}', [AttachmentController::class, 'store'])->name('attachments.store')->whereNumber('id');
 
     // Private tenant files (attachments) — streamed only to the owning company.
     Route::get('/files/{token}', [FileController::class, 'show'])
@@ -766,6 +773,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     // Approval workflow rules
     Route::get('/approval-rules', [ApprovalRuleController::class, 'index'])->name('approval-rules.index');
     Route::post('/approval-rules', [ApprovalRuleController::class, 'store'])->name('approval-rules.store');
+    Route::post('/approval-requests/{approvalRequest}/{decision}', [ApprovalRuleController::class, 'decide'])->name('approval-requests.decide');
     Route::delete('/approval-rules/{rule}', [ApprovalRuleController::class, 'destroy'])->name('approval-rules.destroy');
 
     // 12. HR Module

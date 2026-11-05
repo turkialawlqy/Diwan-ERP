@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
@@ -112,5 +113,6 @@ const receive = () => form.transform((d) => ({ ...d, lines: d.lines.map(({ name,
             <p v-for="(msg, key) in form.errors" :key="key" class="text-xs text-rose-600 mt-1">{{ msg }}</p>
             <template #footer><button @click="receive" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold">تسجيل الاستلام</button></template>
         </Dialog>
+        <AttachmentsPanel kind="purchase-order" :id="order.id" class="mt-4" />
     </AppLayout>
 </template>

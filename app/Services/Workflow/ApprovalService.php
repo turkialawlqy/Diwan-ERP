@@ -20,6 +20,15 @@ class ApprovalService
         'purchase_order' => 'purchases.orders.approve',
         'sales_order' => 'sales.orders.approve',
         'contract' => 'contracts.contracts.approve',
+        'supplier_payment' => 'purchases.payments.cancel',
+        'expense' => 'finance.expenses.edit',
+        'credit_note' => 'sales.returns.cancel',
+        'journal' => 'accounting.journals.post',
+        'stock_count' => 'inventory.counts.approve',
+        'payroll' => 'hr.payroll.approve',
+        'loan' => 'hr.loans.approve',
+        'settlement' => 'hr.settlements.approve',
+        'progress_billing' => 'projects.billings.approve',
     ];
 
     public const DOCUMENT_TYPES = [
@@ -27,6 +36,15 @@ class ApprovalService
         'purchase_order' => 'أوامر الشراء',
         'sales_order' => 'أوامر البيع',
         'contract' => 'العقود (حسب قيمة العقد)',
+        'supplier_payment' => 'سندات صرف الموردين',
+        'expense' => 'المصروفات',
+        'credit_note' => 'الإشعارات الدائنة والمرتجعات',
+        'journal' => 'القيود اليدوية',
+        'stock_count' => 'اعتماد الجرد',
+        'payroll' => 'مسيرات الرواتب',
+        'loan' => 'سلف الموظفين',
+        'settlement' => 'مخالصات نهاية الخدمة',
+        'progress_billing' => 'مستخلصات المشاريع',
     ];
 
     public function requiresApproval(string $documentType, float $amount): bool

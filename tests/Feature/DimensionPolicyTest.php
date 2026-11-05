@@ -10,9 +10,11 @@ use App\Models\Expense;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use App\Models\Project;
+use App\Services\Accounting\AccountingException;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DimensionPolicy;
+use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -154,5 +156,28 @@ class DimensionPolicyTest extends TestCase
 
         $this->get(route('accounting.mappings.index'))->assertOk()
             ->assertInertia(fn ($page) => $page->where('dimensionPolicy.project', 'required'));
+    }
+
+    public function test_an_invoice_carries_its_cost_centre_and_project_to_the_revenue_line_and_the_policy_applies(): void
+    {
+        $customer = Customer::first();
+        $invoices = app(InvoiceService::class);
+        $line = [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 1000, 'tax_rate' => 15]];
+
+        $invoice = $invoices->create(['customer_id' => $customer->id, 'invoice_date' => '2026-06-10', 'due_date' => '2026-06-10', 'cost_center_id' => $this->cc->id, 'project_id' => $this->project->id], $line, ['issue_stock' => false, 'dimensions' => true]);
+        $revenueLine = JournalEntryLine::where('account_id', $this->role('sales_revenue'))->whereHas('journalEntry', fn ($q) => $q->where('source_id', $invoice->id))->firstOrFail();
+        $this->assertSame([$this->cc->id, $this->project->id], [(int) $revenueLine->cost_center_id, (int) $revenueLine->project_id]);
+        // The party line and the VAT line stay without a dimension.
+        $this->assertNull(JournalEntryLine::where('account_id', $this->role('vat_output'))->first()->cost_center_id);
+
+        // With the policy «required on profit and loss lines», an invoice without a cost centre is refused.
+        $this->policy('pnl');
+        $this->assertThrows(fn () => $invoices->create(['customer_id' => $customer->id, 'invoice_date' => '2026-06-11', 'due_date' => '2026-06-11'], $line, ['issue_stock' => false, 'dimensions' => true]), AccountingException::class);
+        $invoices->create(['customer_id' => $customer->id, 'invoice_date' => '2026-06-11', 'due_date' => '2026-06-11', 'cost_center_id' => $this->cc->id], $line, ['issue_stock' => false, 'dimensions' => true]);
+        // A system invoice (POS, recurring, billing...) is not held to the policy.
+        $invoices->create(['customer_id' => $customer->id, 'invoice_date' => '2026-06-12', 'due_date' => '2026-06-12'], $line, ['issue_stock' => false]);
+
+        // The bill form hands the choices to the page.
+        $this->get(route('sales.invoices.create'))->assertOk()->assertInertia(fn ($p) => $p->has('costCenters', 1)->has('projects', 1)->where('dimensionPolicy.cost_center', 'pnl'));
     }
 }

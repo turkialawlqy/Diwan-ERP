@@ -16,6 +16,8 @@ class Invoice extends Model
     use Auditable, BelongsToCompany, BranchScoped, HasFactory, SnapshotsCustomer;
 
     protected $fillable = [
+        'cost_center_id',
+        'project_id',
         'currency_code',
         'exchange_rate',
         'salesperson_id',

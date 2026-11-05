@@ -76,6 +76,8 @@ class InvoiceService
             $replace = $options['replace'] ?? null; // editing: the same record and number
             $attributes = [
                 'branch_id' => $branchId,
+                'cost_center_id' => $data['cost_center_id'] ?? null,
+                'project_id' => $data['project_id'] ?? null,
                 'customer_id' => $customer->id,
                 'user_id' => auth()->id(),
                 'salesperson_id' => $data['salesperson_id'] ?? $customer->salesperson_id ?? auth()->id(),
@@ -127,6 +129,8 @@ class InvoiceService
             }
 
             if ($options['post'] ?? true) {
+                // Only invoices a person distributes (the sales form) are held to the analytical policy.
+                $this->poster->enforceDimensions((bool) ($options['dimensions'] ?? false));
                 $this->poster->salesInvoice($invoice, $invoice->warehouse_id, (float) ($cost ?? 0), $options['revenue_role'] ?? 'sales_revenue');
             }
 
