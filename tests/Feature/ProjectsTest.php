@@ -11,6 +11,7 @@ use App\Models\ProgressBilling;
 use App\Models\Project;
 use App\Models\Supplier;
 use App\Models\Warehouse;
+use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
 use App\Services\Inventory\StockService;
@@ -183,5 +184,16 @@ class ProjectsTest extends TestCase
             $this->get($url)->assertOk();
         }
         $this->assertNotNull($billing->fresh()->invoice_id);
+    }
+
+    public function test_input_vat_on_a_project_cost_reaches_the_vat_return_and_matches_the_ledger(): void
+    {
+        $project = $this->project();
+        $this->service()->recordCost($project, ['date' => '2026-06-20', 'category' => 'labour', 'description' => 'مقاول عمالة', 'amount' => 1000, 'vat_amount' => 150, 'paid_from' => 'accrued']);
+
+        $return = app(AccountingReports::class)->vatReturn(Carbon::parse('2026-06-01'), Carbon::parse('2026-06-30'));
+        $box7 = collect($return['boxes'])->firstWhere('no', 7);
+        $this->assertEquals(150.0, $box7['vat']);
+        $this->assertEquals(1000.0, $box7['amount']);
     }
 }

@@ -111,6 +111,7 @@ const form = useForm({
     session_timeout_minutes: props.settings?.session_timeout_minutes ?? 30,
     pos_auto_print: props.settings?.pos_auto_print === '1',
     pos_allow_credit: props.settings?.pos_allow_credit === '1',
+    pos_max_discount_percent: props.settings?.pos_max_discount_percent ?? 20,
 
     // ZATCA Settings
     zatca_phase: props.settings?.zatca_phase || 'phase1',
@@ -825,6 +826,12 @@ const removeLogo = async () => {
                                         <p class="text-[11px] text-slate-500">يظهر زر «بيع آجل» لعميل محدد (لا يكون للعميل النقدي) مع دفعة مقدّمة اختيارية، ويُسجَّل المتبقي ذمة على العميل ويُراعى حده الائتماني.</p>
                                     </div>
                                 </label>
+                            </div>
+
+                            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/60">
+                                <label class="block text-xs font-bold text-slate-800 mb-1">أقصى خصم للكاشير %</label>
+                                <input v-model="form.pos_max_discount_percent" type="text" inputmode="decimal" data-num class="w-28 rounded-xl border-slate-200 text-xs font-mono" data-pos-max-discount />
+                                <p class="text-[11px] text-slate-500 mt-1">يشمل خصم السطر وخصم الطلب والبيع بأقل من سعر الصنف؛ ما فوقه يتطلب صلاحية «التحكم بالخصومات» (الورديات ← إدارة افتراضيًا).</p>
                             </div>
                         </div>
 

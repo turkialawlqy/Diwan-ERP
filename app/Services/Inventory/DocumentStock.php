@@ -100,11 +100,17 @@ class DocumentStock
 
     protected function factor(array $line): float
     {
-        if (empty($line['unit_id'])) {
+        return $this->factorOf($line['product_id'] ?? null, $line['unit_id'] ?? null);
+    }
+
+    /** Base units in one of the product's alternative units (1 for the base unit or one the product does not have). */
+    public function factorOf($productId, $unitId): float
+    {
+        if (empty($unitId) || empty($productId)) {
             return 1.0;
         }
 
-        $unit = ProductUnit::where('product_id', $line['product_id'])->where('unit_id', $line['unit_id'])->first();
+        $unit = ProductUnit::where('product_id', $productId)->where('unit_id', $unitId)->first();
 
         return $unit ? (float) $unit->factor : 1.0;
     }

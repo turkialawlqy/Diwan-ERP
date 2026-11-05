@@ -237,6 +237,13 @@ class HrOperationsController extends Controller
         return back()->with('success', 'تم احتساب المخالصة كمسودة');
     }
 
+    public function cancelSettlement(EndOfServiceSettlement $settlement, EmployeeFinanceService $finance)
+    {
+        $finance->cancelSettlement($settlement);
+
+        return back()->with('success', 'حُذفت مسودة المخالصة؛ يمكنك إعدادها من جديد.');
+    }
+
     public function approveSettlement(EndOfServiceSettlement $settlement, EmployeeFinanceService $finance)
     {
         $finance->approveSettlement($settlement);

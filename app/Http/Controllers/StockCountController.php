@@ -150,6 +150,8 @@ class StockCountController extends Controller
         $this->assertDraft($count);
 
         DB::transaction(function () use ($count, $stock, $poster) {
+            $count = StockCount::whereKey($count->id)->lockForUpdate()->firstOrFail();
+            $this->assertDraft($count); // approved by someone else a moment ago
             $value = 0.0;
 
             StockCountItem::where('stock_count_id', $count->id)
@@ -162,7 +164,7 @@ class StockCountController extends Controller
                             'date' => $count->count_date,
                             'source' => $count,
                             'reference' => $count->count_number,
-                        ]);
+                        ], (float) $item->system_quantity);
                     }
                 });
 

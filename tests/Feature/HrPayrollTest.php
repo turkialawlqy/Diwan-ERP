@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Employee;
 use App\Models\EmployeeAdjustment;
 use App\Models\EmployeeLoan;
+use App\Models\EndOfServiceSettlement;
 use App\Models\JournalEntryLine;
 use App\Models\LeaveType;
 use App\Models\Payroll;
@@ -230,5 +232,49 @@ class HrPayrollTest extends TestCase
         $this->get(route('hr.me.payslip', $mine))->assertOk();
         $this->get(route('hr.me.payslip', $other))->assertNotFound();
         $this->get(route('hr.payroll.index'))->assertForbidden();
+    }
+
+    public function test_a_second_branch_cannot_run_the_same_month_again_and_missing_attendance_is_flagged(): void
+    {
+        $a = Branch::create(['name_ar' => 'أ', 'code' => 'A', 'is_main' => true, 'is_active' => true]);
+        $b = Branch::create(['name_ar' => 'ب', 'code' => 'B', 'is_active' => true]);
+        $present = $this->employee(['name' => 'حاضر']);
+        $absentee = $this->employee(['name' => 'غائب']);
+        app(AttendanceService::class)->record($present, '2026-05-10', '08:00', '16:00');
+
+        $this->post(route('context.branch'), ['branch_id' => $a->id]);
+        $payroll = app(PayrollService::class)->generate(2026, 5);
+        $this->assertSame(['غائب'], collect(app(PayrollService::class)->attendanceGaps($payroll))->pluck('name')->all());
+
+        $this->post(route('context.branch'), ['branch_id' => $b->id]);
+        $this->expectException(ValidationException::class);
+        app(PayrollService::class)->generate(2026, 5); // the other branch's run must not hide the first
+    }
+
+    public function test_a_wrong_draft_settlement_can_be_dropped_and_the_loan_is_read_again_on_approval(): void
+    {
+        $e = $this->employee();
+        $finance = app(EmployeeFinanceService::class);
+        $draft = $finance->draftSettlement($e, ['termination_date' => '2026-06-30', 'reason' => 'resignation', 'salary_days' => 0]);
+        $this->assertValidation(fn () => $finance->draftSettlement($e, ['termination_date' => '2026-06-30', 'reason' => 'resignation']));  // blocked while a draft exists
+        $finance->cancelSettlement($draft);
+        $this->assertSame(0, EndOfServiceSettlement::count());
+
+        $draft = $finance->draftSettlement($e, ['termination_date' => '2026-06-30', 'reason' => 'resignation', 'salary_days' => 0]);
+        EmployeeLoan::create(['employee_id' => $e->id, 'amount' => 600, 'repaid' => 0, 'status' => 'active', 'date' => '2026-06-20', 'monthly_installment' => 100, 'first_deduction_month' => '2026-07-01']); // a loan granted after the draft
+        $finance->approveSettlement($draft);
+        $this->assertEquals(600.0, (float) $draft->fresh()->loan_deduction);
+        $this->assertSame('approved', $draft->fresh()->status);
+        $this->assertValidation(fn () => $finance->cancelSettlement($draft->fresh())); // approved is final
+    }
+
+    protected function assertValidation(callable $fn): void
+    {
+        try {
+            $fn();
+            $this->fail('expected a validation error');
+        } catch (ValidationException) {
+            $this->assertTrue(true);
+        }
     }
 }

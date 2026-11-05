@@ -53,6 +53,7 @@ class PayrollController extends Controller
             'adjustments' => EmployeeAdjustment::with('employee:id,name')->where('year', $payroll->year)->where('month', $payroll->month)->get(),
             'employees' => Employee::where('status', '!=', 'terminated')->orderBy('name')->get(['id', 'name']),
             'bankAccounts' => BankAccount::where('is_active', true)->get(['id', 'name', 'type']),
+            'attendanceGaps' => $payroll->status === 'draft' ? $this->payrolls->attendanceGaps($payroll) : [],
         ]);
     }
 

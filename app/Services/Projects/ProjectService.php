@@ -616,6 +616,7 @@ class ProjectService
                 'quantity' => (float) ($data['quantity'] ?? 0),
                 'unit_cost' => (float) ($data['unit_cost'] ?? 0),
                 'amount' => $amount,
+                'vat_amount' => $vat, // kept on the cost: the VAT return is built from documents
                 'paid_from' => $paidFrom,
                 'supplier_id' => $data['supplier_id'] ?? null,
                 'bank_account_id' => $data['bank_account_id'] ?? null,

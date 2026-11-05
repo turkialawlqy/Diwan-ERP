@@ -45,6 +45,25 @@ class StockService
 
         return DB::transaction(function () use ($data, $quantity) {
             $product = $this->lockProduct($data['product_id']);
+
+            // A kit is not stocked (its components are): receiving it puts the components back at their own cost.
+            if ($product->is_kit) {
+                $last = null;
+                foreach ($product->kitItems()->get() as $component) {
+                    $last = $this->receive(array_merge($data, [
+                        'product_id' => $component->component_id, 'quantity' => $quantity * (float) $component->quantity,
+                        'unit_cost' => null, 'keep_average' => true, 'batch_number' => null, 'batch_id' => null, 'serials' => [],
+                    ]));
+                }
+                if (! $last) {
+                    throw ValidationException::withMessages(['items' => "الطقم «{$product->name_ar}» بلا مكونات."]);
+                }
+
+                return $last;
+            }
+            if (! $product->isStockItem()) {
+                throw ValidationException::withMessages(['items' => "«{$product->name_ar}» ليس صنفًا مخزنيًا فلا يُستلم في المخزون."]);
+            }
             $unitCost = round((float) ($data['unit_cost'] ?? $product->average_cost ?? 0), 4);
             $stock = $this->lockStock($product->id, $data['warehouse_id']);
 
@@ -185,11 +204,13 @@ class StockService
      * Set the warehouse quantity to a counted figure. Returns the signed value
      * of the difference (positive = surplus).
      */
-    public function adjustTo(int $productId, int $warehouseId, float $countedQuantity, array $context = []): float
+    public function adjustTo(int $productId, int $warehouseId, float $countedQuantity, array $context = [], ?float $snapshot = null): float
     {
-        return DB::transaction(function () use ($productId, $warehouseId, $countedQuantity, $context) {
+        return DB::transaction(function () use ($productId, $warehouseId, $countedQuantity, $context, $snapshot) {
             $current = (float) $this->lockStock($productId, $warehouseId)->quantity;
-            $difference = round($countedQuantity - $current, 4);
+            // With the quantity the system showed when it was counted, only the counted difference is applied:
+            // sales and receipts made since then are kept, not overwritten by the count.
+            $difference = round($countedQuantity - ($snapshot ?? $current), 4);
 
             if ($difference > 0) {
                 $product = Product::findOrFail($productId);
@@ -272,6 +293,16 @@ class StockService
         }
 
         $number = trim((string) ($data['batch_number'] ?? ''));
+        // Putting back what left (invoice edit/delete, return, cancelled delivery, transfer receipt): the very batch it left from.
+        if ($number === '' && ! empty($data['batch_id'])) {
+            $batch = ProductBatch::where('product_id', $product->id)->whereKey($data['batch_id'])->lockForUpdate()->first();
+            if ($batch) {
+                $batch->quantity = (float) $batch->quantity + $quantity;
+                $batch->save();
+
+                return $batch->id;
+            }
+        }
         if ($number === '') {
             throw ValidationException::withMessages(['items' => "الصنف «{$product->name_ar}» يتطلب رقم تشغيلة (Batch)."]);
         }
@@ -332,6 +363,12 @@ class StockService
         }
 
         $serials = array_values(array_unique(array_filter(array_map('trim', $data['serials'] ?? []))));
+        // Undoing a document that issued serials (no list given): the serials it took go back.
+        if (! $serials && ! empty($data['source']) && $data['source'] instanceof Model) {
+            $serials = ProductSerial::where('product_id', $product->id)->where('status', '!=', 'in_stock')
+                ->where('last_source_type', $this->sourceType($data))->where('last_source_id', $this->sourceId($data))
+                ->orderBy('id')->limit((int) round($quantity))->pluck('serial_number')->all();
+        }
         if (count($serials) !== (int) round($quantity)) {
             throw ValidationException::withMessages(['items' => "الصنف «{$product->name_ar}» يتطلب إدخال {$quantity} رقم تسلسلي."]);
         }

@@ -822,6 +822,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::get('/settlements', [HrOperationsController::class, 'settlements'])->name('settlements.index');
         Route::post('/settlements', [HrOperationsController::class, 'storeSettlement'])->name('settlements.store');
         Route::post('/settlements/{settlement}/approve', [HrOperationsController::class, 'approveSettlement'])->name('settlements.approve');
+        Route::delete('/settlements/{settlement}', [HrOperationsController::class, 'cancelSettlement'])->name('settlements.cancel');
         Route::post('/settlements/{settlement}/pay', [HrOperationsController::class, 'paySettlement'])->name('settlements.pay');
         Route::post('/settlements/provision', [HrOperationsController::class, 'accrueProvision'])->name('settlements.provision');
 

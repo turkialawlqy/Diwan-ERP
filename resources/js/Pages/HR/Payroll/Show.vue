@@ -11,7 +11,7 @@ import Field from '@/Components/UI/Field.vue';
 import StatusBadge from '@/Components/Documents/StatusBadge.vue';
 import { money, today } from '@/utils/format';
 
-const props = defineProps({ payroll: Object, adjustments: Array, employees: Array, bankAccounts: Array, errors: { type: Object, default: () => ({}) } });
+const props = defineProps({ attendanceGaps: { type: Array, default: () => [] }, payroll: Object, adjustments: Array, employees: Array, bankAccounts: Array, errors: { type: Object, default: () => ({}) } });
 const act = (name, message) => { if (!message || confirm(message)) router.post(route(name, props.payroll.id), {}, { preserveScroll: true }); };
 const adjForm = useForm({ employee_id: '', type: 'bonus', amount: 0, description: '' });
 const payOpen = ref(false);
@@ -44,6 +44,12 @@ const remove = async (url, message) => { if (await confirmAction(message, { dang
                 </template>
             </template>
         </PageHeader>
+        <div v-if="attendanceGaps.length" class="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-800" data-attendance-gaps>
+            <div class="font-bold mb-1">حضور ناقص: {{ attendanceGaps.length }} موظف بلا أي سجل حضور هذا الشهر بينما سُجّل حضور غيرهم</div>
+            <p class="mb-1">سيُصرف لهم الراتب كاملًا ما لم تسجّل غيابهم (من الحضور والانصراف) ثم تعيد الاحتساب:</p>
+            <p class="font-bold">{{ attendanceGaps.map((e) => e.name).join('، ') }}</p>
+        </div>
+
 
         <div v-if="errors.wps" class="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
             <p class="font-bold mb-1">لا يمكن إنشاء ملف الرواتب؛ صحّح بيانات الموظفين التالية ثم أعد المحاولة:</p>

@@ -16,6 +16,7 @@ const form = useForm({ employee_id: '', termination_date: today(), reason: 'resi
 const provision = useForm({ date: today() });
 const paying = ref(null);
 const payForm = useForm({ date: today(), bank_account_id: '' });
+const discard = (s) => { if (confirm('حذف مسودة المخالصة؟ لم يُرحَّل لها شيء ويمكن إعدادها من جديد.')) router.delete(route('hr.settlements.cancel', s.id), { preserveScroll: true }); };
 const approve = (s) => { if (confirm('اعتماد المخالصة وإنهاء خدمة الموظف؟')) router.post(route('hr.settlements.approve', s.id), {}, { preserveScroll: true }); };
 </script>
 
@@ -41,6 +42,7 @@ const approve = (s) => { if (confirm('اعتماد المخالصة وإنهاء
                             <td class="px-3 py-2 text-center"><StatusBadge :status="s.status" /></td>
                             <td class="px-3 py-2 text-end whitespace-nowrap">
                                 <button v-if="s.status === 'draft' && $can('hr.settlements.approve')" @click="approve(s)" class="text-emerald-600 font-bold">اعتماد</button>
+                                <button v-if="s.status === 'draft' && $can('hr.settlements.create')" @click="discard(s)" class="text-rose-600 font-bold" data-discard-settlement>حذف المسودة</button>
                                 <button v-if="s.status === 'approved' && $can('hr.settlements.approve') && Number(s.net_amount) > 0" @click="paying = s" class="text-indigo-600 font-bold">صرف</button>
                             </td>
                         </tr>

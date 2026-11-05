@@ -80,6 +80,16 @@ class ChequeService
 
     public function transition(Cheque $cheque, string $status, Carbon $date, ?int $bankAccountId = null): Cheque
     {
+        // The state is read under a lock: two «clear» clicks (or clear + bounce) cannot both post.
+        return DB::transaction(function () use ($cheque, $status, $date, $bankAccountId) {
+            $cheque = Cheque::whereKey($cheque->id)->lockForUpdate()->firstOrFail();
+
+            return $this->applyTransition($cheque, $status, $date, $bankAccountId);
+        });
+    }
+
+    protected function applyTransition(Cheque $cheque, string $status, Carbon $date, ?int $bankAccountId): Cheque
+    {
         $allowed = self::TRANSITIONS[$cheque->direction][$cheque->status] ?? [];
         if (! in_array($status, $allowed, true)) {
             throw new AccountingException('لا يمكن تغيير حالة الشيك من «'.$cheque->status.'» إلى «'.$status.'».');

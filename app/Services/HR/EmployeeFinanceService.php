@@ -231,12 +231,36 @@ class EmployeeFinanceService
         ]);
     }
 
+    /** A wrong draft is dropped (it blocks a new settlement for the employee while it exists). Approved ones are final. */
+    public function cancelSettlement(EndOfServiceSettlement $settlement): void
+    {
+        DB::transaction(function () use ($settlement) {
+            $settlement = EndOfServiceSettlement::whereKey($settlement->id)->lockForUpdate()->firstOrFail();
+            if ($settlement->status !== 'draft') {
+                throw ValidationException::withMessages(['settlement' => 'تُحذف المسودة فقط؛ المخالصة المعتمدة نهائية.']);
+            }
+            $settlement->delete(); // a draft has posted nothing
+        });
+    }
+
     public function approveSettlement(EndOfServiceSettlement $settlement): void
     {
         DB::transaction(function () use ($settlement) {
             $settlement = EndOfServiceSettlement::with('employee')->whereKey($settlement->id)->lockForUpdate()->firstOrFail();
             if ($settlement->status !== 'draft') {
                 throw ValidationException::withMessages(['settlement' => 'المخالصة معتمدة مسبقاً.']);
+            }
+
+            // Between the draft and now a payroll may have recovered a loan instalment or paid the last days:
+            // the loan figure is read again, and a payroll that already pays the same days stops the approval.
+            $date = Carbon::parse($settlement->termination_date);
+            if ((float) $settlement->salary_due > 0 && PayrollItem::where('employee_id', $settlement->employee_id)
+                ->whereHas('payroll', fn ($q) => $q->withoutGlobalScope('branch')->where('year', $date->year)->where('month', $date->month))->exists()) {
+                throw ValidationException::withMessages(['settlement' => 'راتب شهر الإنهاء داخل مسير رواتب؛ أعد الاحتساب بعد حذف الموظف من المسير أو اترك أيام الراتب صفرًا.']);
+            }
+            $loansNow = round((float) EmployeeLoan::where('employee_id', $settlement->employee_id)->where('status', 'active')->get()->sum(fn ($l) => (float) $l->amount - (float) $l->repaid), 2);
+            if (abs($loansNow - (float) $settlement->loan_deduction) > 0.004) {
+                $settlement->forceFill(['loan_deduction' => $loansNow, 'net_amount' => round((float) $settlement->net_amount + (float) $settlement->loan_deduction - $loansNow, 2)])->save();
             }
 
             $eos = (float) $settlement->eos_amount;

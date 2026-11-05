@@ -83,6 +83,11 @@ class StockTransferController extends Controller
         }
 
         DB::transaction(function () use ($transfer, $stock, $poster) {
+            // Locked and read again: a second click (or a second tab) must not issue the goods twice.
+            $transfer = StockTransfer::whereKey($transfer->id)->lockForUpdate()->firstOrFail();
+            if ($transfer->status !== 'draft') {
+                throw ValidationException::withMessages(['transfer' => 'تم إرسال هذا التحويل مسبقاً.']);
+            }
             $total = 0.0;
             foreach ($transfer->items as $item) {
                 $cost = $stock->issue([
@@ -118,6 +123,10 @@ class StockTransferController extends Controller
         ]);
 
         DB::transaction(function () use ($transfer, $validated, $stock, $poster) {
+            $transfer = StockTransfer::whereKey($transfer->id)->lockForUpdate()->firstOrFail();
+            if ($transfer->status !== 'in_transit') {
+                throw ValidationException::withMessages(['transfer' => 'التحويل ليس في حالة "في الطريق".']);
+            }
             $receivedValue = 0.0;
             $sentValue = 0.0;
 

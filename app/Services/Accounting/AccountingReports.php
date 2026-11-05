@@ -581,19 +581,40 @@ class AccountingReports
                 $buckets[$balance < 0 ? 'current' : 'd90plus'] = $balance;
             } else {
                 $left = $balance;
-                $documents = DB::table($docTable)->where('company_id', $this->companyId())->where($partyColumn, $b->party_id)
-                    ->where('invoice_date', '<=', $asOf->toDateString().' 23:59:59')
-                    ->orderByDesc('invoice_date')->orderByDesc('id')->get(['total', 'exchange_rate', 'invoice_date', 'due_date']);
-                foreach ($documents as $doc) {
-                    if ($left <= 0.004) {
-                        break;
+                $bucketOf = fn (int $days) => match (true) {
+                    $days <= 0 => 'current', $days <= 30 => 'd30', $days <= 60 => 'd60', $days <= 90 => 'd90', default => 'd90plus'
+                };
+                if ($asOf->copy()->startOfDay()->gte(today())) {
+                    // Up to today: the documents that are really still open (what payments and credit notes left of them),
+                    // oldest due first. What the ledger holds beyond them (opening balances, debit notes, manual entries)
+                    // is old debt; an unapplied receipt or advance is a credit.
+                    $open = DB::table($docTable)->where('company_id', $this->companyId())->where($partyColumn, $b->party_id)->where('remaining_amount', '>', 0.004)
+                        ->where('invoice_date', '<=', $asOf->toDateString().' 23:59:59')->orderBy('due_date')->orderBy('invoice_date')->orderBy('id')
+                        ->get(['remaining_amount', 'exchange_rate', 'invoice_date', 'due_date']);
+                    $explained = 0.0;
+                    foreach ($open as $doc) {
+                        $amount = round((float) $doc->remaining_amount * (float) ($doc->exchange_rate ?: 1), 2);
+                        $days = (int) Carbon::parse($doc->due_date ?: $doc->invoice_date)->startOfDay()->diffInDays($asOf->copy()->startOfDay(), false);
+                        $buckets[$bucketOf($days)] += $amount;
+                        $explained += $amount;
                     }
-                    $open = min($left, round((float) $doc->total * (float) ($doc->exchange_rate ?: 1), 2));
-                    $days = (int) Carbon::parse($doc->due_date ?: $doc->invoice_date)->startOfDay()->diffInDays($asOf->copy()->startOfDay(), false);
-                    $buckets[match (true) {
-                        $days <= 0 => 'current', $days <= 30 => 'd30', $days <= 60 => 'd60', $days <= 90 => 'd90', default => 'd90plus'
-                    }] += $open;
-                    $left = round($left - $open, 2);
+                    $rest = round($balance - $explained, 2);
+                    $buckets[$rest >= 0 ? 'd90plus' : 'current'] += $rest;
+                    $left = 0.0;
+                } else {
+                    // An earlier date: the balance then, spread over the most recent invoices (older ones taken as paid first).
+                    $documents = DB::table($docTable)->where('company_id', $this->companyId())->where($partyColumn, $b->party_id)
+                        ->where('invoice_date', '<=', $asOf->toDateString().' 23:59:59')
+                        ->orderByDesc('invoice_date')->orderByDesc('id')->get(['total', 'exchange_rate', 'invoice_date', 'due_date']);
+                    foreach ($documents as $doc) {
+                        if ($left <= 0.004) {
+                            break;
+                        }
+                        $open = min($left, round((float) $doc->total * (float) ($doc->exchange_rate ?: 1), 2));
+                        $days = (int) Carbon::parse($doc->due_date ?: $doc->invoice_date)->startOfDay()->diffInDays($asOf->copy()->startOfDay(), false);
+                        $buckets[$bucketOf($days)] += $open;
+                        $left = round($left - $open, 2);
+                    }
                 }
                 $buckets['d90plus'] += max(0, $left);
             }
@@ -764,6 +785,18 @@ class AccountingReports
         $expenses = DB::table('expenses')->where('company_id', $companyId)->whereBetween('expense_date', $range)->where('tax_amount', '>', 0)
             ->selectRaw('COALESCE(SUM(amount),0) as amount, COALESCE(SUM(tax_amount),0) as vat')->first();
         $add(7, 'amount', (float) $expenses->amount, (float) $expenses->vat);
+
+        // Input VAT that is posted to the ledger from project / contracting records rather than purchase documents:
+        // direct project costs, subcontractor certificates and hired-in equipment bills.
+        $projectCosts = DB::table('project_costs')->where('company_id', $companyId)->whereBetween('date', $range)->where('vat_amount', '>', 0)
+            ->selectRaw('COALESCE(SUM(amount),0) as amount, COALESCE(SUM(vat_amount),0) as vat')->first();
+        $add(7, 'amount', (float) $projectCosts->amount, (float) $projectCosts->vat);
+        $certificates = DB::table('subcontract_certificates')->where('company_id', $companyId)->whereBetween('date', $range)->where('vat_amount', '>', 0)
+            ->selectRaw('COALESCE(SUM(current_value),0) as amount, COALESCE(SUM(vat_amount),0) as vat')->first();
+        $add(7, 'amount', (float) $certificates->amount, (float) $certificates->vat);
+        $hiredIn = DB::table('equipment_billings')->where('company_id', $companyId)->where('direction', 'in')->whereBetween('period_to', $range)->where('tax_amount', '>', 0)
+            ->selectRaw('COALESCE(SUM(amount),0) as amount, COALESCE(SUM(tax_amount),0) as vat')->first();
+        $add(7, 'amount', (float) $hiredIn->amount, (float) $hiredIn->vat);
 
         $assets = DB::table('fixed_assets')->where('company_id', $companyId)->whereBetween('acquisition_date', $range)->where('acquisition_vat', '>', 0)
             ->selectRaw('COALESCE(SUM(cost),0) as amount, COALESCE(SUM(acquisition_vat),0) as vat')->first();

@@ -143,6 +143,11 @@ class PosController extends Controller
         $companyId = $company->id;
 
         DB::transaction(function () use ($validated, $companyId) {
+            // One open shift per register: the register row is locked so two cashiers cannot both open it.
+            PosRegister::whereKey($validated['pos_register_id'])->lockForUpdate()->first();
+            if (PosSession::where('pos_register_id', $validated['pos_register_id'])->where('status', 'opened')->exists()) {
+                throw ValidationException::withMessages(['pos_register_id' => 'لهذا الصندوق وردية مفتوحة بالفعل؛ أغلقها أولًا.']);
+            }
             $session = PosSession::create([
                 'company_id' => $companyId,
                 'user_id' => auth()->id(),
@@ -161,6 +166,33 @@ class PosController extends Controller
         });
 
         return redirect()->route('pos.index')->with('success', 'تم فتح جلسة نقاط البيع بنجاح');
+    }
+
+    /**
+     * The cashier does not set prices: a sale below the catalogue price, or with discounts, may not exceed
+     * the company's cap (الإعدادات ← نقاط البيع) unless the user may override (pos.discounts.manage).
+     */
+    protected function guardDiscounts(array $lines, float $orderDiscount, $company): void
+    {
+        if (auth()->user()?->can('pos.discounts.manage') || auth()->user()?->isCompanyOwner()) {
+            return;
+        }
+        $cap = max(0.0, (float) $company->setting('pos_max_discount_percent', 20)) / 100;
+        $reference = 0.0;   // what the lines would have cost at catalogue prices
+        $given = $orderDiscount;
+        foreach ($lines as $l) {
+            $product = Product::find($l['item']['product_id']);
+            $prices = collect([(float) $product?->selling_price])->merge($product ? $product->units()->pluck('selling_price')->map(fn ($p) => (float) $p) : [])->filter(fn ($p) => $p > 0);
+            $floor = $prices->min() ?? 0.0;
+            $catalogue = $l['qty'] * max($l['price'], 0.0);
+            // Below the catalogue price counts as a discount on the shortfall.
+            $shortfall = $floor > 0 && $l['price'] < $floor ? ($floor - $l['price']) * $l['qty'] : 0.0;
+            $reference += $catalogue + $shortfall;
+            $given += $l['disc'] + $shortfall;
+        }
+        if ($reference > 0 && $given > round($reference * $cap, 2) + 0.01) {
+            throw ValidationException::withMessages(['items' => 'الخصم أو السعر المُدخل يتجاوز الحد المسموح للكاشير ('.rtrim(rtrim(number_format($cap * 100, 2), '0'), '.').'%)؛ يلزم مسؤول لديه صلاحية التحكم بالخصومات.']);
+        }
     }
 
     /**
@@ -221,6 +253,7 @@ class PosController extends Controller
                     'rate' => $category === 'S' ? $profile->rateFor($requested) : 0.0, 'category' => $category, 'code' => $code];
             }
 
+            $this->guardDiscounts($lines, $totalDiscount, $company);
             $gross = round(array_sum(array_column($lines, 'net')), 2);
             if ($totalDiscount > $gross) {
                 throw ValidationException::withMessages(['discount' => 'الخصم لا يمكن أن يتجاوز قيمة الطلب.']);
@@ -392,7 +425,12 @@ class PosController extends Controller
         $closingCash = (float) $validated['closing_cash'];
         $difference = round($closingCash - $expectedCash, 2);
 
-        DB::transaction(function () use ($session, $validated, $closingCash, $expectedCash, $difference) {
+        DB::transaction(function () use (&$session, $validated, $closingCash, $expectedCash, $difference) {
+            // Locked and checked again: closing twice must not post the shortage / overage twice.
+            $session = PosSession::whereKey($session->id)->lockForUpdate()->firstOrFail();
+            if ($session->status !== 'opened') {
+                abort(403, 'الجلسة أُغلقت بالفعل.');
+            }
             $session->update([
                 'closing_cash' => $closingCash,
                 'expected_cash' => $expectedCash,

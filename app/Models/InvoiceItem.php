@@ -22,7 +22,7 @@ class InvoiceItem extends Model
         'tax_rate',
         'tax_amount',
         'subtotal',
-        'total', 'vat_category', 'vat_exemption_code',
+        'total', 'vat_category', 'vat_exemption_code', 'unit_id', 'unit_factor',
     ];
 
     protected $casts = [

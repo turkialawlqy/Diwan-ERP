@@ -64,6 +64,7 @@ return [
             'resources' => [
                 'terminal' => ['ar' => 'شاشة البيع', 'en' => 'POS Terminal', 'actions' => ['use']],
                 'sessions' => ['ar' => 'الورديات', 'en' => 'Sessions', 'actions' => ['create', 'edit', 'manage']],
+                'discounts' => ['ar' => 'خصومات الكاشير فوق الحد', 'en' => 'POS Discounts Above Limit', 'actions' => ['manage']],
                 'history' => ['ar' => 'سجل الطلبات', 'en' => 'Order History', 'actions' => ['view']],
                 'registers' => ['ar' => 'أجهزة الكاشير', 'en' => 'Cashier Devices', 'actions' => ['view', 'create', 'edit', 'delete']],
             ],
@@ -765,6 +766,7 @@ return [
         'hr.loans.decide' => 'hr.loans.approve',
         'hr.settlements.index' => 'hr.settlements.view',
         'hr.settlements.store' => 'hr.settlements.create',
+        'hr.settlements.cancel' => 'hr.settlements.create',
         'hr.settlements.approve' => 'hr.settlements.approve',
         'hr.settlements.pay' => 'hr.settlements.approve',
         'hr.settlements.provision' => 'hr.settlements.approve',

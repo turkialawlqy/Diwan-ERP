@@ -93,6 +93,20 @@ class BranchYearClosingTest extends TestCase
         $this->assertFalse($year->fresh()->isClosed());
     }
 
+    public function test_a_closed_branch_refuses_posting_while_other_branches_still_post(): void
+    {
+        $this->sale($this->b, 50, 'draft');
+        $year = FiscalYear::firstOrFail();
+        app(YearEndClosing::class)->close($year, 'passed');
+        $this->assertFalse($year->fresh()->isClosed());
+
+        // Riyadh is closed for the year; a late entry for it is refused.
+        $this->assertThrows(fn () => $this->sale($this->a, 10), AccountingException::class);
+        // Jeddah is still open.
+        $this->sale($this->b, 20);
+        $this->assertSame(1, JournalEntry::withoutGlobalScopes()->where('branch_id', $this->b->id)->where('description', 'بيع')->where('status', 'posted')->where('entry_type', '!=', 'closing')->where('total_debit', 20)->count());
+    }
+
     public function test_close_page_lists_branch_readiness(): void
     {
         $this->sale($this->b, 50, 'draft');

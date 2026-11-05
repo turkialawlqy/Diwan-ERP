@@ -227,6 +227,8 @@ class InvoiceService
                 'tax_amount' => $lineTax,
                 'vat_category' => $vatCategory,
                 'vat_exemption_code' => $exemptionCode,
+                'unit_id' => $line['unit_id'] ?? null,
+                'unit_factor' => $this->stock->factorOf($line['product_id'] ?? null, $line['unit_id'] ?? null),
                 'subtotal' => $lineSubtotal,
                 'total' => round($lineSubtotal + $lineTax, 2),
             ];
