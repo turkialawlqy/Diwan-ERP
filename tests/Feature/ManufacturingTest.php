@@ -303,6 +303,19 @@ class ManufacturingTest extends TestCase
 
     // ------------------------------------------------------------ MRP and capacity
 
+    public function test_mrp_does_not_count_draft_production_orders_as_supply(): void
+    {
+        $this->bom();
+        $customer = Customer::create(['name' => 'عميل', 'customer_type' => 'individual', 'status' => 'active']);
+        $so = DB::table('sales_orders')->insertGetId(['company_id' => $this->company->id, 'customer_id' => $customer->id, 'order_number' => 'SO-3', 'order_date' => '2026-06-01', 'delivery_date' => '2026-06-10', 'status' => 'confirmed', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('sales_order_items')->insert(['company_id' => $this->company->id, 'sales_order_id' => $so, 'product_id' => $this->fg->id, 'item_name' => 'منتج', 'quantity' => 40, 'delivered_quantity' => 0, 'created_at' => now(), 'updated_at' => now()]);
+        $draft = ProductionOrder::forceCreate(['company_id' => $this->company->id, 'order_number' => 'PO-D1', 'product_id' => $this->fg->id, 'warehouse_id' => $this->warehouse->id, 'quantity' => 40, 'received_quantity' => 0, 'status' => 'draft']);
+
+        $byProduct = app(MrpService::class)->run(30)->suggestions()->get()->keyBy('product_id');
+        $this->assertSame(40.0, (float) $byProduct[$this->fg->id]->quantity, 'a draft order is not supply yet');
+        $draft->delete();
+    }
+
     public function test_mrp_adds_the_bom_scrap_percentage_to_component_needs(): void
     {
         $bom = $this->bom();
@@ -380,6 +393,7 @@ class ManufacturingTest extends TestCase
         $this->assertSame(10.0, (float) InventoryStock::where('product_id', $this->fg->id)->sum('quantity'));
         $this->assertSame(0.0, (float) InventoryStock::where('warehouse_id', $vendor->id)->sum('quantity'));
         $this->assertSame(70.0, $this->balance('payables'));
+        $this->assertEquals(70, $supplier->fresh()->current_balance); // the contractor's fee is on his account
         $this->assertLedgerBalanced();
     }
 

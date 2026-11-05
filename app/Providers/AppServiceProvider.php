@@ -175,9 +175,13 @@ class AppServiceProvider extends ServiceProvider
      */
     protected function configureRateLimiting(): void
     {
-        // Login: max 5 attempts per minute per IP
+        // Login: 5 attempts a minute per IP + account (the login form adds its own lockout per account), and a wide
+        // ceiling per IP so one office behind a shared address is not locked out by its own staff signing in.
         RateLimiter::for('login', function (Request $request) {
-            return Limit::perMinute(5)->by($request->ip());
+            return [
+                Limit::perMinute(5)->by($request->ip().'|'.strtolower((string) $request->input('email'))),
+                Limit::perMinute(60)->by('ip:'.$request->ip()),
+            ];
         });
 
         // Registration: max 3 per minute per IP

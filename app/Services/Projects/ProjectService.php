@@ -538,6 +538,8 @@ class ProjectService
      */
     public function moveMaterials(Project $project, array $data, array $lines, bool $return = false): float
     {
+        $this->assertNotClosed($project);
+
         return DB::transaction(function () use ($project, $data, $lines, $return) {
             $warehouseId = $this->documentStock->warehouse($data['warehouse_id'] ?? $project->warehouse_id);
             $total = 0.0;
@@ -548,6 +550,14 @@ class ProjectService
                     continue;
                 }
                 $product = Product::findOrFail($line['product_id']);
+                if ($return) {
+                    // Only what the project actually drew can come back.
+                    $net = (float) ProjectCost::where('project_id', $project->id)->where('product_id', $product->id)->where('source', 'material_issue')->sum('quantity')
+                        - (float) ProjectCost::where('project_id', $project->id)->where('product_id', $product->id)->where('source', 'material_return')->sum('quantity');
+                    if ($quantity > $net + 0.0001) {
+                        throw ValidationException::withMessages(['lines' => "كمية مرتجع «{$product->name_ar}» أكبر مما صُرف للمشروع ({$net})."]);
+                    }
+                }
                 $cost = ProjectCost::create([
                     'project_id' => $project->id,
                     'boq_item_id' => $line['boq_item_id'] ?? null,
@@ -597,8 +607,18 @@ class ProjectService
     /**
      * Labour, equipment or other direct cost charged to the project.
      */
+    /** A closed project takes no new documents. */
+    protected function assertNotClosed(Project $project): void
+    {
+        if ($project->status === 'closed') {
+            throw ValidationException::withMessages(['project' => 'المشروع مغلق؛ أعد فتحه أولاً لتسجيل تكاليف أو مواد عليه.']);
+        }
+    }
+
     public function recordCost(Project $project, array $data): ProjectCost
     {
+        $this->assertNotClosed($project);
+
         return DB::transaction(function () use ($project, $data) {
             $amount = round((float) $data['amount'], 2);
             $vat = round((float) ($data['vat_amount'] ?? 0), 2);

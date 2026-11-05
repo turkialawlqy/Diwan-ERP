@@ -10,6 +10,7 @@ use App\Models\ProjectBoqItem;
 use App\Models\ProjectCost;
 use App\Models\ProjectVariation;
 use App\Services\Accounting\AccountMap;
+use App\Services\Tax\TaxProfile;
 
 /**
  * Project control figures: contract, billing, cost (ledger by cost centre
@@ -36,7 +37,7 @@ class ProjectReport
         $billed = (float) ProgressBilling::where('project_id', $project->id)->where('status', 'approved')->sum('current_value');
 
         $invoiceIds = ProgressBilling::where('project_id', $project->id)->whereNotNull('invoice_id')->pluck('invoice_id');
-        $collected = Invoice::whereIn('id', $invoiceIds)->sumBase('paid_amount') + (float) $project->advance_received * 1.15;
+        $collected = Invoice::whereIn('id', $invoiceIds)->sumBase('paid_amount') + (float) $project->advance_received * (1 + TaxProfile::rate() / 100);
 
         $contract = (float) $project->contract_value;
         $progress = $contract > 0 ? round($billed / $contract * 100, 2) : 0;

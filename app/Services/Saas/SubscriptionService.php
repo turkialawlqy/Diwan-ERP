@@ -26,7 +26,21 @@ class SubscriptionService
             throw ValidationException::withMessages(['plan' => 'لديك فاتورة اشتراك غير مسددة. سددها أو تواصل مع الدعم لإلغائها.']);
         }
 
+        // A downgrade must fit what the company already uses.
+        if ($over = app(PlanGuard::class)->exceeding($company, $plan)) {
+            throw ValidationException::withMessages(['plan' => 'لا تتسع هذه الباقة لاستعمالك الحالي: '.implode('، ', $over).'. قلّل الاستعمال أولاً.']);
+        }
+
         $amount = (float) ($cycle === 'yearly' ? $plan->price_yearly : $plan->price_monthly);
+        // Switching plan in the middle of a paid period: the unused part of the current period is credited, not lost.
+        if ($company->subscription_ends_at && $company->subscription_ends_at->isFuture() && (int) $company->subscription_plan_id !== (int) $plan->id) {
+            $last = SubscriptionInvoice::where('company_id', $company->id)->where('status', 'paid')->orderByDesc('period_end')->first();
+            if ($last && $last->period_start && $last->period_end) {
+                $days = max(1, (int) $last->period_start->diffInDays($last->period_end) + 1);
+                $left = (int) min($days, max(0, now()->startOfDay()->diffInDays($company->subscription_ends_at->copy()->startOfDay(), false)));
+                $amount = max(0.0, round($amount - (float) $last->amount * $left / $days, 2));
+            }
+        }
         $start = $company->subscription_ends_at && $company->subscription_ends_at->isFuture() && (int) $company->subscription_plan_id === (int) $plan->id
             ? $company->subscription_ends_at->copy()->startOfDay()
             : now()->startOfDay();

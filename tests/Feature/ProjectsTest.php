@@ -196,4 +196,18 @@ class ProjectsTest extends TestCase
         $this->assertEquals(150.0, $box7['vat']);
         $this->assertEquals(1000.0, $box7['amount']);
     }
+
+    public function test_returns_are_limited_to_what_was_issued_and_a_closed_project_takes_nothing(): void
+    {
+        $project = $this->project();
+        $cement = Product::create(['name_ar' => 'أسمنت', 'sku' => 'C9', 'selling_price' => 20, 'track_inventory' => true, 'is_active' => true]);
+        app(StockService::class)->receive(['product_id' => $cement->id, 'warehouse_id' => $this->warehouse->id, 'quantity' => 100, 'unit_cost' => 15, 'type' => 'opening']);
+        $this->service()->moveMaterials($project, ['date' => '2026-06-16'], [['product_id' => $cement->id, 'quantity' => 10]]);
+
+        $this->assertThrows(fn () => $this->service()->moveMaterials($project, ['date' => '2026-06-20'], [['product_id' => $cement->id, 'quantity' => 11]], true), ValidationException::class);
+        $this->assertSame(90.0, app(StockService::class)->onHand($cement->id));      // nothing came back
+
+        $project->update(['status' => 'closed']);
+        $this->assertThrows(fn () => $this->service()->recordCost($project->fresh(), ['date' => '2026-06-21', 'category' => 'labour', 'description' => 'x', 'amount' => 100, 'paid_from' => 'accrued']), ValidationException::class);
+    }
 }

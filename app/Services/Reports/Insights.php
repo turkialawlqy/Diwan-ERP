@@ -13,6 +13,7 @@ use App\Models\PurchaseInvoice;
 use App\Models\RecurringInvoice;
 use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\ExchangeRates;
+use App\Services\ActiveBranch;
 use App\Services\Projects\ProjectReport;
 use App\Services\TenantManager;
 use Illuminate\Support\Carbon;
@@ -131,12 +132,14 @@ class Insights
 
         $revenueByProduct = DB::table('invoice_items as i')->join('invoices as v', 'v.id', '=', 'i.invoice_id')
             ->where('v.company_id', $this->companyId())->whereBetween('v.invoice_date', $range)->whereNotNull('i.product_id')
+            ->tap(fn ($q) => $this->inBranch($q, 'v.branch_id'))
             ->groupBy('i.product_id')
             ->selectRaw('i.product_id, SUM(i.quantity) as qty, SUM((i.quantity * i.unit_price - COALESCE(i.discount, 0)) * v.exchange_rate) as revenue')
             ->get()->keyBy('product_id');
 
         $costByProduct = DB::table('stock_movements as m')->join('invoices as v', fn ($j) => $j->on('v.id', '=', 'm.source_id')->where('m.source_type', '=', $invoiceType))
             ->where('m.company_id', $this->companyId())->whereBetween('v.invoice_date', $range)
+            ->tap(fn ($q) => $this->inBranch($q, 'v.branch_id'))
             ->groupBy('m.product_id')->selectRaw('m.product_id, -SUM(m.total_cost) as cost')->pluck('cost', 'product_id');
 
         $names = DB::table('products')->whereIn('id', $revenueByProduct->keys())->pluck('name_ar', 'id');
@@ -152,6 +155,7 @@ class Insights
                 DB::table('stock_movements')->where('source_type', $invoiceType)->groupBy('source_id')->selectRaw('source_id, -SUM(total_cost) as cost'),
                 'sc', 'sc.source_id', '=', 'v.id')
             ->where('v.company_id', $this->companyId())->whereBetween('v.invoice_date', $range)
+            ->tap(fn ($q) => $this->inBranch($q, 'v.branch_id'))
             ->groupBy('c.id', 'c.name')
             ->selectRaw('c.id, c.name, SUM(v.subtotal * v.exchange_rate) as revenue, SUM(COALESCE(sc.cost, 0)) as cost, COUNT(v.id) as invoices')
             ->orderByDesc('revenue')->limit(20)->get()
@@ -207,6 +211,14 @@ class Insights
             ],
             'worst' => $rows->sortBy('variance')->take(10)->values(),
         ];
+    }
+
+    /** Raw queries bypass the branch scope: keep them to the branches the user is viewing. */
+    protected function inBranch($query, string $column)
+    {
+        $ids = app(ActiveBranch::class)->scopeIds();
+
+        return $ids === null ? $query : $query->where(fn ($w) => $w->whereIn($column, $ids)->orWhereNull($column));
     }
 
     protected function companyId(): int

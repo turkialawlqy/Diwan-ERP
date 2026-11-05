@@ -76,10 +76,10 @@ class MrpService
                 ->get(['i.product_id', 'i.quantity', 'i.received_quantity']) as $i) {
                 $supply[$i->product_id] = ($supply[$i->product_id] ?? 0) + max(0, (float) $i->quantity - (float) $i->received_quantity);
             }
-            foreach (ProductionOrder::whereIn('status', ['draft', 'released', 'in_progress'])->get(['product_id', 'quantity', 'received_quantity']) as $o) {
+            foreach (ProductionOrder::whereIn('status', ['released', 'in_progress'])->get(['product_id', 'quantity', 'received_quantity']) as $o) {
                 $supply[$o->product_id] = ($supply[$o->product_id] ?? 0) + max(0, (float) $o->quantity - (float) $o->received_quantity);
             }
-            foreach (SubcontractOrder::whereIn('status', ['draft', 'sent', 'partially_received'])->get(['product_id', 'quantity', 'received_quantity']) as $o) {
+            foreach (SubcontractOrder::whereIn('status', ['sent', 'partially_received'])->get(['product_id', 'quantity', 'received_quantity']) as $o) {
                 $supply[$o->product_id] = ($supply[$o->product_id] ?? 0) + max(0, (float) $o->quantity - (float) $o->received_quantity);
             }
 
