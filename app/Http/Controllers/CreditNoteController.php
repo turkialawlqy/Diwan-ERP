@@ -233,4 +233,19 @@ class CreditNoteController extends Controller
             'company' => $company,
         ]);
     }
+
+    /** A draft credit note (nothing posted, nothing stamped) can be discarded; an issued one is corrected by a debit note. */
+    public function destroy(CreditNote $creditNote)
+    {
+        DB::transaction(function () use ($creditNote) {
+            $note = CreditNote::whereKey($creditNote->id)->lockForUpdate()->firstOrFail();
+            if ($note->status !== 'draft') {
+                throw ValidationException::withMessages(['status' => 'لا يُحذف إلا الإشعار الدائن المسودة؛ المعتمد يُصحَّح بإشعار مدين.']);
+            }
+            $note->items()->delete();
+            $note->delete();
+        });
+
+        return redirect()->route('sales.returns.index')->with('success', 'تم حذف مسودة الإشعار الدائن');
+    }
 }

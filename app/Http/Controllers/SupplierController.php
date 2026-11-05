@@ -165,6 +165,10 @@ class SupplierController extends Controller
             return back()->with('error', 'لا يمكن حذف المورد لوجود فواتير مشتريات مرتبطة به');
         }
 
+        if ($supplier->payments()->exists() || abs((float) $supplier->opening_balance) > 0.004 || abs((float) $supplier->current_balance) > 0.004) {
+            return back()->with('error', 'لا يمكن حذف المورد لوجود دفعات أو رصيد عليه؛ عطّله بدل حذفه');
+        }
+
         $supplier->delete();
 
         return back()->with('success', 'تم حذف المورد بنجاح');

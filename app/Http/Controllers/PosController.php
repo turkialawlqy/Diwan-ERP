@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Category;
+use App\Models\CreditNote;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\PosOrder;
@@ -421,7 +422,11 @@ class PosController extends Controller
             ->get(['payment_method', 'paid_amount', 'change_amount', 'cash_amount'])
             ->sum(fn ($o) => ($o->payment_method === 'cash' ? (float) $o->paid_amount : (float) $o->cash_amount) - (float) $o->change_amount);
 
-        $expectedCash = round((float) $session->opening_cash + $cashOrdersTotal, 2);
+        // Cash handed back to customers for returns of this shift's sales leaves the drawer too.
+        $cashRefunds = (float) CreditNote::whereIn('invoice_id', $session->orders()->whereNotNull('invoice_id')->pluck('invoice_id'))
+            ->where('status', 'refunded')->where('refund_method', 'cash')->where('created_at', '>=', $session->opened_at)->sum('total');
+
+        $expectedCash = round((float) $session->opening_cash + $cashOrdersTotal - $cashRefunds, 2);
         $closingCash = (float) $validated['closing_cash'];
         $difference = round($closingCash - $expectedCash, 2);
 

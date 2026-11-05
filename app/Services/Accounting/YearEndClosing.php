@@ -204,6 +204,11 @@ class YearEndClosing
             throw new AccountingException('لا يمكن إعادة فتح سنة تحتوي على فترات مقفلة نهائياً.');
         }
 
+        // A later closed year was closed on top of this one's result (retained earnings): reopen the later one first.
+        if (FiscalYear::where('company_id', $year->company_id)->where('start_date', '>', $year->end_date)->where('status', 'closed')->exists()) {
+            throw new AccountingException('لا يمكن إعادة فتح هذه السنة لأن سنة لاحقة مقفلة؛ أعد فتح السنة اللاحقة أولاً.');
+        }
+
         DB::transaction(function () use ($year) {
             FiscalPeriod::where('fiscal_year_id', $year->id)->update(['status' => 'open']);
 

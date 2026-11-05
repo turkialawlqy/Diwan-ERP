@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Account;
 use App\Models\BankAccount;
 use App\Models\Company;
+use App\Models\Invoice;
 use App\Models\JournalEntry;
 use App\Models\PosOrder;
 use App\Models\PosRegister;
@@ -106,5 +107,21 @@ class MoneySafetyTest extends TestCase
         $entries = JournalEntry::count();
         $this->post(route('pos.session.close', $this->session->id), ['closing_cash' => 50])->assertForbidden();
         $this->assertSame($entries, JournalEntry::count());           // the shortage was not posted again
+    }
+
+    public function test_cash_refunds_for_the_shifts_sales_leave_the_expected_drawer_cash(): void
+    {
+        $this->sell(100)->assertSessionHasNoErrors();                 // 115 kept in the drawer
+        $invoice = Invoice::with('items')->firstOrFail();
+
+        $this->post(route('sales.returns.store'), [
+            'customer_id' => $invoice->customer_id, 'invoice_id' => $invoice->id, 'credit_note_date' => today()->toDateString(), 'reason' => 'إرجاع', 'refund_method' => 'cash',
+            'items' => [['invoice_item_id' => $invoice->items->first()->id, 'quantity' => 1]],
+        ])->assertSessionHasNoErrors();
+
+        $this->post(route('pos.session.close', $this->session->id), ['closing_cash' => 0])->assertSessionHasNoErrors();
+        $session = $this->session->fresh();
+        $this->assertSame(0.0, (float) $session->expected_cash);
+        $this->assertSame(0.0, (float) $session->difference);
     }
 }

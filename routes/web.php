@@ -345,6 +345,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::get('/returns/create', [CreditNoteController::class, 'create'])->name('returns.create');
         Route::post('/returns', [CreditNoteController::class, 'store'])->name('returns.store');
         Route::get('/returns/{creditNote}', [CreditNoteController::class, 'show'])->name('returns.show');
+        Route::delete('/returns/{creditNote}', [CreditNoteController::class, 'destroy'])->name('returns.destroy');
         Route::get('/payments', [CustomerPaymentController::class, 'index'])->name('payments.index');
         Route::post('/payments', [CustomerPaymentController::class, 'store'])->name('payments.store');
         Route::get('/payments/open-invoices', [CustomerPaymentController::class, 'openInvoices'])->name('payments.open-invoices');

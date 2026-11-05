@@ -17,6 +17,7 @@ const form = useForm({
     payment_date: today(),
     payment_method: 'bank_transfer',
     reference_number: '',
+    cheque_due_date: '',
     notes: '',
     currency_code: '',
     exchange_rate: '',
@@ -107,6 +108,11 @@ const submitPayment = () => form.post(route('purchases.payments.store'));
                                         placeholder="TRANS-XXXXX" 
                                         class="w-full rounded-xl border border-slate-200 px-3 py-2 font-mono"
                                     />
+                                </div>
+                                <div v-if="form.payment_method === 'cheque'">
+                                    <label class="block font-bold text-slate-700 mb-1">تاريخ استحقاق الشيك (فارغ = حاضر)</label>
+                                    <DatePicker v-model="form.cheque_due_date" class="w-full rounded-xl border border-slate-200 px-3 py-2" />
+                                    <p v-if="form.errors.cheque_due_date" class="text-rose-600 mt-1">{{ form.errors.cheque_due_date }}</p>
                                 </div>
                             </div>
             

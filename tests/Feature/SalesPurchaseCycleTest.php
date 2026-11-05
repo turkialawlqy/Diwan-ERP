@@ -436,7 +436,10 @@ class SalesPurchaseCycleTest extends TestCase
 
         // Over-invoicing the remainder is refused; the rest goes in stage 2.
         $this->post(route('purchases.orders.convert', $order->id), ['lines' => [['item_id' => $item->id, 'quantity' => 7]]])->assertSessionHasErrors('lines');
-        $this->post(route('purchases.orders.convert', $order->id), ['lines' => [['item_id' => $item->id, 'quantity' => 6]]])->assertRedirect();
+        $this->post(route('purchases.orders.convert', $order->id), ['lines' => [['item_id' => $item->id, 'quantity' => 6]], 'supplier_invoice_number' => 'SUP-778', 'due_date' => now()->addDays(45)->toDateString()])->assertRedirect();
+        $second = PurchaseInvoice::latest('id')->firstOrFail();
+        $this->assertSame('SUP-778', $second->supplier_invoice_number);
+        $this->assertSame(now()->addDays(45)->toDateString(), $second->due_date->toDateString());
 
         $this->assertSame('converted_to_invoice', $order->fresh()->status);
         $this->assertSame(10.0, app(StockService::class)->onHand($p->id));

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CreditNote;
 use App\Models\Customer;
 use App\Rules\TaxNumber;
 use App\Services\Accounting\DocumentPoster;
@@ -324,6 +325,10 @@ class CustomerController extends Controller
     {
         if ($client->invoices()->count() > 0) {
             return back()->with('error', 'لا يمكن حذف العميل لوجود فواتير مرتبطة به');
+        }
+
+        if ($client->payments()->exists() || CreditNote::where('customer_id', $client->id)->exists() || abs((float) $client->opening_balance) > 0.004 || abs((float) $client->current_balance) > 0.004) {
+            return back()->with('error', 'لا يمكن حذف العميل لوجود دفعات أو إشعارات أو رصيد عليه؛ عطّله بدل حذفه');
         }
 
         $client->delete();

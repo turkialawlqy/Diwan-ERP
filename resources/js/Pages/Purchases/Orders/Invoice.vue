@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
+import DatePicker from '@/Components/UI/DatePicker.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import { amount } from '@/utils/format';
@@ -10,6 +11,8 @@ import { amount } from '@/utils/format';
 const props = defineProps({ order: Object, items: Array, bankAccounts: Array });
 const form = useForm({
     lines: props.items.map((i) => ({ item_id: i.id, name: i.item_name, open: i.open_quantity, unit_price: Number(i.unit_price), discount: Number(i.discount), ordered: Number(i.quantity), tax_rate: Number(i.tax_rate), quantity: i.open_quantity })),
+    supplier_invoice_number: '',
+    due_date: '',
     payments: [],
 });
 useUnsavedGuard(form);
@@ -24,6 +27,8 @@ const paid = computed(() => form.payments.reduce((s, p) => s + (Number(p.amount)
 const addPayment = () => form.payments.push({ method: 'cash', bank_account_id: '', amount: Math.max(0, Math.round((total.value - paid.value) * 100) / 100) || '' });
 const submit = () => form.transform((d) => ({
     lines: d.lines.map((l) => ({ item_id: l.item_id, quantity: Number(l.quantity) || 0 })),
+    supplier_invoice_number: d.supplier_invoice_number || null,
+    due_date: d.due_date || null,
     payments: d.payments.map((p) => ({ ...p, amount: Number(p.amount) || 0, bank_account_id: p.bank_account_id || null })),
 })).post(route('purchases.orders.convert', props.order.id));
 const input = 'rounded-lg border border-slate-200 px-2 py-1.5 text-xs';
@@ -50,6 +55,12 @@ const input = 'rounded-lg border border-slate-200 px-2 py-1.5 text-xs';
                 </table>
             </div>
             <p v-if="form.errors.lines" class="text-rose-600 font-bold">{{ form.errors.lines }}</p>
+
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 grid sm:grid-cols-2 gap-3">
+                <label class="block"><span class="block font-bold text-slate-600 mb-1">رقم فاتورة المورد</span><input v-model="form.supplier_invoice_number" type="text" data-supplier-invoice-number :class="input" class="w-full" /></label>
+                <label class="block"><span class="block font-bold text-slate-600 mb-1">تاريخ الاستحقاق (الافتراضي 30 يومًا)</span><DatePicker v-model="form.due_date" :class="input" class="w-full" /></label>
+                <p v-if="form.errors.due_date" class="text-rose-600 font-bold sm:col-span-2">{{ form.errors.due_date }}</p>
+            </div>
 
             <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-2">
                 <div class="flex items-center justify-between">

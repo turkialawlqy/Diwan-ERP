@@ -1034,6 +1034,7 @@ return [
         'sales.returns.store' => 'sales.returns.create',
         'sales.returns.create' => 'sales.returns.create',
         'sales.returns.show' => 'sales.returns.view',
+        'sales.returns.destroy' => 'sales.returns.cancel',
         'settings.index' => 'admin.settings.view',
         'settings.update' => 'admin.settings.edit',
         'settings.currencies' => 'admin.settings.view',
