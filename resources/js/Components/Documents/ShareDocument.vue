@@ -49,10 +49,11 @@ const send = async () => {
     const waTab = channel.value === 'whatsapp' ? window.open('', '_blank') : null;
     try {
         const { data } = await axios.post(route('documents.send', { type: props.type, id: props.id }), { channel: channel.value, ...form.value });
-        if (channel.value === 'whatsapp' && data.url) {
+        if (channel.value === 'whatsapp' && data.url) {   // no gateway: the wa.me link opens on this device
             if (waTab) waTab.location = data.url; else window.location.href = data.url;
             notice.value = 'تم فتح واتساب بالرسالة والرابط';
         } else {
+            waTab?.close();
             notice.value = data.message || 'تم الإرسال';
         }
         history.value = [data.dispatch, ...history.value];

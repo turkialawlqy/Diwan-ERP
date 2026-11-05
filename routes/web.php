@@ -58,6 +58,7 @@ use App\Http\Controllers\LineImportController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\LookupController;
 use App\Http\Controllers\Manufacturing as Mfg;
+use App\Http\Controllers\MessagingSettingsController;
 use App\Http\Controllers\ModuleSettingsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NumberingController;
@@ -890,6 +891,9 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
 
     Route::get('/settings', [CompanySettingController::class, 'index'])->name('settings.index');
     Route::get('/settings/currencies', [CurrencyController::class, 'index'])->name('settings.currencies');
+    Route::get('/settings/messaging', [MessagingSettingsController::class, 'edit'])->name('settings.messaging');
+    Route::put('/settings/messaging', [MessagingSettingsController::class, 'update'])->name('settings.messaging.update');
+    Route::post('/settings/messaging/test', [MessagingSettingsController::class, 'test'])->name('settings.messaging.test');
     Route::get('/settings/modules', [ModuleSettingsController::class, 'index'])->name('settings.modules');
     Route::put('/settings/modules', [ModuleSettingsController::class, 'update'])->name('settings.modules.update');
     Route::get('/settings/numbering', [NumberingController::class, 'index'])->name('settings.numbering');

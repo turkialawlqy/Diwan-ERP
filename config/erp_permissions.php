@@ -169,7 +169,7 @@ return [
                 'fixed_assets' => ['ar' => 'الأصول الثابتة', 'en' => 'Fixed Assets', 'actions' => ['view', 'create', 'edit', 'post', 'delete']],
                 'cheques' => ['ar' => 'الشيكات', 'en' => 'Cheques', 'actions' => ['view', 'create', 'edit']],
                 'reconciliation' => ['ar' => 'التسويات البنكية', 'en' => 'Bank Reconciliation', 'actions' => ['view', 'create', 'approve']],
-                'budgets' => ['ar' => 'الموازنات التقديرية', 'en' => 'Budgets', 'actions' => ['view', 'create', 'edit', 'approve']],
+                'budgets' => ['ar' => 'الموازنات التقديرية', 'en' => 'Budgets', 'actions' => ['view', 'create', 'edit', 'approve', 'override']],
             ],
         ],
 
@@ -1055,6 +1055,9 @@ return [
         'settings.update' => 'admin.settings.edit',
         'settings.currencies' => 'admin.settings.view',
         'settings.modules' => 'admin.settings.view',
+        'settings.messaging' => 'admin.settings.view',
+        'settings.messaging.update' => 'admin.settings.edit',
+        'settings.messaging.test' => 'admin.settings.edit',
         'settings.modules.update' => 'admin.settings.edit',
         'settings.numbering' => 'admin.numbering.view',
         'settings.numbering.update' => 'admin.numbering.edit',

@@ -6,6 +6,7 @@ use App\Mail\DocumentMail;
 use App\Models\Company;
 use App\Models\DocumentDispatch;
 use App\Services\Documents\DocumentSharing;
+use App\Services\Messaging\CompanyMessaging;
 use App\Services\TenantManager;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -52,7 +53,8 @@ class SendDocumentEmail implements ShouldQueue
                 link: $customer ? $sharing->portalLink($customer) : null,
             );
 
-            $pending = Mail::to($dispatch->recipient);
+            // The company's own SMTP server when it has set one, the platform's otherwise.
+            $pending = Mail::mailer(app(CompanyMessaging::class)->mailer($company) ?? config('mail.default'))->to($dispatch->recipient);
             if ($dispatch->cc) {
                 $pending->cc(array_map('trim', explode(',', $dispatch->cc)));
             }

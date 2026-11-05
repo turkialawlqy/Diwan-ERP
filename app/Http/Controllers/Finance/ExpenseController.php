@@ -8,6 +8,8 @@ use App\Models\BankAccount;
 use App\Models\CostCenter;
 use App\Models\Expense;
 use App\Models\Project;
+use App\Services\Accounting\AccountMap;
+use App\Services\Accounting\BudgetService;
 use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Tax\TaxProfile;
@@ -102,6 +104,8 @@ class ExpenseController extends Controller
         $total = $validated['amount'] + $tax;
         app(ApprovalGate::class)->check('expense', ApprovalGate::keyFor(['t' => $validated['title'], 'a' => round((float) $validated['amount'], 2), 'd' => $validated['expense_date'] ?? null, 'acc' => (int) ($validated['account_id'] ?? 0), 'r' => $replace?->id]), (float) $total, 'مصروف: '.$validated['title']);
 
+        $budgetWarning = app(BudgetService::class)->check((int) ($validated['account_id'] ?? app(AccountMap::class)->id('general_expense')), $validated['expense_date'] ?? now(), (float) $validated['amount'], 'مصروف');
+
         $expense = DB::transaction(function () use ($validated, $tax, $total, $replace) {
             // Editing: undo the old voucher (entry and box balance), keep its record and number.
             if ($replace) {
@@ -145,7 +149,8 @@ class ExpenseController extends Controller
         $expenseNumber = $expense->expense_number;
 
         return redirect()->route('finance.expenses.index')
-            ->with('success', $replace ? "تم تعديل سند المصروف رقم {$expenseNumber}" : "تم تسجيل سند المصروف بنجاح برقم {$expenseNumber}");
+            ->with('success', $replace ? "تم تعديل سند المصروف رقم {$expenseNumber}" : "تم تسجيل سند المصروف بنجاح برقم {$expenseNumber}")
+            ->with($budgetWarning ? ['warning' => $budgetWarning] : []);
     }
 
     public function destroy(Expense $expense)

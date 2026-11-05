@@ -112,6 +112,7 @@ const form = useForm({
     pos_auto_print: props.settings?.pos_auto_print === '1',
     pos_allow_credit: props.settings?.pos_allow_credit === '1',
     pos_max_discount_percent: props.settings?.pos_max_discount_percent ?? 20,
+    budget_enforcement: props.settings?.budget_enforcement ?? 'off',
 
     // ZATCA Settings
     zatca_phase: props.settings?.zatca_phase || 'phase1',
@@ -833,6 +834,16 @@ const removeLogo = async () => {
                                 <input v-model="form.pos_max_discount_percent" type="text" inputmode="decimal" data-num class="w-28 rounded-xl border-slate-200 text-xs font-mono" data-pos-max-discount />
                                 <p class="text-[11px] text-slate-500 mt-1">يشمل خصم السطر وخصم الطلب والبيع بأقل من سعر الصنف؛ ما فوقه يتطلب صلاحية «التحكم بالخصومات» (الورديات ← إدارة افتراضيًا).</p>
                             </div>
+                        </div>
+
+                        <div class="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200/60" data-budget-enforcement-box>
+                            <label class="block text-xs font-bold text-slate-800 mb-1">إلزام الموازنات التقديرية</label>
+                            <select v-model="form.budget_enforcement" class="rounded-xl border-slate-200 text-xs ps-3 pe-8" data-budget-enforcement>
+                                <option value="off">إيقاف (للعلم فقط)</option>
+                                <option value="warn">تنبيه عند تجاوز الموازنة</option>
+                                <option value="block">منع التجاوز (إلا لمن يملك «تجاوز الموازنة»)</option>
+                            </select>
+                            <p class="text-[11px] text-slate-500 mt-1">يقارن المصروف وفاتورة الشراء وأمر الشراء بالمخطط المعتمد من أول السنة المالية حتى شهر المستند؛ الحسابات بلا سطر موازنة لا تُقيَّد.</p>
                         </div>
 
                         <!-- Submit Footer -->

@@ -16,6 +16,8 @@ use App\Models\SupplierPayment;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Rules\AllowedBranch;
+use App\Services\Accounting\AccountMap;
+use App\Services\Accounting\BudgetService;
 use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
@@ -207,6 +209,8 @@ class PurchaseInvoiceController extends Controller
 
         app(PurchaseCycleService::class)->assertUniqueSupplierInvoice((int) $validated['supplier_id'], $validated['supplier_invoice_number'] ?? null, $replace?->id);
 
+        $budgetWarning = app(BudgetService::class)->check((int) app(AccountMap::class)->id('purchases_cogs'), $validated['invoice_date'], (float) collect($validated['items'])->sum(fn ($i) => (float) $i['quantity'] * (float) $i['unit_price'] - (float) ($i['discount'] ?? 0)), 'مشتريات');
+
         $invoice = DB::transaction(function () use ($validated, $companyId, $rate, $replace) {
             // Editing keeps the record and its number (PurchaseInvoiceChanges undid the old one).
             $validated['invoice_number'] = $replace?->invoice_number ?? $this->nextNumber('purchase_invoice', $validated['invoice_date']);
@@ -344,6 +348,7 @@ class PurchaseInvoiceController extends Controller
         });
 
         return redirect()->route('purchases.invoices.show', $invoice->id)
+            ->with($budgetWarning ? ['warning' => $budgetWarning] : [])
             ->with('success', $replace ? 'تم تعديل فاتورة الشراء وإعادة ترحيلها' : 'تم إنشاء فاتورة الشراء وتحديث كميات المخزون بنجاح');
     }
 

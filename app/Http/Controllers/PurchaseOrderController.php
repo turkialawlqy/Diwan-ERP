@@ -9,6 +9,8 @@ use App\Models\PurchaseOrder;
 use App\Models\SupplierPayment;
 use App\Models\Warehouse;
 use App\Rules\AllowedBranch;
+use App\Services\Accounting\AccountMap;
+use App\Services\Accounting\BudgetService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Purchases\PurchaseCycleService;
@@ -309,9 +311,10 @@ class PurchaseOrderController extends Controller
 
     public function approve(Request $request, PurchaseOrder $order)
     {
+        $budgetWarning = app(BudgetService::class)->check((int) app(AccountMap::class)->id('purchases_cogs'), $order->order_date ?? now(), (float) ($order->subtotal ?? $order->total), 'أمر شراء');
         app(ApprovalService::class)->approve($order, 'approved', $request->input('comment'));
 
-        return back()->with('success', 'تم اعتماد أمر الشراء');
+        return back()->with('success', 'تم اعتماد أمر الشراء')->with($budgetWarning ? ['warning' => $budgetWarning] : []);
     }
 
     public function reject(Request $request, PurchaseOrder $order)
