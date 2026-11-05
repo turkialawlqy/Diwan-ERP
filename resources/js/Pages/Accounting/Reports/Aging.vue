@@ -3,6 +3,7 @@ import DatePicker from '@/Components/UI/DatePicker.vue';
 import { Head, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
+import ExportButtons from '@/Components/UI/ExportButtons.vue';
 import { money } from '@/utils/format';
 import { reactive } from 'vue';
 
@@ -15,7 +16,9 @@ const columns = [['current', 'غير مستحق'], ['d30', '1-30 يوم'], ['d60
 <template>
     <AppLayout>
         <Head title="أعمار الديون" />
-        <PageHeader :title="filters.kind === 'payables' ? 'أعمار الذمم الدائنة (الموردون)' : 'أعمار الذمم المدينة (العملاء)'" :subtitle="`كما في ${filters.as_of}`" :crumbs="[{ label: 'المحاسبة' }, { label: 'أعمار الديون' }]" />
+        <PageHeader :title="filters.kind === 'payables' ? 'أعمار الذمم الدائنة (الموردون)' : 'أعمار الذمم المدينة (العملاء)'" :subtitle="`كما في ${filters.as_of}`" :crumbs="[{ label: 'المحاسبة' }, { label: 'أعمار الديون' }]">
+            <template #actions><ExportButtons report="aging" :params="{ kind: filters.kind, as_of: filters.as_of }" permission="accounting.aging.export" /></template>
+        </PageHeader>
 
         <form @submit.prevent="apply" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-wrap items-end gap-3 text-xs mb-4">
             <label><span class="block font-bold text-slate-600 mb-1">النوع</span>

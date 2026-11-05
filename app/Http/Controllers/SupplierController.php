@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Supplier;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Purchases\SupplierStatement;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -172,5 +174,22 @@ class SupplierController extends Controller
         $supplier->delete();
 
         return back()->with('success', 'تم حذف المورد بنجاح');
+    }
+
+    /** Account statement of a supplier: what he billed, what was paid or returned, and what is still owed. */
+    public function statement(Request $request, Supplier $supplier, SupplierStatement $statements)
+    {
+        $v = $request->validate(['start_date' => 'nullable|date', 'end_date' => 'nullable|date|after_or_equal:start_date']);
+        $from = ! empty($v['start_date']) ? Carbon::parse($v['start_date']) : null;
+        $to = ! empty($v['end_date']) ? Carbon::parse($v['end_date']) : null;
+        $statement = $statements->build($supplier, $from, $to);
+
+        return Inertia::render('Purchases/Suppliers/Statement', [
+            'supplier' => $supplier->setRelations([]),
+            'transactions' => $statement['transactions'],
+            'openingBalance' => $statement['opening'],
+            'closingBalance' => $statement['closing'],
+            'filters' => ['start_date' => $from?->toDateString(), 'end_date' => $to?->toDateString()],
+        ]);
     }
 }

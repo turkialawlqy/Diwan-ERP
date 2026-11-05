@@ -8,6 +8,7 @@ use App\Models\SupplierPayment;
 use App\Services\Accounting\ChequeService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
+use App\Services\Purchases\SupplierPaymentAllocator;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -86,7 +87,17 @@ class SupplierPaymentController extends Controller
             'reference_number' => 'nullable|string|max:50',
             'notes' => 'nullable|string',
             'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'auto_allocate' => 'nullable|boolean',
+            'allocations' => 'nullable|array|max:200',
+            'allocations.*.purchase_invoice_id' => 'required|tenant_exists:purchase_invoices,id',
+            'allocations.*.amount' => 'required|numeric|min:0',
         ] + ExchangeRates::rules());
+
+        $allocations = empty($validated['purchase_invoice_id']) ? ($validated['allocations'] ?? null) : null;
+        if ($allocations !== null && round(array_sum(array_column($allocations, 'amount')), 2) > (float) $validated['amount'] + 0.005) {
+            throw ValidationException::withMessages(['allocations' => 'مجموع المبالغ الموزعة أكبر من مبلغ السند.']);
+        }
+        $autoAllocate = empty($validated['purchase_invoice_id']) && $allocations === null && ! empty($validated['auto_allocate']);
 
         if (empty($validated['currency_code']) && ! empty($validated['purchase_invoice_id'])) {
             $validated['currency_code'] = PurchaseInvoice::whereKey($validated['purchase_invoice_id'])->value('currency_code');
@@ -101,7 +112,7 @@ class SupplierPaymentController extends Controller
             abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
         }
 
-        DB::transaction(function () use ($validated, $companyId) {
+        DB::transaction(function () use ($validated, $companyId, $allocations, $autoAllocate) {
             $paymentNumber = $this->nextNumber('supplier_payment', $validated['payment_date']);
 
             $payment = SupplierPayment::create([
@@ -154,6 +165,10 @@ class SupplierPaymentController extends Controller
                         'payment_status' => $newStatus,
                     ]);
                 }
+            }
+
+            if ($allocations !== null || $autoAllocate) {
+                app(SupplierPaymentAllocator::class)->allocate($payment, $allocations);
             }
 
             app(DocumentPoster::class)->supplierPayment($payment);

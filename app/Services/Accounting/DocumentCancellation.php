@@ -22,6 +22,7 @@ use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Services\Inventory\StockService;
 use App\Services\Purchases\PurchaseCycleService;
+use App\Services\Purchases\SupplierPaymentAllocator;
 use App\Services\Sales\SalesCycleService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -91,6 +92,9 @@ class DocumentCancellation
                 $remaining = round((float) $invoice->remaining_amount + $amount, 2);
                 $invoice->update(['paid_amount' => $paid, 'remaining_amount' => $remaining, 'payment_status' => $paid <= 0.004 ? 'unpaid' : 'partially_paid']);
             }
+
+            // A payment spread over several invoices gives each of them back.
+            $difference += app(SupplierPaymentAllocator::class)->release($payment);
 
             Supplier::whereKey($payment->supplier_id)->increment('current_balance', round(ExchangeRates::toBase((float) $payment->amount, $payment->exchange_rate) + $difference, 2));
             $this->finish($payment, $reason, 'إلغاء سند الصرف '.$payment->payment_number);

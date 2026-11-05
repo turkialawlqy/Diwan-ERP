@@ -281,6 +281,7 @@ return [
             'ar' => 'التقارير', 'en' => 'Reports',
             'resources' => [
                 'sales' => ['ar' => 'تقارير المبيعات', 'en' => 'Sales Reports', 'actions' => ['view', 'export']],
+                'purchases' => ['ar' => 'تقارير المشتريات', 'en' => 'Purchase Reports', 'actions' => ['view', 'export']],
                 'inventory' => ['ar' => 'تقارير المخزون', 'en' => 'Inventory Reports', 'actions' => ['view', 'export']],
                 'financial' => ['ar' => 'التقارير المالية', 'en' => 'Financial Reports', 'actions' => ['view', 'export']],
                 'insights' => ['ar' => 'لوحات القيادة والتحليلات', 'en' => 'Management Insights', 'actions' => ['view']],
@@ -615,6 +616,8 @@ return [
         'accounting.reports.vat-settlements.cancel' => 'accounting.vat_return.settle',
         'accounting.ledger.index' => 'accounting.ledger.view',
         'accounting.trial-balance.index' => 'accounting.trial_balance.view',
+        // Each report re-checks its own export permission in ReportExportController.
+        'reports.export' => ['accounting.statements.export', 'accounting.trial_balance.export', 'accounting.aging.export', 'accounting.vat_return.export', 'reports.sales.export', 'reports.purchases.export', 'purchases.suppliers.export'],
         'branches.index' => 'admin.branches.view',
         'branches.store' => 'admin.branches.create',
         'branches.update' => 'admin.branches.edit',
@@ -864,6 +867,7 @@ return [
         'purchases.payments.store' => 'purchases.payments.create',
         'purchases.payments.create' => 'purchases.payments.create',
         'purchases.suppliers.index' => 'purchases.suppliers.view',
+        'purchases.suppliers.statement' => 'purchases.suppliers.view',
         'purchases.suppliers.store' => 'purchases.suppliers.create',
         'purchases.suppliers.create' => 'purchases.suppliers.create',
         'purchases.suppliers.update' => 'purchases.suppliers.edit',
@@ -873,6 +877,7 @@ return [
         'reports.insights' => 'reports.insights.view',
         'reports.inventory' => 'reports.inventory.view',
         'reports.sales' => 'reports.sales.view',
+        'reports.purchases' => 'reports.purchases.view',
         'reports.vat' => 'reports.vat.view',
         'roles.index' => 'admin.roles.view',
         'roles.store' => 'admin.roles.create',

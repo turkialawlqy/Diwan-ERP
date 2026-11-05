@@ -228,6 +228,7 @@ export default [
         children: [
             { label: 'nav.insights', route: 'reports.insights', path: '/reports/insights' },
             { label: 'nav.sales_reports', route: 'reports.sales', path: '/reports/sales' },
+            { label: 'nav.purchase_reports', route: 'reports.purchases', path: '/reports/purchases' },
             { label: 'nav.inventory_reports', route: 'reports.inventory', path: '/reports/inventory' },
             { label: 'nav.financial_reports', route: 'reports.financial', path: '/reports/financial' },
             { label: 'nav.vat_reports', route: 'reports.vat', path: '/reports/vat' },

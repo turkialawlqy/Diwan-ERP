@@ -1,12 +1,16 @@
 <script setup>
 import { Head } from '@inertiajs/vue3';
+import { ref } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
+import ExportButtons from '@/Components/UI/ExportButtons.vue';
 import DateRangeFilter from '@/Components/UI/DateRangeFilter.vue';
+import ComparisonTable from '@/Components/UI/ComparisonTable.vue';
 import StatementSection from '@/Components/UI/StatementSection.vue';
 import { amount } from '@/utils/format';
 
-const props = defineProps({ report: Object, filters: Object, eosCurrent: { type: Number, default: 0 } });
+const props = defineProps({ report: Object, comparison: { type: Object, default: null }, filters: Object, eosCurrent: { type: Number, default: 0 } });
+const compare = ref(props.filters.compare ?? '');
 const ledgerQuery = { end_date: props.filters.as_of };
 const printPage = () => window.print();
 </script>
@@ -15,16 +19,28 @@ const printPage = () => window.print();
     <AppLayout>
         <Head title="قائمة المركز المالي" />
         <PageHeader title="قائمة المركز المالي (الميزانية العمومية)" :subtitle="`كما في ${filters.as_of}`" :crumbs="[{ label: 'المحاسبة' }, { label: 'القوائم المالية' }]">
-            <template #actions><button @click="printPage" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">{{ $t('ui.print') }}</button></template>
+            <template #actions>
+                <button @click="printPage" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">{{ $t('ui.print') }}</button>
+                <ExportButtons report="balance-sheet" :params="{ as_of: filters.as_of, compare: filters.compare }" permission="accounting.statements.export" />
+            </template>
         </PageHeader>
 
-        <DateRangeFilter route-name="accounting.reports.balance-sheet" :filters="filters" single />
+        <DateRangeFilter route-name="accounting.reports.balance-sheet" :filters="filters" :extra="{ compare: compare || undefined }" single>
+            <label><span class="block font-bold text-slate-600 mb-1">مقارنة بـ</span>
+                <select v-model="compare" data-compare class="rounded-xl border-slate-200 text-xs">
+                    <option value="">بدون مقارنة</option>
+                    <option value="previous">نهاية الشهر السابق</option>
+                    <option value="year">نفس التاريخ من السنة السابقة</option>
+                </select>
+            </label>
+        </DateRangeFilter>
 
         <div :class="[report.is_balanced ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200', 'border rounded-xl px-4 py-2 text-xs font-bold mb-4 max-w-5xl']">
             {{ report.is_balanced ? '✓ الميزانية متوازنة: الأصول = الخصوم + حقوق الملكية' : '✗ الميزانية غير متوازنة — راجع القيود' }}
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <ComparisonTable v-if="comparison" :comparison="comparison" :current-label="`كما في ${filters.as_of}`" />
+        <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div class="bg-white border border-slate-200 rounded-2xl p-5">
                 <StatementSection title="الأصول" :rows="report.assets.rows" :total="report.total_assets" :ledger-query="ledgerQuery" />
             </div>

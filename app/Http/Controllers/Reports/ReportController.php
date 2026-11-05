@@ -7,8 +7,10 @@ use App\Models\CustomerPayment;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\Product;
+use App\Models\PurchaseInvoice;
 use App\Models\Revenue;
 use App\Services\Accounting\AccountingReports;
+use App\Services\Reports\TradeAnalysis;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -58,8 +60,31 @@ class ReportController extends Controller
             ];
         }
 
+        $by = in_array($request->query('by'), TradeAnalysis::SALES, true) ? $request->query('by') : 'customer';
+
         return Inertia::render('Reports/Sales', [
             'stats' => $stats,
+            'by' => $by,
+            'breakdown' => app(TradeAnalysis::class)->sales($by, $from, $to),
+            'filters' => $filters,
+        ]);
+    }
+
+    public function purchases(Request $request): Response
+    {
+        [$from, $to, $filters] = $this->period($request);
+        $by = in_array($request->query('by'), TradeAnalysis::PURCHASES, true) ? $request->query('by') : 'supplier';
+        $range = [$filters['start_date'], $filters['end_date'].' 23:59:59'];
+
+        return Inertia::render('Reports/Purchases', [
+            'stats' => [
+                'invoices_count' => PurchaseInvoice::whereBetween('invoice_date', $range)->count(),
+                'total_purchases' => PurchaseInvoice::whereBetween('invoice_date', $range)->sumBase('subtotal'),
+                'total_tax' => PurchaseInvoice::whereBetween('invoice_date', $range)->sumBase('tax_amount'),
+                'unpaid' => PurchaseInvoice::whereBetween('invoice_date', $range)->sumBase('remaining_amount'),
+            ],
+            'by' => $by,
+            'breakdown' => app(TradeAnalysis::class)->purchases($by, $from, $to),
             'filters' => $filters,
         ]);
     }

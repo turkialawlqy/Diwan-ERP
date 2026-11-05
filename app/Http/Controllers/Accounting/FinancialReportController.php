@@ -9,6 +9,7 @@ use App\Models\TaxSettlement;
 use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\TaxSettlementService;
 use App\Services\HR\EmployeeFinanceService;
+use App\Services\Reports\ReportComparison;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -24,24 +25,30 @@ class FinancialReportController extends Controller
     public function incomeStatement(Request $request): Response
     {
         [$from, $to, $filters] = $this->range($request);
-        $costCenterId = $request->validate(['cost_center_id' => 'nullable|tenant_exists:cost_centers,id'])['cost_center_id'] ?? null;
+        $v = $request->validate(['cost_center_id' => 'nullable|tenant_exists:cost_centers,id', 'compare' => 'nullable|in:previous,year']);
+        $costCenterId = $v['cost_center_id'] ?? null;
+        $compare = $v['compare'] ?? null;
 
         return Inertia::render('Accounting/Reports/IncomeStatement', [
             'report' => $this->reports->incomeStatement($from, $to, $costCenterId),
+            'comparison' => $compare ? app(ReportComparison::class)->incomeStatement($from, $to, $compare, $costCenterId) : null,
             'costCenters' => CostCenter::orderBy('code')->get(['id', 'code', 'name_ar']),
-            'filters' => array_merge($filters, ['cost_center_id' => $costCenterId]),
+            'filters' => array_merge($filters, ['cost_center_id' => $costCenterId, 'compare' => $compare]),
         ]);
     }
 
     public function balanceSheet(Request $request): Response
     {
-        $asOf = Carbon::parse($request->validate(['as_of' => 'nullable|date'])['as_of'] ?? now()->toDateString());
+        $v = $request->validate(['as_of' => 'nullable|date', 'compare' => 'nullable|in:previous,year']);
+        $asOf = Carbon::parse($v['as_of'] ?? now()->toDateString());
+        $compare = $v['compare'] ?? null;
 
         return Inertia::render('Accounting/Reports/BalanceSheet', [
             'report' => $this->reports->balanceSheet($asOf),
+            'comparison' => $compare ? app(ReportComparison::class)->balanceSheet($asOf, $compare) : null,
             // Part of the end-of-service provision falling due within a year (current liability).
             'eosCurrent' => Employee::exists() ? app(EmployeeFinanceService::class)->eosCurrentPortion($asOf) : 0,
-            'filters' => ['as_of' => $asOf->toDateString()],
+            'filters' => ['as_of' => $asOf->toDateString(), 'compare' => $compare],
         ]);
     }
 

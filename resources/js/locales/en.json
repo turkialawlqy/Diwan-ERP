@@ -52,6 +52,7 @@
         "trial_balance": "Trial Balance",
         "reports": "Reports",
         "sales_reports": "Sales Reports",
+        "purchase_reports": "Purchase Reports",
         "inventory_reports": "Inventory Reports",
         "financial_reports": "Financial Reports",
         "vat_reports": "VAT Return",

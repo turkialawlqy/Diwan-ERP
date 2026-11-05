@@ -76,6 +76,7 @@ use App\Http\Controllers\RecycleBinController;
 use App\Http\Controllers\ReleaseNotesController;
 use App\Http\Controllers\Reports\InsightsController;
 use App\Http\Controllers\Reports\ReportController;
+use App\Http\Controllers\Reports\ReportExportController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Sales as S;
 use App\Http\Controllers\Sales\CommissionController;
@@ -486,6 +487,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/suppliers', [SupplierController::class, 'store'])->name('suppliers.store');
         Route::put('/suppliers/{supplier}', [SupplierController::class, 'update'])->name('suppliers.update');
         Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy'])->name('suppliers.destroy');
+        Route::get('/suppliers/{supplier}/statement', [SupplierController::class, 'statement'])->name('suppliers.statement');
 
         // Purchase Invoices
         Route::get('/invoices', [PurchaseInvoiceController::class, 'index'])->name('invoices.index');
@@ -731,7 +733,9 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     // 10. Reports Module
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/sales', [ReportController::class, 'sales'])->name('sales');
+        Route::get('/purchases', [ReportController::class, 'purchases'])->name('purchases');
         Route::get('/insights', [InsightsController::class, 'index'])->name('insights');
+        Route::get('/export/{report}/{format}', [ReportExportController::class, 'download'])->whereIn('format', ['xlsx', 'pdf'])->name('export');
         Route::get('/inventory', [ReportController::class, 'inventory'])->name('inventory');
         Route::get('/financial', [ReportController::class, 'financial'])->name('financial');
         Route::get('/vat', [ReportController::class, 'vat'])->name('vat');
