@@ -68,6 +68,17 @@ class SaasPlatformTest extends TestCase
         $this->assertSame(1, User::where('company_id', $this->company->id)->count());
     }
 
+    public function test_deactivated_users_do_not_count_against_the_plan_limit(): void
+    {
+        $this->company->update(['subscription_plan_id' => $this->plan(['max_users' => 2])->id]);
+        $extra = User::factory()->create(['company_id' => $this->company->id, 'status' => 'inactive', 'email' => 'old@example.com']);
+        $new = ['name' => 'X', 'email' => 'x@example.com', 'password' => 'Secret#12345', 'password_confirmation' => 'Secret#12345', 'role' => 'sales', 'status' => 'active'];
+
+        $this->post(route('users.store'), $new)->assertSessionHasNoErrors();      // owner + new = 2 active
+        $this->put(route('users.update', $extra), ['name' => $extra->name, 'email' => $extra->email, 'role' => 'sales', 'status' => 'active'])->assertSessionHasErrors('plan');
+        $this->assertSame('inactive', $extra->fresh()->status);
+    }
+
     public function test_expired_subscription_is_read_only_except_billing(): void
     {
         $plan = $this->plan();

@@ -10,6 +10,7 @@ use App\Models\DeliveryNote;
 use App\Models\GoodsReceipt;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
+use App\Models\JournalEntryLine;
 use App\Models\PaymentAllocation;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
@@ -243,6 +244,12 @@ class DocumentCancellation
 
     protected function finish(Model $document, string $reason, string $description, string $status = 'cancelled'): void
     {
+        // A movement already matched to a bank statement cannot be undone silently: reopen that reconciliation first.
+        $entryIds = JournalEntry::withoutGlobalScopes()->where('source_type', $document->getMorphClass())->where('source_id', $document->id)->pluck('id');
+        if ($entryIds->isNotEmpty() && JournalEntryLine::withoutGlobalScopes()->whereIn('journal_entry_id', $entryIds)->whereNotNull('reconciliation_id')->exists()) {
+            throw ValidationException::withMessages(['document' => 'قيد هذا المستند مطابَق في تسوية بنكية؛ ألغِ المطابقة أولاً ثم أعد المحاولة.']);
+        }
+
         $this->posting->reverseSource($document, $description.' - '.$reason);
         $document->update(['status' => $status, 'cancelled_at' => now(), 'cancelled_by' => auth()->id(), 'cancel_reason' => mb_substr($reason, 0, 255)]);
     }

@@ -20,7 +20,7 @@ class PlanGuard
     protected function limits(): array
     {
         return [
-            'users' => ['max_users', 'المستخدمين', fn (Company $c) => User::where('company_id', $c->id)->where('is_super_admin', false)->count()],
+            'users' => ['max_users', 'المستخدمين', fn (Company $c) => User::where('company_id', $c->id)->where('is_super_admin', false)->where('status', 'active')->count()],
             'branches' => ['max_branches', 'الفروع', fn (Company $c) => Branch::withoutGlobalScopes()->where('company_id', $c->id)->whereNull('deleted_at')->count()],
             'warehouses' => ['max_warehouses', 'المستودعات', fn (Company $c) => Warehouse::withoutGlobalScopes()->where('company_id', $c->id)->whereNull('deleted_at')->count()],
             'employees' => ['max_employees', 'الموظفين', fn (Company $c) => Employee::withoutGlobalScopes()->where('company_id', $c->id)->whereNull('deleted_at')->where('status', '!=', 'terminated')->count()],

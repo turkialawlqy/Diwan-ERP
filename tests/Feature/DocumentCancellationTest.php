@@ -9,6 +9,7 @@ use App\Models\Company;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\JournalEntry;
+use App\Models\JournalEntryLine;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
 use App\Models\StockMovement;
@@ -103,6 +104,17 @@ class DocumentCancellationTest extends TestCase
         // Twice is refused, and the statement no longer shows the receipt.
         $this->post(route('sales.payments.cancel', $payment), ['reason' => 'x'])->assertSessionHasErrors();
         $this->assertSame(1150.0, app(CustomerStatement::class)->build($this->customer->fresh())['closing']);
+    }
+
+    public function test_a_receipt_matched_in_a_bank_reconciliation_cannot_be_cancelled(): void
+    {
+        $this->post(route('sales.payments.store'), ['customer_id' => $this->customer->id, 'amount' => 400, 'payment_date' => '2026-06-05', 'payment_method' => 'cash'])->assertSessionHasNoErrors();
+        $payment = CustomerPayment::latest('id')->firstOrFail();
+        $entryIds = JournalEntry::withoutGlobalScopes()->where('source_type', $payment->getMorphClass())->where('source_id', $payment->id)->pluck('id');
+        JournalEntryLine::withoutGlobalScopes()->whereIn('journal_entry_id', $entryIds)->update(['reconciliation_id' => 99, 'reconciled_at' => now()]);
+
+        $this->post(route('sales.payments.cancel', $payment), ['reason' => 'خطأ'])->assertSessionHasErrors('document');
+        $this->assertNotSame('cancelled', $payment->fresh()->status);
     }
 
     public function test_cancelling_a_supplier_payment_restores_what_is_owed(): void

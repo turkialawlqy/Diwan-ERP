@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Mail\DocumentMail;
 use App\Models\Company;
 use App\Models\Customer;
+use App\Models\FiscalPeriod;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\PurchaseInvoice;
@@ -69,6 +70,17 @@ class RecurringAndInsightsTest extends TestCase
         $this->assertSame('2026-04-11', $invoices->first()->due_date->toDateString(), 'customer payment terms');
         $this->assertSame('2026-07-01', $contract->fresh()->next_run_date->toDateString());
         $this->assertSame(3, $contract->fresh()->generated_count);
+    }
+
+    public function test_a_period_closed_since_is_billed_dated_today_instead_of_stalling(): void
+    {
+        $contract = $this->contract();
+        FiscalPeriod::query()->where('start_date', '<=', '2026-04-30')->where('end_date', '>=', '2026-04-01')->update(['status' => 'closed']);
+
+        $this->assertSame(3, app(RecurringInvoiceRunner::class)->runDue());
+        $this->assertNull($contract->fresh()->last_error);
+        $this->assertSame('2026-07-01', $contract->fresh()->next_run_date->toDateString());
+        $this->assertContains('2026-06-15', Invoice::pluck('invoice_date')->map(fn ($d) => $d->toDateString())->all()); // April's invoice, dated today
     }
 
     public function test_max_count_ends_the_contract_and_auto_send_emails(): void

@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\Customer;
 use App\Models\RecurringInvoice;
 use App\Models\RecurringInvoiceRun;
+use App\Services\Accounting\FiscalCalendar;
 use App\Services\Documents\DocumentSharing;
 use App\Services\TenantManager;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -56,13 +57,15 @@ class RecurringInvoiceRunner
                 $invoice = DB::transaction(function () use ($template, $period) {
                     $run = RecurringInvoiceRun::create(['recurring_invoice_id' => $template->id, 'period_date' => $period->toDateString()]);
                     $customer = Customer::find($template->customer_id);
+                    // A period that has been closed since: bill it dated today instead of stalling every later period.
+                    $date = Carbon::parse(app(FiscalCalendar::class)->reversalDate($period, $template->company_id));
 
                     $invoice = $this->invoices->create([
                         'customer_id' => $template->customer_id,
                         'branch_id' => $template->branch_id,
-                        'invoice_date' => $period->toDateString(),
-                        'supply_date' => $period->toDateString(),
-                        'due_date' => $period->copy()->addDays($template->due_days ?? (int) ($customer?->payment_terms_days ?? 0))->toDateString(),
+                        'invoice_date' => $date->toDateString(),
+                        'supply_date' => $date->toDateString(),
+                        'due_date' => $date->copy()->addDays($template->due_days ?? (int) ($customer?->payment_terms_days ?? 0))->toDateString(),
                         'invoice_type' => $template->invoice_type,
                         'payment_method' => 'credit',
                         'payment_status' => 'unpaid',

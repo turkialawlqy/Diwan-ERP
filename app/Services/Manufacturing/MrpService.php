@@ -141,7 +141,7 @@ class MrpService
                 if ($bom) {
                     $runs = $net / max(0.0001, (float) $bom->output_quantity);
                     foreach ($bom->items as $item) {
-                        $add((int) $item->component_id, round((float) $item->quantity * $runs * (1 + (float) $item->scrap_percent / 100), 4), $needBy);
+                        $add((int) $item->component_id, round((float) $item->quantity * $runs * (1 + (float) $item->scrap_percent / 100) * (1 + (float) $bom->scrap_percent / 100), 4), $needBy);
                     }
                 }
             }
