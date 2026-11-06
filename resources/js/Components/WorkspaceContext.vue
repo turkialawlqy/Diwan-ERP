@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { computed, ref } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { Popover, PopoverButton, PopoverPanel } from '@headlessui/vue';
@@ -23,20 +24,21 @@ const branches = computed(() => page.props.branchSwitcher);
 const years = computed(() => page.props.fiscalSwitcher);
 
 const manyCountries = computed(() => new Set((branches.value?.items || []).map((b) => b.country)).size > 1);
+const { t } = useI18n();
 const branchLabel = (b) => (manyCountries.value ? `${b.name} — ${b.country_name}` : b.name);
 
 const activeBranch = computed(() => {
     const s = branches.value;
     if (!s) return null;
-    return s.active === 'all' ? { id: 'all', name: 'كل الفروع' } : s.items.find((b) => b.id === s.active) || null;
+    return s.active === 'all' ? { id: 'all', name: t('ctx.all_branches') } : s.items.find((b) => b.id === s.active) || null;
 });
 const activeYear = computed(() => years.value?.items.find((y) => y.id === years.value.active) || null);
 
 const summary = computed(() => [activeBranch.value?.name, activeYear.value?.name].filter(Boolean).join(' • '));
 const details = computed(() => [
     company.value?.name,
-    activeBranch.value && `الفرع: ${activeBranch.value.name}`,
-    activeYear.value && `السنة المالية: ${activeYear.value.name}`,
+    activeBranch.value && t('ctx.branch_is', { name: activeBranch.value.name }),
+    activeYear.value && t('ctx.year_is', { name: activeYear.value.name }),
 ].filter(Boolean));
 
 const canPickBranch = computed(() => (branches.value?.items.length || 0) > 1);
@@ -83,7 +85,7 @@ const apply = async () => {
         <PopoverButton
             @click="open || reset()"
             aria-haspopup="dialog"
-            :aria-label="`سياق العمل: ${details.join('، ')}`"
+            :aria-label="$t('ctx.aria', { details: details.join('، ') })"
             :class="[
                 open ? 'bg-slate-800 border-slate-600' : 'bg-slate-800/40 border-slate-700/60 hover:bg-slate-800 hover:border-slate-600',
                 props.slim ? 'lg:w-12 lg:h-12 lg:mx-auto lg:px-0 lg:justify-center' : '',
@@ -129,10 +131,10 @@ const apply = async () => {
                 data-context-panel
             >
                 <form @submit.prevent="apply" class="p-4 space-y-3 text-sm">
-                    <p id="context-panel-title" class="font-bold text-slate-800">سياق العمل</p>
+                    <p id="context-panel-title" class="font-bold text-slate-800">{{ $t('ctx.title') }}</p>
 
                     <div>
-                        <p class="block text-[11px] font-bold text-slate-500 mb-1">المنشأة</p>
+                        <p class="block text-[11px] font-bold text-slate-500 mb-1">{{ $t('ctx.company') }}</p>
                         <div class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" data-context-company>
                             <BuildingStorefrontIcon class="w-4 h-4 text-indigo-600 flex-shrink-0" />
                             <span class="truncate font-semibold" :title="company.name">{{ company.name }}</span>
@@ -140,17 +142,17 @@ const apply = async () => {
                     </div>
 
                     <div v-if="branches?.items.length">
-                        <label :for="canPickBranch ? 'context-branch' : undefined" class="block text-[11px] font-bold text-slate-500 mb-1">الفرع</label>
+                        <label :for="canPickBranch ? 'context-branch' : undefined" class="block text-[11px] font-bold text-slate-500 mb-1">{{ $t('ctx.branch') }}</label>
                         <select v-if="canPickBranch" id="context-branch" v-model="branchChoice" :disabled="applying"
                             class="w-full rounded-xl border-slate-200 text-sm py-2 ps-3 pe-10 focus:border-indigo-500 focus:ring-indigo-500 disabled:opacity-60" data-context-branch>
-                            <option v-if="branches.can_all" value="all">كل الفروع (عرض موحّد)</option>
+                            <option v-if="branches.can_all" value="all">{{ $t('ctx.all_branches_unified') }}</option>
                             <option v-for="b in branches.items" :key="b.id" :value="b.id">{{ branchLabel(b) }}</option>
                         </select>
                         <p v-else class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 truncate" data-context-branch-fixed>{{ activeBranch?.name }}</p>
                     </div>
 
                     <div v-if="years?.items.length">
-                        <label :for="canPickYear ? 'context-year' : undefined" class="block text-[11px] font-bold text-slate-500 mb-1">السنة المالية</label>
+                        <label :for="canPickYear ? 'context-year' : undefined" class="block text-[11px] font-bold text-slate-500 mb-1">{{ $t('ctx.year') }}</label>
                         <select v-if="canPickYear" id="context-year" v-model="yearChoice" :disabled="applying"
                             class="w-full rounded-xl border-slate-200 text-sm py-2 ps-3 pe-10 focus:border-indigo-500 focus:ring-indigo-500 disabled:opacity-60" data-context-year>
                             <option v-for="y in years.items" :key="y.id" :value="y.id">{{ y.name }}</option>
@@ -164,9 +166,9 @@ const apply = async () => {
                         class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" data-context-apply>
                         <ArrowPathIcon v-if="applying" class="w-4 h-4 animate-spin" />
                         <CheckIcon v-else class="w-4 h-4" />
-                        {{ applying ? 'جارٍ التطبيق...' : 'تطبيق التغيير' }}
+                        {{ applying ? $t('ctx.applying') : $t('ctx.apply') }}
                     </button>
-                    <p v-else class="text-[11px] text-slate-400" data-context-fixed>لا توجد فروع أو سنوات مالية أخرى متاحة لك.</p>
+                    <p v-else class="text-[11px] text-slate-400" data-context-fixed>{{ $t('ctx.none_available') }}</p>
                 </form>
             </PopoverPanel>
         </transition>

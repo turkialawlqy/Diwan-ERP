@@ -1,4 +1,7 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
+
+const { t, te } = useI18n();
 const props = defineProps({
     status: {
         type: String,
@@ -39,25 +42,9 @@ const getBadgeStyle = (status) => {
 const getStatusLabel = (status) => {
     if (props.label) return props.label;
 
-    switch (status) {
-        case 'paid': return 'مدفوعة';
-        case 'partially_paid': return 'مدفوعة جزئياً';
-        case 'unpaid': return 'غير مدفوعة';
-        case 'overdue': return 'متأخرة';
-        case 'draft': return 'مسودة';
-        case 'active': return 'نشط';
-        case 'trial': return 'فترة تجريبية';
-        case 'suspended': return 'موقوف';
-        case 'on_leave': return 'في إجازة';
-        case 'terminated': return 'منتهية خدمته';
-        case 'inactive': return 'غير نشط';
-        case 'approved': return 'معتمد';
-        case 'pending': return 'قيد الانتظار';
-        case 'rejected': return 'مرفوض';
-        case 'completed': return 'مكتمل';
-        case 'cancelled': return 'ملغاة';
-        default: return status;
-    }
+    if (te('status_f.' + status)) return t('status_f.' + status);
+
+    return te('status.' + status) ? t('status.' + status) : status;
 };
 </script>
 

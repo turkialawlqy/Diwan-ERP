@@ -9,7 +9,7 @@ const props = defineProps({
     by: { type: String, required: true },
     filters: { type: Object, required: true },
     breakdown: { type: Object, required: true },
-    nameLabel: { type: String, default: 'الاسم' },
+    nameLabel: { type: String, default: null },
 });
 const go = (key) => router.get(route(props.routeName), { ...props.filters, by: key }, { preserveState: true });
 </script>
@@ -24,10 +24,10 @@ const go = (key) => router.get(route(props.routeName), { ...props.filters, by: k
             <table class="w-full text-xs">
                 <thead class="bg-slate-50 text-slate-500">
                     <tr>
-                        <th class="text-start px-4 py-2">{{ nameLabel }}</th>
-                        <th class="px-3 py-2 text-end">المستندات</th>
-                        <th v-if="breakdown.total.quantity !== null" class="px-3 py-2 text-end">الكمية</th>
-                        <th class="px-3 py-2 text-end">المبلغ (قبل الضريبة)</th>
+                        <th class="text-start px-4 py-2">{{ nameLabel || $t('shared.name') }}</th>
+                        <th class="px-3 py-2 text-end">{{ $t('shared.documents') }}</th>
+                        <th v-if="breakdown.total.quantity !== null" class="px-3 py-2 text-end">{{ $t('shared.quantity') }}</th>
+                        <th class="px-3 py-2 text-end">{{ $t('shared.amount_before_tax') }}</th>
                         <th class="px-3 py-2 text-end">%</th>
                     </tr>
                 </thead>
@@ -39,11 +39,11 @@ const go = (key) => router.get(route(props.routeName), { ...props.filters, by: k
                         <td class="px-3 py-1.5 text-end font-mono">{{ amount(r.amount) }}</td>
                         <td class="px-3 py-1.5 text-end font-mono text-slate-500">{{ r.share === null ? '' : r.share + '%' }}</td>
                     </tr>
-                    <tr v-if="!breakdown.rows.length"><td colspan="5" class="px-4 py-6 text-center text-slate-400">لا بيانات في هذه الفترة</td></tr>
+                    <tr v-if="!breakdown.rows.length"><td colspan="5" class="px-4 py-6 text-center text-slate-400">{{ $t('shared.no_data_period') }}</td></tr>
                 </tbody>
                 <tfoot class="font-black bg-slate-50">
                     <tr class="border-t-2 border-slate-200">
-                        <td class="px-4 py-2">الإجمالي</td>
+                        <td class="px-4 py-2">{{ $t('shared.total') }}</td>
                         <td class="px-3 py-2 text-end font-mono">{{ breakdown.total.documents }}</td>
                         <td v-if="breakdown.total.quantity !== null" class="px-3 py-2 text-end font-mono">{{ breakdown.total.quantity }}</td>
                         <td class="px-3 py-2 text-end font-mono">{{ amount(breakdown.total.amount) }}</td>
