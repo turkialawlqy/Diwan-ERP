@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { ref, watch } from 'vue';
@@ -132,6 +133,7 @@ const formatDateArabic = (dateStr) => {
                         <PlusIcon class="w-4 h-4 stroke-2" />
                         <span>إضافة</span>
                     </Link>
+<ImportButton v-if="$can('sales.invoices.create')" type="sales_invoices" title="استيراد فواتير تاريخية من Excel" hint="تُرحَّل بتواريخها دون أي حركة مخزون." />
 </template>
 </PageHeader>
 

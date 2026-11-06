@@ -9,13 +9,18 @@ use App\Models\Category;
 use App\Models\Company;
 use App\Models\CostCenter;
 use App\Models\Customer;
+use App\Models\CustomerPayment;
 use App\Models\Employee;
+use App\Models\Expense;
 use App\Models\FixedAsset;
+use App\Models\Invoice;
+use App\Models\JournalEntry;
 use App\Models\Lead;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\Quotation;
+use App\Models\StockMovement;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Services\Accounting\AccountingSetupService;
@@ -296,5 +301,34 @@ B,C-9,2026-06-01,خدمة,1,100
 
         $this->actingAs($this->userWithRole($this->company, 'sales'));
         $this->import('bank_accounts', "name,type\nX,bank\n")->assertForbidden();
+    }
+
+    public function test_historical_invoices_receipts_and_expenses_post_at_their_date_without_stock(): void
+    {
+        $customer = Customer::create(['name' => 'عميل قديم', 'customer_type' => 'commercial', 'status' => 'active', 'code' => 'C-77']);
+        $product = Product::create(['name_ar' => 'كيبل', 'sku' => 'CB-9', 'type' => 'product', 'track_inventory' => true, 'sale_price' => 50, 'cost_price' => 30]);
+
+        $this->import('sales_invoices', "invoice_ref,customer_code,invoice_date,item_name,quantity,unit_price,tax_rate\nOLD-1,C-77,2026-03-10,خدمة قديمة,2,500,15\nOLD-1,C-77,2026-03-10,صيانة,1,100,15\n")->assertSessionHasNoErrors();
+        $invoice = Invoice::where('customer_id', $customer->id)->first();
+        $this->assertSame('2026-03-10', $invoice->invoice_date->toDateString());
+        $this->assertSame(1265.0, (float) $invoice->total);
+        $this->assertSame(0, StockMovement::count());                                   // history never moves stock
+        $this->assertSame(1265.0, round((float) $customer->fresh()->current_balance, 2));
+        $this->import('sales_invoices', "invoice_ref,customer_code,invoice_date,item_name,quantity,unit_price\nOLD-2,NOPE,2026-03-10,x,1,5\n")->assertSessionHasErrors('file');
+
+        $this->import('customer_payments', "customer_code,payment_date,amount,payment_method,invoice_number\nC-77,2026-03-20,500,cash,{$invoice->invoice_number}\n")->assertSessionHasNoErrors();
+        $this->assertSame(765.0, round((float) $invoice->fresh()->remaining_amount, 2));
+        $this->assertSame(765.0, round((float) $customer->fresh()->current_balance, 2));
+        $this->import('customer_payments', "customer_code,payment_date,amount,payment_method,invoice_number\nC-77,2026-03-21,9999,cash,{$invoice->invoice_number}\n")->assertSessionHasErrors('file');
+        $this->assertSame(1, CustomerPayment::count());                                // the failed file saved nothing
+
+        $this->import('expenses', "title,category,expense_date,amount,payment_method\nإيجار مارس,إيجار,2026-03-01,3000,cash\n")->assertSessionHasNoErrors();
+        $expense = Expense::first();
+        $this->assertSame(3000.0, (float) $expense->total_amount);
+        $this->assertSame('2026-03-01', JournalEntry::where('source_type', $expense->getMorphClass())->where('source_id', $expense->id)->first()->date->toDateString());
+        $this->import('expenses', "title,category,expense_date,amount,tax_amount,payment_method\nمشتريات,عام,2026-03-02,100,15,cash\n")->assertSessionHasErrors('file');   // VAT needs the vendor tax number
+
+        $this->actingAs($this->userWithRole($this->company, 'hr_manager'));
+        $this->import('expenses', "title,category,expense_date,amount,payment_method\nx,y,2026-03-01,5,cash\n")->assertForbidden();
     }
 }
