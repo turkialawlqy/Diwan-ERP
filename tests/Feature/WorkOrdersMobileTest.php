@@ -119,6 +119,7 @@ class WorkOrdersMobileTest extends TestCase
         $this->assertTrue($task->fresh()->is_done);
 
         $this->getJson(route('work-orders.mine.products', ['q' => 'وصلة']))->assertOk()->assertJsonPath('data.0.id', $this->part->id);
+        $this->getJson(route('work-orders.mine.products'))->assertOk()->assertJsonPath('data', []);   // no term, no results
         $this->post(route('work-orders.mine.part', $id), ['product_id' => $this->part->id, 'quantity' => 2])->assertSessionHasNoErrors();
         $this->assertSame(1, $this->mine->parts()->count());
 
