@@ -62,6 +62,7 @@ use App\Http\Controllers\MessagingSettingsController;
 use App\Http\Controllers\ModuleSettingsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NumberingController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\Portal;
 use App\Http\Controllers\Portal\PortalUserController;
 use App\Http\Controllers\PosController;
@@ -123,6 +124,9 @@ Route::get('/legal/{slug}', function (string $slug) {
 
 // Uptime monitoring (database, queue, scheduler heartbeat, backup age).
 Route::get('/health', HealthController::class)->middleware('throttle:60,1')->name('health');
+
+// Payment provider callback: authenticated by its secret token and a read-back of the payment.
+Route::post('/webhooks/moyasar', [PaymentController::class, 'webhook'])->middleware('throttle:payment-webhook')->name('webhooks.moyasar');
 
 Route::get('/', function () {
     if (auth()->check()) {
@@ -911,6 +915,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     // Subscription, integrations, notifications, data transfer
     Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
     Route::get('/billing/invoices/{invoice}', [BillingController::class, 'invoice'])->name('billing.invoices.show');
+    Route::post('/billing/invoices/{invoice}/pay', [PaymentController::class, 'checkout'])->name('billing.invoices.pay');
     Route::post('/billing/plan', [BillingController::class, 'requestPlan'])->name('billing.plan');
     Route::put('/billing/domain', [BillingController::class, 'updateDomain'])->name('billing.domain');
     Route::post('/billing/domain/verify', [BillingController::class, 'verifyDomain'])->name('billing.domain.verify');

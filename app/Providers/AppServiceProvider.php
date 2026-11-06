@@ -241,6 +241,8 @@ class AppServiceProvider extends ServiceProvider
         Employee::creating($limit('employees'));
         Invoice::creating($limit('invoices'));
 
+        RateLimiter::for('payment-webhook', fn (Request $request) => Limit::perMinute(60)->by($request->ip()));
+
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(120)->by($request->user()?->id ?? $request->ip());
         });
