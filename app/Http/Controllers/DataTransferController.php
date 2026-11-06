@@ -19,8 +19,10 @@ use App\Models\JournalEntry;
 use App\Models\Lead;
 use App\Models\PriceList;
 use App\Models\Product;
+use App\Models\PurchaseInvoice;
 use App\Models\Quotation;
 use App\Models\Supplier;
+use App\Models\SupplierPayment;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Rules\TaxNumber;
@@ -35,6 +37,7 @@ use App\Services\HR\BankSalaryFormats;
 use App\Services\Imports\LineImporter;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
+use App\Services\Purchases\SupplierPaymentAllocator;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\QuotationService;
 use App\Services\Sales\SalesCycleService;
@@ -195,6 +198,19 @@ class DataTransferController extends Controller
                 'rules' => ['title' => 'required|string|max:255', 'category' => 'required|string|max:100', 'expense_date' => 'required|date', 'amount' => 'required|numeric|min:0.01', 'tax_amount' => 'nullable|numeric|min:0',
                     'payment_method' => 'required|in:cash,card,bank_transfer', 'account_code' => 'nullable|string|max:50', 'bank_name' => 'nullable|string|max:255', 'cost_center_code' => 'nullable|string|max:50',
                     'vendor_name' => 'nullable|string|max:255', 'vendor_tax_number' => 'nullable|string|max:30', 'reference_number' => 'nullable|string|max:100', 'notes' => 'nullable|string'],
+            ],
+            'purchase_invoices' => [
+                'label' => 'فواتير شراء تاريخية (بلا إدخال مخزون)', 'permission' => ['view' => 'purchases.invoices.create', 'create' => 'purchases.invoices.create'], 'import_only' => true, 'handler' => 'importPurchaseInvoices',
+                'columns' => ['invoice_ref', 'supplier_code', 'supplier_name', 'invoice_date', 'due_date', 'paid_amount', 'bank_name', 'notes', 'item_name', 'quantity', 'unit_price', 'discount', 'tax_rate'],
+                'rules' => ['invoice_ref' => 'required|string|max:50', 'supplier_code' => 'nullable|string|max:50', 'supplier_name' => 'nullable|string|max:255', 'invoice_date' => 'required|date',
+                    'due_date' => 'nullable|date|after_or_equal:invoice_date', 'paid_amount' => 'nullable|numeric|min:0', 'bank_name' => 'nullable|string|max:255', 'notes' => 'nullable|string|max:2000',
+                    'item_name' => 'required|string|max:255', 'quantity' => 'required|numeric|gt:0', 'unit_price' => 'required|numeric|min:0', 'discount' => 'nullable|numeric|min:0', 'tax_rate' => 'nullable|numeric|min:0|max:100'],
+            ],
+            'supplier_payments' => [
+                'label' => 'سندات صرف للموردين تاريخية', 'permission' => ['view' => 'purchases.payments.create', 'create' => 'purchases.payments.create'], 'import_only' => true, 'handler' => 'importSupplierPayments',
+                'columns' => ['supplier_code', 'supplier_name', 'payment_date', 'amount', 'payment_method', 'bank_name', 'invoice_number', 'reference_number', 'notes'],
+                'rules' => ['supplier_code' => 'nullable|string|max:50', 'supplier_name' => 'nullable|string|max:255', 'payment_date' => 'required|date', 'amount' => 'required|numeric|min:0.01',
+                    'payment_method' => 'required|in:cash,card,bank_transfer', 'bank_name' => 'nullable|string|max:255', 'invoice_number' => 'nullable|string|max:50', 'reference_number' => 'nullable|string|max:50', 'notes' => 'nullable|string'],
             ],
             'opening_balances' => [
                 'label' => 'ميزان المراجعة الافتتاحي', 'permission' => ['view' => 'accounting.journals.create', 'create' => 'accounting.journals.create'], 'import_only' => true,
@@ -802,6 +818,157 @@ class DataTransferController extends Controller
         });
 
         return 'تم استيراد '.count($plans).' سند مصروف بتواريخها';
+    }
+
+    protected function findSupplier($suppliers, array $row): ?Supplier
+    {
+        return ! empty($row['supplier_code'])
+            ? $suppliers->first(fn ($s) => (string) $s->code === (string) $row['supplier_code'])
+            : $suppliers->first(fn ($s) => $s->name === ($row['supplier_name'] ?? null));
+    }
+
+    /** Past supplier bills (free-text lines, so no stock is received), posted at the bill date. */
+    protected function importPurchaseInvoices(array $records): string
+    {
+        $suppliers = Supplier::query()->get(['id', 'code', 'name']);
+        $banks = BankAccount::query()->pluck('id', 'name');
+        $warehouse = Warehouse::query()->orderByDesc('is_main')->orderBy('id')->first();
+        if (! $warehouse) {
+            throw ValidationException::withMessages(['file' => 'أنشئ مستودعًا واحدًا على الأقل قبل استيراد فواتير الشراء.']);
+        }
+        $errors = [];
+        $documents = [];
+        foreach (collect($records)->groupBy(fn ($r) => (string) $r['invoice_ref'], true) as $ref => $rows) {
+            $first = $rows->first();
+            $supplier = $this->findSupplier($suppliers, $first);
+            if (! $supplier) {
+                $errors[] = "الفاتورة {$ref}: المورد ".($first['supplier_code'] ?? $first['supplier_name'] ?? '(فارغ)').' غير موجود.';
+
+                continue;
+            }
+            if (! empty($first['bank_name']) && ! $banks->has($first['bank_name'])) {
+                $errors[] = "الفاتورة {$ref}: الحساب البنكي {$first['bank_name']} غير موجود.";
+
+                continue;
+            }
+            if (PurchaseInvoice::where('supplier_id', $supplier->id)->where('supplier_invoice_number', $ref)->exists()) {
+                $errors[] = "الفاتورة {$ref}: مسجّلة مسبقًا لهذا المورد.";
+
+                continue;
+            }
+            $documents[] = [$supplier, $first, $rows];
+        }
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        $numbers = DB::transaction(function () use ($documents, $banks, $warehouse) {
+            $numbers = [];
+            foreach ($documents as [$supplier, $first, $rows]) {
+                $subtotal = $tax = 0;
+                $items = [];
+                foreach ($rows as $r) {
+                    $net = (float) $r['quantity'] * (float) $r['unit_price'] - (float) ($r['discount'] ?? 0);
+                    $rate = (float) ($r['tax_rate'] ?? TaxProfile::rate());
+                    $lineTax = $net * $rate / 100;
+                    $subtotal += $net;
+                    $tax += $lineTax;
+                    $items[] = ['item_name' => $r['item_name'], 'quantity' => $r['quantity'], 'unit_price' => $r['unit_price'], 'discount' => $r['discount'] ?? 0,
+                        'tax_rate' => $rate, 'tax_amount' => $lineTax, 'total' => $net + $lineTax, 'unit_factor' => 1];
+                }
+                $total = round($subtotal + $tax, 2);
+                $paid = round(min($total, (float) ($first['paid_amount'] ?? 0)), 2);
+                $bankId = ! empty($first['bank_name']) ? $banks->get($first['bank_name']) : null;
+                $method = $paid > 0 ? ($bankId ? 'bank_transfer' : 'cash') : 'credit';
+                [$currency, $rate] = app(ExchangeRates::class)->resolve(null, null, $first['invoice_date']);
+                $invoice = PurchaseInvoice::create([
+                    'supplier_id' => $supplier->id, 'warehouse_id' => $warehouse->id, 'invoice_date' => $first['invoice_date'], 'due_date' => $first['due_date'] ?? null,
+                    'invoice_number' => app(DocumentNumberService::class)->next('purchase_invoice', Carbon::parse($first['invoice_date'])),
+                    'supplier_invoice_number' => (string) $first['invoice_ref'], 'payment_method' => $method,
+                    'payment_status' => $paid >= $total - 0.005 ? 'paid' : ($paid > 0 ? 'partially_paid' : 'unpaid'),
+                    'subtotal' => $subtotal, 'discount' => 0, 'tax_rate' => TaxProfile::rate(), 'tax_amount' => $tax, 'total' => $total,
+                    'paid_amount' => $paid, 'remaining_amount' => max(0, round($total - $paid, 2)), 'bank_account_id' => $bankId,
+                    'notes' => trim(($first['notes'] ?? '').' (مستورد)'), 'currency_code' => $currency, 'exchange_rate' => $rate,
+                ]);
+                foreach ($items as $item) {
+                    $invoice->items()->create($item);
+                }
+                $supplier->increment('current_balance', ExchangeRates::toBase((float) $invoice->remaining_amount, $rate));
+                if ($paid > 0) {
+                    SupplierPayment::create([
+                        'supplier_id' => $supplier->id, 'purchase_invoice_id' => $invoice->id, 'amount' => $paid, 'payment_date' => $first['invoice_date'], 'payment_method' => $method,
+                        'payment_number' => app(DocumentNumberService::class)->next('supplier_payment', Carbon::parse($first['invoice_date'])),
+                        'reference_number' => (string) $first['invoice_ref'], 'bank_account_id' => $bankId, 'notes' => 'سداد مرتبط بفاتورة الشراء '.$invoice->invoice_number,
+                        'currency_code' => $currency, 'exchange_rate' => $rate,
+                    ]);
+                }
+                app(DocumentPoster::class)->purchaseInvoice($invoice);
+                $numbers[] = $invoice->invoice_number;
+            }
+
+            return $numbers;
+        });
+
+        return 'تم استيراد '.count($numbers).' فاتورة شراء تاريخية بتواريخها دون إدخال مخزون: '.implode('، ', array_slice($numbers, 0, 5)).(count($numbers) > 5 ? '…' : '');
+    }
+
+    /** Past payments to suppliers, posted at their own date; a non-resident supplier (withholding tax) is refused here. */
+    protected function importSupplierPayments(array $records): string
+    {
+        $suppliers = Supplier::query()->get(['id', 'code', 'name', 'is_non_resident']);
+        $banks = BankAccount::query()->pluck('id', 'name');
+        $errors = [];
+        $plans = [];
+        foreach ($records as $line => $row) {
+            $supplier = $this->findSupplier($suppliers, $row);
+            $problem = match (true) {
+                ! $supplier => 'المورد '.($row['supplier_code'] ?? $row['supplier_name'] ?? '(فارغ)').' غير موجود.',
+                (bool) $supplier->is_non_resident => 'المورد غير مقيم (استقطاع ضريبي): سجّل سند الصرف من الشاشة ليُحتسب الاستقطاع.',
+                ! empty($row['bank_name']) && ! $banks->has($row['bank_name']) => "الحساب البنكي {$row['bank_name']} غير موجود.",
+                default => null,
+            };
+            if ($problem) {
+                $errors[] = "سطر {$line}: {$problem}";
+
+                continue;
+            }
+            $plans[] = [$line, $supplier, $row];
+        }
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        DB::transaction(function () use ($plans, $banks) {
+            foreach ($plans as [$line, $supplier, $row]) {
+                [$currency, $rate] = app(ExchangeRates::class)->resolve(null, null, $row['payment_date']);
+                $invoice = null;
+                if (! empty($row['invoice_number'])) {
+                    $invoice = PurchaseInvoice::where('invoice_number', $row['invoice_number'])->where('supplier_id', $supplier->id)->lockForUpdate()->first();
+                    if (! $invoice) {
+                        throw ValidationException::withMessages(['file' => "سطر {$line}: فاتورة الشراء {$row['invoice_number']} غير موجودة لهذا المورد."]);
+                    }
+                    if ((float) $row['amount'] > (float) $invoice->remaining_amount + 0.01) {
+                        throw ValidationException::withMessages(['file' => "سطر {$line}: المبلغ أكبر من المتبقي على الفاتورة ({$invoice->remaining_amount})."]);
+                    }
+                }
+                $payment = SupplierPayment::create([
+                    'supplier_id' => $supplier->id, 'purchase_invoice_id' => $invoice?->id, 'amount' => $row['amount'], 'payment_date' => $row['payment_date'], 'payment_method' => $row['payment_method'],
+                    'payment_number' => app(DocumentNumberService::class)->next('supplier_payment', Carbon::parse($row['payment_date'])),
+                    'reference_number' => $row['reference_number'] ?? null, 'bank_account_id' => ! empty($row['bank_name']) ? $banks->get($row['bank_name']) : null,
+                    'notes' => trim(($row['notes'] ?? '').' (مستورد)'), 'currency_code' => $currency, 'exchange_rate' => $rate, 'wht_rate' => 0, 'wht_amount' => 0,
+                ]);
+                $supplier->decrement('current_balance', ExchangeRates::toBase((float) $payment->amount, $rate));
+                if ($invoice) {
+                    $remaining = max(0, round((float) $invoice->remaining_amount - (float) $row['amount'], 2));
+                    $invoice->update(['paid_amount' => (float) $invoice->paid_amount + (float) $row['amount'], 'remaining_amount' => $remaining, 'payment_status' => $remaining <= 0 ? 'paid' : 'partially_paid']);
+                } else {
+                    app(SupplierPaymentAllocator::class)->allocate($payment, null);
+                }
+                app(DocumentPoster::class)->supplierPayment($payment);
+            }
+        });
+
+        return 'تم استيراد '.count($plans).' سند صرف للموردين بتواريخها';
     }
 
     protected function importAccounts(array $records): string

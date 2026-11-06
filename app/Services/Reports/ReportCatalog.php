@@ -2,7 +2,14 @@
 
 namespace App\Services\Reports;
 
+use App\Models\CustomerPayment;
+use App\Models\Expense;
+use App\Models\Invoice;
+use App\Models\JournalEntry;
+use App\Models\JournalEntryLine;
+use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
+use App\Models\SupplierPayment;
 use App\Services\Accounting\AccountingReports;
 use App\Services\Purchases\SupplierStatement;
 use App\Services\Tax\WithholdingReport;
@@ -29,6 +36,13 @@ class ReportCatalog
         'purchases-analysis' => 'reports.purchases.export',
         'supplier-statement' => 'purchases.suppliers.export',
         'withholding' => 'accounting.vat_return.export',
+        // Transaction lists (one row per document / journal line), for hand-over and analysis in Excel.
+        'tx-sales-invoices' => 'sales.invoices.export',
+        'tx-purchase-invoices' => 'purchases.invoices.export',
+        'tx-customer-payments' => 'sales.payments.export',
+        'tx-supplier-payments' => 'purchases.payments.export',
+        'tx-expenses' => 'finance.expenses.export',
+        'tx-journal-lines' => 'accounting.journals.export',
     ];
 
     public function __construct(protected AccountingReports $reports) {}
@@ -51,6 +65,12 @@ class ReportCatalog
             'purchases-analysis' => $this->analysis($request, 'purchases'),
             'supplier-statement' => $this->supplierStatement($request),
             'withholding' => $this->withholding($request),
+            'tx-sales-invoices' => $this->documents($request, 'فواتير المبيعات', Invoice::class, 'invoice_date', 'customer', 'invoice_number', ['subtotal', 'tax_amount', 'total', 'paid_amount', 'remaining_amount']),
+            'tx-purchase-invoices' => $this->documents($request, 'فواتير المشتريات', PurchaseInvoice::class, 'invoice_date', 'supplier', 'invoice_number', ['subtotal', 'tax_amount', 'total', 'paid_amount', 'remaining_amount']),
+            'tx-customer-payments' => $this->documents($request, 'سندات القبض', CustomerPayment::class, 'payment_date', 'customer', 'payment_number', ['amount']),
+            'tx-supplier-payments' => $this->documents($request, 'سندات الصرف للموردين', SupplierPayment::class, 'payment_date', 'supplier', 'payment_number', ['amount']),
+            'tx-expenses' => $this->expenses($request),
+            'tx-journal-lines' => $this->journalLines($request),
         };
     }
 
@@ -250,6 +270,66 @@ class ReportCatalog
         return $this->table(($kind === 'sales' ? 'المبيعات حسب ' : 'المشتريات حسب ').$labels[$by], $this->period($from, $to).' — قبل الضريبة'.($by === 'item' ? '، قبل المرتجعات' : '، صافي المرتجعات'), [
             ['name', $labels[$by]], ['documents', 'المستندات'], ['quantity', 'الكمية', 'number'], ['amount', 'المبلغ', 'money'], ['share', '% من الإجمالي'],
         ], $rows, [count($rows) - 1]);
+    }
+
+    /** A dated document list with its money columns summed in a closing row. */
+    protected function documents(Request $request, string $title, string $model, string $dateColumn, string $partyRelation, string $numberColumn, array $money): array
+    {
+        [$from, $to] = $this->range($request);
+        $labels = ['subtotal' => 'قبل الضريبة', 'tax_amount' => 'الضريبة', 'total' => 'الإجمالي', 'paid_amount' => 'المدفوع', 'remaining_amount' => 'المتبقي', 'amount' => 'المبلغ'];
+        $query = $model::query()->with($partyRelation.':id,name')->whereDate($dateColumn, '>=', $from)->whereDate($dateColumn, '<=', $to)->orderBy($dateColumn)->orderBy('id');
+        $totals = array_fill_keys($money, 0.0);
+        $rows = $query->limit(20000)->get()->map(function ($d) use ($dateColumn, $partyRelation, $numberColumn, $money, &$totals) {
+            $row = ['number' => $d->{$numberColumn}, 'date' => substr((string) $d->getRawOriginal($dateColumn), 0, 10), 'party' => $d->{$partyRelation}?->name ?? '—'];
+            foreach ($money as $m) {
+                $row[$m] = (float) $d->{$m};
+                $totals[$m] += (float) $d->{$m};
+            }
+
+            return $row;
+        })->all();
+        $rows[] = ['number' => 'الإجمالي', 'date' => '', 'party' => ''] + array_map(fn ($v) => round($v, 2), $totals);
+
+        return $this->table($title, $this->period($from, $to), array_merge([['number', 'الرقم'], ['date', 'التاريخ'], ['party', $partyRelation === 'customer' ? 'العميل' : 'المورد']],
+            array_map(fn ($m) => [$m, $labels[$m], 'money'], $money)), $rows, [count($rows) - 1]);
+    }
+
+    protected function expenses(Request $request): array
+    {
+        [$from, $to] = $this->range($request);
+        $total = 0.0;
+        $rows = Expense::query()->whereDate('expense_date', '>=', $from)->whereDate('expense_date', '<=', $to)->orderBy('expense_date')->orderBy('id')->limit(20000)->get()
+            ->map(function ($e) use (&$total) {
+                $total += (float) $e->total_amount;
+
+                return ['number' => $e->expense_number, 'date' => substr((string) $e->getRawOriginal('expense_date'), 0, 10), 'title' => $e->title, 'category' => $e->category, 'vendor' => $e->vendor_name ?? '',
+                    'amount' => (float) $e->amount, 'tax' => (float) $e->tax_amount, 'total' => (float) $e->total_amount];
+            })->all();
+        $rows[] = ['number' => 'الإجمالي', 'date' => '', 'title' => '', 'category' => '', 'vendor' => '', 'amount' => null, 'tax' => null, 'total' => round($total, 2)];
+
+        return $this->table('سندات المصروفات', $this->period($from, $to), [['number', 'الرقم'], ['date', 'التاريخ'], ['title', 'البيان'], ['category', 'التصنيف'], ['vendor', 'المورد'],
+            ['amount', 'المبلغ', 'money'], ['tax', 'الضريبة', 'money'], ['total', 'الإجمالي', 'money']], $rows, [count($rows) - 1]);
+    }
+
+    protected function journalLines(Request $request): array
+    {
+        [$from, $to] = $this->range($request);
+        $debit = $credit = 0.0;
+        $rows = JournalEntryLine::query()->with(['journalEntry:id,entry_number,status', 'account:id,code,name_ar', 'costCenter:id,code'])
+            ->whereDate('date', '>=', $from)->whereDate('date', '<=', $to)
+            ->whereHas('journalEntry', fn ($q) => $q->where('status', JournalEntry::STATUS_POSTED))
+            ->orderBy('date')->orderBy('id')->limit(50000)->get()
+            ->map(function ($l) use (&$debit, &$credit) {
+                $debit += (float) $l->debit;
+                $credit += (float) $l->credit;
+
+                return ['entry' => $l->journalEntry?->entry_number, 'date' => substr((string) $l->getRawOriginal('date'), 0, 10), 'code' => $l->account?->code, 'account' => $l->account?->name_ar,
+                    'cost_center' => $l->costCenter?->code ?? '', 'description' => $l->description, 'debit' => (float) $l->debit, 'credit' => (float) $l->credit];
+            })->all();
+        $rows[] = ['entry' => 'الإجمالي', 'date' => '', 'code' => '', 'account' => '', 'cost_center' => '', 'description' => '', 'debit' => round($debit, 2), 'credit' => round($credit, 2)];
+
+        return $this->table('سطور القيود المرحّلة', $this->period($from, $to), [['entry', 'القيد'], ['date', 'التاريخ'], ['code', 'كود الحساب'], ['account', 'الحساب'], ['cost_center', 'مركز التكلفة'],
+            ['description', 'البيان'], ['debit', 'مدين', 'money'], ['credit', 'دائن', 'money']], $rows, [count($rows) - 1]);
     }
 
     protected function period(Carbon $from, Carbon $to): string

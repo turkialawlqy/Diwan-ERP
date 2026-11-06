@@ -47,7 +47,7 @@ return [
                 'promotions' => ['ar' => 'العروض والخصومات الترويجية', 'en' => 'Promotions', 'actions' => ['view', 'create', 'edit', 'delete']],
                 'clients' => ['ar' => 'العملاء', 'en' => 'Customers', 'actions' => ['view', 'create', 'edit', 'delete', 'export']],
                 'returns' => ['ar' => 'مرتجعات المبيعات', 'en' => 'Sales Returns', 'actions' => ['view', 'create', 'cancel', 'print']],
-                'payments' => ['ar' => 'سندات القبض', 'en' => 'Customer Receipts', 'actions' => ['view', 'create', 'cancel', 'print']],
+                'payments' => ['ar' => 'سندات القبض', 'en' => 'Customer Receipts', 'actions' => ['view', 'create', 'cancel', 'print', 'export']],
                 'orders' => ['ar' => 'أوامر البيع', 'en' => 'Sales Orders', 'actions' => ['view', 'create', 'approve', 'cancel', 'convert', 'print']],
                 'deliveries' => ['ar' => 'أذونات التسليم', 'en' => 'Delivery Notes', 'actions' => ['view', 'create', 'convert', 'cancel', 'print']],
                 'debit_notes' => ['ar' => 'الإشعارات المدينة', 'en' => 'Debit Notes', 'actions' => ['view', 'create', 'print']],
@@ -93,9 +93,9 @@ return [
                 'orders' => ['ar' => 'أوامر الشراء', 'en' => 'Purchase Orders', 'actions' => ['view', 'create', 'edit', 'approve', 'cancel', 'convert', 'print']],
                 'receipts' => ['ar' => 'استلام البضاعة', 'en' => 'Goods Receipts', 'actions' => ['view', 'create', 'cancel', 'print']],
                 'landed_costs' => ['ar' => 'التكاليف الإضافية للمشتريات', 'en' => 'Landed Costs', 'actions' => ['view', 'create']],
-                'invoices' => ['ar' => 'فواتير المشتريات', 'en' => 'Purchase Invoices', 'actions' => ['view', 'create', 'edit', 'delete', 'post', 'print']],
+                'invoices' => ['ar' => 'فواتير المشتريات', 'en' => 'Purchase Invoices', 'actions' => ['view', 'create', 'edit', 'delete', 'post', 'print', 'export']],
                 'returns' => ['ar' => 'مرتجعات المشتريات', 'en' => 'Purchase Returns', 'actions' => ['view', 'create', 'print']],
-                'payments' => ['ar' => 'سندات الصرف للموردين', 'en' => 'Supplier Payments', 'actions' => ['view', 'create', 'cancel', 'print']],
+                'payments' => ['ar' => 'سندات الصرف للموردين', 'en' => 'Supplier Payments', 'actions' => ['view', 'create', 'cancel', 'print', 'export']],
             ],
         ],
 
@@ -144,7 +144,7 @@ return [
         'finance' => [
             'ar' => 'المالية', 'en' => 'Finance',
             'resources' => [
-                'expenses' => ['ar' => 'المصروفات', 'en' => 'Expenses', 'actions' => ['view', 'create', 'edit', 'delete']],
+                'expenses' => ['ar' => 'المصروفات', 'en' => 'Expenses', 'actions' => ['view', 'create', 'edit', 'delete', 'export']],
                 'revenues' => ['ar' => 'الإيرادات', 'en' => 'Revenues', 'actions' => ['view', 'create', 'edit', 'delete']],
                 'banks' => ['ar' => 'البنوك والصناديق', 'en' => 'Banks & Cash', 'actions' => ['view', 'create', 'edit', 'delete']],
                 'transfers' => ['ar' => 'التحويلات المالية', 'en' => 'Transfers', 'actions' => ['view', 'create', 'cancel']],
@@ -155,7 +155,7 @@ return [
             'ar' => 'المحاسبة', 'en' => 'Accounting',
             'resources' => [
                 'accounts' => ['ar' => 'دليل الحسابات', 'en' => 'Chart of Accounts', 'actions' => ['view', 'create', 'edit', 'delete']],
-                'journals' => ['ar' => 'القيود اليومية', 'en' => 'Journal Entries', 'actions' => ['view', 'create', 'edit', 'delete', 'post', 'cancel', 'print', 'manage']],
+                'journals' => ['ar' => 'القيود اليومية', 'en' => 'Journal Entries', 'actions' => ['view', 'create', 'edit', 'delete', 'post', 'cancel', 'print', 'manage', 'export']],
                 'recurring' => ['ar' => 'القيود المتكررة', 'en' => 'Recurring Journals', 'actions' => ['view', 'create', 'edit', 'delete']],
                 'ledger' => ['ar' => 'الأستاذ العام', 'en' => 'General Ledger', 'actions' => ['view', 'export']],
                 'trial_balance' => ['ar' => 'ميزان المراجعة', 'en' => 'Trial Balance', 'actions' => ['view', 'export']],

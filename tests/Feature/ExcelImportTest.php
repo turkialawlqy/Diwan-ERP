@@ -19,8 +19,10 @@ use App\Models\Lead;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
+use App\Models\PurchaseInvoice;
 use App\Models\Quotation;
 use App\Models\StockMovement;
+use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Services\Accounting\AccountingSetupService;
@@ -330,5 +332,26 @@ B,C-9,2026-06-01,خدمة,1,100
 
         $this->actingAs($this->userWithRole($this->company, 'hr_manager'));
         $this->import('expenses', "title,category,expense_date,amount,payment_method\nx,y,2026-03-01,5,cash\n")->assertForbidden();
+    }
+
+    public function test_historical_purchase_bills_and_supplier_payments_post_at_their_date_without_stock(): void
+    {
+        $supplier = Supplier::create(['name' => 'مورد قديم', 'code' => 'S-5', 'status' => 'active']);
+        Warehouse::create(['code' => 'W1', 'name_ar' => 'الرئيسي', 'is_main' => true, 'is_active' => true]);
+
+        $this->import('purchase_invoices', "invoice_ref,supplier_code,invoice_date,item_name,quantity,unit_price,tax_rate\nB-1,S-5,2026-02-10,بضاعة,10,100,15\n")->assertSessionHasNoErrors();
+        $bill = PurchaseInvoice::first();
+        $this->assertSame(['2026-02-10', 1150.0], [$bill->invoice_date->toDateString(), (float) $bill->total]);
+        $this->assertSame(0, StockMovement::count());
+        $this->assertSame(1150.0, round((float) $supplier->fresh()->current_balance, 2));
+        $this->import('purchase_invoices', "invoice_ref,supplier_code,invoice_date,item_name,quantity,unit_price\nB-1,S-5,2026-02-11,x,1,5\n")->assertSessionHasErrors('file');   // same supplier reference twice
+
+        $this->import('supplier_payments', "supplier_code,payment_date,amount,payment_method,invoice_number\nS-5,2026-02-25,400,cash,{$bill->invoice_number}\n")->assertSessionHasNoErrors();
+        $this->assertSame(750.0, round((float) $bill->fresh()->remaining_amount, 2));
+        $this->assertSame(750.0, round((float) $supplier->fresh()->current_balance, 2));
+        $this->import('supplier_payments', "supplier_code,payment_date,amount,payment_method,invoice_number\nS-5,2026-02-26,5000,cash,{$bill->invoice_number}\n")->assertSessionHasErrors('file');
+
+        $supplier->update(['is_non_resident' => true]);
+        $this->import('supplier_payments', "supplier_code,payment_date,amount,payment_method\nS-5,2026-03-01,100,cash\n")->assertSessionHasErrors('file');   // withholding tax needs the voucher screen
     }
 }

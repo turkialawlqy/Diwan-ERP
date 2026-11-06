@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Company;
 use App\Models\Customer;
+use App\Models\Expense;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
@@ -117,5 +118,24 @@ class ReportExportTest extends TestCase
 
         $this->get(route('reports.purchases', ['start_date' => '2026-06-01', 'end_date' => '2026-06-30']))->assertOk()->assertInertia(fn ($p) => $p->component('Reports/Purchases')->has('breakdown.rows'));
         $this->get(route('reports.export', ['report' => 'purchases-analysis', 'format' => 'pdf']))->assertOk();
+    }
+
+    public function test_transaction_lists_export_with_their_own_permission(): void
+    {
+        Expense::create(['expense_number' => 'EXP-1', 'title' => 'إيجار', 'category' => 'إيجار', 'amount' => 300, 'tax_amount' => 0, 'total_amount' => 300,
+            'expense_date' => '2026-06-05', 'payment_method' => 'cash', 'created_by' => auth()->id()]);
+
+        $rows = $this->sheet($this->get(route('reports.export', ['report' => 'tx-sales-invoices', 'format' => 'xlsx', 'start_date' => '2026-06-01', 'end_date' => '2026-06-30']))->assertOk()->getContent());
+        $this->assertCount(1, collect($rows)->filter(fn ($r) => str_starts_with((string) ($r[0] ?? ''), 'INV')));
+        $this->assertEquals(1150, collect($rows)->last()[5]);      // closing row = invoice total
+
+        $this->assertSame(300.0, (float) collect($this->sheet($this->get(route('reports.export', ['report' => 'tx-expenses', 'format' => 'xlsx', 'start_date' => '2026-06-01', 'end_date' => '2026-06-30']))->assertOk()->getContent()))->last()[7]);
+        $this->assertNotEmpty($this->sheet($this->get(route('reports.export', ['report' => 'tx-journal-lines', 'format' => 'xlsx', 'start_date' => '2026-06-01', 'end_date' => '2026-06-30']))->assertOk()->getContent()));
+        foreach (['tx-purchase-invoices', 'tx-customer-payments', 'tx-supplier-payments'] as $key) {
+            $this->get(route('reports.export', ['report' => $key, 'format' => 'pdf']))->assertOk();
+        }
+
+        $this->actingAs($this->userWithRole($this->company, 'hr_manager'));
+        $this->get(route('reports.export', ['report' => 'tx-journal-lines', 'format' => 'xlsx']))->assertForbidden();
     }
 }
