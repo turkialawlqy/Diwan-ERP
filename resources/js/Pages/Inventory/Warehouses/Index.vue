@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -45,6 +46,7 @@ const props = defineProps({
                         <PlusIcon class="w-4 h-4 stroke-2" />
                         <span>إضافة مستودع جديد</span>
                     </Link>
+                <ImportButton v-if="$can('inventory.warehouses.create')" type="warehouses" title="استيراد المستودعات من Excel" />
 </template>
 </PageHeader>
 

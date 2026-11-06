@@ -2,22 +2,30 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Crm\LeadController;
 use App\Models\Account;
 use App\Models\AssetCategory;
+use App\Models\BankAccount;
+use App\Models\Category;
+use App\Models\CostCenter;
 use App\Models\Customer;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\FixedAsset;
 use App\Models\JournalEntry;
+use App\Models\Lead;
+use App\Models\PriceList;
 use App\Models\Product;
 use App\Models\Quotation;
 use App\Models\Supplier;
+use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Rules\TaxNumber;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DepreciationService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\PostingService;
+use App\Services\Finance\BankAccountService;
 use App\Services\HR\BankSalaryFormats;
 use App\Services\Imports\LineImporter;
 use App\Services\Inventory\DocumentStock;
@@ -121,6 +129,45 @@ class DataTransferController extends Controller
                     'date' => 'required|date', 'valid_until' => 'nullable|date|after_or_equal:date', 'notes' => 'nullable|string|max:2000',
                     'code' => 'nullable|string|max:100', 'name' => 'nullable|string|max:255', 'quantity' => 'nullable|numeric|gt:0',
                     'unit_price' => 'nullable|numeric|min:0', 'discount' => 'nullable|numeric|min:0', 'tax_rate' => 'nullable|numeric|min:0|max:100'],
+            ],
+            'categories' => [
+                'label' => 'تصنيفات الأصناف', 'model' => Category::class, 'permission' => ['view' => 'inventory.categories.view', 'create' => 'inventory.categories.create'], 'handler' => 'importSimple',
+                'columns' => ['name_ar', 'name_en', 'code', 'color'], 'unique' => 'name_ar', 'defaults' => ['is_active' => true],
+                'rules' => ['name_ar' => 'required|string|max:255', 'name_en' => 'nullable|string|max:255', 'code' => 'nullable|string|max:50', 'color' => 'nullable|string|max:20'],
+            ],
+            'units' => [
+                'label' => 'وحدات القياس', 'model' => Unit::class, 'permission' => ['view' => 'inventory.products.view', 'create' => 'inventory.products.create'], 'handler' => 'importSimple',
+                'columns' => ['name_ar', 'name_en', 'code'], 'unique' => 'name_ar', 'defaults' => [],
+                'rules' => ['name_ar' => 'required|string|max:100', 'name_en' => 'nullable|string|max:100', 'code' => 'nullable|string|max:20'],
+            ],
+            'warehouses' => [
+                'label' => 'المستودعات', 'model' => Warehouse::class, 'permission' => ['view' => 'inventory.warehouses.view', 'create' => 'inventory.warehouses.create'], 'handler' => 'importSimple',
+                'columns' => ['code', 'name_ar', 'name_en', 'phone', 'address', 'is_main'], 'unique' => 'code', 'defaults' => ['is_active' => true], 'booleans' => ['is_main'],
+                'rules' => ['code' => 'required|string|max:50', 'name_ar' => 'required|string|max:255', 'name_en' => 'nullable|string|max:255', 'phone' => 'nullable|string|max:20', 'address' => 'nullable|string|max:255', 'is_main' => 'nullable|in:0,1,yes,no,نعم,لا'],
+            ],
+            'cost_centers' => [
+                'label' => 'مراكز التكلفة', 'model' => CostCenter::class, 'permission' => ['view' => 'accounting.cost_centers.view', 'create' => 'accounting.cost_centers.create'], 'handler' => 'importCostCenters',
+                'columns' => ['code', 'name_ar', 'name_en', 'parent_code'],
+                'rules' => ['code' => 'required|string|max:50', 'name_ar' => 'required|string|max:255', 'name_en' => 'nullable|string|max:255', 'parent_code' => 'nullable|string|max:50'],
+            ],
+            'leads' => [
+                'label' => 'العملاء المحتملون', 'model' => Lead::class, 'permission' => ['view' => 'crm.leads.view', 'create' => 'crm.leads.create'], 'handler' => 'importSimple',
+                'columns' => ['name', 'company_name', 'phone', 'email', 'source', 'expected_value', 'next_follow_up', 'notes'], 'unique' => null, 'defaults' => ['status' => 'new'],
+                'rules' => ['name' => 'required|string|max:255', 'company_name' => 'nullable|string|max:255', 'phone' => 'nullable|string|max:30', 'email' => 'nullable|email|max:255',
+                    'source' => ['nullable', Rule::in(array_keys(LeadController::SOURCES))], 'expected_value' => 'nullable|numeric|min:0', 'next_follow_up' => 'nullable|date', 'notes' => 'nullable|string|max:5000'],
+            ],
+            'price_lists' => [
+                'label' => 'قوائم الأسعار', 'permission' => ['view' => 'sales.price_lists.create', 'create' => 'sales.price_lists.create'], 'import_only' => true, 'handler' => 'importPriceLists',
+                'columns' => ['list_name', 'valid_from', 'valid_to', 'is_default', 'sku', 'min_quantity', 'price'],
+                'rules' => ['list_name' => 'required|string|max:255', 'valid_from' => 'nullable|date', 'valid_to' => 'nullable|date|after_or_equal:valid_from', 'is_default' => 'nullable|in:0,1,yes,no,نعم,لا',
+                    'sku' => 'required|string|max:100', 'min_quantity' => 'nullable|numeric|min:0', 'price' => 'required|numeric|min:0'],
+            ],
+            'bank_accounts' => [
+                'label' => 'الحسابات البنكية والصناديق', 'model' => BankAccount::class, 'permission' => ['view' => 'finance.banks.view', 'create' => 'finance.banks.create'], 'handler' => 'importBankAccounts',
+                'export_columns' => ['name', 'type', 'bank_name', 'account_number', 'iban', 'currency', 'opening_balance', 'current_balance'],
+                'columns' => ['name', 'type', 'bank_name', 'account_number', 'iban', 'currency', 'opening_balance'],
+                'rules' => ['name' => 'required|string|max:255', 'type' => 'required|in:bank,cash', 'bank_name' => 'nullable|string|max:100', 'account_number' => 'nullable|string|max:100',
+                    'iban' => 'nullable|string|max:50', 'currency' => 'nullable|string|max:10', 'opening_balance' => 'nullable|numeric|min:0'],
             ],
             'opening_balances' => [
                 'label' => 'ميزان المراجعة الافتتاحي', 'permission' => ['view' => 'accounting.journals.create', 'create' => 'accounting.journals.create'], 'import_only' => true,
@@ -424,6 +471,153 @@ class DataTransferController extends Controller
      * the system or earlier in the file) and takes the parent's type and
      * nature unless given; an existing code only gets its names updated.
      */
+    /** Flat master data created straight from the sheet; an existing value of the `unique` column is skipped. */
+    protected function importSimple(array $records, Request $request, Carbon $openingDate): string
+    {
+        $definition = $this->definition($request->route('type'), 'create');
+        $model = $definition['model'];
+        $unique = $definition['unique'] ?? null;
+        $existing = $unique ? $model::query()->pluck($unique)->map(fn ($v) => mb_strtolower((string) $v))->all() : [];
+        $created = $skipped = 0;
+
+        DB::transaction(function () use ($records, $definition, $model, $unique, &$existing, &$created, &$skipped) {
+            foreach ($records as $row) {
+                if ($unique && in_array(mb_strtolower((string) $row[$unique]), $existing, true)) {
+                    $skipped++;
+
+                    continue;
+                }
+                foreach ($definition['booleans'] ?? [] as $flag) {
+                    if (isset($row[$flag])) {
+                        $row[$flag] = in_array(mb_strtolower((string) $row[$flag]), ['1', 'yes', 'نعم'], true);
+                    }
+                }
+                if (! empty($row['is_main'])) {
+                    $model::where('is_main', true)->update(['is_main' => false]);
+                }
+                $model::create($row + $definition['defaults']);
+                if ($unique) {
+                    $existing[] = mb_strtolower((string) $row[$unique]);
+                }
+                $created++;
+            }
+        });
+
+        return "تم استيراد {$definition['label']}: {$created} جديد".($skipped ? "، {$skipped} موجود مسبقاً (تخطّي)" : '');
+    }
+
+    /** Cost centers: parents may appear after their children in the sheet. */
+    protected function importCostCenters(array $records): string
+    {
+        $existing = CostCenter::query()->pluck('id', 'code')->mapWithKeys(fn ($id, $code) => [(string) $code => $id])->all();
+        $pending = [];
+        foreach ($records as $line => $row) {
+            if (! isset($existing[(string) $row['code']])) {
+                $pending[(string) $row['code']] = $row + ['line' => $line];
+            }
+        }
+        $errors = [];
+        foreach ($pending as $code => $row) {
+            $parent = $row['parent_code'] ?? null;
+            if ($parent && ! isset($existing[(string) $parent]) && ! isset($pending[(string) $parent])) {
+                $errors[] = "سطر {$row['line']}: المركز الأب {$parent} غير موجود.";
+            }
+            if ($parent && (string) $parent === $code) {
+                $errors[] = "سطر {$row['line']}: المركز لا يكون أبًا لنفسه.";
+            }
+        }
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        $created = 0;
+        DB::transaction(function () use (&$pending, &$existing, &$created) {
+            // Parents before children; a cycle would never resolve, so cap the passes.
+            for ($pass = 0; $pending && $pass < 50; $pass++) {
+                foreach ($pending as $code => $row) {
+                    $parent = $row['parent_code'] ?? null;
+                    if ($parent && ! isset($existing[(string) $parent])) {
+                        continue;
+                    }
+                    $existing[$code] = CostCenter::create(['code' => $code, 'name_ar' => $row['name_ar'], 'name_en' => $row['name_en'] ?? null,
+                        'parent_id' => $parent ? $existing[(string) $parent] : null, 'is_active' => true])->id;
+                    unset($pending[$code]);
+                    $created++;
+                }
+            }
+        });
+        if ($pending) {
+            throw ValidationException::withMessages(['file' => 'مراكز التكلفة تشكّل حلقة في الأب والابن: '.implode('، ', array_keys($pending))]);
+        }
+
+        return "تم استيراد مراكز التكلفة: {$created} جديد";
+    }
+
+    /** One row per price-list item; rows sharing `list_name` form one list (an existing list is skipped). */
+    protected function importPriceLists(array $records): string
+    {
+        $products = Product::query()->pluck('id', 'sku')->mapWithKeys(fn ($id, $sku) => [mb_strtolower((string) $sku) => $id]);
+        $existing = PriceList::query()->pluck('name')->map(fn ($n) => mb_strtolower((string) $n))->all();
+        $errors = [];
+        $lists = [];
+        foreach ($records as $line => $row) {
+            $productId = $products->get(mb_strtolower((string) $row['sku']));
+            if (! $productId) {
+                $errors[] = "سطر {$line}: الصنف {$row['sku']} غير موجود.";
+
+                continue;
+            }
+            $key = mb_strtolower((string) $row['list_name']);
+            if (in_array($key, $existing, true)) {
+                continue;
+            }
+            $lists[$key]['head'] ??= $row;
+            $lists[$key]['items'][] = ['product_id' => $productId, 'min_quantity' => $row['min_quantity'] ?? 1, 'price' => $row['price']];
+        }
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        DB::transaction(function () use ($lists) {
+            foreach ($lists as $list) {
+                $head = $list['head'];
+                $default = isset($head['is_default']) && in_array(mb_strtolower((string) $head['is_default']), ['1', 'yes', 'نعم'], true);
+                if ($default) {
+                    PriceList::where('is_default', true)->update(['is_default' => false]);
+                }
+                $priceList = PriceList::create(['name' => $head['list_name'], 'is_default' => $default, 'is_active' => true,
+                    'valid_from' => $head['valid_from'] ?? null, 'valid_to' => $head['valid_to'] ?? null]);
+                foreach ($list['items'] as $item) {
+                    $priceList->items()->create($item);
+                }
+            }
+        });
+
+        return 'تم استيراد قوائم الأسعار: '.count($lists).' قائمة جديدة';
+    }
+
+    /** Bank / cash boxes with their own ledger account; the opening balance is posted at the opening date. */
+    protected function importBankAccounts(array $records, Request $request, Carbon $openingDate): string
+    {
+        $existing = BankAccount::query()->pluck('name')->map(fn ($n) => mb_strtolower((string) $n))->all();
+        $service = app(BankAccountService::class);
+        $created = $skipped = 0;
+        DB::transaction(function () use ($records, &$existing, $service, $openingDate, &$created, &$skipped) {
+            foreach ($records as $row) {
+                if (in_array(mb_strtolower((string) $row['name']), $existing, true)) {
+                    $skipped++;
+
+                    continue;
+                }
+                $service->create($row + ['currency' => 'SAR', 'opening_balance' => 0], $openingDate);
+                $existing[] = mb_strtolower((string) $row['name']);
+                $created++;
+            }
+        });
+
+        return "تم استيراد الحسابات البنكية: {$created} جديد".($skipped ? "، {$skipped} موجود مسبقاً (تخطّي)" : '');
+    }
+
     protected function importAccounts(array $records): string
     {
         $accounts = Account::query()->get()->keyBy(fn ($a) => (string) $a->code);

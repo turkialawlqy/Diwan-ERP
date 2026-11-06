@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import ImportLines from '@/Components/Documents/ImportLines.vue';
 import { ref } from 'vue';
@@ -42,7 +43,9 @@ const destroy = (list) => { if (confirm(`حذف قائمة "${list.name}"؟`)) r
     <AppLayout>
         <Head title="قوائم الأسعار" />
         <PageHeader title="قوائم الأسعار" subtitle="أسعار خاصة لكل فئة عملاء مع شرائح كميات؛ تُطبّق تلقائياً في أوامر البيع" :crumbs="[{ label: 'المبيعات' }, { label: 'قوائم الأسعار' }]">
-            <template #actions><button v-if="$can('sales.price_lists.create')" @click="create" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> قائمة جديدة</button></template>
+            <template #actions><button v-if="$can('sales.price_lists.create')" @click="create" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> قائمة جديدة</button>
+                <ImportButton v-if="$can('sales.price_lists.create')" type="price_lists" title="استيراد قوائم الأسعار من Excel" />
+</template>
         </PageHeader>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div v-for="list in lists" :key="list.id" class="bg-white border border-slate-200 rounded-2xl p-4 text-xs">

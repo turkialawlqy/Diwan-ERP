@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -59,6 +60,7 @@ const deleteCategory = (id) => {
                     >
                         <ArrowPathIcon class="w-4 h-4" />
                     </button>
+                <ImportButton v-if="$can('inventory.categories.create')" type="categories" title="استيراد التصنيفات من Excel" />
 </template>
 </PageHeader>
 

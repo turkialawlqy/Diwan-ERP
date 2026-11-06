@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { ref } from 'vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
@@ -56,6 +57,7 @@ const formatCurrency = (val) => {
                         <PlusIcon class="w-4 h-4 stroke-2" />
                         <span>إضافة حساب بنكي / خزينة</span>
                     </Link>
+                <ImportButton v-if="$can('finance.banks.create')" type="bank_accounts" title="استيراد الحسابات البنكية من Excel" />
 </template>
 </PageHeader>
 

@@ -4,14 +4,20 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\AssetCategory;
+use App\Models\BankAccount;
+use App\Models\Category;
 use App\Models\Company;
+use App\Models\CostCenter;
 use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\FixedAsset;
+use App\Models\Lead;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
 use App\Models\Quotation;
+use App\Models\Unit;
+use App\Models\Warehouse;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
 use App\Services\TenantManager;
@@ -244,5 +250,51 @@ B,C-9,2026-06-01,خدمة,1,100
         $this->actingAs($salesUser);
         $this->import('accounts', "code,name_ar,type\nZ1,حساب,asset\n")->assertForbidden();
         $this->get(route('data-transfer.template', 'customers'))->assertOk();
+    }
+
+    public function test_master_data_kinds_import_validate_and_skip_existing(): void
+    {
+        $this->import('categories', "name_ar,code\nقطع غيار,SP\nزيوت,OIL\n")->assertSessionHasNoErrors();
+        $this->assertSame(2, Category::count());
+        $this->import('categories', "name_ar,code\nزيوت,OIL2\nإطارات,TY\n")->assertSessionHasNoErrors();   // existing name skipped
+        $this->assertSame(3, Category::count());
+        $this->import('categories', "name_ar,code\n,X\n")->assertSessionHasErrors('file');
+
+        $this->import('units', "name_ar,code\nكرتونة,CTN\n")->assertSessionHasNoErrors();
+        $this->assertTrue(Unit::where('name_ar', 'كرتونة')->exists());
+
+        $this->import('warehouses', "code,name_ar,is_main\nW1,الرئيسي,yes\nW2,الفرعي,no\n")->assertSessionHasNoErrors();
+        $this->import('warehouses', "code,name_ar,is_main\nW3,الجديد,نعم\n")->assertSessionHasNoErrors();
+        $this->assertSame(['W3'], Warehouse::where('is_main', true)->pluck('code')->all());   // one main warehouse
+
+        // Children listed before their parent still resolve; an unknown parent saves nothing.
+        $this->import('cost_centers', "code,name_ar,parent_code\nCC-1-1,فرع,CC-1\nCC-1,رئيسي,\n")->assertSessionHasNoErrors();
+        $this->assertSame(CostCenter::where('code', 'CC-1')->value('id'), CostCenter::where('code', 'CC-1-1')->value('parent_id'));
+        $this->import('cost_centers', "code,name_ar,parent_code\nCC-2,x,NOPE\n")->assertSessionHasErrors('file');
+        $this->assertFalse(CostCenter::where('code', 'CC-2')->exists());
+
+        $this->import('leads', "name,source,expected_value\nمحمد,website,5000\n")->assertSessionHasNoErrors();
+        $this->import('leads', "name,source\nخالد,tv\n")->assertSessionHasErrors('file');
+        $this->assertSame(['new'], Lead::pluck('status')->unique()->all());
+    }
+
+    public function test_price_lists_group_rows_and_bank_accounts_get_a_ledger_account_with_opening_balance(): void
+    {
+        Product::create(['name_ar' => 'كيبل', 'sku' => 'CB-1', 'type' => 'product', 'track_inventory' => true, 'sale_price' => 50, 'cost_price' => 30]);
+        $this->import('price_lists', "list_name,sku,min_quantity,price\nجملة,CB-1,1,45\nجملة,CB-1,10,40\n")->assertSessionHasNoErrors();
+        $list = PriceList::where('name', 'جملة')->first();
+        $this->assertSame(2, $list->items()->count());
+        $this->import('price_lists', "list_name,sku,price\nجديدة,NOPE,5\n")->assertSessionHasErrors('file');
+        $this->assertFalse(PriceList::where('name', 'جديدة')->exists());
+
+        $this->import('bank_accounts', "name,type,iban,opening_balance\nالراجحي,bank,SA0380000000608010167519,10000\nالصندوق,cash,,500\n")->assertSessionHasNoErrors();
+        $bank = BankAccount::where('name', 'الراجحي')->first();
+        $this->assertNotNull($bank->account_id);
+        $this->assertSame(10000.0, round((float) Account::find($bank->account_id)->balance, 2));
+        $this->import('bank_accounts', "name,type\nالراجحي,bank\n")->assertSessionHasNoErrors();
+        $this->assertSame(2, BankAccount::count());                              // existing name skipped
+
+        $this->actingAs($this->userWithRole($this->company, 'sales'));
+        $this->import('bank_accounts', "name,type\nX,bank\n")->assertForbidden();
     }
 }
