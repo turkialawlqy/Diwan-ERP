@@ -8,8 +8,13 @@ import DatePicker from '@/Components/UI/DatePicker.vue';
 import { amount } from '@/utils/format';
 
 const props = defineProps({ report: String, table: Object, filterKinds: Array, filters: Object });
-const form = reactive({ start_date: props.filters.start_date, end_date: props.filters.end_date, days: props.filters.days, months: props.filters.months, k: props.filters.k, min_amount: props.filters.min_amount });
-const exportParams = () => (props.filterKinds.includes('range') ? { start_date: form.start_date, end_date: form.end_date } : props.filterKinds.includes('days') ? { days: form.days } : props.filterKinds.includes('unusual') ? { months: form.months, k: form.k, min_amount: form.min_amount } : {});
+const form = reactive({ start_date: props.filters.start_date, end_date: props.filters.end_date, days: props.filters.days, dimension: props.filters.dimension, months: props.filters.months, k: props.filters.k, min_amount: props.filters.min_amount });
+const exportParams = () => ({
+    ...(props.filterKinds.includes('range') ? { start_date: form.start_date, end_date: form.end_date } : {}),
+    ...(props.filterKinds.includes('days') ? { days: form.days } : {}),
+    ...(props.filterKinds.includes('dimension') ? { dimension: form.dimension } : {}),
+    ...(props.filterKinds.includes('unusual') ? { months: form.months, k: form.k, min_amount: form.min_amount } : {}),
+});
 const apply = () => router.get(route('accounting.controls.show', props.report), exportParams(), { preserveState: true });
 const cell = (value, column) => {
     if (value === null || value === undefined || value === '') return '';
@@ -22,6 +27,7 @@ const cell = (value, column) => {
         <Head :title="table.title" />
         <PageHeader :title="table.title" :subtitle="table.subtitle" :crumbs="[{ label: $t('nav.accounting') }, { label: $t('nav.accounting_controls'), href: route('accounting.controls.index') }, { label: table.title }]">
             <template #actions>
+                <button v-if="report === 'forecast-vs-actual' && $can('accounting.controls.export')" type="button" class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold" data-forecast-snapshot @click="router.post(route('accounting.controls.forecast-snapshot'), {}, { preserveScroll: true })">{{ $t('controls.snapshot_now') }}</button>
                 <ExportButtons :report="report" :params="exportParams()" permission="accounting.controls.export" />
             </template>
         </PageHeader>
@@ -32,6 +38,9 @@ const cell = (value, column) => {
                 <label><span class="block font-bold text-slate-600 mb-1">{{ $t('repgap.to') }}</span><DatePicker v-model="form.end_date" class="rounded-xl border-slate-200 text-xs" /></label>
             </template>
             <label v-if="filterKinds.includes('days')"><span class="block font-bold text-slate-600 mb-1">{{ $t('controls.days') }}</span><input v-model.number="form.days" type="text" inputmode="numeric" data-num class="w-28 rounded-xl border-slate-200 text-xs" /></label>
+            <label v-if="filterKinds.includes('dimension')"><span class="block font-bold text-slate-600 mb-1">{{ $t('budgetdim.view') }}</span>
+                <select v-model="form.dimension" class="rounded-xl border-slate-200 text-xs"><option value="cost_center">{{ $t('budgetdim.cost_center') }}</option><option value="project">{{ $t('budgetdim.project') }}</option><option value="branch">{{ $t('budgetdim.branch') }}</option></select>
+            </label>
             <template v-if="filterKinds.includes('unusual')">
                 <label><span class="block font-bold text-slate-600 mb-1">{{ $t('aging3.months') }}</span><input v-model="form.months" type="text" inputmode="decimal" data-num class="w-24 rounded-xl border-slate-200 text-xs" /></label>
                 <label><span class="block font-bold text-slate-600 mb-1">{{ $t('aging3.k') }}</span><input v-model="form.k" type="text" inputmode="decimal" data-num class="w-24 rounded-xl border-slate-200 text-xs" /></label>

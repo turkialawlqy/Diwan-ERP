@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Accounting;
 
 use App\Http\Controllers\Controller;
+use App\Services\Reports\CashForecastSnapshots;
 use App\Services\Reports\ReportCatalog;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,6 +20,8 @@ class ControlReportsController extends Controller
         'supplier-balances' => ['أرصدة الموردين', 'أول المدة والحركة وآخر المدة وسندات الصرف غير المطبقة.', ['range']],
         'cash-movement' => ['حركة الصناديق والبنوك', 'أول المدة والوارد والصادر وآخر المدة لكل حساب، والحركات البنكية غير المسوّاة بأعمارها.', ['range']],
         'dormant-accounts' => ['الحسابات دون حركة', 'حسابات فعّالة لا حركة مرحّلة عليها خلال المدة المحددة.', ['days']],
+        'budget-dimensions' => ['الموازنة حسب مركز التكلفة/المشروع/الفرع', 'سطور الموازنة المحددة لبعد مقابل الفعلي المسجَّل على القيود لنفس البعد، بالانحراف والنسبة.', ['range', 'dimension']],
+        'forecast-vs-actual' => ['التدفق النقدي: المتوقع مقابل الفعلي', 'لقطات التوقع الأسبوعية (13 أسبوعًا) مقارنةً بالحركة النقدية الفعلية لكل أسبوع انقضى، ومتوسط دقة التوقع.', []],
         'unusual-expenses' => ['المصروفات غير المعتادة', 'حسابات مصروف تجاوز صرف الشهر الحالي فيها المتوسط التاريخي + عدد من الانحرافات المعيارية (إشارة مراجعة لا حكم).', ['unusual']],
     ];
 
@@ -27,6 +30,14 @@ class ControlReportsController extends Controller
         return Inertia::render('Accounting/Controls/Index', [
             'reports' => collect(self::REPORTS)->map(fn ($r, $key) => ['key' => $key, 'title' => $r[0], 'description' => $r[1]])->values(),
         ]);
+    }
+
+    /** Keep today's cash forecast (the scheduler does so every Monday). */
+    public function forecastSnapshot(CashForecastSnapshots $snapshots)
+    {
+        $snapshots->take(null, auth()->id());
+
+        return back()->with('success', 'تم حفظ لقطة التوقع');
     }
 
     public function show(Request $request, string $report, ReportCatalog $catalog): Response
@@ -41,6 +52,7 @@ class ControlReportsController extends Controller
                 'start_date' => $request->input('start_date', now()->startOfYear()->toDateString()),
                 'end_date' => $request->input('end_date', now()->toDateString()),
                 'days' => (int) ($request->input('days') ?: 180),
+                'dimension' => in_array($request->input('dimension'), ['cost_center', 'project', 'branch'], true) ? $request->input('dimension') : 'cost_center',
                 'months' => (int) ($request->input('months') ?: 12),
                 'k' => (float) ($request->input('k') ?: 2),
                 'min_amount' => (float) $request->input('min_amount', 0),

@@ -467,7 +467,8 @@
     "controls": {
         "days": "No movement for (days)",
         "empty": "Nothing to show",
-        "back": "All control reports"
+        "back": "All control reports",
+        "snapshot_now": "Save forecast snapshot now"
     },
     "aging3": {
         "buckets": "Buckets (days, comma separated)",
@@ -481,5 +482,14 @@
         "months": "History months",
         "k": "Std-dev multiplier (k)",
         "min_amount": "Minimum excess over mean"
+    },
+    "budgetdim": {
+        "view": "Budget view",
+        "account_level": "General budget (per account)",
+        "cost_center": "Cost center",
+        "project": "Project",
+        "branch": "Branch",
+        "pick": "Select...",
+        "hint": "A dimension budget is separate from the general one; its lines are saved on their own and compared with the spend tagged to it."
     }
 }

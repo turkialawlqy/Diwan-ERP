@@ -21,6 +21,7 @@ use App\Services\Accounting\BudgetService;
 use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
+use App\Services\ActiveBranch;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Purchases\PurchaseCycleService;
 use App\Services\Purchases\PurchaseInvoiceChanges;
@@ -209,7 +210,7 @@ class PurchaseInvoiceController extends Controller
 
         app(PurchaseCycleService::class)->assertUniqueSupplierInvoice((int) $validated['supplier_id'], $validated['supplier_invoice_number'] ?? null, $replace?->id);
 
-        $budgetWarning = app(BudgetService::class)->check((int) app(AccountMap::class)->id('purchases_cogs'), $validated['invoice_date'], (float) collect($validated['items'])->sum(fn ($i) => (float) $i['quantity'] * (float) $i['unit_price'] - (float) ($i['discount'] ?? 0)), 'مشتريات');
+        $budgetWarning = app(BudgetService::class)->check((int) app(AccountMap::class)->id('purchases_cogs'), $validated['invoice_date'], (float) collect($validated['items'])->sum(fn ($i) => (float) $i['quantity'] * (float) $i['unit_price'] - (float) ($i['discount'] ?? 0)), 'مشتريات', ['cost_center_id' => $validated['cost_center_id'] ?? null, 'project_id' => $validated['project_id'] ?? null, 'branch_id' => $validated['branch_id'] ?? app(ActiveBranch::class)->forWrite()]);
 
         $invoice = DB::transaction(function () use ($validated, $companyId, $rate, $replace) {
             // Editing keeps the record and its number (PurchaseInvoiceChanges undid the old one).

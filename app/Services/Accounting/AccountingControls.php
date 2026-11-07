@@ -4,10 +4,15 @@ namespace App\Services\Accounting;
 
 use App\Models\Account;
 use App\Models\BankAccount;
+use App\Models\Branch;
+use App\Models\Budget;
+use App\Models\BudgetLine;
+use App\Models\CostCenter;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\JournalEntry;
 use App\Models\PaymentAllocation;
+use App\Models\Project;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Models\SupplierPaymentAllocation;
@@ -286,6 +291,46 @@ class AccountingControls
             }
         }
         usort($rows, fn ($a, $b) => $b['excess'] <=> $a['excess']);
+
+        return $rows;
+    }
+
+    /**
+     * A budget's lines set for one kind of dimension (cost centre / project / branch) against what the ledger
+     * holds for each value, over a range of months (YYYYMM). Expense variance is actual − planned (positive = over),
+     * revenue variance is planned − actual.
+     *
+     * @return array<int, array>
+     */
+    public function budgetByDimension(Budget $budget, string $dimension, int $fromPeriod, int $toPeriod): array
+    {
+        $column = BudgetService::DIMENSIONS[$dimension];
+        $service = app(BudgetService::class);
+        $names = match ($dimension) {
+            'cost_center' => CostCenter::pluck('name_ar', 'id'),
+            'project' => Project::pluck('name', 'id'),
+            default => Branch::pluck('name', 'id'),
+        };
+        $accounts = Account::whereIn('id', BudgetLine::where('budget_id', $budget->id)->whereNotNull($column)->pluck('account_id'))->get(['id', 'code', 'name_ar', 'type'])->keyBy('id');
+        $from = Carbon::createFromFormat('Ym', (string) $fromPeriod)->startOfMonth();
+        $to = Carbon::createFromFormat('Ym', (string) $toPeriod)->endOfMonth();
+
+        $rows = [];
+        BudgetLine::where('budget_id', $budget->id)->whereNotNull($column)->whereBetween('period', [$fromPeriod, $toPeriod])
+            ->groupBy($column, 'account_id')->selectRaw($column.' as dim_id, account_id, SUM(amount) as planned')->get()
+            ->each(function ($r) use (&$rows, $service, $dimension, $accounts, $names, $from, $to) {
+                $account = $accounts[$r->account_id] ?? null;
+                if (! $account) {
+                    return;
+                }
+                $planned = round((float) $r->planned, 2);
+                $net = $service->dimensionActual($dimension, (int) $r->dim_id, (int) $r->account_id, $from, $to);
+                $actual = round($account->type === 'expense' ? $net : -$net, 2);
+                $variance = round($account->type === 'expense' ? $actual - $planned : $planned - $actual, 2);
+                $rows[] = ['dimension' => $names[$r->dim_id] ?? '#'.$r->dim_id, 'account' => $account->code.' - '.$account->name_ar, 'planned' => $planned, 'actual' => $actual,
+                    'variance' => $variance, 'pct' => $planned != 0.0 ? round($actual / $planned * 100, 1) : null];
+            });
+        usort($rows, fn ($a, $b) => [$a['dimension'], $a['account']] <=> [$b['dimension'], $b['account']]);
 
         return $rows;
     }

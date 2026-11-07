@@ -3,6 +3,7 @@
 namespace App\Services\Reports;
 
 use App\Models\Account;
+use App\Models\Budget;
 use App\Models\CustomerPayment;
 use App\Models\Expense;
 use App\Models\Invoice;
@@ -48,6 +49,8 @@ class ReportCatalog
         'cash-movement' => 'accounting.controls.export',
         'dormant-accounts' => 'accounting.controls.export',
         'unusual-expenses' => 'accounting.controls.export',
+        'budget-dimensions' => 'accounting.controls.export',
+        'forecast-vs-actual' => 'accounting.controls.export',
         'cash-forecast' => 'accounting.controls.export',
         // Transaction lists (one row per document / journal line), for hand-over and analysis in Excel.
         'tx-sales-invoices' => 'sales.invoices.export',
@@ -75,6 +78,8 @@ class ReportCatalog
             'aging' => $this->aging($request),
             'cash-forecast' => $this->cashForecast($request),
             'unusual-expenses' => $this->controlUnusual($request),
+            'budget-dimensions' => $this->controlBudgetDimensions($request),
+            'forecast-vs-actual' => $this->controlForecastVsActual(),
             'vat-return' => $this->vatReturn($request),
             'sales-analysis' => $this->analysis($request, 'sales'),
             'purchases-analysis' => $this->analysis($request, 'purchases'),
@@ -468,6 +473,31 @@ class ReportCatalog
         return $this->table('الحسابات دون حركة', "لا حركة مرحّلة منذ {$days} يومًا — ".count($data).' حساب', [
             ['code', 'الرمز'], ['name', 'الحساب'], ['last', 'آخر حركة'], ['days', 'منذ (يوم)', 'number'], ['balance', 'الرصيد', 'money'],
         ], $data);
+    }
+
+    protected function controlBudgetDimensions(Request $request): array
+    {
+        $v = $request->validate(['dimension' => 'nullable|in:cost_center,project,branch', 'budget_id' => 'nullable|tenant_exists:budgets,id']);
+        [$from, $to] = $this->range($request);
+        $dimension = $v['dimension'] ?? 'cost_center';
+        $budget = isset($v['budget_id']) ? Budget::find($v['budget_id']) : (Budget::where('status', 'approved')->orderByDesc('id')->first() ?? Budget::orderByDesc('id')->first());
+        $label = ['cost_center' => 'مركز التكلفة', 'project' => 'المشروع', 'branch' => 'الفرع'][$dimension];
+        $rows = $budget ? app(AccountingControls::class)->budgetByDimension($budget, $dimension, (int) $from->format('Ym'), (int) $to->format('Ym')) : [];
+
+        return $this->table('الموازنة حسب '.$label, ($budget ? $budget->name : 'لا موازنة').' — من '.$from->format('Y-m').' إلى '.$to->format('Y-m'), [
+            ['dimension', $label], ['account', 'الحساب'], ['planned', 'المخطط', 'money'], ['actual', 'الفعلي', 'money'], ['variance', 'الانحراف', 'money'], ['pct', 'نسبة التحقق %', 'number'],
+        ], $rows);
+    }
+
+    protected function controlForecastVsActual(): array
+    {
+        $r = app(CashForecastSnapshots::class)->compare();
+        $rows = $r['rows'];
+        $rows[] = ['snapshot' => 'متوسط الدقة', 'week' => '', 'forecast' => null, 'actual' => null, 'deviation' => null, 'accuracy' => $r['accuracy']];
+
+        return $this->table('التدفق النقدي: المتوقع مقابل الفعلي', 'صافي الأسبوع المتوقع في لقطة التوقع مقابل الحركة النقدية الفعلية — '.($r['accuracy'] === null ? 'لا لقطات مكتملة بعد' : 'متوسط الدقة '.$r['accuracy'].'%'), [
+            ['snapshot', 'تاريخ اللقطة'], ['week', 'الأسبوع'], ['forecast', 'المتوقع (صافي)', 'money'], ['actual', 'الفعلي (صافي)', 'money'], ['deviation', 'الانحراف', 'money'], ['accuracy', 'الدقة %', 'number'],
+        ], $rows, [count($rows) - 1]);
     }
 
     protected function controlUnusual(Request $request): array

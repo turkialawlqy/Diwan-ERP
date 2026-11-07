@@ -631,6 +631,7 @@ return [
         'accounting.trial-balance.index' => 'accounting.trial_balance.view',
         'accounting.controls.index' => 'accounting.controls.view',
         'accounting.controls.show' => 'accounting.controls.view',
+        'accounting.controls.forecast-snapshot' => 'accounting.controls.export',
         // Each report re-checks its own export permission in ReportExportController.
         'reports.export' => ['accounting.statements.export', 'accounting.trial_balance.export', 'accounting.aging.export', 'accounting.vat_return.export', 'reports.sales.export', 'reports.purchases.export', 'purchases.suppliers.export'],
         'branches.index' => 'admin.branches.view',

@@ -3,15 +3,24 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\BankAccount;
+use App\Models\Budget;
+use App\Models\BudgetLine;
+use App\Models\CashForecastSnapshot;
 use App\Models\Company;
+use App\Models\CompanySetting;
+use App\Models\CostCenter;
 use App\Models\Customer;
+use App\Models\FiscalYear;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Services\Accounting\AccountingControls;
 use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
+use App\Services\Accounting\BudgetService;
 use App\Services\Accounting\PostingService;
+use App\Services\Reports\CashForecastSnapshots;
 use App\Services\Reports\Insights;
 use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
@@ -150,5 +159,111 @@ class ReportGapsBatch3Test extends TestCase
         $this->get(route('accounting.controls.show', ['report' => 'unusual-expenses', 'months' => 5]))->assertOk()
             ->assertInertia(fn ($p) => $p->component('Accounting/Controls/Show')->where('table.rows.0.code', '59102')->where('filters.months', 5));
         $this->get(route('reports.export', ['report' => 'unusual-expenses', 'format' => 'xlsx', 'months' => 5]))->assertOk();
+    }
+
+    protected function budget(): Budget
+    {
+        $year = FiscalYear::where('start_date', '<=', '2026-06-30')->where('end_date', '>=', '2026-06-30')->firstOrFail();
+
+        return Budget::create(['fiscal_year_id' => $year->id, 'name' => 'موازنة 2026', 'status' => 'approved']);
+    }
+
+    public function test_budget_by_dimension_governs_spending_tagged_to_that_dimension(): void
+    {
+        $map = app(AccountMap::class);
+        $expense = Account::create(['code' => '59201', 'name_ar' => 'ضيافة', 'type' => 'expense', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true, 'is_system' => false]);
+        $cc1 = CostCenter::create(['code' => 'CC1', 'name_ar' => 'المبيعات', 'is_active' => true]);
+        $cc2 = CostCenter::create(['code' => 'CC2', 'name_ar' => 'الإدارة', 'is_active' => true]);
+        $budget = $this->budget();
+        BudgetLine::create(['budget_id' => $budget->id, 'account_id' => $expense->id, 'period' => 202606, 'amount' => 1000]);                          // account level
+        BudgetLine::create(['budget_id' => $budget->id, 'account_id' => $expense->id, 'period' => 202606, 'amount' => 100, 'cost_center_id' => $cc1->id]);   // sales only
+        CompanySetting::create(['key' => 'budget_enforcement', 'value' => 'warn']);
+
+        $service = app(BudgetService::class);
+        $this->assertNotNull($service->check($expense->id, '2026-06-10', 150, 'مصروف', ['cost_center_id' => $cc1->id]), 'sales spend 150 > its own 100');
+        $this->assertNull($service->check($expense->id, '2026-06-10', 150, 'مصروف', ['cost_center_id' => $cc2->id]), 'another centre falls back to the account-level 1,000');
+        $this->assertNull($service->check($expense->id, '2026-06-10', 150, 'مصروف'), 'no dimension → account level');
+
+        // What the ledger holds for the dimension counts against its line, not the other centre's spend.
+        app(PostingService::class)->post(['date' => '2026-06-05', 'description' => 'ضيافة المبيعات', 'entry_type' => 'manual', 'reference' => 'B1', 'lines' => [
+            ['account_id' => $expense->id, 'debit' => 80, 'cost_center_id' => $cc1->id], ['account_id' => $map->id('default_cash'), 'credit' => 80],
+        ]]);
+        app(PostingService::class)->post(['date' => '2026-06-06', 'description' => 'ضيافة الإدارة', 'entry_type' => 'manual', 'reference' => 'B2', 'lines' => [
+            ['account_id' => $expense->id, 'debit' => 500, 'cost_center_id' => $cc2->id], ['account_id' => $map->id('default_cash'), 'credit' => 500],
+        ]]);
+        $this->assertEqualsWithDelta(80.0, $service->dimensionActual('cost_center', $cc1->id, $expense->id, '2026-06-01', '2026-06-30'), 0.01);
+        $this->assertNull($service->check($expense->id, '2026-06-10', 20, 'مصروف', ['cost_center_id' => $cc1->id]), '80 + 20 = 100 is within');
+        $this->assertNotNull($service->check($expense->id, '2026-06-10', 21, 'مصروف', ['cost_center_id' => $cc1->id]));
+    }
+
+    public function test_budget_screen_saves_a_dimension_view_without_touching_the_account_level_lines(): void
+    {
+        $expense = Account::create(['code' => '59202', 'name_ar' => 'سفر', 'type' => 'expense', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true, 'is_system' => false]);
+        $cc = CostCenter::create(['code' => 'CC9', 'name_ar' => 'التشغيل', 'is_active' => true]);
+        $budget = Budget::create(['fiscal_year_id' => $this->budget()->fiscal_year_id, 'name' => 'مسودة', 'status' => 'draft']);
+        BudgetLine::create(['budget_id' => $budget->id, 'account_id' => $expense->id, 'period' => 202606, 'amount' => 700]);
+
+        $this->put(route('accounting.budgets.update', $budget->id), ['dimension' => 'cost_center', 'dimension_id' => $cc->id, 'lines' => [['account_id' => $expense->id, 'period' => 202606, 'amount' => 90]]])->assertSessionHasNoErrors();
+        $this->assertEquals([700.0], BudgetLine::where('budget_id', $budget->id)->whereNull('cost_center_id')->pluck('amount')->map(fn ($v) => (float) $v)->all());
+        $this->assertEquals([90.0], BudgetLine::where('budget_id', $budget->id)->where('cost_center_id', $cc->id)->pluck('amount')->map(fn ($v) => (float) $v)->all());
+
+        // Saving the account-level view again leaves the dimension line alone.
+        $this->put(route('accounting.budgets.update', $budget->id), ['lines' => [['account_id' => $expense->id, 'period' => 202606, 'amount' => 800]]])->assertSessionHasNoErrors();
+        $this->assertEquals([90.0], BudgetLine::where('budget_id', $budget->id)->where('cost_center_id', $cc->id)->pluck('amount')->map(fn ($v) => (float) $v)->all());
+        $this->assertEquals([800.0], BudgetLine::where('budget_id', $budget->id)->whereNull('cost_center_id')->pluck('amount')->map(fn ($v) => (float) $v)->all());
+
+        $this->get(route('accounting.budgets.show', [$budget->id, 'dimension' => 'cost_center', 'dimension_id' => $cc->id]))->assertOk()
+            ->assertInertia(fn ($p) => $p->component('Accounting/Budgets/Show')->where('scope.dimension', 'cost_center')->where('rows', fn ($rows) => collect($rows)->firstWhere('id', $expense->id)['planned'][202606] == 90));
+    }
+
+    public function test_budget_dimensions_report_compares_planned_with_the_ledger_per_dimension(): void
+    {
+        $map = app(AccountMap::class);
+        $expense = Account::create(['code' => '59203', 'name_ar' => 'اتصالات', 'type' => 'expense', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true, 'is_system' => false]);
+        $cc = CostCenter::create(['code' => 'CC5', 'name_ar' => 'الدعم', 'is_active' => true]);
+        $budget = $this->budget();
+        BudgetLine::create(['budget_id' => $budget->id, 'account_id' => $expense->id, 'period' => 202606, 'amount' => 200, 'cost_center_id' => $cc->id]);
+        app(PostingService::class)->post(['date' => '2026-06-08', 'description' => 'اتصالات', 'entry_type' => 'manual', 'reference' => 'T1', 'lines' => [
+            ['account_id' => $expense->id, 'debit' => 260, 'cost_center_id' => $cc->id], ['account_id' => $map->id('default_cash'), 'credit' => 260],
+        ]]);
+
+        $rows = app(AccountingControls::class)->budgetByDimension($budget, 'cost_center', 202601, 202612);
+        $this->assertCount(1, $rows);
+        $this->assertEquals(['الدعم', 200.0, 260.0, 60.0, 130.0], [$rows[0]['dimension'], $rows[0]['planned'], $rows[0]['actual'], $rows[0]['variance'], $rows[0]['pct']]);
+
+        $this->get(route('accounting.controls.show', ['report' => 'budget-dimensions', 'dimension' => 'cost_center', 'start_date' => '2026-01-01', 'end_date' => '2026-12-31']))->assertOk()
+            ->assertInertia(fn ($p) => $p->where('table.rows.0.variance', 60)->where('filters.dimension', 'cost_center'));
+        $this->get(route('reports.export', ['report' => 'budget-dimensions', 'format' => 'xlsx', 'dimension' => 'cost_center', 'start_date' => '2026-01-01', 'end_date' => '2026-12-31']))->assertOk();
+    }
+
+    public function test_cash_forecast_snapshot_is_compared_with_the_cash_that_really_moved(): void
+    {
+        $map = app(AccountMap::class);
+        BankAccount::create(['name' => 'الصندوق', 'type' => 'cash', 'currency' => 'SAR', 'opening_balance' => 0, 'current_balance' => 0, 'account_id' => $map->id('default_cash'), 'is_active' => true]);
+
+        Carbon::setTestNow('2026-06-16 09:00:00');
+        $snap = app(CashForecastSnapshots::class)->take();
+        $this->assertSame(13, count($snap->weeks));
+        $this->assertSame('2026-06-16', $snap->weeks[0]['start']);
+        $this->assertSame($snap->id, app(CashForecastSnapshots::class)->take()->id, 'one snapshot per day');
+
+        app(PostingService::class)->post(['date' => '2026-06-18', 'description' => 'إيراد غير متوقع', 'entry_type' => 'manual', 'reference' => 'S1', 'lines' => [
+            ['account_id' => $map->id('default_cash'), 'debit' => 100], ['account_id' => $map->id('general_expense'), 'credit' => 100],
+        ]]);
+
+        Carbon::setTestNow('2026-06-30 10:00:00');
+        $r = app(CashForecastSnapshots::class)->compare();
+        $this->assertCount(2, $r['rows'], 'only the two weeks that ended before 30 June');
+        $this->assertEquals([100.0, 100.0, 0.0], [$r['rows'][0]['actual'], $r['rows'][0]['deviation'], $r['rows'][0]['accuracy']]);
+        $this->assertEquals([0.0, 100.0], [$r['rows'][1]['actual'], $r['rows'][1]['accuracy']]);   // forecast 0, actual 0
+        $this->assertSame(50.0, $r['accuracy']);
+
+        $this->get(route('accounting.controls.show', 'forecast-vs-actual'))->assertOk()->assertInertia(fn ($p) => $p->has('table.rows', 3));
+        $this->post(route('accounting.controls.forecast-snapshot'))->assertSessionHas('success');
+        $this->assertSame(2, CashForecastSnapshot::count());
+        $this->get(route('reports.export', ['report' => 'forecast-vs-actual', 'format' => 'xlsx']))->assertOk();
+
+        $this->artisan('erp:cash-snapshot')->assertSuccessful();
+        $this->assertSame(2, CashForecastSnapshot::count(), 'the command replaces today\'s snapshot');
     }
 }
