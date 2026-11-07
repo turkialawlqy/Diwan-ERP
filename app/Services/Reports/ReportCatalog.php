@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\Budget;
 use App\Models\CustomerPayment;
 use App\Models\Expense;
+use App\Models\FiscalYear;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
@@ -14,6 +15,7 @@ use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Services\Accounting\AccountingControls;
 use App\Services\Accounting\AccountingReports;
+use App\Services\Accounting\ClosingChecklist;
 use App\Services\Accounting\SourceDocument;
 use App\Services\Purchases\SupplierStatement;
 use App\Services\Tax\WithholdingReport;
@@ -51,6 +53,8 @@ class ReportCatalog
         'unusual-expenses' => 'accounting.controls.export',
         'budget-dimensions' => 'accounting.controls.export',
         'forecast-vs-actual' => 'accounting.controls.export',
+        'closing-checklist' => 'accounting.controls.export',
+        'approval-flow' => 'accounting.controls.export',
         'cash-forecast' => 'accounting.controls.export',
         // Transaction lists (one row per document / journal line), for hand-over and analysis in Excel.
         'tx-sales-invoices' => 'sales.invoices.export',
@@ -80,6 +84,8 @@ class ReportCatalog
             'unusual-expenses' => $this->controlUnusual($request),
             'budget-dimensions' => $this->controlBudgetDimensions($request),
             'forecast-vs-actual' => $this->controlForecastVsActual(),
+            'closing-checklist' => $this->controlClosingChecklist($request),
+            'approval-flow' => $this->controlApprovalFlow($request),
             'vat-return' => $this->vatReturn($request),
             'sales-analysis' => $this->analysis($request, 'sales'),
             'purchases-analysis' => $this->analysis($request, 'purchases'),
@@ -498,6 +504,33 @@ class ReportCatalog
         return $this->table('التدفق النقدي: المتوقع مقابل الفعلي', 'صافي الأسبوع المتوقع في لقطة التوقع مقابل الحركة النقدية الفعلية — '.($r['accuracy'] === null ? 'لا لقطات مكتملة بعد' : 'متوسط الدقة '.$r['accuracy'].'%'), [
             ['snapshot', 'تاريخ اللقطة'], ['week', 'الأسبوع'], ['forecast', 'المتوقع (صافي)', 'money'], ['actual', 'الفعلي (صافي)', 'money'], ['deviation', 'الانحراف', 'money'], ['accuracy', 'الدقة %', 'number'],
         ], $rows, [count($rows) - 1]);
+    }
+
+    protected function controlClosingChecklist(Request $request): array
+    {
+        $request->validate(['fiscal_year_id' => 'nullable|tenant_exists:fiscal_years,id']);
+        $year = $request->filled('fiscal_year_id') ? FiscalYear::find($request->integer('fiscal_year_id'))
+            : (FiscalYear::whereDate('start_date', '<=', now())->whereDate('end_date', '>=', now())->first() ?? FiscalYear::orderByDesc('start_date')->first());
+        $items = $year ? app(ClosingChecklist::class)->forYear($year) : [];
+        $label = ['ok' => 'مكتمل', 'warn' => 'يحتاج مراجعة', 'fail' => 'يمنع الإقفال السليم'];
+        $open = collect($items)->where('status', '!=', 'ok')->count();
+        $rows = array_map(fn ($i) => ['item' => $i['label'], 'status' => $label[$i['status']], 'count' => $i['count'], 'detail' => $i['detail']], $items);
+
+        return $this->table('قائمة تحقق إقفال الفترة', $year ? $year->name.' — '.($open ? $open.' بند يحتاج معالجة' : 'كل البنود مكتملة') : 'لا سنة مالية', [
+            ['item', 'البند'], ['status', 'الحالة'], ['count', 'العدد', 'number'], ['detail', 'ما المطلوب'],
+        ], $rows);
+    }
+
+    protected function controlApprovalFlow(Request $request): array
+    {
+        $group = $request->input('group') === 'approver' ? 'approver' : 'type';
+        $days = max(1, min(365, (int) ($request->input('overdue_days') ?: 7)));
+        $rows = app(AccountingControls::class)->approvalFlow($group, $days);
+
+        return $this->table('تدفق طلبات الموافقة', 'طلبات الاعتماد المرفوعة من نقطة الاعتماد (سندات الصرف والمصروفات والإشعارات والقيود والرواتب...) — المتأخر: معلّق أكثر من '.$days.' يومًا', [
+            ['group', $group === 'approver' ? 'المعتمِد' : 'نوع المستند'], ['pending', 'معلّق', 'number'], ['pending_amount', 'مبالغ معلّقة', 'money'], ['overdue', 'متأخر', 'number'], ['oldest', 'أقدم معلّق (يوم)', 'number'],
+            ['approved', 'موافق عليه', 'number'], ['rejected', 'مرفوض', 'number'], ['used', 'مستعمل', 'number'], ['avg_hours', 'متوسط زمن القرار (ساعة)', 'number'],
+        ], $rows);
     }
 
     protected function controlUnusual(Request $request): array

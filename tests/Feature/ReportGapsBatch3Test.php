@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\ApprovalRequest;
+use App\Models\AssetCategory;
 use App\Models\BankAccount;
 use App\Models\Budget;
 use App\Models\BudgetLine;
@@ -12,13 +14,17 @@ use App\Models\CompanySetting;
 use App\Models\CostCenter;
 use App\Models\Customer;
 use App\Models\FiscalYear;
+use App\Models\FixedAsset;
 use App\Models\PurchaseInvoice;
+use App\Models\RecurringJournal;
 use App\Models\Supplier;
 use App\Services\Accounting\AccountingControls;
 use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\BudgetService;
+use App\Services\Accounting\ClosingChecklist;
+use App\Services\Accounting\DepreciationService;
 use App\Services\Accounting\PostingService;
 use App\Services\Reports\CashForecastSnapshots;
 use App\Services\Reports\Insights;
@@ -265,5 +271,76 @@ class ReportGapsBatch3Test extends TestCase
 
         $this->artisan('erp:cash-snapshot')->assertSuccessful();
         $this->assertSame(2, CashForecastSnapshot::count(), 'the command replaces today\'s snapshot');
+    }
+
+    protected function checklist(): array
+    {
+        $year = FiscalYear::whereDate('start_date', '<=', '2026-06-30')->whereDate('end_date', '>=', '2026-06-30')->firstOrFail();
+
+        return collect(app(ClosingChecklist::class)->forYear($year, now()))->keyBy('key')->all();
+    }
+
+    public function test_closing_checklist_collects_what_is_still_open(): void
+    {
+        $map = app(AccountMap::class);
+        $clean = $this->checklist();
+        foreach (['drafts', 'depreciation', 'vat', 'party_reconciliation', 'approvals', 'recurring', 'bank_unreconciled'] as $key) {
+            $this->assertSame('ok', $clean[$key]['status'], $key);
+        }
+        $this->assertSame('warn', $clean['open_periods']['status'], 'January–May are over and still open');
+        $this->assertSame(5, $clean['open_periods']['count']);
+
+        app(PostingService::class)->post(['date' => '2026-06-01', 'description' => 'مسودة', 'entry_type' => 'manual', 'status' => 'draft', 'lines' => [
+            ['account_id' => $map->id('default_cash'), 'debit' => 10], ['account_id' => $map->id('general_expense'), 'credit' => 10],
+        ]]);
+        ApprovalRequest::create(['document_type' => 'expense', 'subject_key' => 'k1', 'description' => 'مصروف', 'amount' => 900, 'requested_by' => auth()->id()]);
+        $lines = [['account_id' => $map->id('rent_expense'), 'debit' => 300, 'credit' => 0], ['account_id' => $map->id('accrued_expenses'), 'debit' => 0, 'credit' => 300]];
+        RecurringJournal::create(['name' => 'إيجار', 'description' => 'إيجار', 'lines' => $lines, 'frequency' => 'monthly', 'next_run_date' => '2026-06-15', 'is_active' => true]);
+        $this->invoice('2026-03-10', 1000, '2026-03-20');   // VAT of the first quarter, never settled
+
+        $category = AssetCategory::create(['name_ar' => 'حاسبات', 'useful_life_months' => 36, 'depreciation_method' => 'straight_line', 'asset_account_id' => $map->id('fixed_assets'),
+            'accumulated_account_id' => $map->id('accumulated_depreciation'), 'expense_account_id' => $map->id('depreciation_expense')]);
+        $asset = FixedAsset::create(['asset_category_id' => $category->id, 'code' => 'FA-1', 'name_ar' => 'لابتوب', 'acquisition_date' => '2026-01-01', 'depreciation_start_date' => '2026-01-01',
+            'cost' => 3600, 'salvage_value' => 0, 'useful_life_months' => 36, 'depreciation_method' => 'straight_line', 'status' => 'active']);
+        app(DepreciationService::class)->acquire($asset, 'bank_transfer');
+        app(DepreciationService::class)->run(Carbon::parse('2026-04-30'));   // May is missing
+
+        $open = $this->checklist();
+        $this->assertEquals([['fail', 1], ['warn', 1], ['warn', 1], ['fail', 1], ['warn', 1]], [
+            [$open['drafts']['status'], $open['drafts']['count']], [$open['approvals']['status'], $open['approvals']['count']], [$open['recurring']['status'], $open['recurring']['count']],
+            [$open['depreciation']['status'], $open['depreciation']['count']], [$open['vat']['status'], $open['vat']['count']],
+        ]);
+
+        app(DepreciationService::class)->run(Carbon::parse('2026-05-31'));
+        $this->assertSame('ok', $this->checklist()['depreciation']['status']);
+
+        $year = FiscalYear::whereDate('start_date', '<=', '2026-06-30')->whereDate('end_date', '>=', '2026-06-30')->firstOrFail();
+        $this->get(route('accounting.controls.show', ['report' => 'closing-checklist', 'fiscal_year_id' => $year->id]))->assertOk()
+            ->assertInertia(fn ($p) => $p->component('Accounting/Controls/Show')->has('years')->where('table.rows.0.item', 'قيود مسودة داخل السنة')->where('table.rows.0.status', 'يمنع الإقفال السليم'));
+        $this->get(route('reports.export', ['report' => 'closing-checklist', 'format' => 'xlsx', 'fiscal_year_id' => $year->id]))->assertOk();
+        $this->get(route('accounting.fiscal-years.close-form', $year->id))->assertOk();
+    }
+
+    public function test_approval_flow_groups_requests_by_type_and_by_approver(): void
+    {
+        $me = auth()->user();
+        $old = ApprovalRequest::create(['document_type' => 'expense', 'subject_key' => 'a', 'description' => 'قديم', 'amount' => 500, 'requested_by' => $me->id]);
+        $old->forceFill(['created_at' => now()->subDays(10)])->saveQuietly();
+        ApprovalRequest::create(['document_type' => 'expense', 'subject_key' => 'b', 'description' => 'حديث', 'amount' => 250, 'requested_by' => $me->id]);
+        $done = ApprovalRequest::create(['document_type' => 'journal', 'subject_key' => 'c', 'description' => 'قيد', 'amount' => 90, 'requested_by' => $me->id, 'status' => 'approved', 'decided_by' => $me->id, 'decided_at' => now()]);
+        $done->forceFill(['created_at' => now()->subHours(5)])->saveQuietly();
+        ApprovalRequest::create(['document_type' => 'journal', 'subject_key' => 'd', 'description' => 'قيد 2', 'amount' => 40, 'requested_by' => $me->id, 'status' => 'rejected', 'decided_by' => $me->id, 'decided_at' => now()]);
+
+        $byType = collect(app(AccountingControls::class)->approvalFlow('type', 7, now()))->keyBy('group');
+        $this->assertEquals([2, 750.0, 1, 10], [$byType['المصروفات']['pending'], $byType['المصروفات']['pending_amount'], $byType['المصروفات']['overdue'], $byType['المصروفات']['oldest']]);
+        $this->assertEquals([1, 1, 0], [$byType['القيود اليدوية']['approved'], $byType['القيود اليدوية']['rejected'], $byType['القيود اليدوية']['pending']]);
+        $this->assertEquals(5.0, $byType['القيود اليدوية']['avg_hours'] > 0 ? 5.0 : 0.0);
+
+        $byApprover = collect(app(AccountingControls::class)->approvalFlow('approver', 7, now()))->keyBy('group');
+        $this->assertEquals(2, $byApprover['بانتظار قرار']['pending']);
+        $this->assertEquals([1, 1], [$byApprover[$me->name]['approved'], $byApprover[$me->name]['rejected']]);
+
+        $this->get(route('accounting.controls.show', ['report' => 'approval-flow', 'group' => 'approver']))->assertOk()->assertInertia(fn ($p) => $p->where('filters.group', 'approver')->has('table.rows', 2));
+        $this->get(route('reports.export', ['report' => 'approval-flow', 'format' => 'pdf']))->assertOk();
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Accounting\ControlReportsController;
 use App\Models\Account;
 use App\Models\BankAccount;
 use App\Models\Company;
@@ -150,8 +151,8 @@ class AccountingControlsTest extends TestCase
 
     public function test_every_report_opens_and_exports_with_the_control_permission(): void
     {
-        $this->get(route('accounting.controls.index'))->assertOk()->assertInertia(fn ($p) => $p->has('reports', 6));
-        foreach (['controls-exceptions', 'party-reconciliation', 'customer-balances', 'supplier-balances', 'cash-movement', 'dormant-accounts'] as $key) {
+        $this->get(route('accounting.controls.index'))->assertOk()->assertInertia(fn ($p) => $p->has('reports', count(ControlReportsController::REPORTS)));
+        foreach (array_keys(ControlReportsController::REPORTS) as $key) {
             $this->get(route('accounting.controls.show', $key))->assertOk();
             $rows = $this->sheet($this->get(route('reports.export', ['report' => $key, 'format' => 'xlsx']))->assertOk()->getContent());
             $this->assertNotEmpty($rows, $key);

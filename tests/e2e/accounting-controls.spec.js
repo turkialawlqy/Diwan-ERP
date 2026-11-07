@@ -6,9 +6,9 @@ test('control reports: landing page, every report opens, filters and exports', a
     const errors = watchErrors(page);
     await page.goto('/accounting/controls');
     const cards = page.locator('[data-control]');
-    await expect(cards).toHaveCount(6);
+    await expect(cards).toHaveCount(11);
 
-    for (const key of ['controls-exceptions', 'party-reconciliation', 'customer-balances', 'supplier-balances', 'cash-movement', 'dormant-accounts']) {
+    for (const key of ['controls-exceptions', 'party-reconciliation', 'customer-balances', 'supplier-balances', 'cash-movement', 'dormant-accounts', 'unusual-expenses', 'budget-dimensions', 'forecast-vs-actual', 'closing-checklist', 'approval-flow']) {
         await page.goto(`/accounting/controls/${key}`);
         await expect(page.locator('[data-control-table]')).toBeVisible();
         await expect(page.locator('[data-export-xlsx]')).toBeVisible();

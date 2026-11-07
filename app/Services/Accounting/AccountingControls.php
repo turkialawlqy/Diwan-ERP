@@ -3,6 +3,7 @@
 namespace App\Services\Accounting;
 
 use App\Models\Account;
+use App\Models\ApprovalRequest;
 use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Budget;
@@ -16,8 +17,10 @@ use App\Models\Project;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Models\SupplierPaymentAllocation;
+use App\Models\User;
 use App\Services\ActiveBranch;
 use App\Services\TenantManager;
+use App\Services\Workflow\ApprovalService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -333,5 +336,48 @@ class AccountingControls
         usort($rows, fn ($a, $b) => [$a['dimension'], $a['account']] <=> [$b['dimension'], $b['account']]);
 
         return $rows;
+    }
+
+    /**
+     * Approval requests raised by the approval gate (payments, expenses, credit notes, journals, payroll, loans...) by
+     * document type or by the user who decided them: how many wait, for how long, how many are overdue, and the outcomes.
+     *
+     * @return array<int, array>
+     */
+    public function approvalFlow(string $group = 'type', int $overdueDays = 7, ?Carbon $today = null): array
+    {
+        $today = ($today ?? now())->copy()->startOfDay();
+        $byUser = $group === 'approver';
+        $users = $byUser ? User::whereIn('id', ApprovalRequest::whereNotNull('decided_by')->pluck('decided_by')->unique())->pluck('name', 'id') : collect();
+        $rows = [];
+
+        foreach (ApprovalRequest::orderBy('id')->get() as $r) {
+            $key = $byUser ? ($r->decided_by ? ($users[$r->decided_by] ?? '#'.$r->decided_by) : 'بانتظار قرار') : (ApprovalService::DOCUMENT_TYPES[$r->document_type] ?? $r->document_type);
+            $row = &$rows[$key];
+            $row ??= ['group' => $key, 'pending' => 0, 'pending_amount' => 0.0, 'overdue' => 0, 'oldest' => null, 'approved' => 0, 'rejected' => 0, 'used' => 0, 'decide_hours' => []];
+            if ($r->status === 'pending') {
+                $age = (int) $r->created_at->copy()->startOfDay()->diffInDays($today);
+                $row['pending']++;
+                $row['pending_amount'] = round($row['pending_amount'] + (float) $r->amount, 2);
+                $row['oldest'] = max($row['oldest'] ?? 0, $age);
+                if ($age > $overdueDays) {
+                    $row['overdue']++;
+                }
+            } else {
+                $row[$r->status] = ($row[$r->status] ?? 0) + 1;
+                if ($r->decided_at) {
+                    $row['decide_hours'][] = $r->created_at->diffInMinutes($r->decided_at) / 60;
+                }
+            }
+            unset($row);
+        }
+
+        return collect($rows)->map(function ($r) {
+            $hours = $r['decide_hours'];
+            $r['avg_hours'] = $hours ? round(array_sum($hours) / count($hours), 1) : null;
+            unset($r['decide_hours']);
+
+            return $r;
+        })->sortByDesc('pending')->values()->all();
     }
 }

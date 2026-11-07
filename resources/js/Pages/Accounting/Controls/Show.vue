@@ -5,14 +5,17 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import ExportButtons from '@/Components/UI/ExportButtons.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
+import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import { amount } from '@/utils/format';
 
-const props = defineProps({ report: String, table: Object, filterKinds: Array, filters: Object });
-const form = reactive({ start_date: props.filters.start_date, end_date: props.filters.end_date, days: props.filters.days, dimension: props.filters.dimension, months: props.filters.months, k: props.filters.k, min_amount: props.filters.min_amount });
+const props = defineProps({ report: String, table: Object, filterKinds: Array, filters: Object, years: { type: Array, default: () => [] } });
+const form = reactive({ start_date: props.filters.start_date, end_date: props.filters.end_date, days: props.filters.days, dimension: props.filters.dimension, fiscal_year_id: props.filters.fiscal_year_id || '', group: props.filters.group, overdue_days: props.filters.overdue_days, months: props.filters.months, k: props.filters.k, min_amount: props.filters.min_amount });
 const exportParams = () => ({
     ...(props.filterKinds.includes('range') ? { start_date: form.start_date, end_date: form.end_date } : {}),
     ...(props.filterKinds.includes('days') ? { days: form.days } : {}),
     ...(props.filterKinds.includes('dimension') ? { dimension: form.dimension } : {}),
+    ...(props.filterKinds.includes('fiscal_year') ? { fiscal_year_id: form.fiscal_year_id } : {}),
+    ...(props.filterKinds.includes('approval') ? { group: form.group, overdue_days: form.overdue_days } : {}),
     ...(props.filterKinds.includes('unusual') ? { months: form.months, k: form.k, min_amount: form.min_amount } : {}),
 });
 const apply = () => router.get(route('accounting.controls.show', props.report), exportParams(), { preserveState: true });
@@ -41,6 +44,15 @@ const cell = (value, column) => {
             <label v-if="filterKinds.includes('dimension')"><span class="block font-bold text-slate-600 mb-1">{{ $t('budgetdim.view') }}</span>
                 <select v-model="form.dimension" class="rounded-xl border-slate-200 text-xs"><option value="cost_center">{{ $t('budgetdim.cost_center') }}</option><option value="project">{{ $t('budgetdim.project') }}</option><option value="branch">{{ $t('budgetdim.branch') }}</option></select>
             </label>
+            <label v-if="filterKinds.includes('fiscal_year')" class="min-w-[200px]"><span class="block font-bold text-slate-600 mb-1">{{ $t('controls.fiscal_year') }}</span>
+                <SelectCreate v-model="form.fiscal_year_id" :options="years" label="name" />
+            </label>
+            <template v-if="filterKinds.includes('approval')">
+                <label><span class="block font-bold text-slate-600 mb-1">{{ $t('controls.group') }}</span>
+                    <select v-model="form.group" class="rounded-xl border-slate-200 text-xs"><option value="type">{{ $t('controls.by_type') }}</option><option value="approver">{{ $t('controls.by_approver') }}</option></select>
+                </label>
+                <label><span class="block font-bold text-slate-600 mb-1">{{ $t('controls.overdue_days') }}</span><input v-model="form.overdue_days" type="text" inputmode="decimal" data-num class="w-24 rounded-xl border-slate-200 text-xs" /></label>
+            </template>
             <template v-if="filterKinds.includes('unusual')">
                 <label><span class="block font-bold text-slate-600 mb-1">{{ $t('aging3.months') }}</span><input v-model="form.months" type="text" inputmode="decimal" data-num class="w-24 rounded-xl border-slate-200 text-xs" /></label>
                 <label><span class="block font-bold text-slate-600 mb-1">{{ $t('aging3.k') }}</span><input v-model="form.k" type="text" inputmode="decimal" data-num class="w-24 rounded-xl border-slate-200 text-xs" /></label>

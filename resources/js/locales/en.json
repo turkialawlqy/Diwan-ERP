@@ -468,7 +468,13 @@
         "days": "No movement for (days)",
         "empty": "Nothing to show",
         "back": "All control reports",
-        "snapshot_now": "Save forecast snapshot now"
+        "snapshot_now": "Save forecast snapshot now",
+        "fiscal_year": "Fiscal year",
+        "group": "Group by",
+        "by_type": "Document type",
+        "by_approver": "Approver",
+        "overdue_days": "Overdue after (days)",
+        "closing_checklist": "Closing checklist"
     },
     "aging3": {
         "buckets": "Buckets (days, comma separated)",
