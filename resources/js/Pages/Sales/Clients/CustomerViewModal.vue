@@ -12,6 +12,9 @@ import {
     PrinterIcon,
 } from '@heroicons/vue/24/outline';
 import { timeZone } from '@/utils/format';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({
     show: {
@@ -59,13 +62,13 @@ const formatDate = (dateStr) => {
 const getStatusBadge = (status) => {
     switch (status) {
         case 'paid':
-            return { text: 'مدفوعة', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+            return { text: t('cview.paid'), class: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
         case 'partially_paid':
-            return { text: 'مدفوعة جزئياً', class: 'bg-amber-50 text-amber-700 border-amber-200' };
+            return { text: t('cview.partially_paid'), class: 'bg-amber-50 text-amber-700 border-amber-200' };
         case 'unpaid':
-            return { text: 'غير مدفوعة', class: 'bg-rose-50 text-rose-700 border-rose-200' };
+            return { text: t('cview.unpaid'), class: 'bg-rose-50 text-rose-700 border-rose-200' };
         default:
-            return { text: status || 'معلقة', class: 'bg-slate-50 text-slate-700 border-slate-200' };
+            return { text: status || t('cview.pending'), class: 'bg-slate-50 text-slate-700 border-slate-200' };
     }
 };
 </script>
@@ -81,7 +84,7 @@ const getStatusBadge = (status) => {
         >
             <!-- Top Header Bar -->
             <div v-if="!page" class="px-6 py-3.5 border-b border-slate-100 flex items-center justify-between bg-white">
-                <h2 class="text-xl font-bold text-slate-800">عرض عميل</h2>
+                <h2 class="text-xl font-bold text-slate-800">{{ $t('cview.view_customer') }}</h2>
                 <button
                     type="button"
                     @click="emit('close')"
@@ -104,7 +107,7 @@ const getStatusBadge = (status) => {
                             : 'text-slate-500 border-transparent hover:text-slate-800'
                     ]"
                 >
-                    الملخص
+                    {{ $t('cview.summary') }}
                 </button>
 
                 <!-- Invoices Tab (الفواتير) -->
@@ -118,7 +121,7 @@ const getStatusBadge = (status) => {
                             : 'text-slate-500 border-transparent hover:text-slate-800'
                     ]"
                 >
-                    <span>الفواتير</span>
+                    <span>{{ $t('cview.invoices') }}</span>
                     <span
                         v-if="customer.invoices && customer.invoices.length > 0"
                         class="text-2xs px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono"
@@ -138,7 +141,7 @@ const getStatusBadge = (status) => {
                             : 'text-slate-500 border-transparent hover:text-slate-800'
                     ]"
                 >
-                    <span>المدفوعات</span>
+                    <span>{{ $t('cview.payments') }}</span>
                     <span
                         v-if="customer.payments && customer.payments.length > 0"
                         class="text-2xs px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono"
@@ -156,7 +159,7 @@ const getStatusBadge = (status) => {
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <!-- Balance Card (الرصيد) -->
                         <div class="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs flex flex-col items-center justify-center text-center">
-                            <span class="text-xs font-bold text-slate-500 mb-1">الرصيد</span>
+                            <span class="text-xs font-bold text-slate-500 mb-1">{{ $t('cview.balance') }}</span>
                             <span
                                 class="text-2xl font-black font-mono"
                                 :class="[
@@ -173,11 +176,11 @@ const getStatusBadge = (status) => {
 
                         <!-- Statement of Account Card (كشف حساب) -->
                         <div class="p-4 rounded-xl border border-slate-200 bg-white shadow-2xs flex flex-col items-center justify-center text-center">
-                            <span class="text-xs font-bold text-slate-500 mb-1">كشف حساب</span>
+                            <span class="text-xs font-bold text-slate-500 mb-1">{{ $t('cview.statement_of_account') }}</span>
                             <Link
                                 :href="route('sales.clients.statement', customer.id)"
                                 class="text-base sm:text-lg font-bold text-slate-800 hover:text-indigo-600 transition-colors inline-flex items-center gap-2"
-                                title="عرض كشف الحساب التفصيلي"
+                                :title="$t('cview.view_the_detailed_statement')"
                             >
                                 <span>#{{ customer.code || ('1-' + String(customer.id).padStart(6, '0')) }}</span>
                                 <span>{{ customer.name }}</span>
@@ -195,7 +198,7 @@ const getStatusBadge = (status) => {
                         <div class="space-y-4">
                             <!-- Type (النوع) -->
                             <div class="flex items-center justify-between pb-1">
-                                <span class="text-xs font-bold text-slate-700">النوع</span>
+                                <span class="text-xs font-bold text-slate-700">{{ $t('cview.type') }}</span>
                                 <div class="flex items-center gap-6">
                                     <label class="inline-flex items-center gap-2">
                                         <input
@@ -204,7 +207,7 @@ const getStatusBadge = (status) => {
                                             :checked="customer.customer_type === 'individual'"
                                             class="w-4 h-4 text-indigo-600 border-slate-300"
                                         />
-                                        <span class="text-sm font-medium text-slate-700">فردي</span>
+                                        <span class="text-sm font-medium text-slate-700">{{ $t('cview.individual') }}</span>
                                     </label>
                                     <label class="inline-flex items-center gap-2">
                                         <input
@@ -213,14 +216,14 @@ const getStatusBadge = (status) => {
                                             :checked="customer.customer_type !== 'individual'"
                                             class="w-4 h-4 text-indigo-600 border-slate-300"
                                         />
-                                        <span class="text-sm font-medium text-slate-700">تجاري</span>
+                                        <span class="text-sm font-medium text-slate-700">{{ $t('cview.commercial') }}</span>
                                     </label>
                                 </div>
                             </div>
 
                             <!-- Code (الكود) -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">الكود</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.code') }}</label>
                                 <input
                                     readonly
                                     :value="customer.code || ('1-' + String(customer.id).padStart(6, '0'))"
@@ -232,7 +235,7 @@ const getStatusBadge = (status) => {
                             <!-- Name (الاسم *) -->
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1">
-                                    الاسم <span class="text-rose-500">*</span>
+                                    {{ $t('cview.name') }} <span class="text-rose-500">*</span>
                                 </label>
                                 <input
                                     readonly
@@ -246,7 +249,7 @@ const getStatusBadge = (status) => {
                             <div v-if="customer.customer_type !== 'individual'" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <!-- CR (السجل التجاري) -->
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">السجل التجاري</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.commercial_register') }}</label>
                                     <input
                                         readonly
                                         :value="customer.commercial_registration || '-'"
@@ -257,7 +260,7 @@ const getStatusBadge = (status) => {
 
                                 <!-- Tax Number (الرقم الضريبي) -->
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">الرقم الضريبي</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.tax_number') }}</label>
                                     <input
                                         readonly
                                         :value="customer.tax_number || '-'"
@@ -269,18 +272,18 @@ const getStatusBadge = (status) => {
 
                             <!-- Notes (ملاحظات) -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">ملاحظات</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.notes') }}</label>
                                 <textarea
                                     readonly
                                     rows="3"
-                                    :value="customer.notes || 'لا توجد ملاحظات مسجلة'"
+                                    :value="customer.notes || $t('cview.no_notes_recorded')"
                                     class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 text-slate-600 resize-none"
                                 ></textarea>
                             </div>
 
                             <!-- Attachments (المرفقات) -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">المرفقات</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.attachments') }}</label>
                                 <div class="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center bg-slate-50/50">
                                     <div v-if="customer.attachments && customer.attachments.length > 0" class="space-y-2">
                                         <div
@@ -297,13 +300,13 @@ const getStatusBadge = (status) => {
                                                 target="_blank"
                                                 class="text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
                                             >
-                                                <span>عرض</span>
+                                                <span>{{ $t('cview.view') }}</span>
                                                 <ArrowTopRightOnSquareIcon class="w-3.5 h-3.5" />
                                             </a>
                                         </div>
                                     </div>
                                     <div v-else class="text-xs text-slate-400">
-                                        لا توجد مرفقات مرفوعة لهذا العميل
+                                        {{ $t('cview.no_attachments_uploaded_for_this') }}
                                     </div>
                                 </div>
                             </div>
@@ -311,11 +314,11 @@ const getStatusBadge = (status) => {
 
                         <!-- LEFT COLUMN: Contact Information -->
                         <div class="space-y-4">
-                            <h3 class="text-sm font-bold text-slate-800">بيانات الاتصال</h3>
+                            <h3 class="text-sm font-bold text-slate-800">{{ $t('cview.contact_details') }}</h3>
 
                             <!-- Contact Name (اسم جهة الاتصال) -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">اسم جهة الاتصال</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.contact_name') }}</label>
                                 <input
                                     readonly
                                     :value="customer.contact_name || customer.company_name || '-'"
@@ -333,7 +336,7 @@ const getStatusBadge = (status) => {
                                         disabled
                                         class="rounded text-indigo-600 border-slate-300"
                                     />
-                                    <span class="text-xs font-semibold text-slate-700">الهاتف</span>
+                                    <span class="text-xs font-semibold text-slate-700">{{ $t('cview.phone') }}</span>
                                 </label>
 
                                 <label class="inline-flex items-center gap-2">
@@ -343,7 +346,7 @@ const getStatusBadge = (status) => {
                                         disabled
                                         class="rounded text-indigo-600 border-slate-300"
                                     />
-                                    <span class="text-xs font-semibold text-slate-700">بريد إلكتروني</span>
+                                    <span class="text-xs font-semibold text-slate-700">{{ $t('cview.email') }}</span>
                                 </label>
 
                                 <label class="inline-flex items-center gap-2">
@@ -353,14 +356,14 @@ const getStatusBadge = (status) => {
                                         disabled
                                         class="rounded text-indigo-600 border-slate-300"
                                     />
-                                    <span class="text-xs font-semibold text-slate-700">عنوان</span>
+                                    <span class="text-xs font-semibold text-slate-700">{{ $t('cview.address') }}</span>
                                 </label>
                             </div>
 
                             <!-- Phone & Mobile -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">الهاتف</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.phone') }}</label>
                                     <input
                                         readonly
                                         :value="customer.phone || '-'"
@@ -369,7 +372,7 @@ const getStatusBadge = (status) => {
                                     />
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">الجوال</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.mobile') }}</label>
                                     <input
                                         readonly
                                         :value="customer.mobile || '-'"
@@ -381,7 +384,7 @@ const getStatusBadge = (status) => {
 
                             <!-- Email -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">بريد إلكتروني</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.email') }}</label>
                                 <input
                                     readonly
                                     :value="customer.email || '-'"
@@ -392,7 +395,7 @@ const getStatusBadge = (status) => {
 
                             <!-- Building Number & Street Name -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">رقم المبنى - اسم الشارع</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.building_number_street_name') }}</label>
                                 <input
                                     readonly
                                     :value="[customer.building_number, customer.street_name].filter(Boolean).join(' - ') || customer.address || '-'"
@@ -403,7 +406,7 @@ const getStatusBadge = (status) => {
 
                             <!-- Additional Details -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">الرقم الإضافي</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.additional_number') }}</label>
                                 <input
                                     readonly
                                     :value="customer.additional_details || '-'"
@@ -415,7 +418,7 @@ const getStatusBadge = (status) => {
                             <!-- District & City -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">حي</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.district') }}</label>
                                     <input
                                         readonly
                                         :value="customer.district || '-'"
@@ -424,7 +427,7 @@ const getStatusBadge = (status) => {
                                     />
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">مدينة</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.city') }}</label>
                                     <input
                                         readonly
                                         :value="customer.city || '-'"
@@ -437,7 +440,7 @@ const getStatusBadge = (status) => {
                             <!-- Postal Code & Province -->
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">رمز بريدي</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.postal_code') }}</label>
                                     <input
                                         readonly
                                         :value="customer.postal_code || '-'"
@@ -446,7 +449,7 @@ const getStatusBadge = (status) => {
                                     />
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">محافظة</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.province') }}</label>
                                     <input
                                         readonly
                                         :value="customer.province || customer.city || '-'"
@@ -458,10 +461,10 @@ const getStatusBadge = (status) => {
 
                             <!-- Country -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">دولة</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cview.country') }}</label>
                                 <input
                                     readonly
-                                    :value="customer.country || 'المملكة العربية السعودية'"
+                                    :value="customer.country || $t('cview.saudi_arabia')"
                                     type="text"
                                     class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 text-slate-700"
                                 />
@@ -473,14 +476,14 @@ const getStatusBadge = (status) => {
                 <!-- TAB 2: INVOICES (الفواتير) -->
                 <div v-else-if="activeTab === 'invoices'" class="space-y-4">
                     <div class="flex items-center justify-between">
-                        <h3 class="text-sm font-bold text-slate-800">فواتير العميل</h3>
+                        <h3 class="text-sm font-bold text-slate-800">{{ $t('cview.customer_invoices') }}</h3>
                         <Link
                             v-if="$canRoute('sales.invoices.create')"
                             :href="route('sales.invoices.create')"
                             class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors"
                         >
                             <PlusIcon class="w-4 h-4 stroke-2" />
-                            <span>إصدار فاتورة جديدة</span>
+                            <span>{{ $t('cview.issue_a_new_invoice') }}</span>
                         </Link>
                     </div>
 
@@ -490,12 +493,12 @@ const getStatusBadge = (status) => {
                             <table class="w-full text-right border-collapse text-xs">
                                 <thead>
                                     <tr class="bg-slate-50/80 border-b border-slate-100 text-slate-500 font-bold">
-                                        <th class="py-3 px-4">رقم الفاتورة</th>
-                                        <th class="py-3 px-4">تاريخ الإصدار</th>
-                                        <th class="py-3 px-4">تاريخ الاستحقاق</th>
-                                        <th class="py-3 px-4">الإجمالي</th>
-                                        <th class="py-3 px-4">الحالة</th>
-                                        <th class="py-3 px-4 text-center">إجراءات</th>
+                                        <th class="py-3 px-4">{{ $t('cview.invoice_number') }}</th>
+                                        <th class="py-3 px-4">{{ $t('cview.issue_date') }}</th>
+                                        <th class="py-3 px-4">{{ $t('cview.due_date') }}</th>
+                                        <th class="py-3 px-4">{{ $t('cview.total') }}</th>
+                                        <th class="py-3 px-4">{{ $t('cview.status') }}</th>
+                                        <th class="py-3 px-4 text-center">{{ $t('cview.actions') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
@@ -531,14 +534,14 @@ const getStatusBadge = (status) => {
                                                 :href="route('sales.invoices.show', inv.id)"
                                                 class="text-indigo-600 hover:text-indigo-800 font-bold underline"
                                             >
-                                                عرض الفاتورة
+                                                {{ $t('cview.view_invoice') }}
                                             </Link>
                                         </td>
                                     </tr>
 
                                     <tr v-if="!customer.invoices || customer.invoices.length === 0">
                                         <td colspan="6" class="py-8 text-center text-slate-400">
-                                            لا توجد أية فواتير مسجلة لهذا العميل حتى الآن
+                                            {{ $t('cview.no_invoices_recorded_for_this_cu') }}
                                         </td>
                                     </tr>
                                 </tbody>
@@ -550,7 +553,7 @@ const getStatusBadge = (status) => {
                 <!-- TAB 3: PAYMENTS (المدفوعات) -->
                 <div v-else-if="activeTab === 'payments'" class="space-y-4">
                     <div class="flex items-center justify-between">
-                        <h3 class="text-sm font-bold text-slate-800">سندات القبض والمدفوعات</h3>
+                        <h3 class="text-sm font-bold text-slate-800">{{ $t('cview.receipt_vouchers_and_payments') }}</h3>
                     </div>
 
                     <!-- Payments Table -->
@@ -559,11 +562,11 @@ const getStatusBadge = (status) => {
                             <table class="w-full text-right border-collapse text-xs">
                                 <thead>
                                     <tr class="bg-slate-50/80 border-b border-slate-100 text-slate-500 font-bold">
-                                        <th class="py-3 px-4">رقم السند</th>
-                                        <th class="py-3 px-4">التاريخ</th>
-                                        <th class="py-3 px-4">طريقة الدفع</th>
-                                        <th class="py-3 px-4">المبلغ</th>
-                                        <th class="py-3 px-4">المرجع / ملاحظات</th>
+                                        <th class="py-3 px-4">{{ $t('cview.voucher_number') }}</th>
+                                        <th class="py-3 px-4">{{ $t('cview.date') }}</th>
+                                        <th class="py-3 px-4">{{ $t('cview.payment_method') }}</th>
+                                        <th class="py-3 px-4">{{ $t('cview.amount') }}</th>
+                                        <th class="py-3 px-4">{{ $t('cview.reference_notes') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
@@ -579,7 +582,7 @@ const getStatusBadge = (status) => {
                                             {{ formatDate(pmt.payment_date) }}
                                         </td>
                                         <td class="py-3 px-4 text-slate-700">
-                                            {{ pmt.payment_method === 'bank_transfer' ? 'تحويل بنكي' : (pmt.payment_method === 'cash' ? 'نقداً' : (pmt.payment_method || 'أخرى')) }}
+                                            {{ pmt.payment_method === 'bank_transfer' ? $t('cview.bank_transfer') : (pmt.payment_method === 'cash' ? $t('cview.cash') : (pmt.payment_method || $t('cview.other'))) }}
                                         </td>
                                         <td class="py-3 px-4 font-mono font-black text-emerald-600">
                                             {{ formatCurrency(pmt.amount) }}
@@ -591,7 +594,7 @@ const getStatusBadge = (status) => {
 
                                     <tr v-if="!customer.payments || customer.payments.length === 0">
                                         <td colspan="5" class="py-8 text-center text-slate-400">
-                                            لا توجد أية دفعات مسجلة لهذا العميل حتى الآن
+                                            {{ $t('cview.no_payments_recorded_for_this_cu') }}
                                         </td>
                                     </tr>
                                 </tbody>
@@ -610,7 +613,7 @@ const getStatusBadge = (status) => {
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-xs transition-colors"
                     >
                         <PencilSquareIcon class="w-4 h-4" />
-                        <span>تعديل بيانات العميل</span>
+                        <span>{{ $t('cview.edit_customer_details') }}</span>
                     </button>
 
                     <Link
@@ -618,7 +621,7 @@ const getStatusBadge = (status) => {
                         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-sm font-medium transition-colors"
                     >
                         <PrinterIcon class="w-4 h-4 text-slate-500" />
-                        <span>طباعة كشف الحساب</span>
+                        <span>{{ $t('cview.print_the_statement') }}</span>
                     </Link>
                 </div>
 
@@ -627,7 +630,7 @@ const getStatusBadge = (status) => {
                     @click="emit('close')"
                     class="px-5 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-sm font-medium transition-colors"
                 >
-                    إغلاق
+                    {{ $t('cview.close') }}
                 </button>
             </div>
         </div>
