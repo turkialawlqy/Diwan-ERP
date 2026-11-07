@@ -14,6 +14,7 @@ use App\Models\Invoice;
 use App\Models\Lead;
 use App\Models\LeaveRequest;
 use App\Models\LetterOfGuarantee;
+use App\Models\PaymentRequest;
 use App\Models\Product;
 use App\Models\ProductionOrder;
 use App\Models\PurchaseOrder;
@@ -108,6 +109,7 @@ class AlertService
             ['sales.orders.approve', SalesOrder::where('status', 'pending_approval')->count(), 'أوامر بيع', 'sales.orders.index'],
             ['purchases.orders.approve', PurchaseOrder::where('status', 'pending_approval')->count(), 'أوامر شراء', 'purchases.orders.index'],
             ['purchases.requests.approve', PurchaseRequest::where('status', 'pending_approval')->count(), 'طلبات شراء', 'purchases.requests.index'],
+            ['finance.payment_requests.approve', PaymentRequest::where('status', 'pending_approval')->count(), 'طلبات صرف', 'finance.payment-requests.index'],
             ['hr.leaves.approve', LeaveRequest::where('status', 'pending')->count(), 'طلبات إجازة', 'hr.leaves.index'],
             ['hr.loans.approve', EmployeeLoan::where('status', 'pending')->count(), 'طلبات سلف', 'hr.loans.index'],
         ];

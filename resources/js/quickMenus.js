@@ -46,6 +46,7 @@ export const addMenu = [
         { label: 'بنك أو صندوق', route: 'finance.banks.create', icon: BuildingLibraryIcon },
         { label: 'سند قبض', route: 'finance.revenues.create', icon: DocumentTextIcon },
         { label: 'سند صرف', route: 'finance.expenses.create', icon: CreditCardIcon },
+        { label: 'طلب صرف', route: 'finance.payment-requests.create', icon: CreditCardIcon },
         { label: 'تحويل بين حسابات', route: 'finance.transfers.create', icon: ArrowsRightLeftIcon },
     ] },
     { label: 'المحاسبة', items: [
@@ -94,6 +95,7 @@ export const viewMenu = [
     { label: 'فواتير المشتريات', route: 'purchases.invoices.index', icon: DocumentPlusIcon },
     { label: 'سندات القبض', route: 'finance.revenues.index', icon: BanknotesIcon },
     { label: 'سندات الصرف', route: 'finance.expenses.index', icon: CreditCardIcon },
+    { label: 'طلبات الصرف', route: 'finance.payment-requests.index', icon: CreditCardIcon },
     { label: 'القيود اليومية', route: 'accounting.journals.index', icon: BookOpenIcon },
     { label: 'دليل الحسابات', route: 'accounting.accounts.index', icon: ListBulletIcon },
     { label: 'الجرد', route: 'inventory.counts.index', icon: ClipboardDocumentCheckIcon },

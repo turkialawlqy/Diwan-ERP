@@ -6,6 +6,7 @@ use App\Models\Attachment;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
+use App\Models\PaymentRequest;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
 use App\Models\Quotation;
@@ -32,6 +33,7 @@ class AttachmentController extends Controller
         'quotation' => [Quotation::class, 'sales.quotations.view'],
         'sales-order' => [SalesOrder::class, 'sales.orders.view'],
         'purchase-order' => [PurchaseOrder::class, 'purchases.orders.view'],
+        'payment-request' => [PaymentRequest::class, 'finance.payment_requests.view'],
     ];
 
     public const MAX_KB = 10240;

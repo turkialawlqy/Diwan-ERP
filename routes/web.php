@@ -36,6 +36,7 @@ use App\Http\Controllers\FeatureRequestController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\Finance\BankAccountController;
 use App\Http\Controllers\Finance\ExpenseController;
+use App\Http\Controllers\Finance\PaymentRequestController;
 use App\Http\Controllers\Finance\RevenueController;
 use App\Http\Controllers\Finance\TransferController;
 use App\Http\Controllers\FreeformTemplateController;
@@ -628,6 +629,17 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     // 8. Finance Module
     Route::prefix('finance')->name('finance.')->group(function () {
         // Expenses
+        Route::get('/payment-requests', [PaymentRequestController::class, 'index'])->name('payment-requests.index');
+        Route::get('/payment-requests/create', [PaymentRequestController::class, 'create'])->name('payment-requests.create');
+        Route::post('/payment-requests', [PaymentRequestController::class, 'store'])->name('payment-requests.store');
+        Route::get('/payment-requests/{paymentRequest}', [PaymentRequestController::class, 'show'])->name('payment-requests.show');
+        Route::get('/payment-requests/{paymentRequest}/edit', [PaymentRequestController::class, 'edit'])->name('payment-requests.edit');
+        Route::put('/payment-requests/{paymentRequest}', [PaymentRequestController::class, 'update'])->name('payment-requests.update');
+        Route::post('/payment-requests/{paymentRequest}/submit', [PaymentRequestController::class, 'submit'])->name('payment-requests.submit');
+        Route::post('/payment-requests/{paymentRequest}/approve', [PaymentRequestController::class, 'approve'])->name('payment-requests.approve');
+        Route::post('/payment-requests/{paymentRequest}/reject', [PaymentRequestController::class, 'reject'])->name('payment-requests.reject');
+        Route::post('/payment-requests/{paymentRequest}/cancel', [PaymentRequestController::class, 'cancel'])->name('payment-requests.cancel');
+        Route::delete('/payment-requests/{paymentRequest}', [PaymentRequestController::class, 'destroy'])->name('payment-requests.destroy');
         Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
         Route::get('/expenses/create', [ExpenseController::class, 'create'])->name('expenses.create');
         Route::post('/expenses', [ExpenseController::class, 'store'])->name('expenses.store');

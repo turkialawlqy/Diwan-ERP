@@ -189,6 +189,7 @@ export default [
     {
         key: 'finance', label: 'nav.finance', icon: BanknotesIcon, color: 'indigo',
         children: [
+            { label: 'nav.payment_requests', route: 'finance.payment-requests.index', path: '/finance/payment-requests' },
             { label: 'nav.expenses', route: 'finance.expenses.index', path: '/finance/expenses' },
             { label: 'nav.revenues', route: 'finance.revenues.index', path: '/finance/revenues' },
             { label: 'nav.treasury_banks', route: 'finance.banks.index', path: '/finance/banks' },

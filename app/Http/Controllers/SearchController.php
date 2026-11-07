@@ -16,6 +16,7 @@ use App\Models\Invoice;
 use App\Models\JournalEntry;
 use App\Models\Lease;
 use App\Models\PatientFile;
+use App\Models\PaymentRequest;
 use App\Models\Product;
 use App\Models\Project;
 use App\Models\Property;
@@ -88,6 +89,13 @@ class SearchController extends Controller
     protected function kinds(): array
     {
         return [
+            'payment_requests' => [
+                'label' => 'طلبات الصرف', 'permission' => 'finance.payment_requests.view',
+                'query' => fn ($like) => PaymentRequest::query()->with(['supplier:id,name', 'employee:id,name'])
+                    ->where(fn ($q) => $q->where('request_number', 'like', $like)->orWhere('purpose', 'like', $like)->orWhere('payee_name', 'like', $like)->orWhereHas('supplier', fn ($c) => $c->where('name', 'like', $like)))
+                    ->latest('id')->select('id', 'request_number', 'purpose', 'amount', 'status', 'supplier_id', 'employee_id', 'payee_name'),
+                'present' => fn ($r) => ['title' => $r->purpose, 'code' => (string) $r->request_number, 'subtitle' => $r->payeeLabel().' · '.number_format((float) $r->amount, 2).' · '.$r->status, 'url' => route('finance.payment-requests.show', $r->id)],
+            ],
             'customers' => [
                 'label' => 'العملاء', 'permission' => 'sales.clients.view',
                 'query' => fn ($like) => Customer::query()

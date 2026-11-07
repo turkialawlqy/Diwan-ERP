@@ -8,7 +8,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { today } from '@/utils/format';
 
-const props = defineProps({ suppliers: Array, unpaidInvoices: Array, whtRates: { type: Object, default: () => ({}) } });
+const props = defineProps({ suppliers: Array, unpaidInvoices: Array, whtRates: { type: Object, default: () => ({}) }, prefill: { type: Object, default: null } });
 
 const form = useForm({
     supplier_id: props.suppliers?.[0]?.id || '',
@@ -23,7 +23,15 @@ const form = useForm({
     exchange_rate: '',
     auto_allocate: false,
     allocations: [],
+    payment_request_id: '',
+    bank_account_id: '',
 });
+// Carrying out an approved payment request: its data fills the voucher and the request is tied to it.
+if (props.prefill) {
+    const p = props.prefill;
+    Object.assign(form, { supplier_id: p.supplier_id || form.supplier_id, purchase_invoice_id: p.purchase_invoice_id || '', amount: p.amount, payment_method: p.payment_method || form.payment_method, bank_account_id: p.bank_account_id || '', notes: p.notes || '', payment_request_id: p.payment_request_id });
+    form.defaults();
+}
 useUnsavedGuard(form);
 
 const supplier = computed(() => props.suppliers.find((s) => s.id === form.supplier_id));

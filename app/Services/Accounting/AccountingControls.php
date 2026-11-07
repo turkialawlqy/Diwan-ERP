@@ -13,6 +13,7 @@ use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\JournalEntry;
 use App\Models\PaymentAllocation;
+use App\Models\PaymentRequest;
 use App\Models\Project;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
@@ -367,6 +368,30 @@ class AccountingControls
                 $row[$r->status] = ($row[$r->status] ?? 0) + 1;
                 if ($r->decided_at) {
                     $row['decide_hours'][] = $r->created_at->diffInMinutes($r->decided_at) / 60;
+                }
+            }
+            unset($row);
+        }
+
+        // Payment requests carry their own status (they go through the approval service), so they join the same picture.
+        foreach (PaymentRequest::whereNotIn('status', ['draft', 'cancelled'])->get() as $r) {
+            $key = $byUser ? ($r->approved_by ? (User::whereKey($r->approved_by)->value('name') ?? '#'.$r->approved_by) : 'بانتظار قرار') : (ApprovalService::DOCUMENT_TYPES['payment_request']);
+            $row = &$rows[$key];
+            $row ??= ['group' => $key, 'pending' => 0, 'pending_amount' => 0.0, 'overdue' => 0, 'oldest' => null, 'approved' => 0, 'rejected' => 0, 'used' => 0, 'decide_hours' => []];
+            if ($r->status === 'pending_approval') {
+                $age = (int) $r->created_at->copy()->startOfDay()->diffInDays($today);
+                $row['pending']++;
+                $row['pending_amount'] = round($row['pending_amount'] + (float) $r->amount, 2);
+                $row['oldest'] = max($row['oldest'] ?? 0, $age);
+                if ($age > $overdueDays) {
+                    $row['overdue']++;
+                }
+            } elseif ($r->status === 'rejected') {
+                $row['rejected']++;
+            } else {
+                $row[$r->status === 'paid' ? 'used' : 'approved']++;
+                if ($r->approved_at) {
+                    $row['decide_hours'][] = $r->created_at->diffInMinutes($r->approved_at) / 60;
                 }
             }
             unset($row);
