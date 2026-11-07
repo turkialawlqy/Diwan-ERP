@@ -201,6 +201,7 @@ export default [
             { label: 'nav.journal_entries', route: 'accounting.journals.index', path: '/accounting/journals' },
             { label: 'nav.general_ledger', route: 'accounting.ledger.index', path: '/accounting/ledger' },
             { label: 'nav.trial_balance', route: 'accounting.trial-balance.index', path: '/accounting/trial-balance' },
+            { label: 'nav.accounting_controls', route: 'accounting.controls.index', path: '/accounting/controls' },
             { label: 'nav.recurring_journals', route: 'accounting.recurring.index', path: '/accounting/recurring' },
             { label: 'nav.cost_centers', route: 'accounting.cost-centers.index', path: '/accounting/cost-centers' },
             { label: 'nav.fixed_assets', route: 'accounting.fixed-assets.index', path: '/accounting/fixed-assets' },

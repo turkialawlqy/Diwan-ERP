@@ -159,6 +159,7 @@ return [
                 'recurring' => ['ar' => 'القيود المتكررة', 'en' => 'Recurring Journals', 'actions' => ['view', 'create', 'edit', 'delete']],
                 'ledger' => ['ar' => 'الأستاذ العام', 'en' => 'General Ledger', 'actions' => ['view', 'export']],
                 'trial_balance' => ['ar' => 'ميزان المراجعة', 'en' => 'Trial Balance', 'actions' => ['view', 'export']],
+                'controls' => ['ar' => 'تقارير الرقابة المحاسبية', 'en' => 'Accounting Controls', 'actions' => ['view', 'export']],
                 'statements' => ['ar' => 'القوائم المالية', 'en' => 'Financial Statements', 'actions' => ['view', 'export']],
                 'aging' => ['ar' => 'أعمار الديون', 'en' => 'Aging', 'actions' => ['view', 'export']],
                 'vat_return' => ['ar' => 'إقرار ضريبة القيمة المضافة', 'en' => 'VAT Return', 'actions' => ['view', 'export', 'settle']],
@@ -628,6 +629,8 @@ return [
         'accounting.reports.vat-settlements.cancel' => 'accounting.vat_return.settle',
         'accounting.ledger.index' => 'accounting.ledger.view',
         'accounting.trial-balance.index' => 'accounting.trial_balance.view',
+        'accounting.controls.index' => 'accounting.controls.view',
+        'accounting.controls.show' => 'accounting.controls.view',
         // Each report re-checks its own export permission in ReportExportController.
         'reports.export' => ['accounting.statements.export', 'accounting.trial_balance.export', 'accounting.aging.export', 'accounting.vat_return.export', 'reports.sales.export', 'reports.purchases.export', 'purchases.suppliers.export'],
         'branches.index' => 'admin.branches.view',

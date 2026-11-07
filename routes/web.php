@@ -742,6 +742,10 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         // General Ledger
         Route::get('/ledger', [GeneralLedgerController::class, 'index'])->name('ledger.index');
 
+        // Control reports (exceptions, sub-ledger reconciliation, party balances, cash movement, dormant accounts)
+        Route::get('/controls', [A\ControlReportsController::class, 'index'])->name('controls.index');
+        Route::get('/controls/{report}', [A\ControlReportsController::class, 'show'])->name('controls.show')->where('report', 'controls-exceptions|party-reconciliation|customer-balances|supplier-balances|cash-movement|dormant-accounts');
+
         // Trial Balance
         Route::get('/trial-balance', [TrialBalanceController::class, 'index'])->name('trial-balance.index');
     });

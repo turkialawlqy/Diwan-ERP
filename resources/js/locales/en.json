@@ -180,7 +180,8 @@
         "equipment_rentals": "Rental Contracts",
         "maintenance_dashboard": "Maintenance Board",
         "maintenance_orders": "Maintenance Orders",
-        "equipment_reports": "Equipment Reports"
+        "equipment_reports": "Equipment Reports",
+        "accounting_controls": "Accounting Controls"
     },
     "common": {
         "search": "Search...",
@@ -462,5 +463,10 @@
         "remaining": "Remaining",
         "no_open": "No open invoices",
         "remaining_total": "Total remaining"
+    },
+    "controls": {
+        "days": "No movement for (days)",
+        "empty": "Nothing to show",
+        "back": "All control reports"
     }
 }

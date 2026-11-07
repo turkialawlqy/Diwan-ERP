@@ -180,7 +180,8 @@
         "equipment_rentals": "عقود التأجير",
         "maintenance_dashboard": "لوحة الصيانة",
         "maintenance_orders": "أوامر الصيانة",
-        "equipment_reports": "تقارير المعدات"
+        "equipment_reports": "تقارير المعدات",
+        "accounting_controls": "تقارير الرقابة المحاسبية"
     },
     "common": {
         "search": "بحث...",
@@ -462,5 +463,10 @@
         "remaining": "المتبقي",
         "no_open": "لا فواتير مفتوحة",
         "remaining_total": "إجمالي المتبقي"
+    },
+    "controls": {
+        "days": "بدون حركة منذ (يوم)",
+        "empty": "لا بنود",
+        "back": "كل تقارير الرقابة"
     }
 }

@@ -11,6 +11,7 @@ use App\Models\JournalEntryLine;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
+use App\Services\Accounting\AccountingControls;
 use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\SourceDocument;
 use App\Services\Purchases\SupplierStatement;
@@ -39,6 +40,13 @@ class ReportCatalog
         'supplier-statement' => 'purchases.suppliers.export',
         'withholding' => 'accounting.vat_return.export',
         'ledger' => 'accounting.ledger.export',
+        // Control reports (AccountingControls).
+        'controls-exceptions' => 'accounting.controls.export',
+        'party-reconciliation' => 'accounting.controls.export',
+        'customer-balances' => 'accounting.controls.export',
+        'supplier-balances' => 'accounting.controls.export',
+        'cash-movement' => 'accounting.controls.export',
+        'dormant-accounts' => 'accounting.controls.export',
         // Transaction lists (one row per document / journal line), for hand-over and analysis in Excel.
         'tx-sales-invoices' => 'sales.invoices.export',
         'tx-purchase-invoices' => 'purchases.invoices.export',
@@ -69,6 +77,12 @@ class ReportCatalog
             'supplier-statement' => $this->supplierStatement($request),
             'withholding' => $this->withholding($request),
             'ledger' => $this->ledger($request),
+            'controls-exceptions' => $this->controlExceptions(),
+            'party-reconciliation' => $this->controlReconciliation(),
+            'customer-balances' => $this->controlBalances($request, 'customer'),
+            'supplier-balances' => $this->controlBalances($request, 'supplier'),
+            'cash-movement' => $this->controlCash($request),
+            'dormant-accounts' => $this->controlDormant($request),
             'tx-sales-invoices' => $this->documents($request, 'فواتير المبيعات', Invoice::class, 'invoice_date', 'customer', 'invoice_number', ['subtotal', 'tax_amount', 'total', 'paid_amount', 'remaining_amount']),
             'tx-purchase-invoices' => $this->documents($request, 'فواتير المشتريات', PurchaseInvoice::class, 'invoice_date', 'supplier', 'invoice_number', ['subtotal', 'tax_amount', 'total', 'paid_amount', 'remaining_amount']),
             'tx-customer-payments' => $this->documents($request, 'سندات القبض', CustomerPayment::class, 'payment_date', 'customer', 'payment_number', ['amount']),
@@ -343,6 +357,91 @@ class ReportCatalog
 
         return $this->table('سطور القيود المرحّلة', $this->period($from, $to), [['entry', 'القيد'], ['date', 'التاريخ'], ['code', 'كود الحساب'], ['account', 'الحساب'], ['cost_center', 'مركز التكلفة'],
             ['description', 'البيان'], ['debit', 'مدين', 'money'], ['credit', 'دائن', 'money']], $rows, [count($rows) - 1]);
+    }
+
+    protected function controlExceptions(): array
+    {
+        $rows = [];
+        $bold = [];
+        $total = 0;
+        foreach (app(AccountingControls::class)->exceptions() as $section) {
+            $rows[] = ['reference' => $section['label'].' ('.count($section['rows']).')', 'date' => '', 'description' => '', 'age' => null, 'who' => '', 'detail' => ''];
+            $bold[] = count($rows) - 1;
+            foreach ($section['rows'] as $row) {
+                $rows[] = $row;
+            }
+            $total += count($section['rows']);
+        }
+
+        return $this->table('الاستثناءات المحاسبية وجودة البيانات', "{$total} بند يحتاج مراجعة", [
+            ['reference', 'القيد / البند'], ['date', 'التاريخ'], ['description', 'البيان'], ['age', 'العمر (يوم)', 'number'], ['who', 'المنشئ'], ['detail', 'ملاحظة'],
+        ], $rows, $bold);
+    }
+
+    protected function controlReconciliation(): array
+    {
+        $r = app(AccountingControls::class)->partyReconciliation();
+        $rows = [];
+        $bold = [];
+        foreach ($r['control'] as $c) {
+            $rows[] = ['name' => 'حساب التحكم: '.$c['label'], 'a' => $c['control'], 'b' => $c['tagged'], 'c' => $c['untagged'], 'd' => $c['stored'], 'e' => $c['difference']];
+            $bold[] = count($rows) - 1;
+        }
+        foreach ($r['parties'] as $p) {
+            $rows[] = ['name' => ($p['kind'] === 'customer' ? 'عميل: ' : 'مورد: ').$p['name'], 'a' => $p['ledger'], 'b' => null, 'c' => null, 'd' => $p['stored'], 'e' => $p['difference']];
+        }
+
+        return $this->table('مطابقة الأستاذ المساعد مع حسابات التحكم', count($r['parties']).' طرف بفرق بين الرصيد المخزّن والدفتر', [
+            ['name', 'البند'], ['a', 'رصيد الدفتر', 'money'], ['b', 'منه منسوب لأطراف', 'money'], ['c', 'بلا طرف', 'money'], ['d', 'الرصيد المخزّن', 'money'], ['e', 'الفرق (المخزّن − الدفتر)', 'money'],
+        ], $rows, $bold);
+    }
+
+    protected function controlBalances(Request $request, string $kind): array
+    {
+        [$from, $to] = $this->range($request);
+        $data = app(AccountingControls::class)->partyBalances($kind, $from, $to);
+        $customers = $kind === 'customer';
+        $rows = array_map(fn ($r) => ['name' => $r['name'], 'opening' => $r['opening'], 'debit' => $r['debit'], 'credit' => $r['credit'], 'closing' => $r['closing'],
+            'limit' => $r['limit'], 'over' => $r['over_limit'] ? 'تجاوز' : '', 'unapplied' => $r['unapplied']], $data);
+        $sum = fn ($k) => round(array_sum(array_column($data, $k)), 2);
+        $rows[] = ['name' => 'الإجمالي', 'opening' => $sum('opening'), 'debit' => $sum('debit'), 'credit' => $sum('credit'), 'closing' => $sum('closing'), 'limit' => null, 'over' => '', 'unapplied' => $sum('unapplied')];
+
+        $columns = [['name', $customers ? 'العميل' : 'المورد'], ['opening', 'أول المدة', 'money'], ['debit', 'مدين', 'money'], ['credit', 'دائن', 'money'], ['closing', 'آخر المدة', 'money']];
+        if ($customers) {
+            array_push($columns, ['limit', 'حد الائتمان', 'money'], ['over', 'تجاوز الحد']);
+        }
+        $columns[] = ['unapplied', $customers ? 'سندات قبض غير مطبقة' : 'سندات صرف غير مطبقة', 'money'];
+
+        return $this->table($customers ? 'أرصدة العملاء' : 'أرصدة الموردين', $this->period($from, $to), $columns, $rows, [count($rows) - 1]);
+    }
+
+    protected function controlCash(Request $request): array
+    {
+        [$from, $to] = $this->range($request);
+        $d = app(AccountingControls::class)->cashMovement($from, $to);
+        $rows = array_map(fn ($a) => ['name' => $a['name'], 'type' => $a['type'], 'opening' => $a['opening'], 'in' => $a['in'], 'out' => $a['out'], 'closing' => $a['closing']], $d['accounts']);
+        $rows[] = ['name' => 'الإجمالي', 'type' => '', 'opening' => round(array_sum(array_column($d['accounts'], 'opening')), 2), 'in' => round(array_sum(array_column($d['accounts'], 'in')), 2),
+            'out' => round(array_sum(array_column($d['accounts'], 'out')), 2), 'closing' => round(array_sum(array_column($d['accounts'], 'closing')), 2)];
+        $bold = [count($rows) - 1];
+        $rows[] = ['name' => 'حركات بنكية غير مسوّاة (حسب العمر)', 'type' => 'عدد الحركات', 'opening' => null, 'in' => null, 'out' => null, 'closing' => 'صافي'];
+        $bold[] = count($rows) - 1;
+        foreach ($d['unreconciled'] as $u) {
+            $rows[] = ['name' => $u['label'], 'type' => $u['count'], 'opening' => null, 'in' => null, 'out' => null, 'closing' => $u['net']];
+        }
+
+        return $this->table('حركة الصناديق والبنوك', $this->period($from, $to), [
+            ['name', 'الحساب'], ['type', 'النوع'], ['opening', 'أول المدة', 'money'], ['in', 'وارد', 'money'], ['out', 'صادر', 'money'], ['closing', 'آخر المدة', 'money'],
+        ], $rows, $bold);
+    }
+
+    protected function controlDormant(Request $request): array
+    {
+        $days = max(1, min(3650, (int) ($request->input('days') ?: 180)));
+        $data = app(AccountingControls::class)->dormantAccounts($days);
+
+        return $this->table('الحسابات دون حركة', "لا حركة مرحّلة منذ {$days} يومًا — ".count($data).' حساب', [
+            ['code', 'الرمز'], ['name', 'الحساب'], ['last', 'آخر حركة'], ['days', 'منذ (يوم)', 'number'], ['balance', 'الرصيد', 'money'],
+        ], $data);
     }
 
     /** One account's ledger with its running balance, the entry and the document each line came from. */
