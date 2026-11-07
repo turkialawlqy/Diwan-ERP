@@ -26,7 +26,7 @@ class FinancialReportController extends Controller
     public function incomeStatement(Request $request): Response
     {
         [$from, $to, $filters] = $this->range($request);
-        $v = $request->validate(['cost_center_id' => 'nullable|tenant_exists:cost_centers,id', 'compare' => 'nullable|in:previous,year']);
+        $v = $request->validate(['cost_center_id' => 'nullable|tenant_exists:cost_centers,id', 'compare' => 'nullable|in:previous,year,budget']);
         $costCenterId = $v['cost_center_id'] ?? null;
         $compare = $v['compare'] ?? null;
 

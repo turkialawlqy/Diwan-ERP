@@ -6,6 +6,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Pagination from '@/Components/UI/Pagination.vue';
 import StatCard from '@/Components/UI/StatCard.vue';
+import ExportButtons from '@/Components/UI/ExportButtons.vue';
 import { money, amount } from '@/utils/format';
 
 const props = defineProps({
@@ -32,7 +33,9 @@ const apply = () => {
 <template>
     <AppLayout>
         <Head title="دفتر الأستاذ العام" />
-        <PageHeader title="دفتر الأستاذ / كشف حساب" :subtitle="selectedAccount ? `${selectedAccount.code} - ${selectedAccount.name_ar}` : ''" :crumbs="[{ label: 'المحاسبة' }, { label: 'دفتر الأستاذ' }]" />
+        <PageHeader title="دفتر الأستاذ / كشف حساب" :subtitle="selectedAccount ? `${selectedAccount.code} - ${selectedAccount.name_ar}` : ''" :crumbs="[{ label: 'المحاسبة' }, { label: 'دفتر الأستاذ' }]">
+            <template #actions><ExportButtons v-if="selectedAccount" report="ledger" :params="{ account_id: filters.account_id, start_date: filters.start_date, end_date: filters.end_date, cost_center_id: filters.cost_center_id }" permission="accounting.ledger.export" /></template>
+        </PageHeader>
 
         <form @submit.prevent="apply" class="bg-white border border-slate-200 rounded-2xl p-4 grid grid-cols-1 md:grid-cols-5 gap-3 text-xs mb-4">
             <label class="md:col-span-2"><span class="block font-bold text-slate-600 mb-1">{{ $t('ui.account') }}</span>
@@ -74,7 +77,11 @@ const apply = () => {
                             <tr v-for="line in ledger.lines.data" :key="line.id" class="border-t border-slate-100 hover:bg-slate-50/60">
                                 <td class="px-3 py-2 font-mono text-slate-500">{{ line.date }}</td>
                                 <td class="px-3 py-2"><Link :href="route('accounting.journals.show', line.journal_entry_id)" class="font-mono text-indigo-600 hover:underline">{{ line.entry_number }}</Link></td>
-                                <td class="px-3 py-2 text-slate-700">{{ line.description || line.entry_description }}<span v-if="line.reference" class="text-slate-400"> · {{ line.reference }}</span></td>
+                                <td class="px-3 py-2 text-slate-700">{{ line.description || line.entry_description }}<span v-if="line.reference" class="text-slate-400"> · {{ line.reference }}</span>
+                                    <span v-if="line.source" class="block text-[11px]">
+                                        <a v-if="line.source.url" :href="line.source.url" class="text-emerald-700 hover:underline" data-source-link>{{ line.source.label }} ←</a>
+                                        <span v-else class="text-slate-400">{{ line.source.label }}</span>
+                                    </span></td>
                                 <td class="px-3 py-2 text-end font-mono">{{ line.debit ? money(line.debit) : '' }}</td>
                                 <td class="px-3 py-2 text-end font-mono">{{ line.credit ? money(line.credit) : '' }}</td>
                                 <td class="px-3 py-2 text-end font-mono font-bold">{{ amount(line.balance) }}</td>

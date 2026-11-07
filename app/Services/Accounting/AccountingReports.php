@@ -365,10 +365,13 @@ class AccountingReports
         $totalLiabilities = $sections['liability']['total'];
         $totalEquity = round($sections['equity']['total'] + $unclosedProfit, 2);
 
+        $split = $this->liquiditySplit($sections);
+
         return [
             'assets' => $sections['asset'],
             'liabilities' => $sections['liability'],
             'equity' => $sections['equity'],
+            'liquidity' => $split,
             'unclosed_profit' => $unclosedProfit,
             'total_assets' => round($totalAssets, 2),
             'total_liabilities' => round($totalLiabilities, 2),
@@ -905,6 +908,44 @@ class AccountingReports
     /**
      * Group accounts of the given types with their signed amounts.
      */
+    /**
+     * Current vs non-current assets and liabilities, read from the group an account sits under in the chart
+     * (the standard chart has «الأصول المتداولة» 11 / «غير المتداولة» 12 and «الخصوم المتداولة» 21 / «غير المتداولة» 22).
+     * Accounts outside those groups (a customised chart) are listed as unclassified rather than guessed.
+     *
+     * @return array{assets: array, liabilities: array, current_ratio: ?float}
+     */
+    protected function liquiditySplit(array $sections): array
+    {
+        $accounts = $this->accounts()->keyBy('id');
+        $groupOf = function ($id) use ($accounts) {
+            $account = $accounts->get($id);
+            // Walk up to the second level: the group directly under the root («11», «12», «21», «22»).
+            while ($account && $account->parent_id && $accounts->get($account->parent_id)?->parent_id) {
+                $account = $accounts->get($account->parent_id);
+            }
+            $code = (string) ($account?->code ?? '');
+
+            return match (true) {
+                in_array($code, ['11', '21'], true) => 'current',
+                in_array($code, ['12', '22'], true) => 'non_current',
+                default => 'unclassified',
+            };
+        };
+
+        $out = [];
+        foreach (['asset' => 'assets', 'liability' => 'liabilities'] as $type => $key) {
+            $totals = ['current' => 0.0, 'non_current' => 0.0, 'unclassified' => 0.0];
+            foreach ($sections[$type]['rows'] as $row) {
+                $totals[$groupOf($row['id'])] += $row['amount'];
+            }
+            $out[$key] = array_map(fn ($v) => round($v, 2), $totals);
+        }
+        $out['current_ratio'] = $out['liabilities']['current'] > 0.004 ? round($out['assets']['current'] / $out['liabilities']['current'], 2) : null;
+
+        return $out;
+    }
+
     protected function sections(array $types, array $totals): array
     {
         $accounts = $this->accounts()->whereIn('type', $types);

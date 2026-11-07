@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Services\Reports\ReportCatalog;
 use App\Services\Reports\ReportExporter;
 use Illuminate\Http\Request;
@@ -17,6 +18,8 @@ class ReportExportController extends Controller
         abort_unless($request->user()->can(ReportCatalog::PERMISSIONS[$report]), 403, 'ليس لديك صلاحية تصدير هذا التقرير.');
 
         $table = $catalog->build($report, $request);
+        // Who took which report out of the system, with its filters (read in «سجل التدقيق»).
+        AuditLog::record('report.exported', null, [], ['report' => $report, 'format' => $format, 'filters' => $request->except(['_token'])]);
         $name = $report.'-'.now()->format('Ymd');
 
         return $format === 'xlsx'

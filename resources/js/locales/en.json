@@ -428,5 +428,39 @@
         "sending": "Sending...",
         "send_email": "Send email",
         "open_wa": "Open WhatsApp"
+    },
+    "journals": {
+        "status": "Status",
+        "type": "Type",
+        "creator": "Created by",
+        "source": "Source",
+        "from": "From date",
+        "to": "To date",
+        "all": "All",
+        "manual_no_doc": "Manual entry (no document)",
+        "manual": "Manual",
+        "source_doc": "Source document"
+    },
+    "repgap": {
+        "current_assets": "Current assets",
+        "non_current_assets": "Non-current assets",
+        "current_liabilities": "Current liabilities",
+        "non_current_liabilities": "Non-current liabilities",
+        "current_ratio": "Current ratio",
+        "gross_margin": "Gross profit margin (of revenue)",
+        "net_margin": "Net profit margin (of revenue)",
+        "vs_budget": "Approved budget",
+        "report_exported": "Report export",
+        "from": "From date",
+        "to": "To date",
+        "apply": "Apply",
+        "open_only": "Open invoices only",
+        "invoice": "Invoice",
+        "date": "Date",
+        "due": "Due",
+        "total": "Total",
+        "remaining": "Remaining",
+        "no_open": "No open invoices",
+        "remaining_total": "Total remaining"
     }
 }

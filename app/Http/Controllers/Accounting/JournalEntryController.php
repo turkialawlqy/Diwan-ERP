@@ -10,10 +10,12 @@ use App\Models\Customer;
 use App\Models\JournalEntry;
 use App\Models\Project;
 use App\Models\Supplier;
+use App\Models\User;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\PartyAccounts;
 use App\Services\Accounting\PostingService;
+use App\Services\Accounting\SourceDocument;
 use App\Services\Workflow\ApprovalGate;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -38,6 +40,8 @@ class JournalEntryController extends Controller
             'entry_type' => 'nullable|string|max:20',
             'from' => 'nullable|date',
             'to' => 'nullable|date',
+            'created_by' => 'nullable|integer',
+            'source' => 'nullable|string|max:120',
         ]);
 
         $query = JournalEntry::with(['lines.account:id,code,name_ar', 'creator:id,name'])
@@ -45,6 +49,8 @@ class JournalEntryController extends Controller
             ->when($filters['entry_type'] ?? null, fn ($q, $v) => $q->where('entry_type', $v))
             ->when($filters['from'] ?? null, fn ($q, $v) => $q->where('date', '>=', $v))
             ->when($filters['to'] ?? null, fn ($q, $v) => $q->where('date', '<=', $v.' 23:59:59'))
+            ->when($filters['created_by'] ?? null, fn ($q, $v) => $q->where('created_by', $v))
+            ->when($filters['source'] ?? null, fn ($q, $v) => $v === 'none' ? $q->whereNull('source_type') : $q->where('source_type', $v))
             ->when($filters['search'] ?? null, function ($q, $search) {
                 $q->where(fn ($q) => $q->where('entry_number', 'like', "%{$search}%")
                     ->orWhere('description', 'like', "%{$search}%")
@@ -55,18 +61,30 @@ class JournalEntryController extends Controller
             ->orderByDesc('id');
 
         $entries = $query->paginate($this->perPage($request, 15))->withQueryString();
+        $sources = app(SourceDocument::class);
+        $entries->getCollection()->transform(function ($entry) use ($sources) {
+            $entry->source = $sources->describe($entry->source_type, $entry->source_id);
+
+            return $entry;
+        });
 
         $stats = [
             'total_entries' => JournalEntry::count(),
             'total_volume' => (float) JournalEntry::where('status', JournalEntry::STATUS_POSTED)->sum('total_debit'),
             'posted_count' => JournalEntry::where('status', JournalEntry::STATUS_POSTED)->count(),
             'draft_count' => JournalEntry::where('status', JournalEntry::STATUS_DRAFT)->count(),
+            // Entries by kind (manual, system, opening, closing...) for the active filters' year.
+            'by_type' => JournalEntry::query()->inActiveYear('date', ! ($filters['from'] ?? null) && ! ($filters['to'] ?? null))
+                ->selectRaw('entry_type, COUNT(*) as n')->groupBy('entry_type')->pluck('n', 'entry_type'),
         ];
 
         return Inertia::render('Accounting/Journals/Index', [
             'entries' => $entries,
             'stats' => $stats,
             'filters' => $filters,
+            'creators' => User::whereIn('id', JournalEntry::query()->whereNotNull('created_by')->distinct()->pluck('created_by'))->orderBy('name')->get(['id', 'name']),
+            'sourceTypes' => JournalEntry::query()->whereNotNull('source_type')->distinct()->pluck('source_type')
+                ->map(fn ($t) => ['value' => $t, 'label' => $sources->describe($t, null)['label']])->values(),
         ]);
     }
 
@@ -156,6 +174,7 @@ class JournalEntryController extends Controller
         return Inertia::render('Accounting/Journals/Show', [
             'entry' => $entry,
             'parties' => $names,
+            'source' => app(SourceDocument::class)->describe($entry->source_type, $entry->source_id),
         ]);
     }
 

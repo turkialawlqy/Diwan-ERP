@@ -2,6 +2,7 @@
 
 namespace App\Services\Reports;
 
+use App\Models\Account;
 use App\Models\CustomerPayment;
 use App\Models\Expense;
 use App\Models\Invoice;
@@ -11,6 +12,7 @@ use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Services\Accounting\AccountingReports;
+use App\Services\Accounting\SourceDocument;
 use App\Services\Purchases\SupplierStatement;
 use App\Services\Tax\WithholdingReport;
 use Illuminate\Http\Request;
@@ -36,6 +38,7 @@ class ReportCatalog
         'purchases-analysis' => 'reports.purchases.export',
         'supplier-statement' => 'purchases.suppliers.export',
         'withholding' => 'accounting.vat_return.export',
+        'ledger' => 'accounting.ledger.export',
         // Transaction lists (one row per document / journal line), for hand-over and analysis in Excel.
         'tx-sales-invoices' => 'sales.invoices.export',
         'tx-purchase-invoices' => 'purchases.invoices.export',
@@ -65,6 +68,7 @@ class ReportCatalog
             'purchases-analysis' => $this->analysis($request, 'purchases'),
             'supplier-statement' => $this->supplierStatement($request),
             'withholding' => $this->withholding($request),
+            'ledger' => $this->ledger($request),
             'tx-sales-invoices' => $this->documents($request, 'فواتير المبيعات', Invoice::class, 'invoice_date', 'customer', 'invoice_number', ['subtotal', 'tax_amount', 'total', 'paid_amount', 'remaining_amount']),
             'tx-purchase-invoices' => $this->documents($request, 'فواتير المشتريات', PurchaseInvoice::class, 'invoice_date', 'supplier', 'invoice_number', ['subtotal', 'tax_amount', 'total', 'paid_amount', 'remaining_amount']),
             'tx-customer-payments' => $this->documents($request, 'سندات القبض', CustomerPayment::class, 'payment_date', 'customer', 'payment_number', ['amount']),
@@ -88,7 +92,7 @@ class ReportCatalog
     {
         [$from, $to] = $this->range($request);
         $costCenterId = $request->validate(['cost_center_id' => 'nullable|tenant_exists:cost_centers,id'])['cost_center_id'] ?? null;
-        if (($mode = $request->input('compare')) && in_array($mode, ReportComparison::MODES, true)) {
+        if (($mode = $request->input('compare')) && in_array($mode, ReportComparison::INCOME_MODES, true)) {
             $c = app(ReportComparison::class)->incomeStatement($from, $to, $mode, $costCenterId);
 
             return $this->comparisonTable('قائمة الدخل', $this->period($from, $to).' — مقارنة بـ'.$c['label'], $c['rows'], 'الفترة الحالية', $c['label']);
@@ -142,6 +146,15 @@ class ReportCatalog
         $section('حقوق الملكية', $r['equity'], 'إجمالي حقوق الملكية', $r['total_equity']);
         $rows[] = ['code' => '', 'name' => 'إجمالي الالتزامات وحقوق الملكية', 'amount' => $r['total_liabilities_equity']];
         $bold[] = count($rows) - 1;
+        $l = $r['liquidity'];
+        $rows[] = ['code' => '', 'name' => 'منها: الأصول المتداولة / غير المتداولة', 'amount' => null];
+        $bold[] = count($rows) - 1;
+        foreach ([['الأصول المتداولة', $l['assets']['current']], ['الأصول غير المتداولة', $l['assets']['non_current']], ['الخصوم المتداولة', $l['liabilities']['current']], ['الخصوم غير المتداولة', $l['liabilities']['non_current']]] as [$name, $amount]) {
+            $rows[] = ['code' => '', 'name' => $name, 'amount' => $amount];
+        }
+        if ($l['current_ratio'] !== null) {
+            $rows[] = ['code' => '', 'name' => 'نسبة التداول (أصول متداولة ÷ خصوم متداولة)', 'amount' => $l['current_ratio']];
+        }
 
         return $this->table('الميزانية العمومية', 'كما في '.$asOf->toDateString(), [['code', 'الرمز'], ['name', 'الحساب'], ['amount', 'المبلغ', 'money']], $rows, $bold);
     }
@@ -332,6 +345,27 @@ class ReportCatalog
             ['description', 'البيان'], ['debit', 'مدين', 'money'], ['credit', 'دائن', 'money']], $rows, [count($rows) - 1]);
     }
 
+    /** One account's ledger with its running balance, the entry and the document each line came from. */
+    protected function ledger(Request $request): array
+    {
+        $request->validate(['account_id' => 'required|tenant_exists:accounts,id', 'cost_center_id' => 'nullable|tenant_exists:cost_centers,id']);
+        [$from, $to] = $this->range($request);
+        $account = Account::findOrFail($request->integer('account_id'));
+        $ledger = $this->reports->ledger($account, $from, $to, 20000, null, null, $request->integer('cost_center_id') ?: null);
+        $sources = app(SourceDocument::class);
+
+        $rows = [['date' => '', 'entry' => 'رصيد أول المدة', 'description' => '', 'source' => '', 'debit' => null, 'credit' => null, 'balance' => $ledger['opening_balance']]];
+        foreach ($ledger['lines']->items() as $l) {
+            $rows[] = ['date' => $l->date, 'entry' => $l->entry_number, 'description' => trim(($l->description ?: $l->entry_description).($l->reference ? ' · '.$l->reference : '')),
+                'source' => $sources->describe($l->source_type, $l->source_id)['label'] ?? '', 'debit' => $l->debit ?: null, 'credit' => $l->credit ?: null, 'balance' => $l->balance];
+        }
+        $rows[] = ['date' => '', 'entry' => 'الإجمالي', 'description' => '', 'source' => '', 'debit' => $ledger['period_debit'], 'credit' => $ledger['period_credit'], 'balance' => $ledger['closing_balance']];
+
+        return $this->table('دفتر الأستاذ: '.$account->code.' - '.$account->name_ar, $this->period($from, $to), [
+            ['date', 'التاريخ'], ['entry', 'القيد'], ['description', 'البيان'], ['source', 'المستند المصدر'], ['debit', 'مدين', 'money'], ['credit', 'دائن', 'money'], ['balance', 'الرصيد', 'money'],
+        ], $rows, [0, count($rows) - 1]);
+    }
+
     protected function period(Carbon $from, Carbon $to): string
     {
         return 'من '.$from->toDateString().' إلى '.$to->toDateString();
@@ -342,7 +376,7 @@ class ReportCatalog
     {
         return [
             'title' => $title,
-            'subtitle' => $subtitle,
+            'subtitle' => $subtitle.' — أُنشئ '.now()->format('Y-m-d H:i'),
             'columns' => array_map(fn ($c) => ['key' => $c[0], 'label' => $c[1], 'type' => $c[2] ?? 'text'], $columns),
             'rows' => array_values($rows),
             'bold' => $bold,

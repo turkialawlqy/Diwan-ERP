@@ -428,5 +428,39 @@
         "sending": "جارٍ الإرسال...",
         "send_email": "إرسال البريد",
         "open_wa": "فتح واتساب"
+    },
+    "journals": {
+        "status": "الحالة",
+        "type": "النوع",
+        "creator": "المنشئ",
+        "source": "المصدر",
+        "from": "من تاريخ",
+        "to": "إلى تاريخ",
+        "all": "الكل",
+        "manual_no_doc": "قيد يدوي (بلا مستند)",
+        "manual": "يدوي",
+        "source_doc": "المستند المصدر"
+    },
+    "repgap": {
+        "current_assets": "الأصول المتداولة",
+        "non_current_assets": "الأصول غير المتداولة",
+        "current_liabilities": "الخصوم المتداولة",
+        "non_current_liabilities": "الخصوم غير المتداولة",
+        "current_ratio": "نسبة التداول",
+        "gross_margin": "هامش مجمل الربح (من الإيرادات)",
+        "net_margin": "هامش صافي الربح (من الإيرادات)",
+        "vs_budget": "الموازنة المعتمدة",
+        "report_exported": "تصدير تقرير",
+        "from": "من تاريخ",
+        "to": "إلى تاريخ",
+        "apply": "تطبيق",
+        "open_only": "الفواتير المفتوحة فقط",
+        "invoice": "الفاتورة",
+        "date": "التاريخ",
+        "due": "الاستحقاق",
+        "total": "الإجمالي",
+        "remaining": "المتبقي",
+        "no_open": "لا فواتير مفتوحة",
+        "remaining_total": "إجمالي المتبقي"
     }
 }

@@ -39,6 +39,13 @@ const printPage = () => window.print();
             {{ report.is_balanced ? '✓ الميزانية متوازنة: الأصول = الخصوم + حقوق الملكية' : '✗ الميزانية غير متوازنة — راجع القيود' }}
         </div>
 
+ <div v-if="!comparison && report.liquidity" class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4 text-xs max-w-5xl" data-liquidity>
+            <div class="rounded-xl bg-white border border-slate-200 p-3"><p class="text-slate-500">{{ $t('repgap.current_assets') }}</p><p class="font-mono font-black text-slate-800 mt-1">{{ amount(report.liquidity.assets.current) }}</p></div>
+            <div class="rounded-xl bg-white border border-slate-200 p-3"><p class="text-slate-500">{{ $t('repgap.non_current_assets') }}</p><p class="font-mono font-black text-slate-800 mt-1">{{ amount(report.liquidity.assets.non_current) }}</p></div>
+            <div class="rounded-xl bg-white border border-slate-200 p-3"><p class="text-slate-500">{{ $t('repgap.current_liabilities') }}</p><p class="font-mono font-black text-slate-800 mt-1">{{ amount(report.liquidity.liabilities.current) }}</p></div>
+            <div class="rounded-xl bg-white border border-slate-200 p-3"><p class="text-slate-500">{{ $t('repgap.non_current_liabilities') }}</p><p class="font-mono font-black text-slate-800 mt-1">{{ amount(report.liquidity.liabilities.non_current) }}</p></div>
+            <div class="rounded-xl bg-indigo-50 border border-indigo-100 p-3"><p class="text-indigo-700">{{ $t('repgap.current_ratio') }}</p><p class="font-mono font-black text-indigo-800 mt-1" data-current-ratio>{{ report.liquidity.current_ratio ?? '—' }}</p></div>
+        </div>
         <ComparisonTable v-if="comparison" :comparison="comparison" :current-label="`كما في ${filters.as_of}`" />
         <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div class="bg-white border border-slate-200 rounded-2xl p-5">
