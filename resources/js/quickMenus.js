@@ -59,6 +59,7 @@ export const addMenu = [
     { label: 'التصنيع والمشاريع', items: [
         { label: 'أمر إنتاج', route: 'manufacturing.orders.create', icon: Cog6ToothIcon },
         { label: 'مشروع', route: 'projects.create', icon: BriefcaseIcon },
+        { label: 'توزيع تكاليف غير مباشرة', route: 'projects.allocations.create', icon: BriefcaseIcon },
     ] },
 ];
 
@@ -67,6 +68,7 @@ export const viewMenu = [
     { label: 'العروض والخصومات', route: 'sales.promotions.index', icon: SparklesIcon },
     { label: 'أبرز التحديثات', route: 'whats-new.index', icon: SparklesIcon },
     { label: 'طلبات المميزات', route: 'feature-requests.index', icon: LightBulbIcon },
+    { label: 'توزيع التكاليف غير المباشرة', route: 'projects.allocations.index', icon: BriefcaseIcon },
     { label: 'العملاء', route: 'sales.clients.index', icon: BuildingOffice2Icon },
     { label: 'الموردون', route: 'purchases.suppliers.index', icon: TruckIcon },
     { label: 'الموظفون', route: 'hr.employees.index', icon: UserCircleIcon },

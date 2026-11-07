@@ -565,6 +565,11 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/subcontracts/{subcontract}/advance', [PR\ProjectCostController::class, 'subcontractAdvance'])->name('subcontracts.advance');
         Route::post('/subcontracts/{subcontract}/certify', [PR\ProjectCostController::class, 'certify'])->name('subcontracts.certify');
         Route::post('/subcontracts/{subcontract}/release-retention', [PR\ProjectCostController::class, 'releaseSubcontractRetention'])->name('subcontracts.release-retention');
+        Route::get('/allocations', [PR\AllocationController::class, 'index'])->name('allocations.index');
+        Route::get('/allocations/create', [PR\AllocationController::class, 'create'])->name('allocations.create');
+        Route::post('/allocations', [PR\AllocationController::class, 'store'])->name('allocations.store');
+        Route::get('/allocations/{run}', [PR\AllocationController::class, 'show'])->name('allocations.show');
+        Route::delete('/allocations/{run}', [PR\AllocationController::class, 'destroy'])->name('allocations.destroy');
         Route::get('/{project}', [PR\ProjectController::class, 'show'])->name('show');
         Route::put('/{project}', [PR\ProjectController::class, 'update'])->name('update');
         Route::put('/{project}/boq', [PR\ProjectController::class, 'updateBoq'])->name('boq.update');

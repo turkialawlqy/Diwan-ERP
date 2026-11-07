@@ -83,6 +83,7 @@ export default [
         children: [
             { label: 'nav.projects_list', route: 'projects.index', path: '/projects' },
             { label: 'nav.guarantees', route: 'projects.guarantees.index', path: '/projects/guarantees' },
+            { label: 'nav.project_allocations', route: 'projects.allocations.index', path: '/projects/allocations' },
         ],
     },
     { key: 'portal_users', label: 'nav.portal_users', icon: UsersIcon, route: 'portal.users.index', path: '/portal-users' },

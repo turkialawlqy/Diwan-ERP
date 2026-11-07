@@ -10,6 +10,7 @@ use App\Models\FiscalYear;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
+use App\Models\ProjectAllocationRun;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
@@ -55,6 +56,7 @@ class ReportCatalog
         'forecast-vs-actual' => 'accounting.controls.export',
         'closing-checklist' => 'accounting.controls.export',
         'approval-flow' => 'accounting.controls.export',
+        'project-allocation' => 'projects.allocations.export',
         'cash-forecast' => 'accounting.controls.export',
         // Transaction lists (one row per document / journal line), for hand-over and analysis in Excel.
         'tx-sales-invoices' => 'sales.invoices.export',
@@ -86,6 +88,7 @@ class ReportCatalog
             'forecast-vs-actual' => $this->controlForecastVsActual(),
             'closing-checklist' => $this->controlClosingChecklist($request),
             'approval-flow' => $this->controlApprovalFlow($request),
+            'project-allocation' => $this->projectAllocation($request),
             'vat-return' => $this->vatReturn($request),
             'sales-analysis' => $this->analysis($request, 'sales'),
             'purchases-analysis' => $this->analysis($request, 'purchases'),
@@ -519,6 +522,19 @@ class ReportCatalog
         return $this->table('قائمة تحقق إقفال الفترة', $year ? $year->name.' — '.($open ? $open.' بند يحتاج معالجة' : 'كل البنود مكتملة') : 'لا سنة مالية', [
             ['item', 'البند'], ['status', 'الحالة'], ['count', 'العدد', 'number'], ['detail', 'ما المطلوب'],
         ], $rows);
+    }
+
+    protected function projectAllocation(Request $request): array
+    {
+        $request->validate(['run_id' => 'required|tenant_exists:project_allocation_runs,id']);
+        $run = ProjectAllocationRun::with('lines.project:id,code,name')->findOrFail($request->integer('run_id'));
+        $basis = ['revenue' => 'الإيراد', 'direct_cost' => 'التكلفة المباشرة', 'hours' => 'الساعات'][$run->basis];
+        $rows = $run->lines->map(fn ($l) => ['project' => $l->project->code.' - '.$l->project->name, 'basis' => (float) $l->basis_value, 'pct' => (float) $l->share_pct, 'amount' => (float) $l->amount])->all();
+        $rows[] = ['project' => 'الإجمالي', 'basis' => round(array_sum(array_column($rows, 'basis')), 2), 'pct' => 100.0, 'amount' => round(array_sum(array_column($rows, 'amount')), 2)];
+
+        return $this->table('توزيع التكاليف غير المباشرة '.$run->number, 'المفتاح: '.$basis.' — من '.$run->period_from->toDateString().' إلى '.$run->period_to->toDateString().($run->status === 'reversed' ? ' (معكوس)' : ''), [
+            ['project', 'المشروع'], ['basis', 'قيمة المفتاح', 'money'], ['pct', 'النسبة %', 'number'], ['amount', 'المحمَّل', 'money'],
+        ], $rows, [count($rows) - 1]);
     }
 
     protected function controlApprovalFlow(Request $request): array

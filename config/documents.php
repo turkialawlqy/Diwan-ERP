@@ -37,6 +37,7 @@ return [
         'sales_order' => ['table' => 'sales_orders', 'column' => 'order_number', 'prefix' => 'SO-', 'pad' => 6, 'yearly' => true, 'label' => 'أمر بيع', 'area' => 'sales'],
         'delivery_note' => ['table' => 'delivery_notes', 'column' => 'delivery_number', 'prefix' => 'DN-', 'pad' => 6, 'yearly' => true, 'label' => 'إذن تسليم', 'area' => 'sales'],
         'debit_note' => ['table' => 'debit_notes', 'column' => 'debit_note_number', 'prefix' => 'DBN-', 'pad' => 6, 'yearly' => true, 'label' => 'إشعار مدين', 'area' => 'sales'],
+        'project_allocation' => ['table' => 'project_allocation_runs', 'column' => 'number', 'prefix' => 'ALC-', 'pad' => 5, 'yearly' => true, 'label' => 'توزيع تكاليف غير مباشرة على المشاريع', 'area' => 'accounting', 'module' => 'projects'],
         'purchase_request' => ['table' => 'purchase_requests', 'column' => 'request_number', 'prefix' => 'PR-', 'pad' => 6, 'yearly' => true, 'label' => 'طلب شراء', 'area' => 'purchases'],
         'goods_receipt' => ['table' => 'goods_receipts', 'column' => 'receipt_number', 'prefix' => 'GRN-', 'pad' => 6, 'yearly' => true, 'label' => 'استلام بضاعة', 'area' => 'purchases'],
         'purchase_return' => ['table' => 'purchase_returns', 'column' => 'return_number', 'prefix' => 'PRT-', 'pad' => 6, 'yearly' => true, 'label' => 'مرتجع مشتريات', 'area' => 'purchases'],

@@ -181,7 +181,8 @@
         "maintenance_dashboard": "Maintenance Board",
         "maintenance_orders": "Maintenance Orders",
         "equipment_reports": "Equipment Reports",
-        "accounting_controls": "Accounting Controls"
+        "accounting_controls": "Accounting Controls",
+        "project_allocations": "Overhead allocation"
     },
     "common": {
         "search": "Search...",
@@ -497,5 +498,43 @@
         "branch": "Branch",
         "pick": "Select...",
         "hint": "A dimension budget is separate from the general one; its lines are saved on their own and compared with the spend tagged to it."
+    },
+    "alloc": {
+        "title": "Overhead allocation",
+        "subtitle": "Spread general expenses over projects by revenue, direct cost or hours",
+        "new": "New allocation",
+        "number": "Number",
+        "period": "Period",
+        "basis": "Basis",
+        "pool": "Amount allocated",
+        "status": "Status",
+        "posted": "Posted",
+        "reversed": "Reversed",
+        "empty": "No allocations yet",
+        "b_revenue": "Revenue",
+        "b_direct_cost": "Direct cost",
+        "b_hours": "Hours (from work orders)",
+        "accounts": "Overhead accounts",
+        "add_account": "Add an account",
+        "from": "From",
+        "to": "To",
+        "amount": "Amount (optional, defaults to what the accounts hold)",
+        "notes": "Notes",
+        "preview": "Preview",
+        "post": "Post allocation",
+        "available": "Held by the accounts",
+        "pool_amount": "Amount to allocate",
+        "project": "Project",
+        "basis_value": "Basis value",
+        "share": "Share %",
+        "allocated": "Allocated",
+        "total": "Total",
+        "credits": "Taken from accounts",
+        "journal": "Journal entry",
+        "reverse": "Reverse allocation",
+        "confirm_reverse": "Reverse this allocation and remove the cost from the projects?",
+        "hint": "The entry moves the burden from the general expense to the projects' cost, so company profit is unchanged. Running the same period again only allocates what was booked after the first run.",
+        "hours_note": "The hours basis covers work-order hours linked to a project only.",
+        "export": "Export"
     }
 }
