@@ -47,6 +47,8 @@ class ReportCatalog
         'supplier-balances' => 'accounting.controls.export',
         'cash-movement' => 'accounting.controls.export',
         'dormant-accounts' => 'accounting.controls.export',
+        'unusual-expenses' => 'accounting.controls.export',
+        'cash-forecast' => 'accounting.controls.export',
         // Transaction lists (one row per document / journal line), for hand-over and analysis in Excel.
         'tx-sales-invoices' => 'sales.invoices.export',
         'tx-purchase-invoices' => 'purchases.invoices.export',
@@ -71,6 +73,8 @@ class ReportCatalog
             'cash-flow' => $this->cashFlow($request),
             'trial-balance' => $this->trialBalance($request),
             'aging' => $this->aging($request),
+            'cash-forecast' => $this->cashForecast($request),
+            'unusual-expenses' => $this->controlUnusual($request),
             'vat-return' => $this->vatReturn($request),
             'sales-analysis' => $this->analysis($request, 'sales'),
             'purchases-analysis' => $this->analysis($request, 'purchases'),
@@ -213,16 +217,38 @@ class ReportCatalog
 
     protected function aging(Request $request): array
     {
-        $v = $request->validate(['kind' => 'nullable|in:receivables,payables', 'as_of' => 'nullable|date']);
+        $v = $request->validate(['kind' => 'nullable|in:receivables,payables', 'as_of' => 'nullable|date', 'buckets' => ['nullable', 'regex:/^\d{1,4}(,\d{1,4}){0,5}$/']]);
         $kind = $v['kind'] ?? 'receivables';
         $asOf = Carbon::parse($v['as_of'] ?? now()->toDateString());
-        $r = $this->reports->aging($kind, $asOf);
+        $r = $this->reports->aging($kind, $asOf, isset($v['buckets']) ? explode(',', $v['buckets']) : [30, 60, 90]);
 
-        $rows = collect($r['rows'])->map(fn ($row) => collect($row)->only(['name', 'current', 'd30', 'd60', 'd90', 'd90plus', 'total'])->all())->all();
-        $rows[] = ['name' => 'الإجمالي'] + $r['totals'];
+        $keys = array_merge(array_column($r['columns'], 0), ['total'], $r['past'] ? ['collected_after'] : []);
+        $rows = collect($r['rows'])->map(fn ($row) => collect($row)->only(array_merge(['name'], $keys))->all())->all();
+        $rows[] = ['name' => 'الإجمالي'] + collect($r['totals'])->only($keys)->all();
 
-        return $this->table($kind === 'payables' ? 'أعمار الدائنين' : 'أعمار المدينين', 'كما في '.$asOf->toDateString(), [
-            ['name', $kind === 'payables' ? 'المورد' : 'العميل'], ['current', 'جارٍ', 'money'], ['d30', '1–30', 'money'], ['d60', '31–60', 'money'], ['d90', '61–90', 'money'], ['d90plus', 'أكثر من 90', 'money'], ['total', 'الإجمالي', 'money'],
+        $columns = [['name', $kind === 'payables' ? 'المورد' : 'العميل']];
+        foreach ($r['columns'] as [$key, $label]) {
+            $columns[] = [$key, $label, 'money'];
+        }
+        $columns[] = ['total', 'الإجمالي', 'money'];
+        if ($r['past']) {
+            $columns[] = ['collected_after', 'حُصِّل بعد التاريخ', 'money'];
+        }
+
+        return $this->table($kind === 'payables' ? 'أعمار الدائنين' : 'أعمار المدينين', 'كما في '.$asOf->toDateString(), $columns, $rows, [count($rows) - 1]);
+    }
+
+    protected function cashForecast(Request $request): array
+    {
+        $v = $request->validate(['collect_delay_days' => 'nullable|integer|min:0|max:365', 'collect_pct' => 'nullable|numeric|min:0|max:100', 'pay_delay_days' => 'nullable|integer|min:0|max:365']);
+        $f = app(Insights::class)->cashForecast(13, null, $v);
+        $sc = $f['scenario'];
+        $rows = array_map(fn ($w) => $w + ['period' => $w['start'].' → '.$w['end']], $f['weeks']);
+        $rows[] = ['period' => 'الرصيد الافتتاحي: '.number_format($f['opening'], 2, '.', ''), 'balance' => $f['closing']];
+
+        return $this->table('التدفق النقدي المتوقع (13 أسبوعًا)', 'سيناريو: تأخير التحصيل '.$sc['collect_delay_days'].' يوم، نسبة التحصيل '.$sc['collect_pct'].'%، تأجيل السداد '.$sc['pay_delay_days'].' يوم', [
+            ['period', 'الأسبوع'], ['receivables', 'تحصيل فواتير', 'money'], ['recurring', 'فواتير دورية', 'money'], ['cheques_in', 'شيكات واردة', 'money'],
+            ['payables', 'موردون', 'money'], ['cheques_out', 'شيكات صادرة', 'money'], ['payroll', 'رواتب', 'money'], ['net', 'الصافي', 'money'], ['balance', 'الرصيد', 'money'],
         ], $rows, [count($rows) - 1]);
     }
 
@@ -441,6 +467,18 @@ class ReportCatalog
 
         return $this->table('الحسابات دون حركة', "لا حركة مرحّلة منذ {$days} يومًا — ".count($data).' حساب', [
             ['code', 'الرمز'], ['name', 'الحساب'], ['last', 'آخر حركة'], ['days', 'منذ (يوم)', 'number'], ['balance', 'الرصيد', 'money'],
+        ], $data);
+    }
+
+    protected function controlUnusual(Request $request): array
+    {
+        $months = max(3, min(36, (int) ($request->input('months') ?: 12)));
+        $k = max(0.5, min(6.0, (float) ($request->input('k') ?: 2)));
+        $min = max(0.0, (float) $request->input('min_amount', 0));
+        $data = app(AccountingControls::class)->unusualExpenses($months, $k, $min);
+
+        return $this->table('المصروفات غير المعتادة', 'شهر '.now()->format('Y-m')." مقابل متوسط آخر {$months} شهرًا + {$k}×الانحراف المعياري — ".count($data).' حساب للمراجعة', [
+            ['code', 'الرمز'], ['name', 'الحساب'], ['month', 'الشهر'], ['amount', 'مصروف الشهر', 'money'], ['mean', 'المتوسط', 'money'], ['std', 'الانحراف', 'money'], ['threshold', 'الحد المتوقع', 'money'], ['excess', 'الزيادة عن المتوسط', 'money'],
         ], $data);
     }
 

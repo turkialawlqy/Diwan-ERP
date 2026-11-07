@@ -241,4 +241,52 @@ class AccountingControls
                 return ['code' => $a->code, 'name' => $a->name_ar, 'last' => $date ?? 'لا حركة', 'days' => $date ? (int) Carbon::parse($date)->startOfDay()->diffInDays($today->copy()->startOfDay()) : null, 'balance' => round($balance, 2)];
             })->values()->all();
     }
+
+    /**
+     * Expense accounts whose spend in a month is unusually high against their own history:
+     * the month's net debit exceeds the mean of the previous $months months by more than
+     * $k standard deviations (and by at least $minAmount). A review signal, not a verdict.
+     *
+     * @return array<int, array>
+     */
+    public function unusualExpenses(int $months = 12, float $k = 2.0, float $minAmount = 0.0, ?Carbon $today = null): array
+    {
+        $today ??= now();
+        $current = $today->copy()->startOfMonth();
+        $from = $current->copy()->subMonths($months);
+        $accounts = Account::where('type', 'expense')->where('is_parent', false)->get(['id', 'code', 'name_ar'])->keyBy('id');
+        if ($accounts->isEmpty()) {
+            return [];
+        }
+        $closingIds = DB::table('journal_entries')->where('company_id', $this->companyId())->where('entry_type', 'closing')->pluck('id');
+
+        $byMonth = [];
+        $this->lines()->whereIn('l.account_id', $accounts->keys())
+            ->when($closingIds->isNotEmpty(), fn ($q) => $q->whereNotIn('e.id', $closingIds)->where(fn ($w) => $w->whereNull('e.reversal_of_id')->orWhereNotIn('e.reversal_of_id', $closingIds)))
+            ->where('l.date', '>=', $from->toDateString())->where('l.date', '<=', $today->copy()->endOfMonth()->toDateString().' 23:59:59')
+            ->groupBy('l.account_id', 'l.date')->selectRaw('l.account_id, l.date, SUM(l.debit - l.credit) as net')->get()
+            ->each(function ($r) use (&$byMonth) {
+                $m = substr((string) $r->date, 0, 7);
+                $byMonth[$r->account_id][$m] = ($byMonth[$r->account_id][$m] ?? 0.0) + (float) $r->net;
+            });
+
+        $rows = [];
+        $currentKey = $current->format('Y-m');
+        foreach ($byMonth as $accountId => $perMonth) {
+            $history = [];
+            for ($i = 1; $i <= $months; $i++) {
+                $history[] = $perMonth[$current->copy()->subMonths($i)->format('Y-m')] ?? 0.0;
+            }
+            $mean = array_sum($history) / max(1, count($history));
+            $std = sqrt(array_sum(array_map(fn ($v) => ($v - $mean) ** 2, $history)) / max(1, count($history)));
+            $now = round($perMonth[$currentKey] ?? 0.0, 2);
+            $threshold = round($mean + $k * $std, 2);
+            if ($now > $threshold && ($now - $mean) >= $minAmount && $now > 0) {
+                $rows[] = ['code' => $accounts[$accountId]->code, 'name' => $accounts[$accountId]->name_ar, 'month' => $currentKey, 'amount' => $now, 'mean' => round($mean, 2), 'std' => round($std, 2), 'threshold' => $threshold, 'excess' => round($now - $mean, 2)];
+            }
+        }
+        usort($rows, fn ($a, $b) => $b['excess'] <=> $a['excess']);
+
+        return $rows;
+    }
 }

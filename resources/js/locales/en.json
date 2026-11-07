@@ -468,5 +468,18 @@
         "days": "No movement for (days)",
         "empty": "Nothing to show",
         "back": "All control reports"
+    },
+    "aging3": {
+        "buckets": "Buckets (days, comma separated)",
+        "collected_after": "Collected after the date",
+        "scenario": "Scenario",
+        "collect_delay": "Collection delay (days)",
+        "collect_pct": "Collection rate %",
+        "pay_delay": "Payment deferral (days)",
+        "recalc": "Recalculate",
+        "scenario_active": "What-if scenario applied",
+        "months": "History months",
+        "k": "Std-dev multiplier (k)",
+        "min_amount": "Minimum excess over mean"
     }
 }

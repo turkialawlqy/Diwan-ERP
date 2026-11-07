@@ -6,6 +6,7 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
+import ExportButtons from '@/Components/UI/ExportButtons.vue';
 import { money } from '@/utils/format';
 
 /**
@@ -24,6 +25,8 @@ const tabs = [
 const tab = ref('cash');
 const from = ref(props.filters.from);
 const to = ref(props.filters.to);
+const scenario = ref({ collect_delay_days: props.filters.collect_delay_days, collect_pct: props.filters.collect_pct, pay_delay_days: props.filters.pay_delay_days });
+const applyScenario = () => router.get(route('reports.insights'), { from: from.value, to: to.value, ...scenario.value }, { preserveState: true, preserveScroll: true });
 const applyPeriod = () => router.get(route('reports.insights'), { from: from.value, to: to.value }, { preserveState: true, preserveScroll: true });
 
 const BLUE = '#2a78d6';
@@ -79,6 +82,14 @@ const varianceClass = (v) => (v < 0 ? 'text-rose-700' : 'text-emerald-700');
 
         <!-- Cash forecast -->
         <section v-show="tab === 'cash'" class="space-y-4 text-xs">
+            <form @submit.prevent="applyScenario" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-wrap items-end gap-3" data-cash-scenario>
+                <label><span class="block font-bold text-slate-600 mb-1">{{ $t('aging3.collect_delay') }}</span><input v-model="scenario.collect_delay_days" type="text" inputmode="decimal" data-num class="rounded-xl border-slate-200 text-xs w-28" /></label>
+                <label><span class="block font-bold text-slate-600 mb-1">{{ $t('aging3.collect_pct') }}</span><input v-model="scenario.collect_pct" type="text" inputmode="decimal" data-num class="rounded-xl border-slate-200 text-xs w-28" /></label>
+                <label><span class="block font-bold text-slate-600 mb-1">{{ $t('aging3.pay_delay') }}</span><input v-model="scenario.pay_delay_days" type="text" inputmode="decimal" data-num class="rounded-xl border-slate-200 text-xs w-28" /></label>
+                <button class="rounded-xl bg-indigo-600 text-white font-bold px-5 py-2">{{ $t('aging3.recalc') }}</button>
+                <ExportButtons report="cash-forecast" :params="{ collect_delay_days: filters.collect_delay_days, collect_pct: filters.collect_pct, pay_delay_days: filters.pay_delay_days }" permission="accounting.controls.export" />
+                <span v-if="filters.collect_delay_days || filters.collect_pct < 100 || filters.pay_delay_days" class="font-bold text-amber-700">{{ $t('aging3.scenario_active') }}</span>
+            </form>
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-slate-500">النقدية اليوم</div><div class="text-xl font-black mt-1 font-mono">{{ money(cash.opening) }}</div></div>
                 <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-slate-500">المتوقع بعد {{ cash.weeks.length }} أسبوعاً</div><div class="text-xl font-black mt-1 font-mono">{{ money(cash.closing) }}</div></div>

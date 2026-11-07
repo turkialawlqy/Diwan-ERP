@@ -19,6 +19,7 @@ class ControlReportsController extends Controller
         'supplier-balances' => ['أرصدة الموردين', 'أول المدة والحركة وآخر المدة وسندات الصرف غير المطبقة.', ['range']],
         'cash-movement' => ['حركة الصناديق والبنوك', 'أول المدة والوارد والصادر وآخر المدة لكل حساب، والحركات البنكية غير المسوّاة بأعمارها.', ['range']],
         'dormant-accounts' => ['الحسابات دون حركة', 'حسابات فعّالة لا حركة مرحّلة عليها خلال المدة المحددة.', ['days']],
+        'unusual-expenses' => ['المصروفات غير المعتادة', 'حسابات مصروف تجاوز صرف الشهر الحالي فيها المتوسط التاريخي + عدد من الانحرافات المعيارية (إشارة مراجعة لا حكم).', ['unusual']],
     ];
 
     public function index(): Response
@@ -40,6 +41,9 @@ class ControlReportsController extends Controller
                 'start_date' => $request->input('start_date', now()->startOfYear()->toDateString()),
                 'end_date' => $request->input('end_date', now()->toDateString()),
                 'days' => (int) ($request->input('days') ?: 180),
+                'months' => (int) ($request->input('months') ?: 12),
+                'k' => (float) ($request->input('k') ?: 2),
+                'min_amount' => (float) $request->input('min_amount', 0),
             ],
         ]);
     }

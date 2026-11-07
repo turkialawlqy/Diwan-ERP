@@ -32,8 +32,12 @@ class Insights
      * minus payables, outgoing cheques and payroll. Overdue items are shown
      * separately rather than assumed to arrive next week.
      */
-    public function cashForecast(int $weeks = 13, ?Carbon $today = null): array
+    public function cashForecast(int $weeks = 13, ?Carbon $today = null, array $scenario = []): array
     {
+        // What-if: customers pay later / only part of what is due arrives / suppliers are paid later.
+        $collectDelay = max(0, min(365, (int) ($scenario['collect_delay_days'] ?? 0)));
+        $collectPct = max(0.0, min(100.0, (float) ($scenario['collect_pct'] ?? 100))) / 100;
+        $payDelay = max(0, min(365, (int) ($scenario['pay_delay_days'] ?? 0)));
         $today = ($today ?? now())->copy()->startOfDay();
         $end = $today->copy()->addWeeks($weeks)->subDay();
 
@@ -58,20 +62,26 @@ class Insights
         foreach ([[Invoice::class, 'receivables'], [PurchaseInvoice::class, 'payables']] as [$model, $key]) {
             $model::where('remaining_amount', '>', 0)->selectRaw("{$due} as due, SUM(remaining_amount * exchange_rate) as amount")
                 ->groupByRaw($due)->get()
-                ->each(function ($row) use ($add, $key, $today, &$overdue) {
-                    Carbon::parse($row->due)->lt($today) ? $overdue[$key] += (float) $row->amount : $add($key, $row->due, (float) $row->amount);
+                ->each(function ($row) use ($add, $key, $today, &$overdue, $collectDelay, $collectPct, $payDelay) {
+                    if (Carbon::parse($row->due)->lt($today)) {
+                        $overdue[$key] += (float) $row->amount;
+
+                        return;
+                    }
+                    $receivable = $key === 'receivables';
+                    $add($key, Carbon::parse($row->due)->addDays($receivable ? $collectDelay : $payDelay), (float) $row->amount * ($receivable ? $collectPct : 1));
                 });
         }
 
         Cheque::whereIn('status', ['pending', 'deposited'])->whereBetween('due_date', [$today->toDateString(), $end->toDateString()])->get(['direction', 'due_date', 'amount'])
             ->each(fn ($c) => $add($c->direction === 'incoming' ? 'cheques_in' : 'cheques_out', $c->due_date, (float) $c->amount));
 
-        RecurringInvoice::where('status', 'active')->get()->each(function (RecurringInvoice $t) use ($add, $end) {
+        RecurringInvoice::where('status', 'active')->get()->each(function (RecurringInvoice $t) use ($add, $end, $collectDelay, $collectPct) {
             $rate = $this->rates->isBase($t->currency_code) ? 1.0 : rescue(fn () => $this->rates->rate($t->currency_code), 1.0, false);
             $date = $t->next_run_date->copy();
             $issued = $t->generated_count;
             while ($date->lte($end) && (! $t->end_date || $date->lte($t->end_date)) && (! $t->max_count || $issued < $t->max_count)) {
-                $add('recurring', $date->copy()->addDays((int) ($t->due_days ?? $t->customer?->payment_terms_days ?? 0)), $t->estimatedTotal() * $rate);
+                $add('recurring', $date->copy()->addDays((int) ($t->due_days ?? $t->customer?->payment_terms_days ?? 0) + $collectDelay), $t->estimatedTotal() * $rate * $collectPct);
                 $date = $t->nextAfter($date);
                 $issued++;
             }
@@ -104,6 +114,7 @@ class Insights
             'lowest' => collect($rows)->min('balance') ?? $opening,
             'overdue' => array_map(fn ($v) => round($v, 2), $overdue),
             'payroll_estimate' => $lastPayroll ? (float) $lastPayroll->net_total : null,
+            'scenario' => ['collect_delay_days' => $collectDelay, 'collect_pct' => round($collectPct * 100, 2), 'pay_delay_days' => $payDelay],
         ];
     }
 
