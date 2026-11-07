@@ -221,6 +221,7 @@ export default [
             { label: 'nav.cash_flow', route: 'accounting.reports.cash-flow', path: '/accounting/reports/cash-flow' },
             { label: 'nav.aging', route: 'accounting.reports.aging', path: '/accounting/reports/aging' },
             { label: 'nav.vat_return', route: 'accounting.reports.vat-return', path: '/accounting/reports/vat-return', feature: 'vat_return' },
+            { label: 'nav.withholding', route: 'accounting.reports.withholding', path: '/accounting/reports/withholding', feature: 'vat_return' },
         ],
     },
     {
@@ -228,6 +229,7 @@ export default [
         children: [
             { label: 'nav.insights', route: 'reports.insights', path: '/reports/insights' },
             { label: 'nav.sales_reports', route: 'reports.sales', path: '/reports/sales' },
+            { label: 'nav.purchase_reports', route: 'reports.purchases', path: '/reports/purchases' },
             { label: 'nav.inventory_reports', route: 'reports.inventory', path: '/reports/inventory' },
             { label: 'nav.financial_reports', route: 'reports.financial', path: '/reports/financial' },
             { label: 'nav.vat_reports', route: 'reports.vat', path: '/reports/vat' },
@@ -260,6 +262,7 @@ export default [
             { label: 'nav.general_settings', route: 'settings.index', path: '/settings' },
             { label: 'nav.currencies', route: 'settings.currencies', path: '/settings/currencies' },
             { label: 'nav.modules', route: 'settings.modules', path: '/settings/modules' },
+            { label: 'nav.messaging', route: 'settings.messaging', path: '/settings/messaging' },
             { label: 'nav.numbering', route: 'settings.numbering', path: '/settings/numbering' },
             { label: 'nav.users', route: 'users.index', path: '/users' },
             { label: 'nav.roles', route: 'roles.index', path: '/roles' },

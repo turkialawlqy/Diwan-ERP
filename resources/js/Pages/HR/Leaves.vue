@@ -10,7 +10,7 @@ import StatusBadge from '@/Components/Documents/StatusBadge.vue';
 import { date } from '@/utils/format';
 
 const props = defineProps({ requests: Object, types: Array, employees: Array, status: String });
-const form = useForm({ employee_id: '', leave_type_id: props.types[0]?.id || '', start_date: '', end_date: '', reason: '' });
+const form = useForm({ employee_id: '', leave_type_id: props.types[0]?.id || '', start_date: '', end_date: '', half_day: false, reason: '' });
 const decide = async (r, approve) => {
     let note = null;
     if (!approve) {
@@ -52,6 +52,9 @@ const pay = { full: 'مدفوعة', sick_tiers: 'حسب شرائح المرضي�
                     <select v-model="form.leave_type_id" class="w-full rounded-xl border-slate-200 text-xs"><option v-for="t in types" :key="t.id" :value="t.id">{{ t.name }}</option></select>
                     <!-- Side by side only where the side card leaves room for two whole dates. -->
                     <div class="grid grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2"><DatePicker v-model="form.start_date" class="w-full rounded-xl border-slate-200 text-xs" /><DatePicker v-model="form.end_date" class="w-full rounded-xl border-slate-200 text-xs" /></div>
+                    <label class="inline-flex items-center gap-1.5 text-xs"><input type="checkbox" v-model="form.half_day" data-half-day /> نصف يوم (يوم واحد فقط)</label>
+                    <p v-if="form.errors.half_day" class="text-rose-600 font-bold">{{ form.errors.half_day }}</p>
+                    <p v-if="form.errors.leave_type_id" class="text-rose-600 font-bold">{{ form.errors.leave_type_id }}</p>
                     <input v-model="form.reason" placeholder="السبب" class="w-full rounded-xl border-slate-200 text-xs" />
                     <p v-for="(m, k) in form.errors" :key="k" class="text-rose-600">{{ m }}</p>
                     <button @click="form.post(route('hr.leaves.store'), { preserveScroll: true, onSuccess: () => form.reset('start_date', 'end_date', 'reason') })" class="w-full px-3 py-2 rounded-xl bg-indigo-600 text-white font-bold">تسجيل</button>

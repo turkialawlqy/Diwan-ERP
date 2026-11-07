@@ -15,6 +15,8 @@ class PurchaseInvoice extends Model
     use Auditable, BelongsToCompany, BranchScoped, HasFactory;
 
     protected $fillable = [
+        'cost_center_id',
+        'project_id',
         'currency_code',
         'exchange_rate',
         'source',

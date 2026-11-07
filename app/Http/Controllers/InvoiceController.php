@@ -5,13 +5,16 @@ namespace App\Http\Controllers;
 use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Category;
+use App\Models\CostCenter;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\PrintTemplate;
 use App\Models\Product;
+use App\Models\Project;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Rules\AllowedBranch;
+use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\Documents\FreeformTemplates;
 use App\Services\Sales\InvoiceChanges;
@@ -173,6 +176,9 @@ class InvoiceController extends Controller
             'suggestedNumber' => $suggestedNumber,
             'company' => $company,
             'defaultTaxRate' => TaxProfile::rate(),
+            'costCenters' => CostCenter::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_ar']),
+            'projects' => Project::orderBy('name')->get(['id', 'name']),
+            'dimensionPolicy' => app(DimensionPolicy::class)->modes(),
             'invoice' => $editing?->load('items', 'customer:id,name,company_name,tax_number,phone,current_balance'),
         ]);
     }
@@ -195,6 +201,8 @@ class InvoiceController extends Controller
             'notes' => 'nullable|string',
             'terms' => 'nullable|string',
             'salesperson_id' => 'nullable|tenant_exists:users,id',
+            'cost_center_id' => 'nullable|tenant_exists:cost_centers,id',
+            'project_id' => 'nullable|tenant_exists:projects,id',
             'invoice_type' => 'nullable|in:standard,simplified',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'nullable|integer|tenant_exists:products,id',
@@ -225,7 +233,7 @@ class InvoiceController extends Controller
     {
         $validated = $this->validateInvoice($request);
         [$validated['items']] = app(PromotionEngine::class)->apply($validated['items'], (int) $validated['customer_id'], 'invoice', $validated['invoice_date'] ?? null);
-        $changes->update($invoice, collect($validated)->except('items')->all(), $validated['items']);
+        $changes->update($invoice, collect($validated)->except('items')->all(), $validated['items'], ['dimensions' => true]);
 
         return redirect()->route('sales.invoices.show', $invoice->id)->with('success', 'تم تعديل الفاتورة وإعادة ترحيلها');
     }
@@ -242,6 +250,7 @@ class InvoiceController extends Controller
         $invoice = app(InvoiceService::class)->create(
             collect($validated)->except('items')->all(),
             $validated['items'],
+            ['dimensions' => true],
         );
 
         return redirect()->route('sales.invoices.show', $invoice->id)->with('success', 'تم إنشاء الفاتورة الضريبية بنجاح وفق متطلبات هيئة الزكاة'.($promotions ? ' (طُبِّق عرض: '.implode('، ', $promotions).')' : ''));

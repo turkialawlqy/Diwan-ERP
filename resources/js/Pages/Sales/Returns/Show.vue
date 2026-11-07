@@ -2,7 +2,7 @@
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref, onMounted } from 'vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import BrandLogo from '../../../Components/BrandLogo.vue';
 import QRCode from 'qrcode';
@@ -14,6 +14,10 @@ import {
     CheckCircleIcon,
 } from '@heroicons/vue/24/outline';
 import { timeZone } from '@/utils/format';
+
+const discardDraft = () => {
+    if (confirm('حذف مسودة الإشعار الدائن؟')) router.delete(route('sales.returns.destroy', props.creditNote.id));
+};
 
 const props = defineProps({
     creditNote: Object,
@@ -95,6 +99,15 @@ const formatDateArabic = (dateStr) => {
                 </div>
 
                 <div class="flex items-center gap-2">
+                    <button
+                        v-if="creditNote.status === 'draft' && $can('sales.returns.cancel')"
+                        type="button"
+                        data-discard-credit-note
+                        class="px-3 py-2 rounded-xl bg-rose-50 text-rose-700 text-xs font-bold hover:bg-rose-100"
+                        @click="discardDraft"
+                    >
+                        حذف المسودة
+                    </button>
                     <Link 
                         v-if="creditNote.invoice_id"
                         :href="route('sales.invoices.show', creditNote.invoice_id)"

@@ -9,6 +9,8 @@ use App\Models\TaxSettlement;
 use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\TaxSettlementService;
 use App\Services\HR\EmployeeFinanceService;
+use App\Services\Reports\ReportComparison;
+use App\Services\Tax\WithholdingReport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -24,24 +26,30 @@ class FinancialReportController extends Controller
     public function incomeStatement(Request $request): Response
     {
         [$from, $to, $filters] = $this->range($request);
-        $costCenterId = $request->validate(['cost_center_id' => 'nullable|tenant_exists:cost_centers,id'])['cost_center_id'] ?? null;
+        $v = $request->validate(['cost_center_id' => 'nullable|tenant_exists:cost_centers,id', 'compare' => 'nullable|in:previous,year']);
+        $costCenterId = $v['cost_center_id'] ?? null;
+        $compare = $v['compare'] ?? null;
 
         return Inertia::render('Accounting/Reports/IncomeStatement', [
             'report' => $this->reports->incomeStatement($from, $to, $costCenterId),
+            'comparison' => $compare ? app(ReportComparison::class)->incomeStatement($from, $to, $compare, $costCenterId) : null,
             'costCenters' => CostCenter::orderBy('code')->get(['id', 'code', 'name_ar']),
-            'filters' => array_merge($filters, ['cost_center_id' => $costCenterId]),
+            'filters' => array_merge($filters, ['cost_center_id' => $costCenterId, 'compare' => $compare]),
         ]);
     }
 
     public function balanceSheet(Request $request): Response
     {
-        $asOf = Carbon::parse($request->validate(['as_of' => 'nullable|date'])['as_of'] ?? now()->toDateString());
+        $v = $request->validate(['as_of' => 'nullable|date', 'compare' => 'nullable|in:previous,year']);
+        $asOf = Carbon::parse($v['as_of'] ?? now()->toDateString());
+        $compare = $v['compare'] ?? null;
 
         return Inertia::render('Accounting/Reports/BalanceSheet', [
             'report' => $this->reports->balanceSheet($asOf),
+            'comparison' => $compare ? app(ReportComparison::class)->balanceSheet($asOf, $compare) : null,
             // Part of the end-of-service provision falling due within a year (current liability).
             'eosCurrent' => Employee::exists() ? app(EmployeeFinanceService::class)->eosCurrentPortion($asOf) : 0,
-            'filters' => ['as_of' => $asOf->toDateString()],
+            'filters' => ['as_of' => $asOf->toDateString(), 'compare' => $compare],
         ]);
     }
 
@@ -89,6 +97,20 @@ class FinancialReportController extends Controller
             'byBranch' => array_values(array_filter($this->reports->taxByBranch($from, $to), fn ($row) => auth()->user()?->canUseBranch($row['branch_id']) ?? true)),
             'filters' => ['start_date' => $from->toDateString(), 'end_date' => $to->toDateString()],
             'settlement' => app(TaxSettlementService::class)->preview($from, $to),
+        ]);
+    }
+
+    /** Withholding tax of a period (quarter by default): what was cut from non-resident suppliers and is owed to the authority. */
+    public function withholding(Request $request): Response
+    {
+        $v = $request->validate(['start_date' => 'nullable|date', 'end_date' => 'nullable|date|after_or_equal:start_date']);
+        $quarter = now()->firstOfQuarter();
+        $from = Carbon::parse($v['start_date'] ?? $quarter->toDateString());
+        $to = Carbon::parse($v['end_date'] ?? $quarter->copy()->lastOfQuarter()->toDateString());
+
+        return Inertia::render('Accounting/Reports/Withholding', [
+            'report' => app(WithholdingReport::class)->build($from, $to),
+            'filters' => ['start_date' => $from->toDateString(), 'end_date' => $to->toDateString()],
         ]);
     }
 

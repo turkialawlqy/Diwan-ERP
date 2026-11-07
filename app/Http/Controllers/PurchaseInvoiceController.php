@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Category;
+use App\Models\CostCenter;
 use App\Models\GoodsReceiptItem;
 use App\Models\Product;
+use App\Models\Project;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
@@ -14,6 +16,9 @@ use App\Models\SupplierPayment;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Rules\AllowedBranch;
+use App\Services\Accounting\AccountMap;
+use App\Services\Accounting\BudgetService;
+use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\Inventory\DocumentStock;
@@ -146,6 +151,9 @@ class PurchaseInvoiceController extends Controller
             'bankAccounts' => $bankAccounts,
             'suggestedNumber' => $suggestedNumber,
             'defaultTaxRate' => TaxProfile::rate(),
+            'costCenters' => CostCenter::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_ar']),
+            'projects' => Project::orderBy('name')->get(['id', 'name']),
+            'dimensionPolicy' => app(DimensionPolicy::class)->modes(),
         ]);
     }
 
@@ -160,6 +168,8 @@ class PurchaseInvoiceController extends Controller
             'branch_id' => ['nullable', 'tenant_exists:branches,id', new AllowedBranch],
             'invoice_number' => 'nullable|string|max:50', // ignored: assigned by the system
             'supplier_invoice_number' => 'nullable|string|max:50',
+            'cost_center_id' => 'nullable|tenant_exists:cost_centers,id',
+            'project_id' => 'nullable|tenant_exists:projects,id',
             'invoice_date' => 'required|date',
             'due_date' => 'nullable|date',
             'supply_date' => 'nullable|date',
@@ -199,6 +209,8 @@ class PurchaseInvoiceController extends Controller
 
         app(PurchaseCycleService::class)->assertUniqueSupplierInvoice((int) $validated['supplier_id'], $validated['supplier_invoice_number'] ?? null, $replace?->id);
 
+        $budgetWarning = app(BudgetService::class)->check((int) app(AccountMap::class)->id('purchases_cogs'), $validated['invoice_date'], (float) collect($validated['items'])->sum(fn ($i) => (float) $i['quantity'] * (float) $i['unit_price'] - (float) ($i['discount'] ?? 0)), 'مشتريات');
+
         $invoice = DB::transaction(function () use ($validated, $companyId, $rate, $replace) {
             // Editing keeps the record and its number (PurchaseInvoiceChanges undid the old one).
             $validated['invoice_number'] = $replace?->invoice_number ?? $this->nextNumber('purchase_invoice', $validated['invoice_date']);
@@ -229,6 +241,8 @@ class PurchaseInvoiceController extends Controller
                     'tax_rate' => $taxRate,
                     'tax_amount' => $lineTax,
                     'total' => $lineTotal,
+                    'unit_id' => $item['unit_id'] ?? null,
+                    'unit_factor' => app(DocumentStock::class)->factorOf($item['product_id'] ?? null, $item['unit_id'] ?? null),
                 ];
             }
 
@@ -256,6 +270,8 @@ class PurchaseInvoiceController extends Controller
                 'supplier_id' => $validated['supplier_id'],
                 'warehouse_id' => $validated['warehouse_id'],
                 'branch_id' => $validated['branch_id'] ?? null,
+                'cost_center_id' => $validated['cost_center_id'] ?? null,
+                'project_id' => $validated['project_id'] ?? null,
                 'invoice_number' => $validated['invoice_number'],
                 'supplier_invoice_number' => $validated['supplier_invoice_number'] ?? null,
                 'invoice_date' => $validated['invoice_date'],
@@ -325,12 +341,14 @@ class PurchaseInvoiceController extends Controller
 
             // One entry covers the bill and its immediate payment (the payment
             // record above is informational and is not posted separately).
+            app(DocumentPoster::class)->enforceDimensions(true);
             app(DocumentPoster::class)->purchaseInvoice($purchaseInvoice);
 
             return $purchaseInvoice;
         });
 
         return redirect()->route('purchases.invoices.show', $invoice->id)
+            ->with($budgetWarning ? ['warning' => $budgetWarning] : [])
             ->with('success', $replace ? 'تم تعديل فاتورة الشراء وإعادة ترحيلها' : 'تم إنشاء فاتورة الشراء وتحديث كميات المخزون بنجاح');
     }
 

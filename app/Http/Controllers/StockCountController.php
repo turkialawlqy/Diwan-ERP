@@ -9,6 +9,7 @@ use App\Models\StockCountItem;
 use App\Models\Warehouse;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Inventory\StockService;
+use App\Services\Workflow\ApprovalGate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -148,8 +149,11 @@ class StockCountController extends Controller
     public function approve(StockCount $count, StockService $stock, DocumentPoster $poster)
     {
         $this->assertDraft($count);
+        app(ApprovalGate::class)->check('stock_count', ApprovalGate::keyOf($count), (float) $count->items()->selectRaw('COALESCE(SUM(ABS(counted_quantity - system_quantity) * unit_cost), 0) as v')->value('v'), "اعتماد جرد {$count->count_number}");
 
         DB::transaction(function () use ($count, $stock, $poster) {
+            $count = StockCount::whereKey($count->id)->lockForUpdate()->firstOrFail();
+            $this->assertDraft($count); // approved by someone else a moment ago
             $value = 0.0;
 
             StockCountItem::where('stock_count_id', $count->id)
@@ -162,7 +166,7 @@ class StockCountController extends Controller
                             'date' => $count->count_date,
                             'source' => $count,
                             'reference' => $count->count_number,
-                        ]);
+                        ], (float) $item->system_quantity);
                     }
                 });
 

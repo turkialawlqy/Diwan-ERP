@@ -125,7 +125,10 @@ class MineController extends Controller
     public function products(Request $request)
     {
         $q = trim((string) $request->query('q', ''));
-        abort_if(mb_strlen($q) < 1, 422);
+        // No search term, no results (a 422 here made the "every screen opens" browser test fail on it).
+        if (mb_strlen($q) < 1) {
+            return response()->json(['data' => []]);
+        }
 
         return response()->json(['data' => Product::where('is_active', true)
             ->where(fn ($w) => $w->where('name_ar', 'like', "%{$q}%")->orWhere('sku', 'like', "{$q}%")->orWhere('barcode', $q))

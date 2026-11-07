@@ -30,11 +30,15 @@ class Supplier extends Model
         'current_balance',
         'status',
         'notes',
+        'is_non_resident',
+        'wht_category',
+        'country',
     ];
 
     protected $casts = [
         'opening_balance' => 'decimal:2',
         'current_balance' => 'decimal:2',
+        'is_non_resident' => 'boolean',
     ];
 
     protected static function booted()

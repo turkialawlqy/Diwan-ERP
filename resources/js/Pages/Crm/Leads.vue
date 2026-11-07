@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import { ref } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -22,7 +23,8 @@ const overdue = (d) => d && new Date(d) <= new Date();
     <AppLayout>
         <Head title="العملاء المحتملون" />
         <PageHeader title="العملاء المحتملون والفرص" subtitle="اسحب البطاقة لتغيير المرحلة" :crumbs="[{ label: 'CRM' }, { label: 'العملاء المحتملون' }]">
-            <template #actions><button v-if="$can('crm.leads.create')" @click="open = true" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> عميل محتمل</button></template>
+            <template #actions><button v-if="$can('crm.leads.create')" @click="open = true" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> عميل محتمل</button>
+                <ImportButton v-if="$can('crm.leads.create')" type="leads" title="استيراد العملاء المحتملين من Excel" /></template>
         </PageHeader>
         <div class="grid grid-cols-3 gap-3 mb-4">
             <StatCard label="قيمة الفرص المفتوحة" :value="money(stats.open_value)" tone="indigo" />

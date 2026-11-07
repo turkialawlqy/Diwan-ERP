@@ -22,6 +22,7 @@ use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
 use App\Services\Sales\InvoiceService;
 use App\Services\Tax\TaxProfile;
+use App\Services\Workflow\ApprovalGate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -313,6 +314,8 @@ class ProjectService
      */
     public function approveBilling(ProgressBilling $billing): Invoice
     {
+        app(ApprovalGate::class)->check('progress_billing', ApprovalGate::keyOf($billing), (float) $billing->current_value, 'مستخلص '.$billing->number);
+
         return DB::transaction(function () use ($billing) {
             $billing = ProgressBilling::with('items.boqItem')->whereKey($billing->id)->lockForUpdate()->firstOrFail();
             if ($billing->status !== 'draft') {
@@ -528,6 +531,37 @@ class ProjectService
         });
     }
 
+    /**
+     * Release retention held from a subcontractor: it moves from «retention payable» to what we owe him
+     * on his account (to be paid like any bill).
+     */
+    public function releaseSubcontractRetention(Subcontract $subcontract, float $amount, string $date): void
+    {
+        DB::transaction(function () use ($subcontract, $amount, $date) {
+            $subcontract = Subcontract::with('project')->whereKey($subcontract->id)->lockForUpdate()->firstOrFail();
+            $open = (float) $subcontract->retention_held - (float) $subcontract->retention_released;
+            if ($amount <= 0 || $amount > $open + 0.005) {
+                throw ValidationException::withMessages(['amount' => 'المبلغ يتجاوز محتجزات المقاول القائمة ('.number_format($open, 2).').']);
+            }
+
+            $party = ['party_type' => 'supplier', 'party_id' => $subcontract->supplier_id];
+            $cc = $subcontract->project->cost_center_id;
+            $this->posting->post([
+                'date' => $date,
+                'reference' => $subcontract->number,
+                'description' => "الإفراج عن محتجزات مقاول الباطن {$subcontract->number}",
+                'source' => $subcontract,
+                'lines' => [
+                    ['role' => 'retention_payable', 'debit' => $amount, 'cost_center_id' => $cc] + $party,
+                    ['role' => 'payables', 'credit' => $amount] + $party,
+                ],
+            ]);
+
+            Supplier::whereKey($subcontract->supplier_id)->increment('current_balance', $amount);
+            $subcontract->update(['retention_released' => round((float) $subcontract->retention_released + $amount, 2)]);
+        });
+    }
+
     // ----- Project costs -----
 
     /**
@@ -538,6 +572,8 @@ class ProjectService
      */
     public function moveMaterials(Project $project, array $data, array $lines, bool $return = false): float
     {
+        $this->assertNotClosed($project);
+
         return DB::transaction(function () use ($project, $data, $lines, $return) {
             $warehouseId = $this->documentStock->warehouse($data['warehouse_id'] ?? $project->warehouse_id);
             $total = 0.0;
@@ -548,6 +584,14 @@ class ProjectService
                     continue;
                 }
                 $product = Product::findOrFail($line['product_id']);
+                if ($return) {
+                    // Only what the project actually drew can come back.
+                    $net = (float) ProjectCost::where('project_id', $project->id)->where('product_id', $product->id)->where('source', 'material_issue')->sum('quantity')
+                        - (float) ProjectCost::where('project_id', $project->id)->where('product_id', $product->id)->where('source', 'material_return')->sum('quantity');
+                    if ($quantity > $net + 0.0001) {
+                        throw ValidationException::withMessages(['lines' => "كمية مرتجع «{$product->name_ar}» أكبر مما صُرف للمشروع ({$net})."]);
+                    }
+                }
                 $cost = ProjectCost::create([
                     'project_id' => $project->id,
                     'boq_item_id' => $line['boq_item_id'] ?? null,
@@ -597,8 +641,18 @@ class ProjectService
     /**
      * Labour, equipment or other direct cost charged to the project.
      */
+    /** A closed project takes no new documents. */
+    protected function assertNotClosed(Project $project): void
+    {
+        if ($project->status === 'closed') {
+            throw ValidationException::withMessages(['project' => 'المشروع مغلق؛ أعد فتحه أولاً لتسجيل تكاليف أو مواد عليه.']);
+        }
+    }
+
     public function recordCost(Project $project, array $data): ProjectCost
     {
+        $this->assertNotClosed($project);
+
         return DB::transaction(function () use ($project, $data) {
             $amount = round((float) $data['amount'], 2);
             $vat = round((float) ($data['vat_amount'] ?? 0), 2);
@@ -616,6 +670,7 @@ class ProjectService
                 'quantity' => (float) ($data['quantity'] ?? 0),
                 'unit_cost' => (float) ($data['unit_cost'] ?? 0),
                 'amount' => $amount,
+                'vat_amount' => $vat, // kept on the cost: the VAT return is built from documents
                 'paid_from' => $paidFrom,
                 'supplier_id' => $data['supplier_id'] ?? null,
                 'bank_account_id' => $data['bank_account_id'] ?? null,

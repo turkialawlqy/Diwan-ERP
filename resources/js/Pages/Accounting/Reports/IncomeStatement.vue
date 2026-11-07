@@ -3,12 +3,15 @@ import { Head, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
+import ExportButtons from '@/Components/UI/ExportButtons.vue';
 import DateRangeFilter from '@/Components/UI/DateRangeFilter.vue';
+import ComparisonTable from '@/Components/UI/ComparisonTable.vue';
 import StatementSection from '@/Components/UI/StatementSection.vue';
 import { amount } from '@/utils/format';
 
-const props = defineProps({ report: Object, costCenters: Array, filters: Object });
+const props = defineProps({ report: Object, comparison: { type: Object, default: null }, costCenters: Array, filters: Object });
 const costCenter = ref(props.filters.cost_center_id ?? '');
+const compare = ref(props.filters.compare ?? '');
 const printPage = () => window.print();
 </script>
 
@@ -16,10 +19,20 @@ const printPage = () => window.print();
     <AppLayout>
         <Head title="قائمة الدخل" />
         <PageHeader title="قائمة الدخل (الأرباح والخسائر)" :subtitle="`من ${filters.start_date} إلى ${filters.end_date}`" :crumbs="[{ label: 'المحاسبة' }, { label: 'القوائم المالية' }]">
-            <template #actions><button @click="printPage" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">{{ $t('ui.print') }}</button></template>
+            <template #actions>
+                <button @click="printPage" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">{{ $t('ui.print') }}</button>
+                <ExportButtons report="income-statement" :params="{ start_date: filters.start_date, end_date: filters.end_date, cost_center_id: filters.cost_center_id, compare: filters.compare }" permission="accounting.statements.export" />
+            </template>
         </PageHeader>
 
-        <DateRangeFilter route-name="accounting.reports.income-statement" :filters="filters" :extra="{ cost_center_id: costCenter || undefined }">
+        <DateRangeFilter route-name="accounting.reports.income-statement" :filters="filters" :extra="{ cost_center_id: costCenter || undefined, compare: compare || undefined }">
+            <label><span class="block font-bold text-slate-600 mb-1">مقارنة بـ</span>
+                <select v-model="compare" data-compare class="rounded-xl border-slate-200 text-xs">
+                    <option value="">بدون مقارنة</option>
+                    <option value="previous">الفترة السابقة</option>
+                    <option value="year">نفس الفترة من السنة السابقة</option>
+                </select>
+            </label>
             <label><span class="block font-bold text-slate-600 mb-1">مركز التكلفة</span>
                 <select v-model="costCenter" class="rounded-xl border-slate-200 text-xs">
                     <option value="">كل المراكز</option>
@@ -28,7 +41,8 @@ const printPage = () => window.print();
             </label>
         </DateRangeFilter>
 
-        <div class="bg-white border border-slate-200 rounded-2xl p-5">
+        <ComparisonTable v-if="comparison" :comparison="comparison" />
+        <div v-else class="bg-white border border-slate-200 rounded-2xl p-5">
             <StatementSection title="الإيرادات" :rows="report.revenue.rows" :total="report.total_revenue" :ledger-query="filters" />
             <StatementSection title="المصروفات والتكاليف" :rows="report.expense.rows" :total="report.total_expense" :ledger-query="filters" />
 

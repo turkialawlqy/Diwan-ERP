@@ -56,7 +56,7 @@ class DocumentShareController extends Controller
 
         $result = $this->sharing->whatsapp($document, $validated['phone'], $validated['message'] ?? null, $request->user()->id);
 
-        return response()->json(['dispatch' => $result['dispatch'], 'url' => $result['url']]);
+        return response()->json(['dispatch' => $result['dispatch'], 'url' => $result['url'], 'message' => $result['sent_by_gateway'] ? ($result['ok'] ? 'أُرسلت الرسالة عبر بوابة واتساب الشركة' : 'فشل الإرسال عبر بوابة واتساب: '.$result['dispatch']->error) : null]);
     }
 
     /** Defaults for the send dialog plus the dispatch history. */

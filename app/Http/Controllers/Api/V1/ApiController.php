@@ -12,6 +12,7 @@ use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * REST API v1 (Sanctum personal access tokens, scoped to the token owner's
@@ -131,7 +132,17 @@ class ApiController extends Controller
             'items.*.vat_exemption_code' => 'nullable|string|max:30',
         ]);
 
+        // A retried request (timeout, double click) with the same Idempotency-Key returns the invoice already made.
+        $key = (string) $request->header('Idempotency-Key');
+        $cacheKey = $key !== '' ? 'api-idempotency:'.$request->user()->company_id.':'.sha1($key) : null;
+        if ($cacheKey && ($existingId = Cache::get($cacheKey)) && ($existing = Invoice::find($existingId))) {
+            return $this->invoice($existing)->setStatusCode(200);
+        }
+
         $invoice = $invoices->create($validated, $validated['items']);
+        if ($cacheKey) {
+            Cache::put($cacheKey, $invoice->id, now()->addDay());
+        }
 
         return $this->invoice($invoice)->setStatusCode(201);
     }

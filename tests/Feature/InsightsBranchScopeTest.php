@@ -107,6 +107,7 @@ class InsightsBranchScopeTest extends TestCase
         $this->assertEqualsWithDelta($invoices->sum('subtotal'), $props['budget']['totals']['revenue']['actual'], 0.01, "budget actual: {$scope}");
         $this->assertEqualsWithDelta($invoices->sum('total'), $props['cash']['overdue']['receivables'], 0.01, "cash forecast: {$scope}");
         $this->assertSame($names('مشروع '), $sorted($props['profitability']['projects']), "projects: {$scope}");
+        $this->assertSame($names('عميل '), $sorted($props['profitability']['customers']), "profitability customers: {$scope}");
     }
 
     public function test_a_branch_user_does_not_get_the_figures_cached_for_all_branches(): void

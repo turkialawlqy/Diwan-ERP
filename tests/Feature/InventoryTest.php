@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\Bom;
+use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Product;
@@ -20,6 +21,7 @@ use App\Services\Inventory\StockService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -205,6 +207,25 @@ class InventoryTest extends TestCase
         $this->assertSame(3.0, $this->stock()->onHand($p->id, $this->branch->id));
         $this->assertSame(0.0, $this->balance('goods_in_transit'));
         $this->assertSame(20.0, $this->balance('inventory_adjustment'));
+    }
+
+    public function test_transfers_between_branches_move_inventory_value_with_the_goods(): void
+    {
+        $riyadh = Branch::create(['name_ar' => 'الرياض', 'code' => 'RUH', 'is_main' => true, 'is_active' => true]);
+        $jeddah = Branch::create(['name_ar' => 'جدة', 'code' => 'JED', 'is_main' => false, 'is_active' => true]);
+        $this->main->forceFill(['branch_id' => $riyadh->id])->save();
+        $this->branch->forceFill(['branch_id' => $jeddah->id])->save();
+        $p = $this->product();
+        $this->stock()->receive(['product_id' => $p->id, 'warehouse_id' => $this->main->id, 'quantity' => 10, 'unit_cost' => 20, 'type' => 'purchase']);
+
+        $this->post(route('inventory.operations.transfer'), ['product_id' => $p->id, 'from_warehouse_id' => $this->main->id, 'to_warehouse_id' => $this->branch->id, 'quantity' => 4])->assertSessionHasNoErrors();
+
+        $inventory = app(AccountMap::class)->id('inventory', $this->company->id);
+        $byBranch = fn (int $branchId) => round((float) DB::table('journal_entry_lines as l')->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
+            ->where('l.account_id', $inventory)->where('e.branch_id', $branchId)->where('e.status', 'posted')->selectRaw('SUM(l.debit - l.credit) as b')->value('b'), 2);
+        $this->assertSame(-80.0, $byBranch($riyadh->id));
+        $this->assertSame(80.0, $byBranch($jeddah->id));
+        $this->assertSame(0.0, $this->balance('goods_in_transit'));
     }
 
     public function test_stock_count_document(): void

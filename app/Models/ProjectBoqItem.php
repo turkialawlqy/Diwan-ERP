@@ -11,9 +11,9 @@ class ProjectBoqItem extends Model
 {
     use BelongsToCompany;
 
-    protected $fillable = ['company_id', 'project_id', 'parent_id', 'variation_id', 'code', 'description', 'unit', 'quantity', 'unit_price', 'unit_cost', 'billed_quantity', 'is_group', 'sort'];
+    protected $fillable = ['company_id', 'project_id', 'parent_id', 'variation_id', 'code', 'description', 'unit', 'quantity', 'unit_price', 'unit_cost', 'billed_quantity', 'executed_quantity', 'is_group', 'sort'];
 
-    protected $casts = ['quantity' => 'decimal:4', 'billed_quantity' => 'decimal:4', 'unit_price' => 'decimal:4', 'unit_cost' => 'decimal:4', 'is_group' => 'boolean'];
+    protected $casts = ['quantity' => 'decimal:4', 'billed_quantity' => 'decimal:4', 'executed_quantity' => 'decimal:4', 'unit_price' => 'decimal:4', 'unit_cost' => 'decimal:4', 'is_group' => 'boolean'];
 
     public function project(): BelongsTo
     {

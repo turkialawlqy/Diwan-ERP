@@ -174,6 +174,9 @@ class EquipmentTest extends TestCase
         $this->assertSame(3900.0, $this->balance('rental_revenue'));
         $this->assertSame('2026-06-30', $rental->fresh()->billed_until->toDateString());
 
+        // The billed days are frozen: their readings can no longer be changed.
+        $this->assertThrows(fn () => $this->read('2026-06-03', ['hours_reading' => 1018]), ValidationException::class);
+
         $this->expectException(ValidationException::class);
         app(RentalBilling::class)->bill($rental, ['period_from' => '2026-06-15', 'period_to' => '2026-07-10']);
     }

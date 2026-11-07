@@ -8,9 +8,12 @@ use App\Models\BankAccount;
 use App\Models\CostCenter;
 use App\Models\Expense;
 use App\Models\Project;
+use App\Services\Accounting\AccountMap;
+use App\Services\Accounting\BudgetService;
 use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Tax\TaxProfile;
+use App\Services\Workflow\ApprovalGate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -95,7 +98,13 @@ class ExpenseController extends Controller
         if ($tax > 0 && empty($validated['vendor_tax_number'])) {
             throw ValidationException::withMessages(['vendor_tax_number' => 'ضريبة المدخلات تُسترد فقط بفاتورة ضريبية من مورد مسجل: أدخل الرقم الضريبي للمورد.']);
         }
+        if ($tax > 0 && ! TaxProfile::current()->vatMatches((float) $validated['amount'], $tax)) {
+            throw ValidationException::withMessages(['tax_amount' => 'الضريبة يجب أن تكون '.TaxProfile::current()->ratesLabel().' من المبلغ قبل الضريبة.']);
+        }
         $total = $validated['amount'] + $tax;
+        app(ApprovalGate::class)->check('expense', ApprovalGate::keyFor(['t' => $validated['title'], 'a' => round((float) $validated['amount'], 2), 'd' => $validated['expense_date'] ?? null, 'acc' => (int) ($validated['account_id'] ?? 0), 'r' => $replace?->id]), (float) $total, 'مصروف: '.$validated['title']);
+
+        $budgetWarning = app(BudgetService::class)->check((int) ($validated['account_id'] ?? app(AccountMap::class)->id('general_expense')), $validated['expense_date'] ?? now(), (float) $validated['amount'], 'مصروف');
 
         $expense = DB::transaction(function () use ($validated, $tax, $total, $replace) {
             // Editing: undo the old voucher (entry and box balance), keep its record and number.
@@ -140,7 +149,8 @@ class ExpenseController extends Controller
         $expenseNumber = $expense->expense_number;
 
         return redirect()->route('finance.expenses.index')
-            ->with('success', $replace ? "تم تعديل سند المصروف رقم {$expenseNumber}" : "تم تسجيل سند المصروف بنجاح برقم {$expenseNumber}");
+            ->with('success', $replace ? "تم تعديل سند المصروف رقم {$expenseNumber}" : "تم تسجيل سند المصروف بنجاح برقم {$expenseNumber}")
+            ->with($budgetWarning ? ['warning' => $budgetWarning] : []);
     }
 
     public function destroy(Expense $expense)

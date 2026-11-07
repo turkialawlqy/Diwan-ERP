@@ -89,12 +89,12 @@ const clock = computed(() => `${Math.floor(remaining.value / 60)}:${String(remai
     <div v-if="warning" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-4" data-idle-warning>
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-4" role="alertdialog" aria-live="assertive">
             <div class="mx-auto w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center"><ClockIcon class="w-7 h-7" /></div>
-            <h2 class="text-base font-black text-slate-900">ستنتهي جلستك قريبًا</h2>
-            <p class="text-sm text-slate-600">لم يُسجَّل أي نشاط منذ مدة. سيتم تسجيل الخروج تلقائيًا خلال</p>
+            <h2 class="text-base font-black text-slate-900">{{ $t('shared.idle_title') }}</h2>
+            <p class="text-sm text-slate-600">{{ $t('shared.idle_body') }}</p>
             <p class="text-3xl font-black font-mono text-rose-600" data-idle-countdown>{{ clock }}</p>
             <div class="flex gap-2 justify-center">
-                <button type="button" @click="stay" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold" data-idle-stay>متابعة الجلسة</button>
-                <button type="button" @click="logout" class="px-5 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-bold">تسجيل الخروج</button>
+                <button type="button" @click="stay" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold" data-idle-stay>{{ $t('shared.idle_stay') }}</button>
+                <button type="button" @click="logout" class="px-5 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-bold">{{ $t('shared.logout') }}</button>
             </div>
         </div>
     </div>

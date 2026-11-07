@@ -11,11 +11,13 @@ use App\Models\ProgressBilling;
 use App\Models\Project;
 use App\Models\Supplier;
 use App\Models\Warehouse;
+use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
 use App\Services\Inventory\StockService;
 use App\Services\Projects\ProjectReport;
 use App\Services\Projects\ProjectService;
+use App\Services\Projects\ProjectWip;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -183,5 +185,80 @@ class ProjectsTest extends TestCase
             $this->get($url)->assertOk();
         }
         $this->assertNotNull($billing->fresh()->invoice_id);
+    }
+
+    public function test_input_vat_on_a_project_cost_reaches_the_vat_return_and_matches_the_ledger(): void
+    {
+        $project = $this->project();
+        $this->service()->recordCost($project, ['date' => '2026-06-20', 'category' => 'labour', 'description' => 'مقاول عمالة', 'amount' => 1000, 'vat_amount' => 150, 'paid_from' => 'accrued']);
+
+        $return = app(AccountingReports::class)->vatReturn(Carbon::parse('2026-06-01'), Carbon::parse('2026-06-30'));
+        $box7 = collect($return['boxes'])->firstWhere('no', 7);
+        $this->assertEquals(150.0, $box7['vat']);
+        $this->assertEquals(1000.0, $box7['amount']);
+    }
+
+    public function test_returns_are_limited_to_what_was_issued_and_a_closed_project_takes_nothing(): void
+    {
+        $project = $this->project();
+        $cement = Product::create(['name_ar' => 'أسمنت', 'sku' => 'C9', 'selling_price' => 20, 'track_inventory' => true, 'is_active' => true]);
+        app(StockService::class)->receive(['product_id' => $cement->id, 'warehouse_id' => $this->warehouse->id, 'quantity' => 100, 'unit_cost' => 15, 'type' => 'opening']);
+        $this->service()->moveMaterials($project, ['date' => '2026-06-16'], [['product_id' => $cement->id, 'quantity' => 10]]);
+
+        $this->assertThrows(fn () => $this->service()->moveMaterials($project, ['date' => '2026-06-20'], [['product_id' => $cement->id, 'quantity' => 11]], true), ValidationException::class);
+        $this->assertSame(90.0, app(StockService::class)->onHand($cement->id));      // nothing came back
+
+        $project->update(['status' => 'closed']);
+        $this->assertThrows(fn () => $this->service()->recordCost($project->fresh(), ['date' => '2026-06-21', 'category' => 'labour', 'description' => 'x', 'amount' => 100, 'paid_from' => 'accrued']), ValidationException::class);
+    }
+
+    public function test_subcontractor_retention_is_released_to_his_account_and_closing_checks_drafts(): void
+    {
+        $project = $this->project();
+        $supplier = Supplier::create(['name' => 'مقاول باطن', 'status' => 'active']);
+        $sub = $this->service()->createSubcontract($project, ['supplier_id' => $supplier->id, 'scope' => 'أعمال', 'contract_value' => 40000, 'retention_percent' => 10]);
+        $this->service()->certify($sub, ['date' => '2026-06-30', 'cumulative_value' => 20000]);
+        $this->assertSame(2000.0, $this->balance('retention_payable'));
+        $owedBefore = (float) $supplier->fresh()->current_balance;
+
+        $this->post(route('projects.subcontracts.release-retention', $sub->id), ['date' => '2026-07-10', 'amount' => 2500])->assertSessionHasErrors('amount');
+        $this->post(route('projects.subcontracts.release-retention', $sub->id), ['date' => '2026-07-10', 'amount' => 1500])->assertSessionHasNoErrors();
+
+        $this->assertSame(500.0, $this->balance('retention_payable'));
+        $this->assertSame($owedBefore + 1500, (float) $supplier->fresh()->current_balance);
+        $this->assertSame(1500.0, (float) $sub->fresh()->retention_released);
+
+        // A project with a draft billing cannot be closed; unreleased retention is only warned about.
+        ProgressBilling::unguarded(fn () => ProgressBilling::create(['project_id' => $project->id, 'number' => 'B-DRAFT', 'sequence' => 1, 'billing_date' => '2026-06-30', 'status' => 'draft']));
+        $payload = ['name' => $project->name, 'status' => 'closed', 'advance_percent' => 0, 'retention_percent' => 0];
+        $this->put(route('projects.update', $project->id), $payload)->assertSessionHasErrors('status');
+        $this->assertNotSame('closed', $project->fresh()->status);
+    }
+
+    public function test_revenue_by_progress_posts_a_contract_asset_reversed_the_next_day(): void
+    {
+        $project = $this->project();
+        $a1 = $project->boqItems()->where('code', 'A.1')->first();
+        $billing = $this->service()->draftBilling($project, ['billing_date' => '2026-06-20'], [['boq_item_id' => $a1->id, 'current_quantity' => 40]]);
+        $this->service()->approveBilling($billing);                         // 20,000 billed and recognised
+
+        $wip = app(ProjectWip::class);
+        $wip->updateProgress($project, [['boq_item_id' => $a1->id, 'executed_quantity' => 80]]);   // 40,000 earned
+        $this->assertThrows(fn () => $wip->updateProgress($project, [['boq_item_id' => $a1->id, 'executed_quantity' => 30]]), ValidationException::class);   // below what was certified
+        $this->assertThrows(fn () => $wip->updateProgress($project, [['boq_item_id' => $a1->id, 'executed_quantity' => 101]]), ValidationException::class);  // beyond the contract
+
+        $figures = $wip->figures($project);
+        $this->assertSame([100000.0, 40000.0, 20000.0, 20000.0, 40.0], [$figures['contract_value'], $figures['earned'], $figures['billed'], $figures['wip'], $figures['percent']]);
+
+        $entry = $wip->post($project, '2026-06-30');
+        $this->assertSame(20000.0, (float) $entry->amount);
+        $june = app(AccountingReports::class)->incomeStatement(Carbon::parse('2026-06-01'), Carbon::parse('2026-06-30'));
+        $this->assertSame(40000.0, (float) collect($june['revenue']['rows'])->firstWhere('id', app(AccountMap::class)->id('contract_revenue'))['amount']);
+        $july = app(AccountingReports::class)->incomeStatement(Carbon::parse('2026-07-01'), Carbon::parse('2026-07-31'));
+        $this->assertSame(-20000.0, (float) collect($july['revenue']['rows'])->firstWhere('id', app(AccountMap::class)->id('contract_revenue'))['amount']);   // the adjustment comes back
+        $this->assertSame(0.0, $this->balance('contract_asset'));
+
+        $this->assertThrows(fn () => $wip->post($project, '2026-06-30'), ValidationException::class);   // one adjustment per date
+        $this->assertEqualsWithDelta((float) JournalEntryLine::sum('debit'), (float) JournalEntryLine::sum('credit'), 0.001);
     }
 }

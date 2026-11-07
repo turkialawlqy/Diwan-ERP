@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
@@ -109,5 +110,6 @@ const act = (name, message) => { if (!message || confirm(message)) router.post(r
             <p v-for="(msg, key) in deliverForm.errors" :key="key" class="text-xs text-rose-600 mt-1">{{ msg }}</p>
             <template #footer><button @click="deliver" :disabled="deliverForm.processing" class="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold">تسليم وصرف من المخزون</button></template>
         </Dialog>
+        <AttachmentsPanel kind="sales-order" :id="order.id" class="mt-4" />
     </AppLayout>
 </template>

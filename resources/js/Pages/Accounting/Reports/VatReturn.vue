@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
+import ExportButtons from '@/Components/UI/ExportButtons.vue';
 import DateRangeFilter from '@/Components/UI/DateRangeFilter.vue';
 import { money, amount } from '@/utils/format';
 
@@ -28,6 +29,7 @@ const cancelSettlement = () => {
             <template #actions>
                 <button v-if="!settlement.settlement && $can('accounting.vat_return.settle')" @click="settle" data-settle class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">تسوية الإقرار</button>
                 <button @click="printPage" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">{{ $t('ui.print') }}</button>
+                <ExportButtons report="vat-return" :params="{ start_date: filters.start_date, end_date: filters.end_date }" permission="accounting.vat_return.export" />
             </template>
         </PageHeader>
         <DateRangeFilter route-name="accounting.reports.vat-return" :filters="filters" />

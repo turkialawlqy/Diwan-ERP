@@ -33,7 +33,7 @@ const showForm = ref(false);
 const openInvoices = ref([]);
 const form = useForm({
     customer_id: null, invoice_id: '', amount: '', payment_date: today(),
-    payment_method: 'bank_transfer', bank_account_id: '', reference_number: '', notes: '', currency_code: '', exchange_rate: '', auto_allocate: true,
+    payment_method: 'bank_transfer', bank_account_id: '', reference_number: '', cheque_due_date: '', notes: '', currency_code: '', exchange_rate: '', auto_allocate: true,
 });
 const loadInvoices = async (customerId) => {
     form.invoice_id = '';
@@ -187,6 +187,7 @@ const formatCurrency = (val) => {
                 </div>
                 <CurrencyPicker v-model:code="form.currency_code" v-model:rate="form.exchange_rate" :errors="form.errors" />
                 <Field label="رقم المرجع"><input v-model="form.reference_number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field v-if="form.payment_method === 'cheque'" label="تاريخ استحقاق الشيك (اتركه فارغًا إن كان حاضرًا)" :error="form.errors.cheque_due_date"><DatePicker v-model="form.cheque_due_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field label="ملاحظات"><input v-model="form.notes" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <p v-if="form.errors.allocations" class="text-rose-600">{{ form.errors.allocations }}</p>
             </div>

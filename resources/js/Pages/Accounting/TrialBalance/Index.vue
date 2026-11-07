@@ -4,6 +4,7 @@ import { reactive } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
+import ExportButtons from '@/Components/UI/ExportButtons.vue';
 import { money } from '@/utils/format';
 import { PrinterIcon } from '@heroicons/vue/24/outline';
 
@@ -40,6 +41,7 @@ const isBalanced = () => Math.abs(props.totals.closing_debit - props.totals.clos
                 <button @click="printPage" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-indigo-600">
                     <PrinterIcon class="w-4 h-4" /> {{ $t('ui.print') }}
                 </button>
+                <ExportButtons report="trial-balance" :params="{ start_date: filters.start_date, end_date: filters.end_date, level: filters.level, show_zero: filters.show_zero, cost_center_id: filters.cost_center_id }" permission="accounting.trial_balance.export" />
             </template>
         </PageHeader>
 

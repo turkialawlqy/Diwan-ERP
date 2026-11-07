@@ -9,6 +9,8 @@ use App\Models\PurchaseOrder;
 use App\Models\SupplierPayment;
 use App\Models\Warehouse;
 use App\Rules\AllowedBranch;
+use App\Services\Accounting\AccountMap;
+use App\Services\Accounting\BudgetService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Purchases\PurchaseCycleService;
@@ -96,6 +98,8 @@ class PurchaseOrderController extends Controller
             'lines' => 'nullable|array',
             'lines.*.item_id' => 'required|integer',
             'lines.*.quantity' => 'required|numeric|min:0',
+            'supplier_invoice_number' => 'nullable|string|max:100',
+            'due_date' => 'nullable|date|after_or_equal:today',
             'payments' => 'nullable|array|max:10',
             'payments.*.method' => 'required|in:cash,card,bank_transfer',
             'payments.*.bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
@@ -165,9 +169,9 @@ class PurchaseOrderController extends Controller
                 'branch_id' => $order->branch_id,
                 'warehouse_id' => $order->warehouse_id ?? Warehouse::first()?->id,
                 'invoice_number' => $this->nextNumber('purchase_invoice'),
-                'supplier_invoice_number' => 'PO-REF-'.$order->order_number,
+                'supplier_invoice_number' => ($data['supplier_invoice_number'] ?? null) ?: 'PO-REF-'.$order->order_number,
                 'invoice_date' => Carbon::now()->toDateString(),
-                'due_date' => Carbon::now()->addDays(30)->toDateString(),
+                'due_date' => ! empty($data['due_date']) ? Carbon::parse($data['due_date'])->toDateString() : Carbon::now()->addDays(30)->toDateString(),
                 'payment_method' => $payments->isNotEmpty() ? $payments->first()['method'] : 'credit',
                 'payment_status' => $remaining <= 0.005 ? 'paid' : ($paid > 0 ? 'partially_paid' : 'unpaid'),
                 'subtotal' => $subtotal,
@@ -307,9 +311,10 @@ class PurchaseOrderController extends Controller
 
     public function approve(Request $request, PurchaseOrder $order)
     {
+        $budgetWarning = app(BudgetService::class)->check((int) app(AccountMap::class)->id('purchases_cogs'), $order->order_date ?? now(), (float) ($order->subtotal ?? $order->total), 'أمر شراء');
         app(ApprovalService::class)->approve($order, 'approved', $request->input('comment'));
 
-        return back()->with('success', 'تم اعتماد أمر الشراء');
+        return back()->with('success', 'تم اعتماد أمر الشراء')->with($budgetWarning ? ['warning' => $budgetWarning] : []);
     }
 
     public function reject(Request $request, PurchaseOrder $order)

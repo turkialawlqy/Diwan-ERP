@@ -76,10 +76,10 @@ class MrpService
                 ->get(['i.product_id', 'i.quantity', 'i.received_quantity']) as $i) {
                 $supply[$i->product_id] = ($supply[$i->product_id] ?? 0) + max(0, (float) $i->quantity - (float) $i->received_quantity);
             }
-            foreach (ProductionOrder::whereIn('status', ['draft', 'released', 'in_progress'])->get(['product_id', 'quantity', 'received_quantity']) as $o) {
+            foreach (ProductionOrder::whereIn('status', ['released', 'in_progress'])->get(['product_id', 'quantity', 'received_quantity']) as $o) {
                 $supply[$o->product_id] = ($supply[$o->product_id] ?? 0) + max(0, (float) $o->quantity - (float) $o->received_quantity);
             }
-            foreach (SubcontractOrder::whereIn('status', ['draft', 'sent', 'partially_received'])->get(['product_id', 'quantity', 'received_quantity']) as $o) {
+            foreach (SubcontractOrder::whereIn('status', ['sent', 'partially_received'])->get(['product_id', 'quantity', 'received_quantity']) as $o) {
                 $supply[$o->product_id] = ($supply[$o->product_id] ?? 0) + max(0, (float) $o->quantity - (float) $o->received_quantity);
             }
 
@@ -141,7 +141,7 @@ class MrpService
                 if ($bom) {
                     $runs = $net / max(0.0001, (float) $bom->output_quantity);
                     foreach ($bom->items as $item) {
-                        $add((int) $item->component_id, round((float) $item->quantity * $runs * (1 + (float) $item->scrap_percent / 100), 4), $needBy);
+                        $add((int) $item->component_id, round((float) $item->quantity * $runs * (1 + (float) $item->scrap_percent / 100) * (1 + (float) $bom->scrap_percent / 100), 4), $needBy);
                     }
                 }
             }

@@ -17,6 +17,7 @@ use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Models\Warehouse;
+use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
 use App\Services\Inventory\StockService;
@@ -327,6 +328,10 @@ class SalesPurchaseCycleTest extends TestCase
         $this->assertSame(60.0, (float) $p->fresh()->average_cost); // (6 x 50 + 60) / 6
         $this->assertSame(360.0, $this->balance('inventory'));
         $this->assertLedgerBalanced();
+
+        // The freight bill's input VAT reaches the VAT return (box 7), not just the ledger.
+        $boxes = collect(app(AccountingReports::class)->vatReturn(Carbon::parse('2026-06-01'), Carbon::parse('2026-06-30'))['boxes'])->keyBy('no');
+        $this->assertGreaterThanOrEqual(15.0, $boxes[7]['vat']);
     }
 
     public function test_purchase_request_to_order_with_approval(): void
@@ -436,7 +441,10 @@ class SalesPurchaseCycleTest extends TestCase
 
         // Over-invoicing the remainder is refused; the rest goes in stage 2.
         $this->post(route('purchases.orders.convert', $order->id), ['lines' => [['item_id' => $item->id, 'quantity' => 7]]])->assertSessionHasErrors('lines');
-        $this->post(route('purchases.orders.convert', $order->id), ['lines' => [['item_id' => $item->id, 'quantity' => 6]]])->assertRedirect();
+        $this->post(route('purchases.orders.convert', $order->id), ['lines' => [['item_id' => $item->id, 'quantity' => 6]], 'supplier_invoice_number' => 'SUP-778', 'due_date' => now()->addDays(45)->toDateString()])->assertRedirect();
+        $second = PurchaseInvoice::latest('id')->firstOrFail();
+        $this->assertSame('SUP-778', $second->supplier_invoice_number);
+        $this->assertSame(now()->addDays(45)->toDateString(), $second->due_date->toDateString());
 
         $this->assertSame('converted_to_invoice', $order->fresh()->status);
         $this->assertSame(10.0, app(StockService::class)->onHand($p->id));

@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Employee;
 use App\Models\Invoice;
+use App\Models\SubscriptionPlan;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\ActiveBranch;
@@ -20,7 +21,7 @@ class PlanGuard
     protected function limits(): array
     {
         return [
-            'users' => ['max_users', 'المستخدمين', fn (Company $c) => User::where('company_id', $c->id)->where('is_super_admin', false)->count()],
+            'users' => ['max_users', 'المستخدمين', fn (Company $c) => User::where('company_id', $c->id)->where('is_super_admin', false)->where('status', 'active')->count()],
             'branches' => ['max_branches', 'الفروع', fn (Company $c) => Branch::withoutGlobalScopes()->where('company_id', $c->id)->whereNull('deleted_at')->count()],
             'warehouses' => ['max_warehouses', 'المستودعات', fn (Company $c) => Warehouse::withoutGlobalScopes()->where('company_id', $c->id)->whereNull('deleted_at')->count()],
             'employees' => ['max_employees', 'الموظفين', fn (Company $c) => Employee::withoutGlobalScopes()->where('company_id', $c->id)->whereNull('deleted_at')->where('status', '!=', 'terminated')->count()],
@@ -172,5 +173,19 @@ class PlanGuard
         }
 
         return $out;
+    }
+
+    /** Resources the company already uses beyond what $plan allows (checked before a downgrade). */
+    public function exceeding(Company $company, SubscriptionPlan $plan): array
+    {
+        $over = [];
+        foreach ($this->limits() as [$column, $label, $counter]) {
+            $max = $plan->{$column};
+            if ($max !== null && $max >= 0 && ($used = $counter($company)) > $max) {
+                $over[] = "{$label}: {$used} مستخدَم والباقة تسمح بـ{$max}";
+            }
+        }
+
+        return $over;
     }
 }

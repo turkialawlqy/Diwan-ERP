@@ -44,6 +44,9 @@ return Application::configure(basePath: dirname(__DIR__))
             );
         }
 
+        // The payment provider cannot send a CSRF token; the webhook authenticates itself.
+        $middleware->validateCsrfTokens(except: ['webhooks/moyasar']);
+
         $middleware->web(prepend: [
             ForceHttps::class,
             SecurityHeaders::class,

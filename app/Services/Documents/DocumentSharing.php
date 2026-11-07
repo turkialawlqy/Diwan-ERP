@@ -24,6 +24,7 @@ use App\Models\Revenue;
 use App\Models\SalesOrder;
 use App\Models\SupplierPayment;
 use App\Models\WorkOrder;
+use App\Services\Messaging\CompanyMessaging;
 use App\Support\CurrencyNames;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\URL;
@@ -165,6 +166,12 @@ class DocumentSharing
             $text .= "\n\nكشف حسابكم: ".$this->portalLink($customer);
         }
 
+        // With the company's own WhatsApp gateway the message is sent from here; otherwise the wa.me link opens on the user's phone.
+        $messaging = app(CompanyMessaging::class);
+        $company = Company::find($document->company_id);
+        $viaGateway = $company && $phone && $messaging->gatewayConfigured($company, 'whatsapp');
+        $result = $viaGateway ? $messaging->send($company, 'whatsapp', $this->waNumber($phone), $text) : null;
+
         $dispatch = DocumentDispatch::create([
             'company_id' => $document->company_id,
             'documentable_type' => $this->typeOf($document),
@@ -172,12 +179,13 @@ class DocumentSharing
             'channel' => 'whatsapp',
             'recipient' => $phone,
             'message' => $text,
-            'status' => 'sent',
+            'status' => $result && ! $result['ok'] ? 'failed' : 'sent',
+            'error' => $result && ! $result['ok'] ? $result['error'] : null,
             'sent_at' => now(),
             'user_id' => $userId,
         ]);
 
-        return ['dispatch' => $dispatch, 'url' => 'https://wa.me/'.$this->waNumber($phone).'?text='.rawurlencode($text)];
+        return ['dispatch' => $dispatch, 'url' => $viaGateway ? null : 'https://wa.me/'.$this->waNumber($phone).'?text='.rawurlencode($text), 'sent_by_gateway' => $viaGateway, 'ok' => ! $result || $result['ok']];
     }
 
     /** Saudi numbers in international form (05XXXXXXXX -> 9665XXXXXXXX). */

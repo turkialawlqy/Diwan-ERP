@@ -2,11 +2,13 @@
 
 namespace App\Services\HR;
 
+use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Models\EmployeeAdjustment;
 use App\Models\EmployeeLoan;
 use App\Models\EndOfServiceSettlement;
 use App\Models\JournalEntry;
+use App\Models\LeaveRequest;
 use App\Models\Payroll;
 use App\Models\PayrollItem;
 use App\Services\Accounting\DocumentPoster;
@@ -37,7 +39,9 @@ class PayrollService
     public function generate(int $year, int $month, ?string $notes = null): Payroll
     {
         return DB::transaction(function () use ($year, $month, $notes) {
-            if (Payroll::where('year', $year)->where('month', $month)->lockForUpdate()->exists()) {
+            // Employees belong to the company, not to a branch: one payroll per month for all of them,
+            // whichever branch the user is working in (the branch filter must not hide the other branch's run).
+            if (Payroll::withoutGlobalScope('branch')->where('year', $year)->where('month', $month)->lockForUpdate()->exists()) {
                 throw ValidationException::withMessages(['month' => 'يوجد مسير رواتب لهذا الشهر. أعد احتسابه بدلاً من إنشاء مسير جديد.']);
             }
 
@@ -55,6 +59,27 @@ class PayrollService
 
             return $payroll;
         });
+    }
+
+    /**
+     * Employees in the payroll with no attendance record at all in a month where the company recorded attendance
+     * for others: an absentee missing from the device file is otherwise paid in full. A warning, not a deduction
+     * (leave, holidays and shifts decide what an absence is).
+     *
+     * @return array<int,array{id:int,name:string}>
+     */
+    public function attendanceGaps(Payroll $payroll): array
+    {
+        $from = Carbon::create($payroll->year, $payroll->month, 1);
+        $to = $from->copy()->endOfMonth();
+        $recorded = AttendanceRecord::whereDate('date', '>=', $from)->whereDate('date', '<=', $to)->distinct()->pluck('employee_id');
+        if ($recorded->isEmpty()) {
+            return []; // the company does not track attendance this month
+        }
+        $onLeave = LeaveRequest::where('status', 'approved')->whereDate('start_date', '<=', $from)->whereDate('end_date', '>=', $to)->pluck('employee_id'); // the whole month away
+
+        return Employee::whereIn('id', $payroll->items()->pluck('employee_id'))->whereNotIn('id', $recorded)->whereNotIn('id', $onLeave)
+            ->orderBy('name')->get(['id', 'name'])->map(fn ($e) => ['id' => $e->id, 'name' => $e->name])->all();
     }
 
     /** Recalculate a draft (after attendance / adjustments changed). */
@@ -137,6 +162,16 @@ class PayrollService
             }
             EmployeeAdjustment::where('year', $payroll->year)->where('month', $payroll->month)->whereNull('payroll_id')->update(['payroll_id' => $payroll->id]);
 
+            // Penalties above the legal deduction cap are not lost: they are taken from the next month's salary.
+            [$nextYear, $nextMonth] = $payroll->month === 12 ? [$payroll->year + 1, 1] : [$payroll->year, $payroll->month + 1];
+            foreach ($payroll->items as $item) {
+                $excess = (float) ($item->breakdown['penalty_excess'] ?? 0);
+                if ($excess > 0.004) {
+                    EmployeeAdjustment::create(['employee_id' => $item->employee_id, 'year' => $nextYear, 'month' => $nextMonth, 'type' => 'deduction', 'amount' => $excess,
+                        'description' => "مرحَّل من مسير {$payroll->month}/{$payroll->year} (تجاوز سقف الخصم) [carry:{$payroll->id}]", 'created_by' => auth()->id()]);
+                }
+            }
+
             $payroll->update(['status' => 'approved', 'approved_by' => auth()->id(), 'approved_at' => now()]);
         });
     }
@@ -177,6 +212,7 @@ class PayrollService
                 }
             }
             EmployeeAdjustment::where('payroll_id', $payroll->id)->update(['payroll_id' => null]);
+            EmployeeAdjustment::where('description', 'like', '%[carry:'.$payroll->id.']')->whereNull('payroll_id')->delete();
 
             $payroll->update(['status' => 'draft', 'approved_by' => null, 'approved_at' => null]);
         });

@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
+import ExportButtons from '@/Components/UI/ExportButtons.vue';
 import DateRangeFilter from '@/Components/UI/DateRangeFilter.vue';
 import StatementSection from '@/Components/UI/StatementSection.vue';
 import { amount } from '@/utils/format';
@@ -22,6 +23,7 @@ const setMethod = (method) => router.get(route('accounting.reports.cash-flow'), 
                     <button v-for="[key, label] in [['direct', 'المباشرة'], ['indirect', 'غير المباشرة']]" :key="key" @click="setMethod(key)"
                         :class="(filters.method || 'direct') === key ? 'bg-indigo-600 text-white' : 'text-slate-600'" class="px-3 py-1.5 rounded-lg">{{ label }}</button>
                 </div>
+                <ExportButtons report="cash-flow" :params="{ start_date: filters.start_date, end_date: filters.end_date, method: filters.method }" permission="accounting.statements.export" />
             </template>
         </PageHeader>
         <DateRangeFilter route-name="accounting.reports.cash-flow" :filters="filters" :extra="{ method: filters.method }" />

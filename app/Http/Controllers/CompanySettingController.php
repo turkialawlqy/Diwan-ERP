@@ -86,6 +86,8 @@ class CompanySettingController extends Controller
             'two_factor_required_roles.*' => 'string|max:100',
             'pos_auto_print' => 'nullable|boolean',
             'pos_allow_credit' => 'nullable|boolean',
+            'pos_max_discount_percent' => 'nullable|numeric|min:0|max:100',
+            'budget_enforcement' => 'nullable|in:off,warn,block',
             'session_timeout_minutes' => 'nullable|integer|min:0|max:1440',
 
             // ZATCA settings
@@ -157,6 +159,8 @@ class CompanySettingController extends Controller
             'show_hijri' => ($validated['show_hijri'] ?? true) ? '1' : '0',
             'pos_auto_print' => ! empty($validated['pos_auto_print']) ? '1' : '0',
             'pos_allow_credit' => ! empty($validated['pos_allow_credit']) ? '1' : '0',
+            'pos_max_discount_percent' => (string) ($validated['pos_max_discount_percent'] ?? 20),
+            'budget_enforcement' => $validated['budget_enforcement'] ?? 'off',
             'session_timeout_minutes' => (string) ($validated['session_timeout_minutes'] ?? IdleTimeout::DEFAULT_MINUTES),
             'zatca_phase' => $validated['zatca_phase'] ?? 'phase1',
             'zatca_environment' => $validated['zatca_environment'] ?? 'sandbox',

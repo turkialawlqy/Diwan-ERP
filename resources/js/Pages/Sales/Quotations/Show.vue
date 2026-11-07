@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -279,6 +280,7 @@ const formatDateArabic = (dateStr) => {
                 </div>
             </div>
         </div>
+        <AttachmentsPanel kind="quotation" :id="quotation.id" class="mt-4" />
     </AppLayout>
 </template>
 

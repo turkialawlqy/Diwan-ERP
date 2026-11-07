@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { taxRate } from '@/utils/tax';
 import { ref } from 'vue';
@@ -85,6 +86,7 @@ const formatCurrency = (val) => {
                         <PlusIcon class="w-4 h-4 stroke-2" />
                         <span>تسجيل مصروف جديد</span>
                     </Link>
+<ImportButton v-if="$can('finance.expenses.create')" type="expenses" title="استيراد المصروفات من Excel" hint="تُرحَّل بتواريخها دون أي حركة مخزون." />
 </template>
 </PageHeader>
 

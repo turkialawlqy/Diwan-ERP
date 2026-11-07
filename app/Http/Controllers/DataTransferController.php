@@ -2,27 +2,45 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Crm\LeadController;
 use App\Models\Account;
 use App\Models\AssetCategory;
+use App\Models\BankAccount;
+use App\Models\Category;
+use App\Models\CostCenter;
 use App\Models\Customer;
+use App\Models\CustomerPayment;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\Expense;
 use App\Models\FixedAsset;
+use App\Models\Invoice;
 use App\Models\JournalEntry;
+use App\Models\Lead;
+use App\Models\PriceList;
 use App\Models\Product;
+use App\Models\PurchaseInvoice;
 use App\Models\Quotation;
 use App\Models\Supplier;
+use App\Models\SupplierPayment;
+use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Rules\TaxNumber;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DepreciationService;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Accounting\ExchangeRates;
 use App\Services\Accounting\PostingService;
+use App\Services\Documents\DocumentNumberService;
+use App\Services\Finance\BankAccountService;
 use App\Services\HR\BankSalaryFormats;
 use App\Services\Imports\LineImporter;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Inventory\StockService;
+use App\Services\Purchases\SupplierPaymentAllocator;
+use App\Services\Sales\InvoiceService;
 use App\Services\Sales\QuotationService;
+use App\Services\Sales\SalesCycleService;
 use App\Services\Tax\TaxProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -121,6 +139,78 @@ class DataTransferController extends Controller
                     'date' => 'required|date', 'valid_until' => 'nullable|date|after_or_equal:date', 'notes' => 'nullable|string|max:2000',
                     'code' => 'nullable|string|max:100', 'name' => 'nullable|string|max:255', 'quantity' => 'nullable|numeric|gt:0',
                     'unit_price' => 'nullable|numeric|min:0', 'discount' => 'nullable|numeric|min:0', 'tax_rate' => 'nullable|numeric|min:0|max:100'],
+            ],
+            'categories' => [
+                'label' => 'تصنيفات الأصناف', 'model' => Category::class, 'permission' => ['view' => 'inventory.categories.view', 'create' => 'inventory.categories.create'], 'handler' => 'importSimple',
+                'columns' => ['name_ar', 'name_en', 'code', 'color'], 'unique' => 'name_ar', 'defaults' => ['is_active' => true],
+                'rules' => ['name_ar' => 'required|string|max:255', 'name_en' => 'nullable|string|max:255', 'code' => 'nullable|string|max:50', 'color' => 'nullable|string|max:20'],
+            ],
+            'units' => [
+                'label' => 'وحدات القياس', 'model' => Unit::class, 'permission' => ['view' => 'inventory.products.view', 'create' => 'inventory.products.create'], 'handler' => 'importSimple',
+                'columns' => ['name_ar', 'name_en', 'code'], 'unique' => 'name_ar', 'defaults' => [],
+                'rules' => ['name_ar' => 'required|string|max:100', 'name_en' => 'nullable|string|max:100', 'code' => 'nullable|string|max:20'],
+            ],
+            'warehouses' => [
+                'label' => 'المستودعات', 'model' => Warehouse::class, 'permission' => ['view' => 'inventory.warehouses.view', 'create' => 'inventory.warehouses.create'], 'handler' => 'importSimple',
+                'columns' => ['code', 'name_ar', 'name_en', 'phone', 'address', 'is_main'], 'unique' => 'code', 'defaults' => ['is_active' => true], 'booleans' => ['is_main'],
+                'rules' => ['code' => 'required|string|max:50', 'name_ar' => 'required|string|max:255', 'name_en' => 'nullable|string|max:255', 'phone' => 'nullable|string|max:20', 'address' => 'nullable|string|max:255', 'is_main' => 'nullable|in:0,1,yes,no,نعم,لا'],
+            ],
+            'cost_centers' => [
+                'label' => 'مراكز التكلفة', 'model' => CostCenter::class, 'permission' => ['view' => 'accounting.cost_centers.view', 'create' => 'accounting.cost_centers.create'], 'handler' => 'importCostCenters',
+                'columns' => ['code', 'name_ar', 'name_en', 'parent_code'],
+                'rules' => ['code' => 'required|string|max:50', 'name_ar' => 'required|string|max:255', 'name_en' => 'nullable|string|max:255', 'parent_code' => 'nullable|string|max:50'],
+            ],
+            'leads' => [
+                'label' => 'العملاء المحتملون', 'model' => Lead::class, 'permission' => ['view' => 'crm.leads.view', 'create' => 'crm.leads.create'], 'handler' => 'importSimple',
+                'columns' => ['name', 'company_name', 'phone', 'email', 'source', 'expected_value', 'next_follow_up', 'notes'], 'unique' => null, 'defaults' => ['status' => 'new'],
+                'rules' => ['name' => 'required|string|max:255', 'company_name' => 'nullable|string|max:255', 'phone' => 'nullable|string|max:30', 'email' => 'nullable|email|max:255',
+                    'source' => ['nullable', Rule::in(array_keys(LeadController::SOURCES))], 'expected_value' => 'nullable|numeric|min:0', 'next_follow_up' => 'nullable|date', 'notes' => 'nullable|string|max:5000'],
+            ],
+            'price_lists' => [
+                'label' => 'قوائم الأسعار', 'permission' => ['view' => 'sales.price_lists.create', 'create' => 'sales.price_lists.create'], 'import_only' => true, 'handler' => 'importPriceLists',
+                'columns' => ['list_name', 'valid_from', 'valid_to', 'is_default', 'sku', 'min_quantity', 'price'],
+                'rules' => ['list_name' => 'required|string|max:255', 'valid_from' => 'nullable|date', 'valid_to' => 'nullable|date|after_or_equal:valid_from', 'is_default' => 'nullable|in:0,1,yes,no,نعم,لا',
+                    'sku' => 'required|string|max:100', 'min_quantity' => 'nullable|numeric|min:0', 'price' => 'required|numeric|min:0'],
+            ],
+            'bank_accounts' => [
+                'label' => 'الحسابات البنكية والصناديق', 'model' => BankAccount::class, 'permission' => ['view' => 'finance.banks.view', 'create' => 'finance.banks.create'], 'handler' => 'importBankAccounts',
+                'export_columns' => ['name', 'type', 'bank_name', 'account_number', 'iban', 'currency', 'opening_balance', 'current_balance'],
+                'columns' => ['name', 'type', 'bank_name', 'account_number', 'iban', 'currency', 'opening_balance'],
+                'rules' => ['name' => 'required|string|max:255', 'type' => 'required|in:bank,cash', 'bank_name' => 'nullable|string|max:100', 'account_number' => 'nullable|string|max:100',
+                    'iban' => 'nullable|string|max:50', 'currency' => 'nullable|string|max:10', 'opening_balance' => 'nullable|numeric|min:0'],
+            ],
+            'sales_invoices' => [
+                'label' => 'فواتير مبيعات تاريخية (بلا خصم مخزون)', 'permission' => ['view' => 'sales.invoices.create', 'create' => 'sales.invoices.create'], 'import_only' => true, 'handler' => 'importSalesInvoices',
+                'columns' => ['invoice_ref', 'customer_code', 'customer_name', 'invoice_date', 'due_date', 'paid_amount', 'bank_name', 'notes', 'item_name', 'quantity', 'unit_price', 'discount', 'tax_rate'],
+                'rules' => ['invoice_ref' => 'required|string|max:50', 'customer_code' => 'nullable|string|max:50', 'customer_name' => 'nullable|string|max:255', 'invoice_date' => 'required|date',
+                    'due_date' => 'nullable|date|after_or_equal:invoice_date', 'paid_amount' => 'nullable|numeric|min:0', 'bank_name' => 'nullable|string|max:255', 'notes' => 'nullable|string|max:2000',
+                    'item_name' => 'required|string|max:255', 'quantity' => 'required|numeric|gt:0', 'unit_price' => 'required|numeric|min:0', 'discount' => 'nullable|numeric|min:0', 'tax_rate' => 'nullable|numeric|min:0|max:100'],
+            ],
+            'customer_payments' => [
+                'label' => 'سندات قبض تاريخية', 'permission' => ['view' => 'sales.payments.create', 'create' => 'sales.payments.create'], 'import_only' => true, 'handler' => 'importCustomerPayments',
+                'columns' => ['customer_code', 'customer_name', 'payment_date', 'amount', 'payment_method', 'bank_name', 'invoice_number', 'reference_number', 'notes'],
+                'rules' => ['customer_code' => 'nullable|string|max:50', 'customer_name' => 'nullable|string|max:255', 'payment_date' => 'required|date', 'amount' => 'required|numeric|min:0.01',
+                    'payment_method' => 'required|in:cash,card,bank_transfer', 'bank_name' => 'nullable|string|max:255', 'invoice_number' => 'nullable|string|max:50', 'reference_number' => 'nullable|string|max:100', 'notes' => 'nullable|string'],
+            ],
+            'expenses' => [
+                'label' => 'مصروفات (سندات صرف)', 'permission' => ['view' => 'finance.expenses.create', 'create' => 'finance.expenses.create'], 'import_only' => true, 'handler' => 'importExpenses',
+                'columns' => ['title', 'category', 'expense_date', 'amount', 'tax_amount', 'payment_method', 'account_code', 'bank_name', 'cost_center_code', 'vendor_name', 'vendor_tax_number', 'reference_number', 'notes'],
+                'rules' => ['title' => 'required|string|max:255', 'category' => 'required|string|max:100', 'expense_date' => 'required|date', 'amount' => 'required|numeric|min:0.01', 'tax_amount' => 'nullable|numeric|min:0',
+                    'payment_method' => 'required|in:cash,card,bank_transfer', 'account_code' => 'nullable|string|max:50', 'bank_name' => 'nullable|string|max:255', 'cost_center_code' => 'nullable|string|max:50',
+                    'vendor_name' => 'nullable|string|max:255', 'vendor_tax_number' => 'nullable|string|max:30', 'reference_number' => 'nullable|string|max:100', 'notes' => 'nullable|string'],
+            ],
+            'purchase_invoices' => [
+                'label' => 'فواتير شراء تاريخية (بلا إدخال مخزون)', 'permission' => ['view' => 'purchases.invoices.create', 'create' => 'purchases.invoices.create'], 'import_only' => true, 'handler' => 'importPurchaseInvoices',
+                'columns' => ['invoice_ref', 'supplier_code', 'supplier_name', 'invoice_date', 'due_date', 'paid_amount', 'bank_name', 'notes', 'item_name', 'quantity', 'unit_price', 'discount', 'tax_rate'],
+                'rules' => ['invoice_ref' => 'required|string|max:50', 'supplier_code' => 'nullable|string|max:50', 'supplier_name' => 'nullable|string|max:255', 'invoice_date' => 'required|date',
+                    'due_date' => 'nullable|date|after_or_equal:invoice_date', 'paid_amount' => 'nullable|numeric|min:0', 'bank_name' => 'nullable|string|max:255', 'notes' => 'nullable|string|max:2000',
+                    'item_name' => 'required|string|max:255', 'quantity' => 'required|numeric|gt:0', 'unit_price' => 'required|numeric|min:0', 'discount' => 'nullable|numeric|min:0', 'tax_rate' => 'nullable|numeric|min:0|max:100'],
+            ],
+            'supplier_payments' => [
+                'label' => 'سندات صرف للموردين تاريخية', 'permission' => ['view' => 'purchases.payments.create', 'create' => 'purchases.payments.create'], 'import_only' => true, 'handler' => 'importSupplierPayments',
+                'columns' => ['supplier_code', 'supplier_name', 'payment_date', 'amount', 'payment_method', 'bank_name', 'invoice_number', 'reference_number', 'notes'],
+                'rules' => ['supplier_code' => 'nullable|string|max:50', 'supplier_name' => 'nullable|string|max:255', 'payment_date' => 'required|date', 'amount' => 'required|numeric|min:0.01',
+                    'payment_method' => 'required|in:cash,card,bank_transfer', 'bank_name' => 'nullable|string|max:255', 'invoice_number' => 'nullable|string|max:50', 'reference_number' => 'nullable|string|max:50', 'notes' => 'nullable|string'],
             ],
             'opening_balances' => [
                 'label' => 'ميزان المراجعة الافتتاحي', 'permission' => ['view' => 'accounting.journals.create', 'create' => 'accounting.journals.create'], 'import_only' => true,
@@ -424,6 +514,463 @@ class DataTransferController extends Controller
      * the system or earlier in the file) and takes the parent's type and
      * nature unless given; an existing code only gets its names updated.
      */
+    /** Flat master data created straight from the sheet; an existing value of the `unique` column is skipped. */
+    protected function importSimple(array $records, Request $request, Carbon $openingDate): string
+    {
+        $definition = $this->definition($request->route('type'), 'create');
+        $model = $definition['model'];
+        $unique = $definition['unique'] ?? null;
+        $existing = $unique ? $model::query()->pluck($unique)->map(fn ($v) => mb_strtolower((string) $v))->all() : [];
+        $created = $skipped = 0;
+
+        DB::transaction(function () use ($records, $definition, $model, $unique, &$existing, &$created, &$skipped) {
+            foreach ($records as $row) {
+                if ($unique && in_array(mb_strtolower((string) $row[$unique]), $existing, true)) {
+                    $skipped++;
+
+                    continue;
+                }
+                foreach ($definition['booleans'] ?? [] as $flag) {
+                    if (isset($row[$flag])) {
+                        $row[$flag] = in_array(mb_strtolower((string) $row[$flag]), ['1', 'yes', 'نعم'], true);
+                    }
+                }
+                if (! empty($row['is_main'])) {
+                    $model::where('is_main', true)->update(['is_main' => false]);
+                }
+                $model::create($row + $definition['defaults']);
+                if ($unique) {
+                    $existing[] = mb_strtolower((string) $row[$unique]);
+                }
+                $created++;
+            }
+        });
+
+        return "تم استيراد {$definition['label']}: {$created} جديد".($skipped ? "، {$skipped} موجود مسبقاً (تخطّي)" : '');
+    }
+
+    /** Cost centers: parents may appear after their children in the sheet. */
+    protected function importCostCenters(array $records): string
+    {
+        $existing = CostCenter::query()->pluck('id', 'code')->mapWithKeys(fn ($id, $code) => [(string) $code => $id])->all();
+        $pending = [];
+        foreach ($records as $line => $row) {
+            if (! isset($existing[(string) $row['code']])) {
+                $pending[(string) $row['code']] = $row + ['line' => $line];
+            }
+        }
+        $errors = [];
+        foreach ($pending as $code => $row) {
+            $parent = $row['parent_code'] ?? null;
+            if ($parent && ! isset($existing[(string) $parent]) && ! isset($pending[(string) $parent])) {
+                $errors[] = "سطر {$row['line']}: المركز الأب {$parent} غير موجود.";
+            }
+            if ($parent && (string) $parent === $code) {
+                $errors[] = "سطر {$row['line']}: المركز لا يكون أبًا لنفسه.";
+            }
+        }
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        $created = 0;
+        DB::transaction(function () use (&$pending, &$existing, &$created) {
+            // Parents before children; a cycle would never resolve, so cap the passes.
+            for ($pass = 0; $pending && $pass < 50; $pass++) {
+                foreach ($pending as $code => $row) {
+                    $parent = $row['parent_code'] ?? null;
+                    if ($parent && ! isset($existing[(string) $parent])) {
+                        continue;
+                    }
+                    $existing[$code] = CostCenter::create(['code' => $code, 'name_ar' => $row['name_ar'], 'name_en' => $row['name_en'] ?? null,
+                        'parent_id' => $parent ? $existing[(string) $parent] : null, 'is_active' => true])->id;
+                    unset($pending[$code]);
+                    $created++;
+                }
+            }
+        });
+        if ($pending) {
+            throw ValidationException::withMessages(['file' => 'مراكز التكلفة تشكّل حلقة في الأب والابن: '.implode('، ', array_keys($pending))]);
+        }
+
+        return "تم استيراد مراكز التكلفة: {$created} جديد";
+    }
+
+    /** One row per price-list item; rows sharing `list_name` form one list (an existing list is skipped). */
+    protected function importPriceLists(array $records): string
+    {
+        $products = Product::query()->pluck('id', 'sku')->mapWithKeys(fn ($id, $sku) => [mb_strtolower((string) $sku) => $id]);
+        $existing = PriceList::query()->pluck('name')->map(fn ($n) => mb_strtolower((string) $n))->all();
+        $errors = [];
+        $lists = [];
+        foreach ($records as $line => $row) {
+            $productId = $products->get(mb_strtolower((string) $row['sku']));
+            if (! $productId) {
+                $errors[] = "سطر {$line}: الصنف {$row['sku']} غير موجود.";
+
+                continue;
+            }
+            $key = mb_strtolower((string) $row['list_name']);
+            if (in_array($key, $existing, true)) {
+                continue;
+            }
+            $lists[$key]['head'] ??= $row;
+            $lists[$key]['items'][] = ['product_id' => $productId, 'min_quantity' => $row['min_quantity'] ?? 1, 'price' => $row['price']];
+        }
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        DB::transaction(function () use ($lists) {
+            foreach ($lists as $list) {
+                $head = $list['head'];
+                $default = isset($head['is_default']) && in_array(mb_strtolower((string) $head['is_default']), ['1', 'yes', 'نعم'], true);
+                if ($default) {
+                    PriceList::where('is_default', true)->update(['is_default' => false]);
+                }
+                $priceList = PriceList::create(['name' => $head['list_name'], 'is_default' => $default, 'is_active' => true,
+                    'valid_from' => $head['valid_from'] ?? null, 'valid_to' => $head['valid_to'] ?? null]);
+                foreach ($list['items'] as $item) {
+                    $priceList->items()->create($item);
+                }
+            }
+        });
+
+        return 'تم استيراد قوائم الأسعار: '.count($lists).' قائمة جديدة';
+    }
+
+    /** Bank / cash boxes with their own ledger account; the opening balance is posted at the opening date. */
+    protected function importBankAccounts(array $records, Request $request, Carbon $openingDate): string
+    {
+        $existing = BankAccount::query()->pluck('name')->map(fn ($n) => mb_strtolower((string) $n))->all();
+        $service = app(BankAccountService::class);
+        $created = $skipped = 0;
+        DB::transaction(function () use ($records, &$existing, $service, $openingDate, &$created, &$skipped) {
+            foreach ($records as $row) {
+                if (in_array(mb_strtolower((string) $row['name']), $existing, true)) {
+                    $skipped++;
+
+                    continue;
+                }
+                $service->create($row + ['currency' => 'SAR', 'opening_balance' => 0], $openingDate);
+                $existing[] = mb_strtolower((string) $row['name']);
+                $created++;
+            }
+        });
+
+        return "تم استيراد الحسابات البنكية: {$created} جديد".($skipped ? "، {$skipped} موجود مسبقاً (تخطّي)" : '');
+    }
+
+    /** Customer by code, else by exact name; null when the row names none. */
+    protected function findCustomer($customers, array $row): ?Customer
+    {
+        return ! empty($row['customer_code'])
+            ? $customers->first(fn ($c) => (string) $c->code === (string) $row['customer_code'])
+            : $customers->first(fn ($c) => $c->name === ($row['customer_name'] ?? null));
+    }
+
+    /**
+     * Past invoices (one row per line, grouped by invoice_ref) posted at their own date with
+     * no stock movement, so history can be loaded without touching the opening stock.
+     */
+    protected function importSalesInvoices(array $records): string
+    {
+        $customers = Customer::query()->get(['id', 'code', 'name']);
+        $banks = BankAccount::query()->pluck('id', 'name');
+        $errors = [];
+        $documents = [];
+        foreach (collect($records)->groupBy(fn ($r) => (string) $r['invoice_ref'], true) as $ref => $rows) {
+            $first = $rows->first();
+            $customer = $this->findCustomer($customers, $first);
+            if (! $customer) {
+                $errors[] = "الفاتورة {$ref}: العميل ".($first['customer_code'] ?? $first['customer_name'] ?? '(فارغ)').' غير موجود.';
+
+                continue;
+            }
+            if (! empty($first['bank_name']) && ! $banks->has($first['bank_name'])) {
+                $errors[] = "الفاتورة {$ref}: الحساب البنكي {$first['bank_name']} غير موجود.";
+
+                continue;
+            }
+            $documents[] = [[
+                'customer_id' => $customer->id, 'invoice_date' => $first['invoice_date'], 'due_date' => $first['due_date'] ?? $first['invoice_date'],
+                'paid_amount' => (float) ($first['paid_amount'] ?? 0), 'bank_account_id' => ! empty($first['bank_name']) ? $banks->get($first['bank_name']) : null,
+                'payment_method' => ! empty($first['bank_name']) ? 'bank_transfer' : 'cash', 'reference_number' => $ref,
+                'notes' => trim(($first['notes'] ?? '')."\nمستورد - مرجع سابق: {$ref}"),
+            ], $rows->map(fn ($r) => ['item_name' => $r['item_name'], 'quantity' => $r['quantity'], 'unit_price' => $r['unit_price'],
+                'discount' => $r['discount'] ?? 0, 'tax_rate' => $r['tax_rate'] ?? TaxProfile::rate()])->all()];
+        }
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        $service = app(InvoiceService::class);
+        $numbers = DB::transaction(fn () => array_map(fn ($d) => $service->create($d[0], $d[1], ['issue_stock' => false, 'check_credit' => false])->invoice_number, $documents));
+
+        return 'تم استيراد '.count($numbers).' فاتورة تاريخية بتواريخها دون أي حركة مخزون: '.implode('، ', array_slice($numbers, 0, 5)).(count($numbers) > 5 ? '…' : '');
+    }
+
+    /** Past receipts posted at their own date; with invoice_number they settle that invoice, otherwise the oldest open ones. */
+    protected function importCustomerPayments(array $records): string
+    {
+        $customers = Customer::query()->get(['id', 'code', 'name']);
+        $banks = BankAccount::query()->pluck('id', 'name');
+        $errors = [];
+        $plans = [];
+        foreach ($records as $line => $row) {
+            $customer = $this->findCustomer($customers, $row);
+            if (! $customer) {
+                $errors[] = "سطر {$line}: العميل ".($row['customer_code'] ?? $row['customer_name'] ?? '(فارغ)').' غير موجود.';
+
+                continue;
+            }
+            if (! empty($row['bank_name']) && ! $banks->has($row['bank_name'])) {
+                $errors[] = "سطر {$line}: الحساب البنكي {$row['bank_name']} غير موجود.";
+
+                continue;
+            }
+            $plans[] = [$line, $customer, $row];
+        }
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        $count = 0;
+        DB::transaction(function () use ($plans, $banks, &$count) {
+            foreach ($plans as [$line, $customer, $row]) {
+                [$currency, $rate] = app(ExchangeRates::class)->resolve(null, null, $row['payment_date']);
+                $allocations = null;
+                if (! empty($row['invoice_number'])) {
+                    $invoice = Invoice::where('invoice_number', $row['invoice_number'])->where('customer_id', $customer->id)->lockForUpdate()->first();
+                    if (! $invoice) {
+                        throw ValidationException::withMessages(['file' => "سطر {$line}: الفاتورة {$row['invoice_number']} غير موجودة لهذا العميل."]);
+                    }
+                    if ((float) $row['amount'] > (float) $invoice->remaining_amount + 0.01) {
+                        throw ValidationException::withMessages(['file' => "سطر {$line}: المبلغ أكبر من المتبقي على الفاتورة ({$invoice->remaining_amount})."]);
+                    }
+                    $allocations = [['invoice_id' => $invoice->id, 'amount' => (float) $row['amount']]];
+                }
+                $payment = CustomerPayment::create([
+                    'customer_id' => $customer->id, 'invoice_id' => $allocations[0]['invoice_id'] ?? null, 'payment_date' => $row['payment_date'], 'amount' => $row['amount'],
+                    'payment_method' => $row['payment_method'], 'bank_account_id' => ! empty($row['bank_name']) ? $banks->get($row['bank_name']) : null,
+                    'reference_number' => $row['reference_number'] ?? null, 'notes' => trim(($row['notes'] ?? '').' (مستورد)'),
+                    'currency_code' => $currency, 'exchange_rate' => $rate,
+                    'payment_number' => app(DocumentNumberService::class)->next('customer_payment', Carbon::parse($row['payment_date'])),
+                ]);
+                app(SalesCycleService::class)->allocatePayment($payment, $allocations);
+                Customer::where('id', $customer->id)->decrement('current_balance', ExchangeRates::toBase((float) $payment->amount, $payment->exchange_rate));
+                app(DocumentPoster::class)->customerPayment($payment);
+                $count++;
+            }
+        });
+
+        return "تم استيراد {$count} سند قبض بتواريخها وتسويتها على الفواتير المفتوحة";
+    }
+
+    /** Past expense vouchers posted at their own date, with the same VAT rules as the voucher form. */
+    protected function importExpenses(array $records): string
+    {
+        $accounts = Account::query()->where('type', 'expense')->where('is_parent', false)->pluck('id', 'code')->mapWithKeys(fn ($id, $code) => [(string) $code => $id]);
+        $banks = BankAccount::query()->pluck('id', 'name');
+        $centers = CostCenter::query()->pluck('id', 'code')->mapWithKeys(fn ($id, $code) => [(string) $code => $id]);
+        $errors = [];
+        $plans = [];
+        foreach ($records as $line => $row) {
+            $tax = (float) ($row['tax_amount'] ?? 0);
+            $problem = match (true) {
+                ! empty($row['account_code']) && ! $accounts->has((string) $row['account_code']) => "حساب المصروف {$row['account_code']} غير موجود أو ليس حساب مصروف فرعيًا.",
+                ! empty($row['bank_name']) && ! $banks->has($row['bank_name']) => "الحساب البنكي {$row['bank_name']} غير موجود.",
+                ! empty($row['cost_center_code']) && ! $centers->has((string) $row['cost_center_code']) => "مركز التكلفة {$row['cost_center_code']} غير موجود.",
+                $tax > 0 && empty($row['vendor_tax_number']) => 'الضريبة تتطلب الرقم الضريبي للمورد.',
+                $tax > 0 && ! TaxProfile::current()->vatMatches((float) $row['amount'], $tax) => 'الضريبة يجب أن تكون '.TaxProfile::current()->ratesLabel().' من المبلغ قبل الضريبة.',
+                ! empty($row['vendor_tax_number']) && ! TaxProfile::current()->validTaxNumber($row['vendor_tax_number']) => TaxProfile::current()->taxNumberHint(),
+                default => null,
+            };
+            if ($problem) {
+                $errors[] = "سطر {$line}: {$problem}";
+
+                continue;
+            }
+            $plans[] = [$row, $tax];
+        }
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        DB::transaction(function () use ($plans, $accounts, $banks, $centers) {
+            foreach ($plans as [$row, $tax]) {
+                $total = round((float) $row['amount'] + $tax, 2);
+                $bankId = ! empty($row['bank_name']) ? $banks->get($row['bank_name']) : null;
+                $expense = Expense::create([
+                    'expense_number' => app(DocumentNumberService::class)->next('expense', Carbon::parse($row['expense_date'])),
+                    'account_id' => ! empty($row['account_code']) ? $accounts->get((string) $row['account_code']) : null, 'bank_account_id' => $bankId,
+                    'cost_center_id' => ! empty($row['cost_center_code']) ? $centers->get((string) $row['cost_center_code']) : null,
+                    'title' => $row['title'], 'category' => $row['category'], 'amount' => $row['amount'], 'tax_amount' => $tax, 'total_amount' => $total,
+                    'expense_date' => $row['expense_date'], 'payment_method' => $row['payment_method'], 'reference_number' => $row['reference_number'] ?? null,
+                    'vendor_name' => $row['vendor_name'] ?? null, 'vendor_tax_number' => $row['vendor_tax_number'] ?? null,
+                    'notes' => trim(($row['notes'] ?? '').' (مستورد)'), 'created_by' => auth()->id(),
+                ]);
+                if ($bankId) {
+                    BankAccount::whereKey($bankId)->decrement('current_balance', $total);
+                }
+                app(DocumentPoster::class)->expense($expense);
+            }
+        });
+
+        return 'تم استيراد '.count($plans).' سند مصروف بتواريخها';
+    }
+
+    protected function findSupplier($suppliers, array $row): ?Supplier
+    {
+        return ! empty($row['supplier_code'])
+            ? $suppliers->first(fn ($s) => (string) $s->code === (string) $row['supplier_code'])
+            : $suppliers->first(fn ($s) => $s->name === ($row['supplier_name'] ?? null));
+    }
+
+    /** Past supplier bills (free-text lines, so no stock is received), posted at the bill date. */
+    protected function importPurchaseInvoices(array $records): string
+    {
+        $suppliers = Supplier::query()->get(['id', 'code', 'name']);
+        $banks = BankAccount::query()->pluck('id', 'name');
+        $warehouse = Warehouse::query()->orderByDesc('is_main')->orderBy('id')->first();
+        if (! $warehouse) {
+            throw ValidationException::withMessages(['file' => 'أنشئ مستودعًا واحدًا على الأقل قبل استيراد فواتير الشراء.']);
+        }
+        $errors = [];
+        $documents = [];
+        foreach (collect($records)->groupBy(fn ($r) => (string) $r['invoice_ref'], true) as $ref => $rows) {
+            $first = $rows->first();
+            $supplier = $this->findSupplier($suppliers, $first);
+            if (! $supplier) {
+                $errors[] = "الفاتورة {$ref}: المورد ".($first['supplier_code'] ?? $first['supplier_name'] ?? '(فارغ)').' غير موجود.';
+
+                continue;
+            }
+            if (! empty($first['bank_name']) && ! $banks->has($first['bank_name'])) {
+                $errors[] = "الفاتورة {$ref}: الحساب البنكي {$first['bank_name']} غير موجود.";
+
+                continue;
+            }
+            if (PurchaseInvoice::where('supplier_id', $supplier->id)->where('supplier_invoice_number', $ref)->exists()) {
+                $errors[] = "الفاتورة {$ref}: مسجّلة مسبقًا لهذا المورد.";
+
+                continue;
+            }
+            $documents[] = [$supplier, $first, $rows];
+        }
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        $numbers = DB::transaction(function () use ($documents, $banks, $warehouse) {
+            $numbers = [];
+            foreach ($documents as [$supplier, $first, $rows]) {
+                $subtotal = $tax = 0;
+                $items = [];
+                foreach ($rows as $r) {
+                    $net = (float) $r['quantity'] * (float) $r['unit_price'] - (float) ($r['discount'] ?? 0);
+                    $rate = (float) ($r['tax_rate'] ?? TaxProfile::rate());
+                    $lineTax = $net * $rate / 100;
+                    $subtotal += $net;
+                    $tax += $lineTax;
+                    $items[] = ['item_name' => $r['item_name'], 'quantity' => $r['quantity'], 'unit_price' => $r['unit_price'], 'discount' => $r['discount'] ?? 0,
+                        'tax_rate' => $rate, 'tax_amount' => $lineTax, 'total' => $net + $lineTax, 'unit_factor' => 1];
+                }
+                $total = round($subtotal + $tax, 2);
+                $paid = round(min($total, (float) ($first['paid_amount'] ?? 0)), 2);
+                $bankId = ! empty($first['bank_name']) ? $banks->get($first['bank_name']) : null;
+                $method = $paid > 0 ? ($bankId ? 'bank_transfer' : 'cash') : 'credit';
+                [$currency, $rate] = app(ExchangeRates::class)->resolve(null, null, $first['invoice_date']);
+                $invoice = PurchaseInvoice::create([
+                    'supplier_id' => $supplier->id, 'warehouse_id' => $warehouse->id, 'invoice_date' => $first['invoice_date'], 'due_date' => $first['due_date'] ?? null,
+                    'invoice_number' => app(DocumentNumberService::class)->next('purchase_invoice', Carbon::parse($first['invoice_date'])),
+                    'supplier_invoice_number' => (string) $first['invoice_ref'], 'payment_method' => $method,
+                    'payment_status' => $paid >= $total - 0.005 ? 'paid' : ($paid > 0 ? 'partially_paid' : 'unpaid'),
+                    'subtotal' => $subtotal, 'discount' => 0, 'tax_rate' => TaxProfile::rate(), 'tax_amount' => $tax, 'total' => $total,
+                    'paid_amount' => $paid, 'remaining_amount' => max(0, round($total - $paid, 2)), 'bank_account_id' => $bankId,
+                    'notes' => trim(($first['notes'] ?? '').' (مستورد)'), 'currency_code' => $currency, 'exchange_rate' => $rate,
+                ]);
+                foreach ($items as $item) {
+                    $invoice->items()->create($item);
+                }
+                $supplier->increment('current_balance', ExchangeRates::toBase((float) $invoice->remaining_amount, $rate));
+                if ($paid > 0) {
+                    SupplierPayment::create([
+                        'supplier_id' => $supplier->id, 'purchase_invoice_id' => $invoice->id, 'amount' => $paid, 'payment_date' => $first['invoice_date'], 'payment_method' => $method,
+                        'payment_number' => app(DocumentNumberService::class)->next('supplier_payment', Carbon::parse($first['invoice_date'])),
+                        'reference_number' => (string) $first['invoice_ref'], 'bank_account_id' => $bankId, 'notes' => 'سداد مرتبط بفاتورة الشراء '.$invoice->invoice_number,
+                        'currency_code' => $currency, 'exchange_rate' => $rate,
+                    ]);
+                }
+                app(DocumentPoster::class)->purchaseInvoice($invoice);
+                $numbers[] = $invoice->invoice_number;
+            }
+
+            return $numbers;
+        });
+
+        return 'تم استيراد '.count($numbers).' فاتورة شراء تاريخية بتواريخها دون إدخال مخزون: '.implode('، ', array_slice($numbers, 0, 5)).(count($numbers) > 5 ? '…' : '');
+    }
+
+    /** Past payments to suppliers, posted at their own date; a non-resident supplier (withholding tax) is refused here. */
+    protected function importSupplierPayments(array $records): string
+    {
+        $suppliers = Supplier::query()->get(['id', 'code', 'name', 'is_non_resident']);
+        $banks = BankAccount::query()->pluck('id', 'name');
+        $errors = [];
+        $plans = [];
+        foreach ($records as $line => $row) {
+            $supplier = $this->findSupplier($suppliers, $row);
+            $problem = match (true) {
+                ! $supplier => 'المورد '.($row['supplier_code'] ?? $row['supplier_name'] ?? '(فارغ)').' غير موجود.',
+                (bool) $supplier->is_non_resident => 'المورد غير مقيم (استقطاع ضريبي): سجّل سند الصرف من الشاشة ليُحتسب الاستقطاع.',
+                ! empty($row['bank_name']) && ! $banks->has($row['bank_name']) => "الحساب البنكي {$row['bank_name']} غير موجود.",
+                default => null,
+            };
+            if ($problem) {
+                $errors[] = "سطر {$line}: {$problem}";
+
+                continue;
+            }
+            $plans[] = [$line, $supplier, $row];
+        }
+        if ($errors) {
+            throw ValidationException::withMessages(['file' => implode("\n", array_slice($errors, 0, 20))]);
+        }
+
+        DB::transaction(function () use ($plans, $banks) {
+            foreach ($plans as [$line, $supplier, $row]) {
+                [$currency, $rate] = app(ExchangeRates::class)->resolve(null, null, $row['payment_date']);
+                $invoice = null;
+                if (! empty($row['invoice_number'])) {
+                    $invoice = PurchaseInvoice::where('invoice_number', $row['invoice_number'])->where('supplier_id', $supplier->id)->lockForUpdate()->first();
+                    if (! $invoice) {
+                        throw ValidationException::withMessages(['file' => "سطر {$line}: فاتورة الشراء {$row['invoice_number']} غير موجودة لهذا المورد."]);
+                    }
+                    if ((float) $row['amount'] > (float) $invoice->remaining_amount + 0.01) {
+                        throw ValidationException::withMessages(['file' => "سطر {$line}: المبلغ أكبر من المتبقي على الفاتورة ({$invoice->remaining_amount})."]);
+                    }
+                }
+                $payment = SupplierPayment::create([
+                    'supplier_id' => $supplier->id, 'purchase_invoice_id' => $invoice?->id, 'amount' => $row['amount'], 'payment_date' => $row['payment_date'], 'payment_method' => $row['payment_method'],
+                    'payment_number' => app(DocumentNumberService::class)->next('supplier_payment', Carbon::parse($row['payment_date'])),
+                    'reference_number' => $row['reference_number'] ?? null, 'bank_account_id' => ! empty($row['bank_name']) ? $banks->get($row['bank_name']) : null,
+                    'notes' => trim(($row['notes'] ?? '').' (مستورد)'), 'currency_code' => $currency, 'exchange_rate' => $rate, 'wht_rate' => 0, 'wht_amount' => 0,
+                ]);
+                $supplier->decrement('current_balance', ExchangeRates::toBase((float) $payment->amount, $rate));
+                if ($invoice) {
+                    $remaining = max(0, round((float) $invoice->remaining_amount - (float) $row['amount'], 2));
+                    $invoice->update(['paid_amount' => (float) $invoice->paid_amount + (float) $row['amount'], 'remaining_amount' => $remaining, 'payment_status' => $remaining <= 0 ? 'paid' : 'partially_paid']);
+                } else {
+                    app(SupplierPaymentAllocator::class)->allocate($payment, null);
+                }
+                app(DocumentPoster::class)->supplierPayment($payment);
+            }
+        });
+
+        return 'تم استيراد '.count($plans).' سند صرف للموردين بتواريخها';
+    }
+
     protected function importAccounts(array $records): string
     {
         $accounts = Account::query()->get()->keyBy(fn ($a) => (string) $a->code);

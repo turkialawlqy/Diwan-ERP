@@ -12,6 +12,7 @@ import {
     ChevronRightIcon,
     EllipsisVerticalIcon,
     PencilSquareIcon,
+    DocumentTextIcon,
     TrashIcon,
     XMarkIcon,
     ChevronLeftIcon,
@@ -224,6 +225,9 @@ const formatCurrency = (val) => {
                                 </td>
                                 <td class="py-4 px-6 text-center">
                                     <div class="flex items-center justify-center gap-1.5">
+                                        <Link :href="route('purchases.suppliers.statement', supplier.id)" class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="كشف حساب" data-supplier-statement>
+                                            <DocumentTextIcon class="w-4 h-4" />
+                                        </Link>
                                         <Link v-if="$can('purchases.suppliers.edit')" :href="route('purchases.suppliers.edit', supplier.id)" class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="تعديل">
                                             <PencilSquareIcon class="w-4 h-4" />
                                         </Link>

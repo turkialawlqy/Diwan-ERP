@@ -77,6 +77,7 @@ class CustomerPaymentController extends Controller
             'payment_date' => 'required|date',
             'amount' => 'required|numeric|min:0.01',
             'payment_method' => 'required|string|in:cash,card,bank_transfer,cheque',
+            'cheque_due_date' => 'nullable|date|after_or_equal:payment_date',
             'reference_number' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
             'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
@@ -132,7 +133,7 @@ class CustomerPaymentController extends Controller
                     'direction' => 'incoming', 'cheque_number' => $payment->reference_number ?: $payment->payment_number, 'bank_account_id' => $payment->bank_account_id,
                     'party_type' => 'customer', 'party_id' => $payment->customer_id, 'party_name' => $payment->customer?->name ?? '',
                     'amount' => round((float) $payment->amount * (float) ($payment->exchange_rate ?: 1), 2),
-                    'issue_date' => $payment->payment_date, 'due_date' => $payment->payment_date, 'notes' => 'سند قبض '.$payment->payment_number,
+                    'issue_date' => $payment->payment_date, 'due_date' => $validated['cheque_due_date'] ?? $payment->payment_date, 'notes' => 'سند قبض '.$payment->payment_number,
                     'source_type' => $payment->getMorphClass(), 'source_id' => $payment->id,
                 ]);
             }

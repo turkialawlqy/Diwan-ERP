@@ -8,7 +8,10 @@ use App\Models\SupplierPayment;
 use App\Services\Accounting\ChequeService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
+use App\Services\Purchases\SupplierPaymentAllocator;
+use App\Services\Tax\WithholdingTax;
 use App\Services\TenantManager;
+use App\Services\Workflow\ApprovalGate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -65,7 +68,8 @@ class SupplierPaymentController extends Controller
     public function create()
     {
         return Inertia::render('Purchases/Payments/Form', [
-            'suppliers' => Supplier::where('status', 'active')->orderBy('name')->limit(500)->get(['id', 'name', 'current_balance']),
+            'whtRates' => collect(WithholdingTax::categories())->pluck('rate', 'key'),
+            'suppliers' => Supplier::where('status', 'active')->orderBy('name')->limit(500)->get(['id', 'name', 'current_balance', 'is_non_resident', 'wht_category']),
             'unpaidInvoices' => PurchaseInvoice::where('remaining_amount', '>', 0)->with('supplier:id,name')
                 ->get(['id', 'supplier_id', 'invoice_number', 'total', 'remaining_amount', 'currency_code']),
         ]);
@@ -82,10 +86,36 @@ class SupplierPaymentController extends Controller
             'amount' => 'required|numeric|min:0.01',
             'payment_date' => 'required|date',
             'payment_method' => 'required|string|in:cash,card,bank_transfer,cheque',
+            'cheque_due_date' => 'nullable|date|after_or_equal:payment_date',
             'reference_number' => 'nullable|string|max:50',
             'notes' => 'nullable|string',
             'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'auto_allocate' => 'nullable|boolean',
+            'wht_rate' => 'nullable|numeric|min:0|max:100',
+            'allocations' => 'nullable|array|max:200',
+            'allocations.*.purchase_invoice_id' => 'required|tenant_exists:purchase_invoices,id',
+            'allocations.*.amount' => 'required|numeric|min:0',
         ] + ExchangeRates::rules());
+
+        // Withholding tax: a non-resident supplier's payment is cut by his category's rate (or the rate typed here).
+        $supplier = Supplier::findOrFail($validated['supplier_id']);
+        $whtRate = 0.0;
+        $whtCategory = null;
+        if ($supplier->is_non_resident) {
+            $whtCategory = $supplier->wht_category ?: 'other';
+            $whtRate = array_key_exists('wht_rate', $validated) && $validated['wht_rate'] !== null
+                ? (float) $validated['wht_rate']
+                : WithholdingTax::rate($whtCategory);
+        }
+        $whtAmount = round((float) $validated['amount'] * $whtRate / 100, 2);
+
+        app(ApprovalGate::class)->check('supplier_payment', ApprovalGate::keyFor(['s' => (int) $validated['supplier_id'], 'a' => round((float) $validated['amount'], 2), 'd' => $validated['payment_date'], 'i' => (int) ($validated['purchase_invoice_id'] ?? 0), 'm' => $validated['payment_method']]), (float) $validated['amount'], 'سند صرف لمورد '.$supplier->name);
+
+        $allocations = empty($validated['purchase_invoice_id']) ? ($validated['allocations'] ?? null) : null;
+        if ($allocations !== null && round(array_sum(array_column($allocations, 'amount')), 2) > (float) $validated['amount'] + 0.005) {
+            throw ValidationException::withMessages(['allocations' => 'مجموع المبالغ الموزعة أكبر من مبلغ السند.']);
+        }
+        $autoAllocate = empty($validated['purchase_invoice_id']) && $allocations === null && ! empty($validated['auto_allocate']);
 
         if (empty($validated['currency_code']) && ! empty($validated['purchase_invoice_id'])) {
             $validated['currency_code'] = PurchaseInvoice::whereKey($validated['purchase_invoice_id'])->value('currency_code');
@@ -100,7 +130,7 @@ class SupplierPaymentController extends Controller
             abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
         }
 
-        DB::transaction(function () use ($validated, $companyId) {
+        DB::transaction(function () use ($validated, $companyId, $allocations, $autoAllocate, $whtRate, $whtAmount, $whtCategory) {
             $paymentNumber = $this->nextNumber('supplier_payment', $validated['payment_date']);
 
             $payment = SupplierPayment::create([
@@ -116,6 +146,9 @@ class SupplierPaymentController extends Controller
                 'bank_account_id' => $validated['bank_account_id'] ?? null,
                 'currency_code' => $validated['currency_code'],
                 'exchange_rate' => $validated['exchange_rate'],
+                'wht_rate' => $whtRate,
+                'wht_amount' => $whtAmount,
+                'wht_category' => $whtCategory,
             ]);
 
             // Deduct supplier balance
@@ -155,13 +188,17 @@ class SupplierPaymentController extends Controller
                 }
             }
 
+            if ($allocations !== null || $autoAllocate) {
+                app(SupplierPaymentAllocator::class)->allocate($payment, $allocations);
+            }
+
             app(DocumentPoster::class)->supplierPayment($payment);
             if ($payment->payment_method === 'cheque') {
                 app(ChequeService::class)->track([
                     'direction' => 'outgoing', 'cheque_number' => $payment->reference_number ?: $payment->payment_number, 'bank_account_id' => $payment->bank_account_id,
                     'party_type' => 'supplier', 'party_id' => $payment->supplier_id, 'party_name' => $payment->supplier?->name ?? '',
-                    'amount' => round((float) $payment->amount * (float) ($payment->exchange_rate ?: 1), 2),
-                    'issue_date' => $payment->payment_date, 'due_date' => $payment->payment_date, 'notes' => 'سند صرف '.$payment->payment_number,
+                    'amount' => round(((float) $payment->amount - (float) $payment->wht_amount) * (float) ($payment->exchange_rate ?: 1), 2),
+                    'issue_date' => $payment->payment_date, 'due_date' => $validated['cheque_due_date'] ?? $payment->payment_date, 'notes' => 'سند صرف '.$payment->payment_number,
                     'source_type' => $payment->getMorphClass(), 'source_id' => $payment->id,
                 ]);
             }

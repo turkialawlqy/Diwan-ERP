@@ -8,6 +8,7 @@ import { router } from '@inertiajs/vue3';
  */
 const props = defineProps({
     routeName: { type: String, required: true },
+    routeParams: { type: Object, default: () => ({}) }, // route parameters (e.g. the record id)
     filters: { type: Object, default: () => ({}) },
     single: { type: Boolean, default: false }, // as_of only
     extra: { type: Object, default: () => ({}) }, // extra query values to keep
@@ -17,7 +18,7 @@ const form = reactive(props.single
     ? { as_of: props.filters.as_of }
     : { start_date: props.filters.start_date, end_date: props.filters.end_date });
 
-const apply = () => router.get(route(props.routeName), { ...props.extra, ...form }, { preserveState: true });
+const apply = () => router.get(route(props.routeName, props.routeParams), { ...props.extra, ...form }, { preserveState: true });
 </script>
 
 <template>

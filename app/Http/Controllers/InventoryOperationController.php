@@ -74,7 +74,7 @@ class InventoryOperationController extends Controller
         ]);
 
         DB::transaction(function () use ($validated) {
-            app(StockService::class)->transfer(
+            $cost = app(StockService::class)->transfer(
                 (int) $validated['product_id'],
                 (int) $validated['from_warehouse_id'],
                 (int) $validated['to_warehouse_id'],
@@ -87,6 +87,15 @@ class InventoryOperationController extends Controller
                     'source_type' => 'manual_transfer',
                 ],
             );
+
+            // Between two branches the value moves with the goods: out of one branch's inventory, into the other's.
+            $fromBranch = Warehouse::withoutGlobalScopes()->whereKey($validated['from_warehouse_id'])->value('branch_id');
+            $toBranch = Warehouse::withoutGlobalScopes()->whereKey($validated['to_warehouse_id'])->value('branch_id');
+            if ($fromBranch && $toBranch && (int) $fromBranch !== (int) $toBranch && round((float) $cost, 2) > 0) {
+                $poster = app(DocumentPoster::class);
+                $poster->stockInTransit(null, (float) $cost, now(), 'تحويل مخزون بين الفروع (صرف)', false, (int) $fromBranch);
+                $poster->stockInTransit(null, (float) $cost, now(), 'تحويل مخزون بين الفروع (استلام)', true, (int) $toBranch);
+            }
         });
 
         return redirect()->route('inventory.operations.index')

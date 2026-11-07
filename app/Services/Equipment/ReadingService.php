@@ -50,6 +50,12 @@ class ReadingService
                 ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $date))
                 ->latest('id')->first();
 
+            // Hours inside a period already billed to the renter cannot be added or changed.
+            $billedUntil = ($existing?->rental_id ? EquipmentRental::find($existing->rental_id) : $rental)?->billed_until;
+            if ($billedUntil && Carbon::parse($date)->lte($billedUntil)) {
+                throw ValidationException::withMessages(['date' => 'هذا اليوم ضمن فترة إيجار مفوترة؛ لا تُضاف قراءاته ولا تُعدَّل.']);
+            }
+
             $reading = $existing ?? new EquipmentReading(['equipment_id' => $equipment->id, 'date' => $date]);
             $reading->fill(['rental_id' => $rental?->id, 'hours_reading' => $hours, 'km_reading' => $km, 'worked_hours' => $worked ?? 0,
                 'operator' => $data['operator'] ?? null, 'notes' => $data['notes'] ?? null, 'created_by' => auth()->id()])->save();

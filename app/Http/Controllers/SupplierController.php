@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Supplier;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\Purchases\SupplierStatement;
+use App\Services\Tax\WithholdingTax;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -60,12 +63,12 @@ class SupplierController extends Controller
      */
     public function create()
     {
-        return Inertia::render('Purchases/Suppliers/Form');
+        return Inertia::render('Purchases/Suppliers/Form', ['whtCategories' => WithholdingTax::categories()]);
     }
 
     public function edit(Supplier $supplier)
     {
-        return Inertia::render('Purchases/Suppliers/Form', ['supplier' => $supplier]);
+        return Inertia::render('Purchases/Suppliers/Form', ['supplier' => $supplier, 'whtCategories' => WithholdingTax::categories()]);
     }
 
     public function store(Request $request)
@@ -81,6 +84,9 @@ class SupplierController extends Controller
             'bank_name' => 'nullable|string|max:100',
             'iban' => 'nullable|string|max:50',
             'opening_balance' => 'nullable|numeric',
+            'is_non_resident' => 'nullable|boolean',
+            'wht_category' => 'nullable|in:'.implode(',', array_keys(config('wht.categories'))),
+            'country' => 'nullable|string|max:60',
         ]);
 
         $companyId = app(TenantManager::class)->getTenantId()
@@ -149,6 +155,9 @@ class SupplierController extends Controller
             'bank_name' => 'nullable|string|max:100',
             'iban' => 'nullable|string|max:50',
             'status' => 'required|in:active,inactive',
+            'is_non_resident' => 'nullable|boolean',
+            'wht_category' => 'nullable|in:'.implode(',', array_keys(config('wht.categories'))),
+            'country' => 'nullable|string|max:60',
         ]);
 
         $supplier->update($validated);
@@ -165,8 +174,29 @@ class SupplierController extends Controller
             return back()->with('error', 'لا يمكن حذف المورد لوجود فواتير مشتريات مرتبطة به');
         }
 
+        if ($supplier->payments()->exists() || abs((float) $supplier->opening_balance) > 0.004 || abs((float) $supplier->current_balance) > 0.004) {
+            return back()->with('error', 'لا يمكن حذف المورد لوجود دفعات أو رصيد عليه؛ عطّله بدل حذفه');
+        }
+
         $supplier->delete();
 
         return back()->with('success', 'تم حذف المورد بنجاح');
+    }
+
+    /** Account statement of a supplier: what he billed, what was paid or returned, and what is still owed. */
+    public function statement(Request $request, Supplier $supplier, SupplierStatement $statements)
+    {
+        $v = $request->validate(['start_date' => 'nullable|date', 'end_date' => 'nullable|date|after_or_equal:start_date']);
+        $from = ! empty($v['start_date']) ? Carbon::parse($v['start_date']) : null;
+        $to = ! empty($v['end_date']) ? Carbon::parse($v['end_date']) : null;
+        $statement = $statements->build($supplier, $from, $to);
+
+        return Inertia::render('Purchases/Suppliers/Statement', [
+            'supplier' => $supplier->setRelations([]),
+            'transactions' => $statement['transactions'],
+            'openingBalance' => $statement['opening'],
+            'closingBalance' => $statement['closing'],
+            'filters' => ['start_date' => $from?->toDateString(), 'end_date' => $to?->toDateString()],
+        ]);
     }
 }

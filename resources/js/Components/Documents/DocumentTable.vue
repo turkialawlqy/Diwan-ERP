@@ -16,7 +16,7 @@ const props = defineProps({
     link: { type: Function, default: null },
     editLink: { type: Function, default: null },
     deleteLink: { type: Function, default: null },
-    deleteConfirm: { type: Function, default: () => 'حذف هذا المستند؟' },
+    deleteConfirm: { type: Function, default: null },
     searchRoute: { type: String, default: null },
     filters: { type: Object, default: () => ({}) },
     statuses: { type: Array, default: null },
@@ -39,12 +39,12 @@ const format = (row, col) => {
 <template>
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
         <div v-if="searchRoute" class="flex flex-wrap gap-2 p-3 border-b border-slate-100">
-            <input v-model="search" @keyup.enter="apply" placeholder="بحث..." class="rounded-xl border-slate-200 text-xs w-64" />
+            <input v-model="search" @keyup.enter="apply" :placeholder="$t('shared.search_ph')" class="rounded-xl border-slate-200 text-xs w-64" />
             <select v-if="statuses" v-model="status" @change="apply" class="rounded-xl border-slate-200 text-xs">
-                <option value="">كل الحالات</option>
+                <option value="">{{ $t('shared.all_statuses') }}</option>
                 <option v-for="s in statuses" :key="s.value" :value="s.value">{{ s.label }}</option>
             </select>
-            <button @click="apply" class="px-3 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-bold">بحث</button>
+            <button @click="apply" class="px-3 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-bold">{{ $t('shared.search') }}</button>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-xs">
@@ -61,7 +61,7 @@ const format = (row, col) => {
                             <template v-else>{{ format(row, c) }}</template>
                         </td>
                         <td class="px-4 py-2 text-end whitespace-nowrap">
-                            <slot name="actions" :row="row"><RowActions :view="link ? link(row) : null" :edit="editLink ? editLink(row) : null" :remove="deleteLink ? deleteLink(row) : null" :confirm="deleteConfirm(row)" /></slot>
+                            <slot name="actions" :row="row"><RowActions :view="link ? link(row) : null" :edit="editLink ? editLink(row) : null" :remove="deleteLink ? deleteLink(row) : null" :confirm="deleteConfirm ? deleteConfirm(row) : $t('shared.confirm_delete_doc')" /></slot>
                         </td>
                     </tr>
                     <tr v-if="!paginator.data.length"><td :colspan="columns.length + 1" class="py-10 text-center text-slate-400">{{ $t('ui.no_data') }}</td></tr>

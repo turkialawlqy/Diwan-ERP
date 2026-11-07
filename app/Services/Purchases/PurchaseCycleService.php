@@ -230,6 +230,8 @@ class PurchaseCycleService
                     'item_name' => $orderItem?->item_name ?? $line['item_name'],
                     'quantity' => $quantity,
                     'unit_cost' => round($unitCost, 4),
+                    'unit_id' => $line['unit_id'] ?? null,
+                    'unit_factor' => $this->documentStock->factorOf($productId, $line['unit_id'] ?? null),
                     'batch_number' => $line['batch_number'] ?? null,
                     'expiry_date' => $line['expiry_date'] ?? null,
                     'serials' => $line['serials'] ?? null,
@@ -328,6 +330,8 @@ class PurchaseCycleService
                         'unit_price' => $unitPrice,
                         'discount' => (float) ($line['discount'] ?? 0),
                         'tax_rate' => (float) ($line['tax_rate'] ?? TaxProfile::rate()),
+                        'unit_id' => $grnItem->unit_id,
+                        'unit_factor' => (float) ($grnItem->unit_factor ?: 1),
                     ],
                     'grn_item' => $grnItem,
                     'stock' => $isStock,
@@ -482,7 +486,8 @@ class PurchaseCycleService
                     $cost += $this->stock->issue([
                         'product_id' => $item->product_id,
                         'warehouse_id' => $warehouseId,
-                        'quantity' => $quantity,
+                        // The line may be in a pack unit (carton): stock is kept in the base unit.
+                        'quantity' => round($quantity * (float) ($item->unit_factor ?: 1), 4),
                         'type' => 'purchase_return',
                         'date' => $return->return_date,
                         'source' => $return,
@@ -704,6 +709,8 @@ class PurchaseCycleService
                 'tax_rate' => $rate,
                 'tax_amount' => $lineTax,
                 'total' => round($net + $lineTax, 2),
+                'unit_id' => $line['unit_id'] ?? null,
+                'unit_factor' => (float) ($line['unit_factor'] ?? 1) ?: 1.0,
             ];
             $subtotal += $net;
             $tax += $lineTax;

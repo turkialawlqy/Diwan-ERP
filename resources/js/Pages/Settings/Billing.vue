@@ -6,7 +6,18 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import StatusBadge from '@/Components/Documents/StatusBadge.vue';
 import { money, date, dateTime } from '@/utils/format';
 
-const props = defineProps({ company: Object, plan: Object, state: String, usage: Object, plans: Array, modules: Object, invoices: Array, exports: Array, centralDomain: String, payment: { type: Object, default: () => ({}) } });
+const props = defineProps({ company: Object, plan: Object, state: String, usage: Object, plans: Array, modules: Object, invoices: Array, exports: Array, centralDomain: String, payment: { type: Object, default: () => ({}) }, paymentsEnabled: { type: Boolean, default: false } });
+
+const payError = ref('');
+const payNow = async (i) => {
+    payError.value = '';
+    try {
+        const { data } = await window.axios.post(route('billing.invoices.pay', i.id));
+        window.location.href = data.url;
+    } catch (e) {
+        payError.value = e.response?.data?.errors?.payment?.[0] || 'تعذّر بدء الدفع.';
+    }
+};
 const cycle = ref(props.company.billing_cycle || 'monthly');
 const choose = (p) => { if (confirm(`طلب الاشتراك في باقة ${p.name_ar}؟`)) router.post(route('billing.plan'), { plan_id: p.id, billing_cycle: cycle.value }, { preserveScroll: true }); };
 const domainForm = useForm({ custom_domain: props.company.custom_domain || '' });
@@ -75,12 +86,13 @@ const pct = (u) => (u.max && u.max > 0 ? Math.min(100, Math.round((u.used / u.ma
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden text-xs">
             <table class="w-full">
-                <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الفاتورة</th><th class="px-3 py-2">الباقة</th><th class="px-3 py-2">الفترة</th><th class="px-3 py-2 text-end">الإجمالي</th><th class="px-3 py-2">الحالة</th></tr></thead>
+                <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الفاتورة</th><th class="px-3 py-2">الباقة</th><th class="px-3 py-2">الفترة</th><th class="px-3 py-2 text-end">الإجمالي</th><th class="px-3 py-2">الحالة</th><th class="px-3 py-2"></th></tr></thead>
                 <tbody>
-                    <tr v-for="i in invoices" :key="i.id" class="border-t border-slate-100"><td class="px-3 py-2 font-mono"><a :href="route('billing.invoices.show', i.id)" target="_blank" class="text-indigo-600 hover:underline">{{ i.number }}</a></td><td class="px-3 py-2 text-center">{{ i.plan?.name_ar }}</td><td class="px-3 py-2 text-center font-mono">{{ date(i.period_start) }} → {{ date(i.period_end) }}</td><td class="px-3 py-2 text-end font-mono">{{ money(i.total) }}</td><td class="px-3 py-2 text-center"><StatusBadge :status="i.status" /></td></tr>
-                    <tr v-if="!invoices.length"><td colspan="5" class="py-6 text-center text-slate-400">لا توجد فواتير اشتراك</td></tr>
+                    <tr v-for="i in invoices" :key="i.id" class="border-t border-slate-100"><td class="px-3 py-2 font-mono"><a :href="route('billing.invoices.show', i.id)" target="_blank" class="text-indigo-600 hover:underline">{{ i.number }}</a></td><td class="px-3 py-2 text-center">{{ i.plan?.name_ar }}</td><td class="px-3 py-2 text-center font-mono">{{ date(i.period_start) }} → {{ date(i.period_end) }}</td><td class="px-3 py-2 text-end font-mono">{{ money(i.total) }}</td><td class="px-3 py-2 text-center"><StatusBadge :status="i.status" /></td><td class="px-3 py-2 text-center"><button v-if="paymentsEnabled && i.status === 'unpaid' && $can('admin.billing.manage')" type="button" data-pay-now @click="payNow(i)" class="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold">ادفع الآن</button></td></tr>
+                    <tr v-if="!invoices.length"><td colspan="6" class="py-6 text-center text-slate-400">لا توجد فواتير اشتراك</td></tr>
                 </tbody>
             </table>
+            <p v-if="payError" class="p-3 text-rose-600 font-bold">{{ payError }}</p>
             <div class="p-3 text-slate-600 space-y-1">
                 <p>السداد بالتحويل البنكي مع ذكر رقم الفاتورة في بيان التحويل. يُفعّل الاشتراك فور تأكيد الإدارة للسداد.</p>
                 <p v-if="payment?.iban" class="font-bold">

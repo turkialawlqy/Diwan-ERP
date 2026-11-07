@@ -179,6 +179,11 @@ class UserController extends Controller
 
         $oldRole = $user->getRoleNames()->first();
 
+        // Deactivated users do not count against the plan, so bringing one back must fit the limit.
+        if ($user->status !== 'active' && $validated['status'] === 'active') {
+            $this->enforceUserLimit();
+        }
+
         DB::transaction(function () use ($user, $validated) {
             $user->update([
                 'name' => $validated['name'],

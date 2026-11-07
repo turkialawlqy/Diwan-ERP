@@ -87,6 +87,19 @@ class ProvisionsAgingRecurringTest extends TestCase
         $this->assertSame(2300.0, $june['totals']['d60']); // the oldest invoice is taken as paid first
     }
 
+    public function test_aging_keeps_an_old_unpaid_invoice_old_when_a_newer_one_is_paid(): void
+    {
+        $old = $this->invoice('2026-01-01', 1000);   // 1,150 still open, ~180 days
+        $new = $this->invoice('2026-06-20', 2000);   // 2,300, paid in full below
+        $this->post(route('sales.payments.store'), ['customer_id' => $this->customer->id, 'amount' => 2300, 'payment_date' => '2026-06-25', 'payment_method' => 'cash', 'allocations' => [['invoice_id' => $new->id, 'amount' => 2300]], 'invoice_id' => $new->id])->assertSessionHasNoErrors();
+
+        $this->assertSame(1150.0, (float) $old->fresh()->remaining_amount);
+        $report = app(AccountingReports::class)->aging('receivables', Carbon::parse('2026-06-30'));
+        $this->assertSame(1150.0, $report['totals']['total']);
+        $this->assertSame(1150.0, $report['totals']['d90plus']);
+        $this->assertSame(0.0, $report['totals']['current']);
+    }
+
     public function test_cheque_against_an_invoice_pays_it_and_a_bounced_voucher_cheque_reopens_it(): void
     {
         $first = $this->invoice('2026-06-01', 1000);

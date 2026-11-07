@@ -24,6 +24,8 @@ class PurchaseInvoiceItem extends Model
         'tax_rate',
         'tax_amount',
         'total',
+        'unit_id',
+        'unit_factor',
     ];
 
     protected $casts = [

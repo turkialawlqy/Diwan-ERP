@@ -18,9 +18,13 @@ use App\Models\Invoice;
 use App\Models\PosRegister;
 use App\Models\PosSession;
 use App\Models\Product;
+use App\Models\ProductUnit;
 use App\Models\StockLayer;
 use App\Models\StockMovement;
 use App\Models\Supplier;
+use App\Models\SupplierPayment;
+use App\Models\SupplierPaymentAllocation;
+use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\Accounting\AccountingReports;
@@ -34,6 +38,7 @@ use App\Services\Accounting\YearEndClosing;
 use App\Services\HR\PayrollService;
 use App\Services\Inventory\StockService;
 use App\Services\Purchases\PurchaseCycleService;
+use App\Services\Purchases\SupplierStatement;
 use App\Services\Sales\CustomerStatement;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\SalesCycleService;
@@ -229,6 +234,18 @@ class AccountingAuditTest extends TestCase
             ->assertSessionHasErrors('total');
     }
 
+    public function test_statement_includes_manual_journal_entries_for_the_customer(): void
+    {
+        $receivables = app(AccountMap::class)->id('receivables', $this->company->id);
+        $revenue = app(AccountMap::class)->id('other_revenue', $this->company->id);
+        app(PostingService::class)->post(['date' => '2026-06-10', 'description' => 'تسوية يدوية', 'entry_type' => 'manual', 'lines' => [
+            ['account_id' => $receivables, 'debit' => 300, 'party_type' => 'customer', 'party_id' => $this->customer->id], ['account_id' => $revenue, 'credit' => 300]]]);
+
+        $statement = app(CustomerStatement::class)->build($this->customer->fresh());
+        $this->assertSame(300.0, round((float) $statement['closing'], 2));
+        $this->assertSame('journal', $statement['transactions']->last()['type']);
+    }
+
     public function test_statement_does_not_count_allocated_receipts_twice(): void
     {
         $invoice = app(InvoiceService::class)->create(['customer_id' => $this->customer->id, 'invoice_date' => '2026-06-10', 'payment_method' => 'credit'],
@@ -293,6 +310,78 @@ class AccountingAuditTest extends TestCase
         $this->assertSame(0.0, $this->balance('payables'));
     }
 
+    public function test_a_purchase_return_in_cartons_issues_the_base_units(): void
+    {
+        [$warehouse, $supplier, $item] = $this->purchaseSetup();
+        $carton = Unit::create(['name_ar' => 'كرتونة', 'code' => 'CTN']);
+        ProductUnit::create(['product_id' => $item->id, 'unit_id' => $carton->id, 'factor' => 12, 'is_default' => false]);
+        $stock = app(StockService::class);
+        $cycle = app(PurchaseCycleService::class);
+        $receipt = $cycle->receive(null, ['supplier_id' => $supplier->id, 'warehouse_id' => $warehouse->id, 'receipt_date' => '2026-06-01'],
+            [['product_id' => $item->id, 'item_name' => 'صنف مخزني', 'quantity' => 2, 'unit_id' => $carton->id, 'unit_cost' => 120]]);
+        $this->assertSame(24.0, $stock->onHand($item->id));
+        $invoice = $cycle->invoiceReceipts(['supplier_id' => $supplier->id, 'invoice_date' => '2026-06-02', 'payment_method' => 'credit'],
+            [['goods_receipt_item_id' => $receipt->items->first()->id, 'quantity' => 2, 'unit_price' => 120, 'tax_rate' => 15]]);
+
+        $cycle->returnInvoice($invoice, ['return_date' => '2026-06-03', 'reason' => 'تالف', 'warehouse_id' => $warehouse->id],
+            [['purchase_invoice_item_id' => $invoice->items->first()->id, 'quantity' => 1]]);
+
+        $this->assertSame(12.0, $stock->onHand($item->id)); // one carton out = 12 pieces, not 1
+    }
+
+    public function test_one_supplier_payment_settles_several_invoices_and_cancelling_gives_them_back(): void
+    {
+        [$warehouse, $supplier, $item] = $this->purchaseSetup();
+        $cycle = app(PurchaseCycleService::class);
+        $invoices = [];
+        foreach ([['2026-06-01', 100], ['2026-06-05', 200], ['2026-06-09', 300]] as [$date, $price]) {
+            $receipt = $cycle->receive(null, ['supplier_id' => $supplier->id, 'warehouse_id' => $warehouse->id, 'receipt_date' => $date],
+                [['product_id' => $item->id, 'item_name' => 'صنف مخزني', 'quantity' => 1, 'unit_cost' => $price]]);
+            $invoices[] = $cycle->invoiceReceipts(['supplier_id' => $supplier->id, 'invoice_date' => $date, 'payment_method' => 'credit'],
+                [['goods_receipt_item_id' => $receipt->items->first()->id, 'quantity' => 1, 'unit_price' => $price, 'tax_rate' => 0]]);
+        }
+
+        // 250 over the first two invoices by hand: 100 closes the first, 150 of the second.
+        $this->post(route('purchases.payments.store'), ['supplier_id' => $supplier->id, 'amount' => 250, 'payment_date' => '2026-06-12', 'payment_method' => 'bank_transfer',
+            'allocations' => [['purchase_invoice_id' => $invoices[0]->id, 'amount' => 100], ['purchase_invoice_id' => $invoices[1]->id, 'amount' => 150]]])->assertSessionHasNoErrors();
+        $this->assertSame([0.0, 50.0, 300.0], collect($invoices)->map(fn ($i) => (float) $i->fresh()->remaining_amount)->all());
+        $this->assertSame('paid', $invoices[0]->fresh()->payment_status);
+        $this->assertSame('partially_paid', $invoices[1]->fresh()->payment_status);
+
+        // Over-allocating more than the voucher is refused.
+        $this->post(route('purchases.payments.store'), ['supplier_id' => $supplier->id, 'amount' => 100, 'payment_date' => '2026-06-12', 'payment_method' => 'cash',
+            'allocations' => [['purchase_invoice_id' => $invoices[2]->id, 'amount' => 150]]])->assertSessionHasErrors('allocations');
+
+        // 340 automatically: the oldest open invoices first (50 + 290 of 300).
+        $this->post(route('purchases.payments.store'), ['supplier_id' => $supplier->id, 'amount' => 340, 'payment_date' => '2026-06-13', 'payment_method' => 'bank_transfer', 'auto_allocate' => true])->assertSessionHasNoErrors();
+        $this->assertSame([0.0, 0.0, 10.0], collect($invoices)->map(fn ($i) => (float) $i->fresh()->remaining_amount)->all());
+
+        $first = SupplierPayment::orderBy('id')->first();
+        $this->post(route('purchases.payments.cancel', $first), ['reason' => 'خطأ'])->assertSessionHasNoErrors();
+        $this->assertSame([100.0, 150.0, 10.0], collect($invoices)->map(fn ($i) => (float) $i->fresh()->remaining_amount)->all());
+        $this->assertSame(0, SupplierPaymentAllocation::where('supplier_payment_id', $first->id)->count());
+    }
+
+    public function test_the_supplier_statement_matches_what_is_owed_and_the_ledger(): void
+    {
+        [$warehouse, $supplier, $item] = $this->purchaseSetup();
+        $cycle = app(PurchaseCycleService::class);
+        $receipt = $cycle->receive(null, ['supplier_id' => $supplier->id, 'warehouse_id' => $warehouse->id, 'receipt_date' => '2026-06-01'],
+            [['product_id' => $item->id, 'item_name' => 'صنف مخزني', 'quantity' => 10, 'unit_cost' => 100]]);
+        $invoice = $cycle->invoiceReceipts(['supplier_id' => $supplier->id, 'invoice_date' => '2026-06-02', 'payment_method' => 'credit'],
+            [['goods_receipt_item_id' => $receipt->items->first()->id, 'quantity' => 10, 'unit_price' => 100, 'tax_rate' => 15]]);
+        $cycle->returnInvoice($invoice, ['return_date' => '2026-06-03', 'reason' => 'تالف', 'warehouse_id' => $warehouse->id], [['purchase_invoice_item_id' => $invoice->items->first()->id, 'quantity' => 2]]);
+        $this->post(route('purchases.payments.store'), ['supplier_id' => $supplier->id, 'purchase_invoice_id' => $invoice->id, 'amount' => 500, 'payment_date' => '2026-06-05', 'payment_method' => 'bank_transfer'])->assertSessionHasNoErrors();
+
+        $statement = app(SupplierStatement::class)->build($supplier->fresh());
+        $this->assertSame(420.0, $statement['closing']);                       // 1,150 - 230 returned - 500 paid
+        $this->assertSame($this->balance('payables'), $statement['closing']);
+        $this->assertEquals(420, $supplier->fresh()->current_balance);
+
+        $this->get(route('purchases.suppliers.statement', $supplier))->assertOk()->assertInertia(fn ($p) => $p->component('Purchases/Suppliers/Statement')->where('closingBalance', 420));
+        $this->get(route('reports.export', ['report' => 'supplier-statement', 'format' => 'pdf', 'supplier_id' => $supplier->id]))->assertOk();
+    }
+
     public function test_service_lines_skip_grni_and_price_variance_follows_the_stock(): void
     {
         [$warehouse, $supplier, $item] = $this->purchaseSetup();
@@ -348,6 +437,11 @@ class AccountingAuditTest extends TestCase
             ->assertSessionHasErrors('vendor_tax_number');
         $this->post(route('finance.expenses.store'), ['title' => 'صيانة', 'category' => 'صيانة', 'amount' => 1000, 'taxable' => true, 'vendor_tax_number' => '310000000000003',
             'expense_date' => '2026-06-10', 'payment_method' => 'cash'])->assertSessionHasNoErrors();
+        $this->assertSame(150.0, $this->balance('vat_input'));
+
+        // A free-typed VAT figure must match the tax rate.
+        $this->post(route('finance.expenses.store'), ['title' => 'صيانة', 'category' => 'صيانة', 'amount' => 1000, 'taxable' => true, 'tax_amount' => 37, 'vendor_tax_number' => '310000000000003',
+            'expense_date' => '2026-06-10', 'payment_method' => 'cash'])->assertSessionHasErrors('tax_amount');
         $this->assertSame(150.0, $this->balance('vat_input'));
     }
 

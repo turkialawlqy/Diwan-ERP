@@ -91,4 +91,12 @@ class ProjectCostController extends Controller
 
         return back()->with('success', "تم اعتماد مستخلص الباطن {$certificate->number} بصافي ".number_format((float) $certificate->net_payable, 2));
     }
+
+    public function releaseSubcontractRetention(Request $request, Subcontract $subcontract)
+    {
+        $v = $request->validate(['date' => 'required|date', 'amount' => 'required|numeric|gt:0']);
+        $this->projects->releaseSubcontractRetention($subcontract, (float) $v['amount'], $v['date']);
+
+        return back()->with('success', 'أُفرج عن المحتجزات وأُضيفت لحساب المقاول');
+    }
 }

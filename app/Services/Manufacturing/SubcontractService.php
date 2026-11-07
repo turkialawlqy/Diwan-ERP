@@ -4,6 +4,7 @@ namespace App\Services\Manufacturing;
 
 use App\Models\Bom;
 use App\Models\SubcontractOrder;
+use App\Models\Supplier;
 use App\Services\Accounting\PostingService;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Inventory\StockService;
@@ -119,6 +120,8 @@ class SubcontractService
             }
             if ($service > 0) {
                 $this->posting->post(['date' => $date, 'description' => "استلام منتج مصنّع لدى الغير — {$order->order_number}", 'source' => $order, 'lines' => $lines]);
+                // The contractor's fee is owed to him: his account (and credit-limit view) shows it.
+                Supplier::whereKey($order->supplier_id)->increment('current_balance', $service);
             }
 
             $receipt = $order->receipts()->create(['date' => $date->toDateString(), 'quantity' => $quantity, 'material_cost' => $materialCost, 'service_cost' => $service, 'total_cost' => $total, 'notes' => $notes, 'created_by' => auth()->id()]);

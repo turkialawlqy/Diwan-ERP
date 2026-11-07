@@ -4,6 +4,7 @@ namespace App\Services\HR;
 
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
+use App\Models\Payroll;
 use App\Models\PublicHoliday;
 use App\Models\WorkShift;
 use Illuminate\Support\Carbon;
@@ -20,6 +21,18 @@ class AttendanceService
     {
         $shift = $employee->shift ?? WorkShift::where('is_default', true)->first();
         $day = Carbon::parse($date);
+        $this->assertMonthOpen($day);
+
+        // Several punches in one day (device exports): the first in and the last out make the day.
+        if ($source === 'import' && ($existing = AttendanceRecord::where('employee_id', $employee->id)->whereDate('date', $day->toDateString())->first()) && $existing->source === 'import') {
+            $times = array_filter([$existing->check_in, $existing->check_out, $in, $out]);
+            sort($times);
+            if (count($times) >= 2) {
+                $in = substr((string) reset($times), 0, 5);
+                $out = substr((string) end($times), 0, 5);
+            }
+        }
+
         $metrics = ['worked_minutes' => 0, 'late_minutes' => 0, 'overtime_minutes' => 0];
 
         if (! $status) {
@@ -55,6 +68,14 @@ class AttendanceService
         );
     }
 
+    /** Attendance of a month whose payroll was approved is part of what was paid: it cannot change quietly. */
+    protected function assertMonthOpen(Carbon $day): void
+    {
+        if (Payroll::where('year', $day->year)->where('month', $day->month)->where('status', '!=', 'draft')->exists()) {
+            throw ValidationException::withMessages(['date' => 'مسير شهر '.$day->format('m/Y').' معتمد؛ أعده إلى مسودة أولاً لتعديل الحضور.']);
+        }
+    }
+
     /**
      * Import "employee_number,date,check_in,check_out" rows.
      *
@@ -78,8 +99,12 @@ class AttendanceService
 
                 continue;
             }
-            $this->record(Employee::find($employeeId), $date, $in ?: null, $out ?: null, 'import');
-            $imported++;
+            try {
+                $this->record(Employee::find($employeeId), $date, $in ?: null, $out ?: null, 'import');
+                $imported++;
+            } catch (ValidationException $e) {
+                $errors[] = 'سطر '.($i + 1).': '.collect($e->errors())->flatten()->first();
+            }
         }
 
         if ($imported === 0 && $errors) {

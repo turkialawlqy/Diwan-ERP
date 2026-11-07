@@ -12,6 +12,7 @@ use App\Services\Sales\InvoiceService;
 use App\Services\Sales\SalesCycleService;
 use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
+use App\Services\Workflow\ApprovalGate;
 use App\Services\Zatca\EInvoiceManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -170,6 +171,10 @@ class CreditNoteController extends Controller
             throw ValidationException::withMessages(['tax_amount' => 'ضريبة الإشعار يجب أن تكون '.$profile->ratesLabel().' من المبلغ، أو صفراً للتوريدات الصفرية والمعفاة.']);
         }
 
+        if ($validated['status'] !== 'draft') {
+            app(ApprovalGate::class)->check('credit_note', ApprovalGate::keyFor(['c' => (int) $validated['customer_id'], 'i' => (int) $validated['invoice_id'], 'd' => $validated['credit_note_date'], 't' => round((float) $validated['total'], 2)]), (float) $validated['total'], 'إشعار دائن بقيمة '.number_format((float) $validated['total'], 2));
+        }
+
         $tenantManager = app(TenantManager::class);
         $company = $tenantManager->getCompany();
 
@@ -232,5 +237,20 @@ class CreditNoteController extends Controller
             'creditNote' => $creditNote,
             'company' => $company,
         ]);
+    }
+
+    /** A draft credit note (nothing posted, nothing stamped) can be discarded; an issued one is corrected by a debit note. */
+    public function destroy(CreditNote $creditNote)
+    {
+        DB::transaction(function () use ($creditNote) {
+            $note = CreditNote::whereKey($creditNote->id)->lockForUpdate()->firstOrFail();
+            if ($note->status !== 'draft') {
+                throw ValidationException::withMessages(['status' => 'لا يُحذف إلا الإشعار الدائن المسودة؛ المعتمد يُصحَّح بإشعار مدين.']);
+            }
+            $note->items()->delete();
+            $note->delete();
+        });
+
+        return redirect()->route('sales.returns.index')->with('success', 'تم حذف مسودة الإشعار الدائن');
     }
 }

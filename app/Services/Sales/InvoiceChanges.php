@@ -83,15 +83,15 @@ class InvoiceChanges
         });
     }
 
-    public function update(Invoice $invoice, array $data, array $lines): Invoice
+    public function update(Invoice $invoice, array $data, array $lines, array $options = []): Invoice
     {
-        return DB::transaction(function () use ($invoice, $data, $lines) {
+        return DB::transaction(function () use ($invoice, $data, $lines, $options) {
             $invoice = Invoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
             $this->assertChangeable($invoice);
             $this->undo($invoice, 'تعديل الفاتورة '.$invoice->invoice_number);
             $invoice->items()->delete();
 
-            return $this->invoices->create($data, $lines, ['replace' => $invoice]);
+            return $this->invoices->create($data, $lines, ['replace' => $invoice] + $options);
         });
     }
 

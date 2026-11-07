@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { cur } from '@/utils/tax';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
@@ -1144,6 +1145,7 @@ const resolveTag = (tag) => {
                 </div>
             </div>
         </div>
+        <AttachmentsPanel kind="invoice" :id="invoice.id" class="mt-4" />
     </AppLayout>
 </template>
 

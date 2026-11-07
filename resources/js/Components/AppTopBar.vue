@@ -36,7 +36,7 @@ const logout = () => {
                 @click="$emit('toggleSidebar')"
                 type="button"
                 class="lg:hidden w-9 h-9 shrink-0 flex items-center justify-center rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition"
-                aria-label="القائمة"
+                :aria-label="$t('topbar.menu')"
             >
                 <Bars3Icon class="w-6 h-6" />
             </button>
@@ -53,18 +53,18 @@ const logout = () => {
                 v-if="$canRoute('pos.index')"
                 :href="route('pos.index')"
                 class="h-9 inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-2.5 sm:px-3 rounded-lg shadow-sm transition-colors"
-                title="فتح نقطة البيع (الكاشير)"
+                :title="$t('topbar.pos_open')"
                 data-pos-link
             >
                 <DeviceTabletIcon class="w-4 h-4" />
-                <span class="hidden xl:inline">نقطة البيع (POS)</span>
+                <span class="hidden xl:inline">{{ $t('topbar.pos') }}</span>
             </Link>
 
             <!-- Notifications Icon -->
             <Link
                 :href="route('notifications.index')"
                 class="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors relative"
-                title="الإشعارات"
+                :title="$t('topbar.notifications')"
             >
                 <BellIcon class="w-5 h-5" />
                 <span v-if="$page.props.unreadNotifications" class="absolute -top-0.5 -end-0.5 min-w-4 h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white flex items-center justify-center">{{ $page.props.unreadNotifications > 99 ? '99+' : $page.props.unreadNotifications }}</span>
@@ -78,7 +78,7 @@ const logout = () => {
                     </div>
                     <div class="hidden xl:flex flex-col text-start leading-tight">
                         <span class="text-xs font-bold text-slate-800">{{ user?.name }}</span>
-                        <span class="text-[10px] text-slate-500">{{ user?.is_super_admin ? 'مدير النظام' : 'مدير المؤسسة' }}</span>
+                        <span class="text-[10px] text-slate-500">{{ user?.is_super_admin ? $t('topbar.role_admin') : $t('topbar.role_owner') }}</span>
                     </div>
                     <ChevronDownIcon class="w-4 h-4 text-slate-400 hidden sm:block" />
                 </MenuButton>
@@ -108,7 +108,7 @@ const logout = () => {
                                     :class="[active ? 'bg-indigo-50 text-indigo-600' : 'text-slate-700', 'flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition']"
                                 >
                                     <UserCircleIcon class="w-4 h-4" />
-                                    <span>الملف الشخصي</span>
+                                    <span>{{ $t('topbar.profile') }}</span>
                                 </Link>
                             </MenuItem>
                             <MenuItem v-slot="{ active }">
@@ -117,7 +117,7 @@ const logout = () => {
                                     :class="[active ? 'bg-indigo-50 text-indigo-600' : 'text-slate-700', 'flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition']"
                                 >
                                     <Cog6ToothIcon class="w-4 h-4" />
-                                    <span>إعدادات المؤسسة</span>
+                                    <span>{{ $t('topbar.company_settings') }}</span>
                                 </Link>
                             </MenuItem>
                             <MenuItem v-slot="{ active }">
@@ -126,7 +126,7 @@ const logout = () => {
                                     @click="toggleLanguage"
                                     :lang="$page.props.locale === 'ar' ? 'en' : 'ar'"
                                     :class="[active ? 'bg-indigo-50 text-indigo-600' : 'text-slate-700', 'w-full flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition text-start']"
-                                    :title="$page.props.locale === 'ar' ? 'Switch to English' : 'التحويل للعربية'"
+                                    :title="$page.props.locale === 'ar' ? $t('topbar.to_english') : $t('topbar.to_arabic')"
                                     data-language-toggle
                                 >
                                     <GlobeAltIcon class="w-4 h-4" />
@@ -139,7 +139,7 @@ const logout = () => {
                                     :class="[active ? 'bg-purple-50 text-purple-700' : 'text-purple-600', 'flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition']"
                                 >
                                     <ShieldCheckIcon class="w-4 h-4" />
-                                    <span>لوحة تحكم النظام العام</span>
+                                    <span>{{ $t('topbar.platform_dashboard') }}</span>
                                 </Link>
                             </MenuItem>
                         </div>
@@ -151,7 +151,7 @@ const logout = () => {
                                     :class="[active ? 'bg-red-50 text-red-600' : 'text-red-600', 'w-full flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition text-start']"
                                 >
                                     <ArrowRightOnRectangleIcon class="w-4 h-4" />
-                                    <span>تسجيل الخروج</span>
+                                    <span>{{ $t('topbar.logout') }}</span>
                                 </button>
                             </MenuItem>
                         </div>

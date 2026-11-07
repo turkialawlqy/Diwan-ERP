@@ -7,6 +7,7 @@ use App\Models\DataExport;
 use App\Models\SubscriptionInvoice;
 use App\Models\SubscriptionPlan;
 use App\Services\Saas\DomainVerifier;
+use App\Services\Saas\Payments\MoyasarGateway;
 use App\Services\Saas\PlanGuard;
 use App\Services\Saas\SubscriptionService;
 use App\Services\TenantManager;
@@ -41,6 +42,7 @@ class BillingController extends Controller
             'exports' => DataExport::latest('id')->limit(5)->get(),
             'centralDomain' => config('tenancy.central_domain'),
             // Where to pay (bank transfer), shown with the unpaid invoice.
+            'paymentsEnabled' => app(MoyasarGateway::class)->enabled(),
             'payment' => collect(config('saas.platform'))->only(['name', 'bank_name', 'account_name', 'iban', 'email'])->all(),
         ]);
     }

@@ -12,10 +12,12 @@ use App\Models\PlatformAuditLog;
 use App\Models\SubscriptionInvoice;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Models\Warehouse;
 use App\Models\WebhookEndpoint;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Saas\AlertService;
 use App\Services\Saas\DomainVerifier;
+use App\Services\Saas\SubscriptionService;
 use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,6 +25,7 @@ use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class SaasPlatformTest extends TestCase
@@ -68,6 +71,34 @@ class SaasPlatformTest extends TestCase
         $this->assertSame(1, User::where('company_id', $this->company->id)->count());
     }
 
+    public function test_deactivated_users_do_not_count_against_the_plan_limit(): void
+    {
+        $this->company->update(['subscription_plan_id' => $this->plan(['max_users' => 2])->id]);
+        $extra = User::factory()->create(['company_id' => $this->company->id, 'status' => 'inactive', 'email' => 'old@example.com']);
+        $new = ['name' => 'X', 'email' => 'x@example.com', 'password' => 'Secret#12345', 'password_confirmation' => 'Secret#12345', 'role' => 'sales', 'status' => 'active'];
+
+        $this->post(route('users.store'), $new)->assertSessionHasNoErrors();      // owner + new = 2 active
+        $this->put(route('users.update', $extra), ['name' => $extra->name, 'email' => $extra->email, 'role' => 'sales', 'status' => 'active'])->assertSessionHasErrors('plan');
+        $this->assertSame('inactive', $extra->fresh()->status);
+    }
+
+    public function test_changing_plan_mid_term_credits_the_unused_days_and_a_downgrade_must_fit_usage(): void
+    {
+        $basic = $this->plan(['price_monthly' => 100]);
+        $pro = $this->plan(['price_monthly' => 300, 'slug' => 'pro-'.uniqid()]);
+        $this->company->update(['subscription_plan_id' => $basic->id, 'subscription_ends_at' => now()->addDays(15)->endOfDay(), 'status' => 'active']);
+        SubscriptionInvoice::create(['company_id' => $this->company->id, 'subscription_plan_id' => $basic->id, 'number' => 'SUB-T-1', 'issued_at' => now()->subDays(15), 'billing_cycle' => 'monthly',
+            'period_start' => now()->subDays(15)->toDateString(), 'period_end' => now()->addDays(14)->toDateString(), 'amount' => 100, 'vat_amount' => 15, 'total' => 115, 'status' => 'paid']);
+
+        $invoice = app(SubscriptionService::class)->request($this->company->fresh(), $pro, 'monthly');
+        $this->assertEqualsWithDelta(250.0, (float) $invoice->amount, 5.0);          // 300 - about half of 100 still unused
+        $invoice->delete();
+
+        // Fewer users allowed than the company already has: refused.
+        $tiny = $this->plan(['max_users' => 0, 'slug' => 'tiny-'.uniqid()]);
+        $this->assertThrows(fn () => app(SubscriptionService::class)->request($this->company->fresh(), $tiny, 'monthly'), ValidationException::class);
+    }
+
     public function test_expired_subscription_is_read_only_except_billing(): void
     {
         $plan = $this->plan();
@@ -106,6 +137,24 @@ class SaasPlatformTest extends TestCase
         $this->getJson("/api/v1/customers/{$theirs->id}", $headers)->assertNotFound();
         $this->postJson('/api/v1/customers', ['name' => 'جديد'], $headers)->assertForbidden(); // token lacks the ability
         $this->getJson('/api/v1/me', $headers)->assertOk()->assertJsonPath('company.id', $this->company->id);
+    }
+
+    public function test_api_invoice_post_with_the_same_idempotency_key_creates_one_invoice(): void
+    {
+        $customer = Customer::create(['name' => 'عميل', 'customer_type' => 'commercial', 'status' => 'active']);
+        Warehouse::create(['name_ar' => 'رئيسي', 'code' => 'W1', 'is_main' => true, 'is_active' => true]);
+        $token = $this->owner->createToken('erp', ['sales.invoices.create'])->plainTextToken;
+        app(TenantManager::class)->forget();
+        auth()->forgetGuards();
+        $headers = ['Authorization' => "Bearer {$token}", 'Accept' => 'application/json', 'Idempotency-Key' => 'order-991'];
+        $body = ['customer_id' => $customer->id, 'invoice_date' => now()->toDateString(), 'items' => [['item_name' => 'خدمة', 'quantity' => 1, 'unit_price' => 100, 'tax_rate' => 15]]];
+
+        $first = $this->postJson('/api/v1/invoices', $body, $headers)->assertCreated()->json('data.id');
+        $second = $this->postJson('/api/v1/invoices', $body, $headers)->assertOk()->json('data.id');
+
+        $this->assertSame($first, $second);
+        app(TenantManager::class)->setTenant($this->company);
+        $this->assertSame(1, Invoice::count());
     }
 
     public function test_webhook_is_signed_and_delivered_on_invoice(): void

@@ -154,6 +154,7 @@ class HrOperationsController extends Controller
             'leave_type_id' => 'required|tenant_exists:leave_types,id',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
+            'half_day' => 'nullable|boolean',
             'reason' => 'nullable|string|max:1000',
         ]);
         $leaves->request(Employee::findOrFail($validated['employee_id']), $validated);
@@ -235,6 +236,13 @@ class HrOperationsController extends Controller
         $finance->draftSettlement(Employee::findOrFail($validated['employee_id']), $validated);
 
         return back()->with('success', 'تم احتساب المخالصة كمسودة');
+    }
+
+    public function cancelSettlement(EndOfServiceSettlement $settlement, EmployeeFinanceService $finance)
+    {
+        $finance->cancelSettlement($settlement);
+
+        return back()->with('success', 'حُذفت مسودة المخالصة؛ يمكنك إعدادها من جديد.');
     }
 
     public function approveSettlement(EndOfServiceSettlement $settlement, EmployeeFinanceService $finance)

@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { ask } from '@/composables/useDialog';
@@ -181,6 +182,7 @@ const deleteDraft = () => {
                 </div>
             </div>
         </div>
+        <AttachmentsPanel kind="journal" :id="entry.id" class="mt-4" />
     </AppLayout>
 </template>
 

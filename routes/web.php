@@ -8,6 +8,7 @@ use App\Http\Controllers\Accounting\TrialBalanceController;
 use App\Http\Controllers\ActiveContextController;
 use App\Http\Controllers\ApprovalRuleController;
 use App\Http\Controllers\AssemblyController;
+use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\LocalSetupController;
@@ -57,9 +58,11 @@ use App\Http\Controllers\LineImportController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\LookupController;
 use App\Http\Controllers\Manufacturing as Mfg;
+use App\Http\Controllers\MessagingSettingsController;
 use App\Http\Controllers\ModuleSettingsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NumberingController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\Portal;
 use App\Http\Controllers\Portal\PortalUserController;
 use App\Http\Controllers\PosController;
@@ -76,6 +79,7 @@ use App\Http\Controllers\RecycleBinController;
 use App\Http\Controllers\ReleaseNotesController;
 use App\Http\Controllers\Reports\InsightsController;
 use App\Http\Controllers\Reports\ReportController;
+use App\Http\Controllers\Reports\ReportExportController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Sales as S;
 use App\Http\Controllers\Sales\CommissionController;
@@ -120,6 +124,9 @@ Route::get('/legal/{slug}', function (string $slug) {
 
 // Uptime monitoring (database, queue, scheduler heartbeat, backup age).
 Route::get('/health', HealthController::class)->middleware('throttle:60,1')->name('health');
+
+// Payment provider callback: authenticated by its secret token and a read-back of the payment.
+Route::post('/webhooks/moyasar', [PaymentController::class, 'webhook'])->middleware('throttle:payment-webhook')->name('webhooks.moyasar');
 
 Route::get('/', function () {
     if (auth()->check()) {
@@ -271,6 +278,12 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::get('/lines/template', [LineImportController::class, 'template'])->name('lines.template');
     });
 
+    // Files attached to documents (invoices, bills, vouchers, journals, quotations, orders).
+    Route::get('/attachments/file/{attachment}', [AttachmentController::class, 'download'])->name('attachments.download');
+    Route::delete('/attachments/{attachment}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
+    Route::get('/attachments/{kind}/{id}', [AttachmentController::class, 'index'])->name('attachments.index')->whereNumber('id');
+    Route::post('/attachments/{kind}/{id}', [AttachmentController::class, 'store'])->name('attachments.store')->whereNumber('id');
+
     // Private tenant files (attachments) — streamed only to the owning company.
     Route::get('/files/{token}', [FileController::class, 'show'])
         ->where('token', '.*')
@@ -345,6 +358,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::get('/returns/create', [CreditNoteController::class, 'create'])->name('returns.create');
         Route::post('/returns', [CreditNoteController::class, 'store'])->name('returns.store');
         Route::get('/returns/{creditNote}', [CreditNoteController::class, 'show'])->name('returns.show');
+        Route::delete('/returns/{creditNote}', [CreditNoteController::class, 'destroy'])->name('returns.destroy');
         Route::get('/payments', [CustomerPaymentController::class, 'index'])->name('payments.index');
         Route::post('/payments', [CustomerPaymentController::class, 'store'])->name('payments.store');
         Route::get('/payments/open-invoices', [CustomerPaymentController::class, 'openInvoices'])->name('payments.open-invoices');
@@ -485,6 +499,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/suppliers', [SupplierController::class, 'store'])->name('suppliers.store');
         Route::put('/suppliers/{supplier}', [SupplierController::class, 'update'])->name('suppliers.update');
         Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy'])->name('suppliers.destroy');
+        Route::get('/suppliers/{supplier}/statement', [SupplierController::class, 'statement'])->name('suppliers.statement');
 
         // Purchase Invoices
         Route::get('/invoices', [PurchaseInvoiceController::class, 'index'])->name('invoices.index');
@@ -549,9 +564,12 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::put('/guarantees/{guarantee}', [PR\GuaranteeController::class, 'update'])->name('guarantees.update');
         Route::post('/subcontracts/{subcontract}/advance', [PR\ProjectCostController::class, 'subcontractAdvance'])->name('subcontracts.advance');
         Route::post('/subcontracts/{subcontract}/certify', [PR\ProjectCostController::class, 'certify'])->name('subcontracts.certify');
+        Route::post('/subcontracts/{subcontract}/release-retention', [PR\ProjectCostController::class, 'releaseSubcontractRetention'])->name('subcontracts.release-retention');
         Route::get('/{project}', [PR\ProjectController::class, 'show'])->name('show');
         Route::put('/{project}', [PR\ProjectController::class, 'update'])->name('update');
         Route::put('/{project}/boq', [PR\ProjectController::class, 'updateBoq'])->name('boq.update');
+        Route::put('/{project}/progress', [PR\ProjectController::class, 'updateProgress'])->name('progress.update');
+        Route::post('/{project}/wip', [PR\ProjectController::class, 'postWip'])->name('wip.post');
         Route::post('/{project}/advance', [PR\ProjectController::class, 'advance'])->name('advance');
         Route::post('/{project}/retention/release', [PR\ProjectController::class, 'releaseRetention'])->name('retention.release');
         Route::post('/{project}/variations', [PR\ProjectController::class, 'storeVariation'])->name('variations.store');
@@ -717,6 +735,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::get('/reports/cash-flow', [A\FinancialReportController::class, 'cashFlow'])->name('reports.cash-flow');
         Route::get('/reports/aging', [A\FinancialReportController::class, 'aging'])->name('reports.aging');
         Route::get('/reports/vat-return', [A\FinancialReportController::class, 'vatReturn'])->name('reports.vat-return');
+        Route::get('/reports/withholding', [A\FinancialReportController::class, 'withholding'])->name('reports.withholding');
         Route::post('/reports/vat-return/settle', [A\FinancialReportController::class, 'settleVat'])->name('reports.vat-return.settle');
         Route::delete('/reports/vat-settlements/{settlement}', [A\FinancialReportController::class, 'cancelVatSettlement'])->name('reports.vat-settlements.cancel');
 
@@ -730,7 +749,9 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     // 10. Reports Module
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/sales', [ReportController::class, 'sales'])->name('sales');
+        Route::get('/purchases', [ReportController::class, 'purchases'])->name('purchases');
         Route::get('/insights', [InsightsController::class, 'index'])->name('insights');
+        Route::get('/export/{report}/{format}', [ReportExportController::class, 'download'])->whereIn('format', ['xlsx', 'pdf'])->name('export');
         Route::get('/inventory', [ReportController::class, 'inventory'])->name('inventory');
         Route::get('/financial', [ReportController::class, 'financial'])->name('financial');
         Route::get('/vat', [ReportController::class, 'vat'])->name('vat');
@@ -757,6 +778,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     // Approval workflow rules
     Route::get('/approval-rules', [ApprovalRuleController::class, 'index'])->name('approval-rules.index');
     Route::post('/approval-rules', [ApprovalRuleController::class, 'store'])->name('approval-rules.store');
+    Route::post('/approval-requests/{approvalRequest}/{decision}', [ApprovalRuleController::class, 'decide'])->name('approval-requests.decide');
     Route::delete('/approval-rules/{rule}', [ApprovalRuleController::class, 'destroy'])->name('approval-rules.destroy');
 
     // 12. HR Module
@@ -822,6 +844,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::get('/settlements', [HrOperationsController::class, 'settlements'])->name('settlements.index');
         Route::post('/settlements', [HrOperationsController::class, 'storeSettlement'])->name('settlements.store');
         Route::post('/settlements/{settlement}/approve', [HrOperationsController::class, 'approveSettlement'])->name('settlements.approve');
+        Route::delete('/settlements/{settlement}', [HrOperationsController::class, 'cancelSettlement'])->name('settlements.cancel');
         Route::post('/settlements/{settlement}/pay', [HrOperationsController::class, 'paySettlement'])->name('settlements.pay');
         Route::post('/settlements/provision', [HrOperationsController::class, 'accrueProvision'])->name('settlements.provision');
 
@@ -872,6 +895,9 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
 
     Route::get('/settings', [CompanySettingController::class, 'index'])->name('settings.index');
     Route::get('/settings/currencies', [CurrencyController::class, 'index'])->name('settings.currencies');
+    Route::get('/settings/messaging', [MessagingSettingsController::class, 'edit'])->name('settings.messaging');
+    Route::put('/settings/messaging', [MessagingSettingsController::class, 'update'])->name('settings.messaging.update');
+    Route::post('/settings/messaging/test', [MessagingSettingsController::class, 'test'])->name('settings.messaging.test');
     Route::get('/settings/modules', [ModuleSettingsController::class, 'index'])->name('settings.modules');
     Route::put('/settings/modules', [ModuleSettingsController::class, 'update'])->name('settings.modules.update');
     Route::get('/settings/numbering', [NumberingController::class, 'index'])->name('settings.numbering');
@@ -889,6 +915,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     // Subscription, integrations, notifications, data transfer
     Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
     Route::get('/billing/invoices/{invoice}', [BillingController::class, 'invoice'])->name('billing.invoices.show');
+    Route::post('/billing/invoices/{invoice}/pay', [PaymentController::class, 'checkout'])->name('billing.invoices.pay');
     Route::post('/billing/plan', [BillingController::class, 'requestPlan'])->name('billing.plan');
     Route::put('/billing/domain', [BillingController::class, 'updateDomain'])->name('billing.domain');
     Route::post('/billing/domain/verify', [BillingController::class, 'verifyDomain'])->name('billing.domain.verify');

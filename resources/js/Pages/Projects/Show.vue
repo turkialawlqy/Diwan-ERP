@@ -15,7 +15,7 @@ import PartyPicker from '@/Components/Documents/PartyPicker.vue';
 import BoqEditor from '@/Components/Projects/BoqEditor.vue';
 import { money, date, qty, today } from '@/utils/format';
 
-const props = defineProps({ project: Object, summary: Object, boq: Array, billings: Array, variations: Array, subcontracts: Array, costs: Array, guarantees: Array, dailyReports: Array, bankAccounts: Array, warehouses: Array });
+const props = defineProps({ project: Object, summary: Object, wip: { type: Object, default: null }, boq: Array, billings: Array, variations: Array, subcontracts: Array, costs: Array, guarantees: Array, dailyReports: Array, bankAccounts: Array, warehouses: Array });
 const tab = ref('overview');
 const tabs = [['overview', 'نظرة عامة'], ['boq', 'جدول الكميات'], ['billings', 'المستخلصات'], ['variations', 'أوامر التغيير'], ['subcontracts', 'مقاولو الباطن'], ['costs', 'التكاليف'], ['guarantees', 'خطابات الضمان'], ['daily', 'التقارير اليومية']];
 const categoryLabel = { material: 'مواد', labour: 'عمالة', equipment: 'معدات', subcontract: 'مقاولو باطن', other: 'أخرى' };
@@ -47,6 +47,12 @@ const variationAct = (v, action) => router.post(route(`projects.variations.${act
 const subForm = useForm({ supplier_id: null, scope: '', contract_value: 0, retention_percent: 10, start_date: '', end_date: '' });
 const selectedSub = ref(null);
 const subAdvanceForm = useForm({ date: today(), amount: 0, payment_method: 'bank_transfer', bank_account_id: '' });
+const releaseForm = useForm({ date: today(), amount: 0 });
+// Revenue by progress: executed quantities per BOQ line and the WIP adjustment for a period end.
+const progressForm = useForm({ lines: [] });
+const wipForm = useForm({ date: today() });
+const openProgress = () => { progressForm.lines = billable.value.map((b) => ({ boq_item_id: b.id, code: b.code, description: b.description, contract: Number(b.quantity), billed: Number(b.billed_quantity), executed_quantity: Number(b.executed_quantity || 0) })); dialog.value = 'progress'; };
+const saveProgress = () => progressForm.transform((d) => ({ lines: d.lines.map(({ boq_item_id, executed_quantity }) => ({ boq_item_id, executed_quantity: Number(executed_quantity) || 0 })) })).put(route('projects.progress.update', props.project.id), opts);
 const certifyForm = useForm({ date: today(), cumulative_value: 0, vat_rate: taxRate(), supplier_invoice_number: '' });
 const openSub = (s, kind) => { selectedSub.value = s; certifyForm.cumulative_value = Number(s.certified_to_date); dialog.value = kind; };
 
@@ -93,6 +99,17 @@ const editForm = useForm({ name: props.project.name, status: props.project.statu
                 <div class="flex justify-between"><span>المتبقي للفوترة</span><b class="font-mono">{{ money(summary.remaining_to_bill) }}</b></div>
                 <div class="flex justify-between"><span>الهامش المتوقع (حسب BOQ)</span><b class="font-mono">{{ summary.projected_margin ?? '—' }}%</b></div>
                 <div class="flex justify-between"><span>الفترة</span><b class="font-mono">{{ date(project.start_date) }} → {{ date(project.end_date) }}</b></div>
+            </div>
+            <div v-if="wip" class="bg-white border border-slate-200 rounded-2xl p-4 space-y-1.5" data-wip>
+                <h3 class="font-black text-slate-700 mb-2">الإيراد بالإنجاز (WIP)</h3>
+                <div class="flex justify-between"><span>نسبة الإنجاز (جدول الكميات)</span><b class="font-mono">{{ wip.percent }}%</b></div>
+                <div class="flex justify-between"><span>الإيراد المكتسب</span><b class="font-mono">{{ money(wip.earned) }}</b></div>
+                <div class="flex justify-between"><span>المفوتر المعتمد</span><b class="font-mono">{{ money(wip.billed) }}</b></div>
+                <div class="flex justify-between"><span>{{ wip.wip >= 0 ? 'أصل عقد (غير مفوتر)' : 'التزام عقد (فوترة زائدة)' }}</span><b class="font-mono" :class="wip.wip >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ money(Math.abs(wip.wip)) }}</b></div>
+                <div class="flex gap-2 pt-2">
+                    <button v-if="$can('projects.boq.edit')" @click="openProgress" data-open-progress class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">تحديث الإنجاز</button>
+                    <button v-if="$can('projects.finance.approve')" @click="dialog = 'wip'" data-open-wip class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold">ترحيل تسوية WIP</button>
+                </div>
             </div>
             <div class="bg-white border border-slate-200 rounded-2xl p-4 space-y-1.5">
                 <h3 class="font-black text-slate-700 mb-2">الدفعة المقدمة والمحتجزات</h3>
@@ -178,6 +195,7 @@ const editForm = useForm({ name: props.project.name, status: props.project.statu
                     <div><b class="font-mono">{{ s.number }}</b> — {{ s.supplier?.name }} <div class="text-slate-500">{{ s.scope }}</div></div>
                     <div class="flex gap-2 h-fit" v-if="$can('projects.subcontracts.approve')">
                         <button @click="openSub(s, 'subAdvance')" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">دفعة مقدمة</button>
+                        <button v-if="Number(s.retention_held) - Number(s.retention_released || 0) > 0.004" @click="() => { releaseForm.amount = Number(s.retention_held) - Number(s.retention_released || 0); openSub(s, 'releaseSub'); }" data-release-sub-retention class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">إفراج محتجزات</button>
                         <button @click="openSub(s, 'certify')" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold">مستخلص</button>
                     </div>
                 </div>
@@ -317,6 +335,33 @@ const editForm = useForm({ name: props.project.name, status: props.project.statu
                 <Field label="الحساب" class="col-span-2"><SelectCreate v-model="subAdvanceForm.bank_account_id" :options="bankAccounts" entity="bank" label="name" placeholder="الافتراضي" /></Field>
             </div>
             <template #footer><button @click="subAdvanceForm.post(route('projects.subcontracts.advance', selectedSub.id), opts)" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">صرف</button></template>
+        </Dialog>
+
+        <Dialog :show="dialog === 'releaseSub'" :title="`إفراج عن محتجزات - ${selectedSub?.number}`" @close="close">
+            <div class="grid grid-cols-2 gap-3">
+                <Field label="التاريخ"><DatePicker v-model="releaseForm.date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field label="المبلغ" :error="releaseForm.errors.amount"><input v-model.number="releaseForm.amount" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
+            </div>
+            <p class="text-xs mt-2 text-slate-500">المحتجز القائم: <b class="font-mono">{{ money(Number(selectedSub?.retention_held || 0) - Number(selectedSub?.retention_released || 0)) }}</b>؛ يُضاف لحساب المقاول ويُسدَّد كأي مستحق.</p>
+            <template #footer><button @click="releaseForm.post(route('projects.subcontracts.release-retention', selectedSub.id), opts)" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">إفراج</button></template>
+        </Dialog>
+
+        <Dialog :show="dialog === 'progress'" title="تحديث الإنجاز (الكميات المنفذة حتى اليوم)" @close="close">
+            <div class="max-h-96 overflow-y-auto space-y-1.5">
+                <div v-for="l in progressForm.lines" :key="l.boq_item_id" class="flex items-center gap-3 text-xs" data-progress-row>
+                    <span class="font-mono w-14">{{ l.code }}</span><span class="flex-1 truncate">{{ l.description }}</span>
+                    <span class="text-slate-500 w-28 text-end">عقد {{ l.contract }} / معتمد {{ l.billed }}</span>
+                    <input v-model="l.executed_quantity" type="text" inputmode="decimal" data-num class="w-24 rounded-lg border border-slate-200 px-2 py-1 font-mono text-center" />
+                </div>
+            </div>
+            <p v-for="(msg, key) in progressForm.errors" :key="key" class="text-xs text-rose-600 mt-2">{{ msg }}</p>
+            <template #footer><button @click="saveProgress" :disabled="progressForm.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">حفظ</button></template>
+        </Dialog>
+
+        <Dialog :show="dialog === 'wip'" title="ترحيل تسوية الإيراد بالإنجاز" @close="close">
+            <Field label="تاريخ نهاية الفترة" :error="wipForm.errors.date"><DatePicker v-model="wipForm.date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+            <p class="text-xs mt-2 text-slate-500">يُرحَّل الفرق بين الإيراد المكتسب والمفوتر ({{ money(wip?.wip || 0) }}) ويُعكس تلقائيًا في اليوم التالي.</p>
+            <template #footer><button @click="wipForm.post(route('projects.wip.post', project.id), opts)" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">ترحيل</button></template>
         </Dialog>
 
         <Dialog :show="dialog === 'certify'" :title="`مستخلص مقاول باطن - ${selectedSub?.number}`" @close="close">

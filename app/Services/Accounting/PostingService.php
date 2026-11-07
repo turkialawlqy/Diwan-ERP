@@ -4,6 +4,7 @@ namespace App\Services\Accounting;
 
 use App\Models\Account;
 use App\Models\CostCenter;
+use App\Models\FiscalYearClosing;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use App\Models\Warehouse;
@@ -90,6 +91,15 @@ class PostingService
             $totalDebit = round(array_sum(array_column($lines, 'debit')), 2);
             $source = $data['source'] ?? null;
 
+            // A branch closed for the year (its closing entry exists) takes no more postings in that year,
+            // even while the year itself and its periods are still open for the other branches.
+            if ($status === JournalEntry::STATUS_POSTED && ! in_array($entryType, ['closing', 'reversal'], true)) { // reopening the year reverses the closing entries
+                $branchId = $data['branch_id'] ?? $this->branchOf($source);
+                if ($branchId && FiscalYearClosing::withoutGlobalScopes()->where('company_id', $companyId)->where('fiscal_year_id', $period->fiscal_year_id)->where('branch_id', $branchId)->exists()) {
+                    throw new AccountingException('هذا الفرع أُقفل لهذه السنة المالية؛ لا يمكن الترحيل عليه بتاريخ '.$date->toDateString().'.');
+                }
+            }
+
             $entry = JournalEntry::withoutGlobalScopes()->create([
                 'company_id' => $companyId,
                 // The entry's branch: given, else its source document's, else the one chosen in the top bar.
@@ -157,6 +167,11 @@ class PostingService
         $this->validateLines($lines, $entry->company_id);
 
         return DB::transaction(function () use ($entry, $lines) {
+            // Locked and checked again: two clicks on «ترحيل» must not apply the balances twice.
+            $entry = JournalEntry::withoutGlobalScopes()->whereKey($entry->id)->lockForUpdate()->firstOrFail();
+            if ($entry->status !== JournalEntry::STATUS_DRAFT) {
+                throw new AccountingException('القيد مرحّل مسبقاً.');
+            }
             $period = $this->calendar->assertOpen($entry->date, $entry->company_id);
 
             $entry->update([

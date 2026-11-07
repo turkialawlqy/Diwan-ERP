@@ -2,6 +2,7 @@
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import { useFixedDropdown } from '@/composables/useFixedDropdown';
 import DatePicker from '@/Components/UI/DatePicker.vue';
+import DimensionFields from '@/Components/Documents/DimensionFields.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { taxRate } from '@/utils/tax';
@@ -34,6 +35,9 @@ import {
 import { today, addDays } from '@/utils/format';
 
 const props = defineProps({
+    costCenters: { type: Array, default: () => [] },
+    projects: { type: Array, default: () => [] },
+    dimensionPolicy: { type: Object, default: () => ({}) },
     suppliers: Array,
     warehouses: Array,
     branches: Array,
@@ -67,6 +71,8 @@ const form = useForm({
     branch_id: selectedBranchId.value,
     invoice_number: props.suggestedNumber || '',
     supplier_invoice_number: '',
+    cost_center_id: '',
+    project_id: '',
     invoice_date: today(),
     due_date: addDays(today(), 30),
     supply_date: today(),
@@ -98,6 +104,8 @@ if (editing) {
         branch_id: editing.branch_id,
         invoice_number: editing.invoice_number,
         supplier_invoice_number: editing.supplier_invoice_number || '',
+        cost_center_id: editing.cost_center_id || '',
+        project_id: editing.project_id || '',
         invoice_date: d(editing.invoice_date),
         due_date: d(editing.due_date),
         supply_date: d(editing.supply_date),
@@ -841,6 +849,11 @@ const importLines = (lines, replace) => {
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+
+                        <!-- Analytical dimensions: the cost centre and project this bill's cost belongs to -->
+                        <div v-if="costCenters.length || projects.length" class="pt-3 border-t border-slate-100" data-invoice-dimensions>
+                            <DimensionFields v-model:cost-center="form.cost_center_id" v-model:project="form.project_id" :policy="dimensionPolicy" :cost-centers="costCenters" :projects="projects" :errors="form.errors" />
                         </div>
 
                         <!-- Notes -->

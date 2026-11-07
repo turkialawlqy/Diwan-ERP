@@ -4,6 +4,7 @@ import { computed, ref } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
+import ExportButtons from '@/Components/UI/ExportButtons.vue';
 import { today } from '@/utils/format';
 
 const props = defineProps({ types: Array });
@@ -28,6 +29,13 @@ const steps = [
     ['opening_balances', 'ميزان المراجعة لباقي الحسابات (البنوك، الأصول، القروض، رأس المال...)'],
 ];
 const openingSteps = computed(() => steps.map(([key, hint]) => ({ hint, type: props.types.find((t) => t.key === key) })).filter((s) => s.type?.can_import));
+// Transaction lists (xlsx / pdf) by date range.
+const txRange = ref({ start_date: today().slice(0, 4) + '-01-01', end_date: today() });
+const txReports = [
+    ['tx-sales-invoices', 'فواتير المبيعات', 'sales.invoices.export'], ['tx-purchase-invoices', 'فواتير المشتريات', 'purchases.invoices.export'],
+    ['tx-customer-payments', 'سندات القبض', 'sales.payments.export'], ['tx-supplier-payments', 'سندات الصرف للموردين', 'purchases.payments.export'],
+    ['tx-expenses', 'سندات المصروفات', 'finance.expenses.export'], ['tx-journal-lines', 'سطور القيود المرحّلة', 'accounting.journals.export'],
+];
 const masterTypes = computed(() => props.types.filter((t) => !t.opening));
 </script>
 
@@ -78,5 +86,25 @@ const masterTypes = computed(() => props.types.filter((t) => !t.opening));
                 <ul v-if="formFor(t.key).errors.file" class="mt-2 text-rose-600 list-disc ps-4"><li v-for="(e, i) in lines(formFor(t.key).errors.file)" :key="i">{{ e }}</li></ul>
             </div>
         </div>
+
+        <section class="bg-white border border-slate-200 rounded-2xl p-4 mt-4 text-xs" data-transaction-export>
+            <div class="flex flex-wrap items-end justify-between gap-3 mb-3">
+                <div>
+                    <h2 class="font-black text-slate-700">تصدير الحركات</h2>
+                    <p class="text-slate-500 mt-1">قائمة مستندات الفترة بإجماليها، Excel أو PDF؛ لكل نوع صلاحية تصدير مستقلة.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <DatePicker v-model="txRange.start_date" class="rounded-xl border-slate-200 text-xs" />
+                    <span>→</span>
+                    <DatePicker v-model="txRange.end_date" class="rounded-xl border-slate-200 text-xs" />
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div v-for="[key, label, perm] in txReports" :key="key" v-show="$can(perm)" class="flex items-center justify-between gap-2 border border-slate-100 rounded-xl px-3 py-2">
+                    <span class="font-bold text-slate-700">{{ label }}</span>
+                    <ExportButtons :report="key" :params="txRange" :permission="perm" />
+                </div>
+            </div>
+        </section>
     </AppLayout>
 </template>

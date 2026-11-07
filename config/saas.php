@@ -73,6 +73,16 @@ return [
         'iban' => env('PLATFORM_IBAN'),
     ],
 
+    // Online payment of platform subscription invoices. Off until the operator sets the keys.
+    'payments' => [
+        'moyasar' => [
+            'enabled' => (bool) env('MOYASAR_ENABLED', false),
+            'secret_key' => env('MOYASAR_SECRET_KEY'),
+            'webhook_token' => env('MOYASAR_WEBHOOK_TOKEN'),
+            'base_url' => env('MOYASAR_BASE_URL', 'https://api.moyasar.com/v1'),
+        ],
+    ],
+
     // Days before the trial / subscription end on which owners are emailed (0 = the day itself).
     'reminder_days' => [7, 3, 0],
 

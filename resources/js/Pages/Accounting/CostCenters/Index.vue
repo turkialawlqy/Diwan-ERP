@@ -1,4 +1,5 @@
 <script setup>
+import ImportButton from '@/Components/UI/ImportButton.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import { ref, computed } from 'vue';
 import { Head, useForm, router } from '@inertiajs/vue3';
@@ -39,7 +40,8 @@ const remove = (c) => confirm(`حذف مركز التكلفة ${c.name_ar}؟`) &
         <PageHeader title="مراكز التكلفة" subtitle="أبعاد تحليلية لتوزيع الإيرادات والمصروفات على الأقسام والفروع والمشاريع" :crumbs="[{ label: 'المحاسبة' }, { label: 'مراكز التكلفة' }]">
             <template #actions>
                 <button v-if="$can('accounting.cost_centers.create')" @click="create" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> مركز تكلفة</button>
-            </template>
+                <ImportButton v-if="$can('accounting.cost_centers.create')" type="cost_centers" title="استيراد مراكز التكلفة من Excel" />
+</template>
         </PageHeader>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">

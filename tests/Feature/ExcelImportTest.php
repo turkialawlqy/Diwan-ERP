@@ -4,14 +4,27 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\AssetCategory;
+use App\Models\BankAccount;
+use App\Models\Category;
 use App\Models\Company;
+use App\Models\CostCenter;
 use App\Models\Customer;
+use App\Models\CustomerPayment;
 use App\Models\Employee;
+use App\Models\Expense;
 use App\Models\FixedAsset;
+use App\Models\Invoice;
+use App\Models\JournalEntry;
+use App\Models\Lead;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
 use App\Models\Product;
+use App\Models\PurchaseInvoice;
 use App\Models\Quotation;
+use App\Models\StockMovement;
+use App\Models\Supplier;
+use App\Models\Unit;
+use App\Models\Warehouse;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
 use App\Services\TenantManager;
@@ -244,5 +257,101 @@ B,C-9,2026-06-01,خدمة,1,100
         $this->actingAs($salesUser);
         $this->import('accounts', "code,name_ar,type\nZ1,حساب,asset\n")->assertForbidden();
         $this->get(route('data-transfer.template', 'customers'))->assertOk();
+    }
+
+    public function test_master_data_kinds_import_validate_and_skip_existing(): void
+    {
+        $this->import('categories', "name_ar,code\nقطع غيار,SP\nزيوت,OIL\n")->assertSessionHasNoErrors();
+        $this->assertSame(2, Category::count());
+        $this->import('categories', "name_ar,code\nزيوت,OIL2\nإطارات,TY\n")->assertSessionHasNoErrors();   // existing name skipped
+        $this->assertSame(3, Category::count());
+        $this->import('categories', "name_ar,code\n,X\n")->assertSessionHasErrors('file');
+
+        $this->import('units', "name_ar,code\nكرتونة,CTN\n")->assertSessionHasNoErrors();
+        $this->assertTrue(Unit::where('name_ar', 'كرتونة')->exists());
+
+        $this->import('warehouses', "code,name_ar,is_main\nW1,الرئيسي,yes\nW2,الفرعي,no\n")->assertSessionHasNoErrors();
+        $this->import('warehouses', "code,name_ar,is_main\nW3,الجديد,نعم\n")->assertSessionHasNoErrors();
+        $this->assertSame(['W3'], Warehouse::where('is_main', true)->pluck('code')->all());   // one main warehouse
+
+        // Children listed before their parent still resolve; an unknown parent saves nothing.
+        $this->import('cost_centers', "code,name_ar,parent_code\nCC-1-1,فرع,CC-1\nCC-1,رئيسي,\n")->assertSessionHasNoErrors();
+        $this->assertSame(CostCenter::where('code', 'CC-1')->value('id'), CostCenter::where('code', 'CC-1-1')->value('parent_id'));
+        $this->import('cost_centers', "code,name_ar,parent_code\nCC-2,x,NOPE\n")->assertSessionHasErrors('file');
+        $this->assertFalse(CostCenter::where('code', 'CC-2')->exists());
+
+        $this->import('leads', "name,source,expected_value\nمحمد,website,5000\n")->assertSessionHasNoErrors();
+        $this->import('leads', "name,source\nخالد,tv\n")->assertSessionHasErrors('file');
+        $this->assertSame(['new'], Lead::pluck('status')->unique()->all());
+    }
+
+    public function test_price_lists_group_rows_and_bank_accounts_get_a_ledger_account_with_opening_balance(): void
+    {
+        Product::create(['name_ar' => 'كيبل', 'sku' => 'CB-1', 'type' => 'product', 'track_inventory' => true, 'sale_price' => 50, 'cost_price' => 30]);
+        $this->import('price_lists', "list_name,sku,min_quantity,price\nجملة,CB-1,1,45\nجملة,CB-1,10,40\n")->assertSessionHasNoErrors();
+        $list = PriceList::where('name', 'جملة')->first();
+        $this->assertSame(2, $list->items()->count());
+        $this->import('price_lists', "list_name,sku,price\nجديدة,NOPE,5\n")->assertSessionHasErrors('file');
+        $this->assertFalse(PriceList::where('name', 'جديدة')->exists());
+
+        $this->import('bank_accounts', "name,type,iban,opening_balance\nالراجحي,bank,SA0380000000608010167519,10000\nالصندوق,cash,,500\n")->assertSessionHasNoErrors();
+        $bank = BankAccount::where('name', 'الراجحي')->first();
+        $this->assertNotNull($bank->account_id);
+        $this->assertSame(10000.0, round((float) Account::find($bank->account_id)->balance, 2));
+        $this->import('bank_accounts', "name,type\nالراجحي,bank\n")->assertSessionHasNoErrors();
+        $this->assertSame(2, BankAccount::count());                              // existing name skipped
+
+        $this->actingAs($this->userWithRole($this->company, 'sales'));
+        $this->import('bank_accounts', "name,type\nX,bank\n")->assertForbidden();
+    }
+
+    public function test_historical_invoices_receipts_and_expenses_post_at_their_date_without_stock(): void
+    {
+        $customer = Customer::create(['name' => 'عميل قديم', 'customer_type' => 'commercial', 'status' => 'active', 'code' => 'C-77']);
+        $product = Product::create(['name_ar' => 'كيبل', 'sku' => 'CB-9', 'type' => 'product', 'track_inventory' => true, 'sale_price' => 50, 'cost_price' => 30]);
+
+        $this->import('sales_invoices', "invoice_ref,customer_code,invoice_date,item_name,quantity,unit_price,tax_rate\nOLD-1,C-77,2026-03-10,خدمة قديمة,2,500,15\nOLD-1,C-77,2026-03-10,صيانة,1,100,15\n")->assertSessionHasNoErrors();
+        $invoice = Invoice::where('customer_id', $customer->id)->first();
+        $this->assertSame('2026-03-10', $invoice->invoice_date->toDateString());
+        $this->assertSame(1265.0, (float) $invoice->total);
+        $this->assertSame(0, StockMovement::count());                                   // history never moves stock
+        $this->assertSame(1265.0, round((float) $customer->fresh()->current_balance, 2));
+        $this->import('sales_invoices', "invoice_ref,customer_code,invoice_date,item_name,quantity,unit_price\nOLD-2,NOPE,2026-03-10,x,1,5\n")->assertSessionHasErrors('file');
+
+        $this->import('customer_payments', "customer_code,payment_date,amount,payment_method,invoice_number\nC-77,2026-03-20,500,cash,{$invoice->invoice_number}\n")->assertSessionHasNoErrors();
+        $this->assertSame(765.0, round((float) $invoice->fresh()->remaining_amount, 2));
+        $this->assertSame(765.0, round((float) $customer->fresh()->current_balance, 2));
+        $this->import('customer_payments', "customer_code,payment_date,amount,payment_method,invoice_number\nC-77,2026-03-21,9999,cash,{$invoice->invoice_number}\n")->assertSessionHasErrors('file');
+        $this->assertSame(1, CustomerPayment::count());                                // the failed file saved nothing
+
+        $this->import('expenses', "title,category,expense_date,amount,payment_method\nإيجار مارس,إيجار,2026-03-01,3000,cash\n")->assertSessionHasNoErrors();
+        $expense = Expense::first();
+        $this->assertSame(3000.0, (float) $expense->total_amount);
+        $this->assertSame('2026-03-01', JournalEntry::where('source_type', $expense->getMorphClass())->where('source_id', $expense->id)->first()->date->toDateString());
+        $this->import('expenses', "title,category,expense_date,amount,tax_amount,payment_method\nمشتريات,عام,2026-03-02,100,15,cash\n")->assertSessionHasErrors('file');   // VAT needs the vendor tax number
+
+        $this->actingAs($this->userWithRole($this->company, 'hr_manager'));
+        $this->import('expenses', "title,category,expense_date,amount,payment_method\nx,y,2026-03-01,5,cash\n")->assertForbidden();
+    }
+
+    public function test_historical_purchase_bills_and_supplier_payments_post_at_their_date_without_stock(): void
+    {
+        $supplier = Supplier::create(['name' => 'مورد قديم', 'code' => 'S-5', 'status' => 'active']);
+        Warehouse::create(['code' => 'W1', 'name_ar' => 'الرئيسي', 'is_main' => true, 'is_active' => true]);
+
+        $this->import('purchase_invoices', "invoice_ref,supplier_code,invoice_date,item_name,quantity,unit_price,tax_rate\nB-1,S-5,2026-02-10,بضاعة,10,100,15\n")->assertSessionHasNoErrors();
+        $bill = PurchaseInvoice::first();
+        $this->assertSame(['2026-02-10', 1150.0], [$bill->invoice_date->toDateString(), (float) $bill->total]);
+        $this->assertSame(0, StockMovement::count());
+        $this->assertSame(1150.0, round((float) $supplier->fresh()->current_balance, 2));
+        $this->import('purchase_invoices', "invoice_ref,supplier_code,invoice_date,item_name,quantity,unit_price\nB-1,S-5,2026-02-11,x,1,5\n")->assertSessionHasErrors('file');   // same supplier reference twice
+
+        $this->import('supplier_payments', "supplier_code,payment_date,amount,payment_method,invoice_number\nS-5,2026-02-25,400,cash,{$bill->invoice_number}\n")->assertSessionHasNoErrors();
+        $this->assertSame(750.0, round((float) $bill->fresh()->remaining_amount, 2));
+        $this->assertSame(750.0, round((float) $supplier->fresh()->current_balance, 2));
+        $this->import('supplier_payments', "supplier_code,payment_date,amount,payment_method,invoice_number\nS-5,2026-02-26,5000,cash,{$bill->invoice_number}\n")->assertSessionHasErrors('file');
+
+        $supplier->update(['is_non_resident' => true]);
+        $this->import('supplier_payments', "supplier_code,payment_date,amount,payment_method\nS-5,2026-03-01,100,cash\n")->assertSessionHasErrors('file');   // withholding tax needs the voucher screen
     }
 }

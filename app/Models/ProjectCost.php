@@ -11,7 +11,7 @@ class ProjectCost extends Model
 {
     use Auditable, BelongsToCompany;
 
-    protected $fillable = ['company_id', 'project_id', 'boq_item_id', 'category', 'source', 'reference', 'date', 'description', 'product_id', 'warehouse_id', 'fixed_asset_id', 'quantity', 'unit_cost', 'amount', 'paid_from', 'supplier_id', 'bank_account_id', 'created_by'];
+    protected $fillable = ['company_id', 'project_id', 'boq_item_id', 'category', 'source', 'reference', 'date', 'description', 'product_id', 'warehouse_id', 'fixed_asset_id', 'quantity', 'unit_cost', 'amount', 'vat_amount', 'paid_from', 'supplier_id', 'bank_account_id', 'created_by'];
 
     protected $casts = ['date' => 'date', 'quantity' => 'decimal:4', 'amount' => 'decimal:2'];
 

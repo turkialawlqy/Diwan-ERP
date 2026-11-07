@@ -13,6 +13,7 @@ use App\Services\Settings\CompanyPolicy;
 use App\Services\Tax\CountryFeatures;
 use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
+use App\Services\Workflow\ApprovalGate;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -53,6 +54,7 @@ class PayrollController extends Controller
             'adjustments' => EmployeeAdjustment::with('employee:id,name')->where('year', $payroll->year)->where('month', $payroll->month)->get(),
             'employees' => Employee::where('status', '!=', 'terminated')->orderBy('name')->get(['id', 'name']),
             'bankAccounts' => BankAccount::where('is_active', true)->get(['id', 'name', 'type']),
+            'attendanceGaps' => $payroll->status === 'draft' ? $this->payrolls->attendanceGaps($payroll) : [],
         ]);
     }
 
@@ -65,6 +67,7 @@ class PayrollController extends Controller
 
     public function approve(Payroll $payroll)
     {
+        app(ApprovalGate::class)->check('payroll', ApprovalGate::keyOf($payroll), (float) $payroll->net_total, "مسير رواتب {$payroll->month}/{$payroll->year}");
         $this->payrolls->approve($payroll);
 
         return back()->with('success', 'تم اعتماد المسير وقيد الاستحقاق');

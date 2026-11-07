@@ -89,7 +89,7 @@ class DocumentPoster
             'reference' => $invoice->invoice_number,
             'description' => "فاتورة مبيعات رقم {$invoice->invoice_number} - {$customer}",
             'source' => $invoice,
-            'lines' => $lines,
+            'lines' => $this->withDimensions($lines, [$revenueRole, 'cogs'], $invoice->cost_center_id, $invoice->project_id),
         ]);
     }
 
@@ -166,6 +166,35 @@ class DocumentPoster
      *   Dr Inventory (stock items) / Purchases (non stock)   Dr VAT input
      *   Cr Payables (unpaid part)   Cr Cash/Bank (paid part)
      */
+    protected bool $enforce = false;
+
+    /** The next invoice posted is one a person distributes by cost centre / project: the analytical policy applies. */
+    public function enforceDimensions(bool $enforce = true): static
+    {
+        $this->enforce = $enforce;
+
+        return $this;
+    }
+
+    /**
+     * The document's cost centre and project on its revenue / expense lines (the ones the analytical policy asks about).
+     * Settlement lines (cash, VAT, parties, stock) stay without.
+     */
+    protected function withDimensions(array $lines, array $roles, $costCenterId, $projectId): array
+    {
+        // Set by the caller for the next posting only: a sales / purchase form is held to the policy, system documents are not.
+        $enforce = $this->enforce;
+        $this->enforce = false;
+
+        return array_map(function ($line) use ($roles, $costCenterId, $projectId, $enforce) {
+            if (! is_array($line) || ! in_array($line['role'] ?? null, $roles, true)) {
+                return $line;
+            }
+
+            return $line + ['cost_center_id' => $costCenterId ?: null, 'project_id' => $projectId ?: null, 'dimensions' => $enforce];
+        }, $lines);
+    }
+
     public function purchaseInvoice(PurchaseInvoice $invoice): JournalEntry
     {
         $invoice->loadMissing('items.product', 'supplier');
@@ -220,7 +249,7 @@ class DocumentPoster
             'reference' => $invoice->supplier_invoice_number ?: $invoice->invoice_number,
             'description' => "فاتورة مشتريات رقم {$invoice->invoice_number} - {$supplier}",
             'source' => $invoice,
-            'lines' => $lines,
+            'lines' => $this->withDimensions($lines, ['purchases_cogs'], $invoice->cost_center_id, $invoice->project_id),
         ]);
     }
 
@@ -229,18 +258,24 @@ class DocumentPoster
      */
     public function supplierPayment(SupplierPayment $payment): JournalEntry
     {
+        // Withholding tax on a payment to a non-resident: the supplier's account is cleared for the gross amount,
+        // the cash leaves for the net amount and the difference is owed to the tax authority.
+        $withheld = round((float) $payment->wht_amount, 2);
+        $paid = round((float) $payment->amount - $withheld, 2);
+
         return $this->posting->post([
             'rate' => (float) ($payment->exchange_rate ?: 1),
             'date' => $payment->payment_date,
             'reference' => $payment->payment_number,
             'description' => "سند صرف للمورد رقم {$payment->payment_number}",
             'source' => $payment,
-            'lines' => [
+            'lines' => array_filter([
                 ['role' => 'payables', 'debit' => (float) $payment->amount, 'description' => "سداد للمورد - {$payment->payment_number}", 'party_type' => 'supplier', 'party_id' => $payment->supplier_id],
                 $payment->payment_method === 'cheque'
-                    ? ['role' => 'cheques_payable', 'credit' => (float) $payment->amount, 'description' => "شيك صادر - سند صرف {$payment->payment_number}"]
-                    : ['account_id' => $this->cashAccount($payment->bank_account_id, $payment->payment_method), 'credit' => (float) $payment->amount, 'description' => "سند صرف {$payment->payment_number}"],
-            ],
+                    ? ['role' => 'cheques_payable', 'credit' => $paid, 'description' => "شيك صادر - سند صرف {$payment->payment_number}"]
+                    : ['account_id' => $this->cashAccount($payment->bank_account_id, $payment->payment_method), 'credit' => $paid, 'description' => "سند صرف {$payment->payment_number}"],
+                $withheld > 0 ? ['role' => 'wht_payable', 'credit' => $withheld, 'description' => "ضريبة استقطاع - سند صرف {$payment->payment_number}"] : null,
+            ]),
         ]);
     }
 
@@ -588,7 +623,7 @@ class DocumentPoster
     /**
      * Goods sent between warehouses: parked in "goods in transit" until received.
      */
-    public function stockInTransit($source, float $value, $date, string $description, bool $received = false): ?JournalEntry
+    public function stockInTransit($source, float $value, $date, string $description, bool $received = false, ?int $branchId = null): ?JournalEntry
     {
         $value = round($value, 2);
         if ($value <= 0) {
@@ -599,6 +634,7 @@ class DocumentPoster
             'date' => $date,
             'description' => $description,
             'source' => $source,
+            'branch_id' => $branchId,
             'lines' => $received
                 ? [['role' => 'inventory', 'debit' => $value], ['role' => 'goods_in_transit', 'credit' => $value]]
                 : [['role' => 'goods_in_transit', 'debit' => $value], ['role' => 'inventory', 'credit' => $value]],

@@ -13,6 +13,7 @@ use App\Services\Accounting\DocumentPoster;
 use App\Services\Tax\TaxProfile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -90,6 +91,9 @@ class RevenueController extends Controller
         // No VAT unless the voucher is marked taxable (government fees, salaries,
         // unregistered vendors carry none).
         $tax = ($validated['taxable'] ?? false) ? (float) ($validated['tax_amount'] ?? round($validated['amount'] * TaxProfile::rate() / 100, 2)) : 0.0;
+        if ($tax > 0 && ! TaxProfile::current()->vatMatches((float) $validated['amount'], $tax)) {
+            throw ValidationException::withMessages(['tax_amount' => 'الضريبة يجب أن تكون '.TaxProfile::current()->ratesLabel().' من المبلغ قبل الضريبة.']);
+        }
         $total = $validated['amount'] + $tax;
 
         $revenue = DB::transaction(function () use ($validated, $tax, $total, $replace) {

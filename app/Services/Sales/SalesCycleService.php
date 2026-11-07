@@ -376,19 +376,7 @@ class SalesCycleService
                 ]);
 
                 if ($l['item']->product_id && $l['return_to_stock']) {
-                    $unitCost = $this->originalUnitCost($invoice, (int) $l['item']->product_id);
-                    $this->stock->receive([
-                        'product_id' => $l['item']->product_id,
-                        'warehouse_id' => $warehouseId,
-                        'quantity' => $l['quantity'],
-                        'unit_cost' => $unitCost,
-                        'type' => 'sale_return',
-                        'date' => $note->credit_note_date,
-                        'source' => $note,
-                        'reference' => $note->credit_note_number,
-                        'serials' => $l['serials'],
-                    ]);
-                    $returnedCost += $unitCost * $l['quantity'];
+                    $returnedCost += $this->restock($invoice, $l['item'], (float) $l['quantity'], (int) $warehouseId, $note, $l['serials']);
                 }
             }
 
@@ -448,6 +436,37 @@ class SalesCycleService
     /**
      * Average unit cost at which the invoice's product left stock.
      */
+    /**
+     * Put a returned line back in stock: in base units (a carton is not one piece), a kit through its
+     * components, nothing for a service. Returns the cost of what went back (for the cost-of-goods reversal).
+     */
+    protected function restock(Invoice $invoice, $item, float $quantity, int $warehouseId, CreditNote $note, array $serials): float
+    {
+        $product = Product::find($item->product_id);
+        if (! $product || (! $product->is_kit && ! $product->isStockItem())) {
+            return 0.0; // a service has no stock to put back
+        }
+        $base = round($quantity * max(0.000001, (float) ($item->unit_factor ?: 1)), 4);
+        $common = ['warehouse_id' => $warehouseId, 'type' => 'sale_return', 'date' => $note->credit_note_date, 'source' => $note, 'reference' => $note->credit_note_number];
+
+        if ($product->is_kit) {
+            $cost = 0.0;
+            foreach ($product->kitItems()->get() as $component) {
+                $q = round($base * (float) $component->quantity, 4);
+                $unitCost = $this->originalUnitCost($invoice, (int) $component->component_id);
+                $this->stock->receive($common + ['product_id' => $component->component_id, 'quantity' => $q, 'unit_cost' => $unitCost]);
+                $cost += $unitCost * $q;
+            }
+
+            return $cost;
+        }
+
+        $unitCost = $this->originalUnitCost($invoice, (int) $item->product_id);
+        $this->stock->receive($common + ['product_id' => $item->product_id, 'quantity' => $base, 'unit_cost' => $unitCost, 'serials' => $serials]);
+
+        return $unitCost * $base;
+    }
+
     protected function originalUnitCost(Invoice $invoice, int $productId): float
     {
         $sources = array_filter([[$invoice->getMorphClass(), $invoice->id], $invoice->delivery_note_id ? [(new DeliveryNote)->getMorphClass(), $invoice->delivery_note_id] : null]);
@@ -506,6 +525,8 @@ class SalesCycleService
      */
     public function allocatePayment(CustomerPayment $payment, ?array $allocations = null): void
     {
+        // The receipt row is locked: two allocations at once must not spend the same money twice.
+        $payment = CustomerPayment::whereKey($payment->id)->lockForUpdate()->firstOrFail();
         $remaining = (float) $payment->amount - (float) PaymentAllocation::where('customer_payment_id', $payment->id)->sum('amount');
         $exchangeDifference = 0.0;
 

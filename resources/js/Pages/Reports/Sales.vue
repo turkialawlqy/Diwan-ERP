@@ -1,6 +1,8 @@
 <script setup>
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import DateRangeFilter from '@/Components/UI/DateRangeFilter.vue';
+import BreakdownTable from '@/Components/UI/BreakdownTable.vue';
+import ExportButtons from '@/Components/UI/ExportButtons.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import {
@@ -15,7 +17,10 @@ import {
 const props = defineProps({
     filters: { type: Object, default: () => ({}) },
     stats: Object,
+    by: { type: String, default: 'customer' },
+    breakdown: { type: Object, default: () => ({ rows: [], total: { documents: 0, quantity: null, amount: 0 } }) },
 });
+const tabs = [['customer', 'حسب العميل'], ['item', 'حسب الصنف'], ['salesperson', 'حسب المندوب'], ['branch', 'حسب الفرع']];
 
 const formatCurrency = (val) => {
     return Number(val || 0).toLocaleString('en-US', {
@@ -31,9 +36,13 @@ const formatCurrency = (val) => {
 
         <div class="space-y-6">
             <!-- Breadcrumb Navigation -->
-            <PageHeader title="تقارير المبيعات" :crumbs="[{ label: 'التقارير' }, { label: 'المبيعات' }]" />
+            <PageHeader title="تقارير المبيعات" :crumbs="[{ label: 'التقارير' }, { label: 'المبيعات' }]">
+                <template #actions>
+                    <ExportButtons report="sales-analysis" :params="{ start_date: filters.start_date, end_date: filters.end_date, by }" permission="reports.sales.export" />
+                </template>
+            </PageHeader>
 
-            <DateRangeFilter route-name="reports.sales" :filters="filters" />
+            <DateRangeFilter route-name="reports.sales" :filters="filters" :extra="{ by }" />
 
             <!-- Live KPI Overview Banner -->
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -86,6 +95,8 @@ const formatCurrency = (val) => {
                     </div>
                 </div>
             </div>
+
+            <BreakdownTable route-name="reports.sales" :tabs="tabs" :by="by" :filters="filters" :breakdown="breakdown" :name-label="by === 'item' ? 'الصنف' : by === 'salesperson' ? 'المندوب' : by === 'branch' ? 'الفرع' : 'العميل'" />
 
             <!-- 3 Main Report Blocks (Exact Match to anas.diwan.io) -->
             <div class="space-y-4">
