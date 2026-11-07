@@ -42,7 +42,7 @@
     "Pages/Accounting/FiscalYears/Close.vue": 15,
     "Pages/Accounting/FiscalYears/Create.vue": 13,
     "Pages/Accounting/FiscalYears/Index.vue": 12,
-    "Pages/Accounting/FixedAssets/Index.vue": 65,
+    "Pages/Accounting/FixedAssets/Index.vue": 1,
     "Pages/Accounting/FixedAssets/Register.vue": 18,
     "Pages/Accounting/FixedAssets/Show.vue": 43,
     "Pages/Accounting/Journals/Form.vue": 26,
@@ -133,7 +133,7 @@
     "Pages/HR/Reports/Gosi.vue": 16,
     "Pages/HR/Reports/Saudization.vue": 16,
     "Pages/HR/SelfService.vue": 22,
-    "Pages/HR/Settings.vue": 79,
+    "Pages/HR/Settings.vue": 4,
     "Pages/HR/Settlements.vue": 28,
     "Pages/Inventory/Assembly/Index.vue": 23,
     "Pages/Inventory/Categories/Index.vue": 12,
@@ -258,7 +258,7 @@
     "Pages/Reports/Vat.vue": 25,
     "Pages/Roles/Index.vue": 2,
     "Pages/Sales/Clients/Create.vue": 2,
-    "Pages/Sales/Clients/CustomerModal.vue": 70,
+    "Pages/Sales/Clients/CustomerModal.vue": 13,
     "Pages/Sales/Clients/CustomerViewModal.vue": 3,
     "Pages/Sales/Clients/Edit.vue": 1,
     "Pages/Sales/Clients/Index.vue": 43,
@@ -335,5 +335,5 @@
     "Pages/Workshop/Vehicles/Form.vue": 13,
     "Pages/Workshop/Vehicles/Index.vue": 12,
     "Pages/Workshop/Vehicles/Show.vue": 8,
-    "Pages/Zatca/Index.vue": 80
+    "Pages/Zatca/Index.vue": 21
 }

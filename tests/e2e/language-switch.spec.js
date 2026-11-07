@@ -62,11 +62,17 @@ test('converted page bodies follow the language: dashboard, insights and the inv
     await page.goto('/sales/invoices/create');
     await expect(page.getByText('Invoice basics').first()).toBeVisible();
     await expect(page.getByText('Add item').first()).toBeVisible();
+    await page.goto('/accounting/fixed-assets');
+    await expect(page.getByText('Post monthly depreciation').first()).toBeVisible();
+    await page.goto('/hr/settings');
+    await expect(page.getByText('Social insurance').first()).toBeVisible();
+    await page.goto('/zatca');
+    await expect(page.getByText('Invoicing devices (EGS)').first()).toBeVisible();
 
     // Back to Arabic for the other specs.
     await header.locator('[data-user-menu]').click();
     await page.locator('[data-language-toggle]').click();
     await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
-    await expect(page.getByText('البيانات الأساسية للفاتورة').first()).toBeVisible();
+    await expect(page.getByText('أجهزة الفوترة (EGS)').first()).toBeVisible();
     expect(errors).toEqual([]);
 });
