@@ -186,7 +186,7 @@ class ExpenseController extends Controller
 
     public function edit(Expense $expense): Response
     {
-        return $this->create()->with('expense', $expense);
+        return $this->create(new Request)->with('expense', $expense);
     }
 
     public function update(Request $request, Expense $expense)
