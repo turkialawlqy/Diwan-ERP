@@ -8,6 +8,7 @@ use App\Models\ProcessStage;
 use App\Models\Product;
 use App\Models\WorkCenter;
 use App\Services\Manufacturing\ProcessCostingService;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -40,7 +41,7 @@ class ProcessPeriodController extends Controller
 
         return Inertia::render('Manufacturing/Process/Periods/Show', [
             'period' => $period,
-            'products' => Product::where('is_active', true)->where('type', '!=', 'service')->orderBy('name_ar')->get(['id', 'name_ar', 'sku']),
+            'products' => PickerOptions::from(Product::where('is_active', true)->where('type', '!=', 'service')->orderBy('name_ar'), ['id', 'name_ar', 'sku']),
             'workCenters' => WorkCenter::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),
             'isFinal' => $period->stage->isFinal(),
         ]);

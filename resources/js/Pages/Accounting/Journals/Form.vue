@@ -30,6 +30,13 @@ const auxOptions = (line) => {
     return props.bankAccounts.filter((b) => b.account_id === line.account_id);
 };
 const auxLabel = (o) => (o.code ? `${o.name} (${o.code})` : o.name);
+const supplierLabel = (o) => o.name;
+// Customers and suppliers are long lists: searched on the server. Inactive customers stay selectable here.
+const auxSearch = (line) => {
+    const type = partyType(line);
+    if (type === 'customer') return { route: 'lookup.customers', params: { any_status: 1 } };
+    return type === 'supplier' ? 'lookup.suppliers' : null;
+};
 const partyType = (line) => props.partyAccounts?.[String(line.account_id)] || null;
 const syncParty = (line) => {
     const type = partyType(line);
@@ -150,7 +157,7 @@ const importLines = (lines, replace) => {
                                             <SelectCreate v-model="line.account_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar}`" placeholder="اختر الحساب" :allow-empty="false" required @update:modelValue="$nextTick(() => syncParty(line))" />
                                         </td>
                                         <td class="p-2">
-                                            <SelectCreate v-if="partyType(line)" v-model="line.party_id" :options="auxOptions(line)" :entity="partyType(line) === 'bank' ? '' : partyType(line)" :label="auxLabel" :placeholder="partyType(line) === 'customer' ? 'اختر العميل' : partyType(line) === 'supplier' ? 'اختر المورد' : 'اختر الحساب المساعد'" :allow-empty="partyType(line) === 'bank'" :required="partyType(line) !== 'bank'" />
+                                            <SelectCreate v-if="partyType(line)" v-model="line.party_id" :options="auxOptions(line)" :search="auxSearch(line)" :entity="partyType(line) === 'bank' ? '' : partyType(line)" :label="partyType(line) === 'supplier' ? supplierLabel : auxLabel" :placeholder="partyType(line) === 'customer' ? 'اختر العميل' : partyType(line) === 'supplier' ? 'اختر المورد' : 'اختر الحساب المساعد'" :allow-empty="partyType(line) === 'bank'" :required="partyType(line) !== 'bank'" />
                                             <span v-else class="text-slate-300 px-2">—</span>
                                         </td>
                                         <td class="p-2">
