@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('purchase_invoice_id')->constrained('purchase_invoices')->cascadeOnDelete();
             $table->decimal('amount', 15, 2);
             $table->timestamps();
-            $table->index(['company_id', 'purchase_invoice_id']);
+            $table->index(['company_id', 'purchase_invoice_id'], 'supplier_payment_alloc_company_invoice_index');
         });
     }
 
