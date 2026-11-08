@@ -428,5 +428,12 @@
         "sending": "Sending...",
         "send_email": "Send email",
         "open_wa": "Open WhatsApp"
+    },
+    "bookings": {
+        "deposit_received": "Deposit received",
+        "deposit_credit": "Stays the customer's credit (refunded or used later)",
+        "deposit_forfeit": "Forfeited (other income)",
+        "deposit_late": "Cancelled inside the service's free-cancellation window.",
+        "deposit_early": "Cancelled before the service's free-cancellation window: the deposit normally stays the customer's credit."
     }
 }
