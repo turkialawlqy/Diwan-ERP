@@ -105,7 +105,7 @@ class BudgetController extends Controller
             'dimensionOptions' => [
                 'cost_center' => CostCenter::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_ar'])->map(fn ($c) => ['id' => $c->id, 'label' => $c->code.' - '.$c->name_ar]),
                 'project' => Project::orderBy('code')->get(['id', 'code', 'name'])->map(fn ($p) => ['id' => $p->id, 'label' => $p->code.' - '.$p->name]),
-                'branch' => Branch::orderBy('name')->get(['id', 'name'])->map(fn ($b) => ['id' => $b->id, 'label' => $b->name]),
+                'branch' => Branch::orderBy('name_ar')->get(['id', 'name_ar', 'name_en'])->map(fn ($b) => ['id' => $b->id, 'label' => $b->name]),
             ],
         ]);
     }

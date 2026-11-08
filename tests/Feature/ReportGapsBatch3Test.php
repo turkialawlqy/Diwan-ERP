@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\ApprovalRequest;
 use App\Models\AssetCategory;
 use App\Models\BankAccount;
+use App\Models\Branch;
 use App\Models\Budget;
 use App\Models\BudgetLine;
 use App\Models\CashForecastSnapshot;
@@ -220,6 +221,11 @@ class ReportGapsBatch3Test extends TestCase
 
         $this->get(route('accounting.budgets.show', [$budget->id, 'dimension' => 'cost_center', 'dimension_id' => $cc->id]))->assertOk()
             ->assertInertia(fn ($p) => $p->component('Accounting/Budgets/Show')->where('scope.dimension', 'cost_center')->where('rows', fn ($rows) => collect($rows)->firstWhere('id', $expense->id)['planned'][202606] == 90));
+
+        // The branch list reads the columns the table has: a missing one answers 500 on MySQL and a blank name on SQLite.
+        $branch = Branch::create(['company_id' => $this->company->id, 'name_ar' => 'فرع الموازنة', 'code' => 'BR-BUD', 'is_active' => true]);
+        $this->get(route('accounting.budgets.show', $budget->id))->assertOk()
+            ->assertInertia(fn ($p) => $p->where('dimensionOptions.branch', fn ($options) => collect($options)->firstWhere('id', $branch->id)['label'] === 'فرع الموازنة'));
     }
 
     public function test_budget_dimensions_report_compares_planned_with_the_ledger_per_dimension(): void
