@@ -14,6 +14,7 @@ import {
 const props = defineProps({
     entry: Object,
     parties: { type: Object, default: () => ({}) },
+    source: { type: Object, default: null },
 });
 
 const formatCurrency = (val) => {
@@ -107,6 +108,11 @@ const deleteDraft = () => {
                         <span :class="[statusClass[entry.status], 'font-bold']">{{ statusLabels[entry.status] || entry.status }}</span>
                         <span v-if="entry.reversed_by" class="block text-[10px] text-slate-500">بالقيد <Link :href="route('accounting.journals.show', entry.reversed_by.id)" class="text-indigo-600">{{ entry.reversed_by.entry_number }}</Link></span>
                         <span v-if="entry.reversal_of" class="block text-[10px] text-slate-500">عكس القيد <Link :href="route('accounting.journals.show', entry.reversal_of.id)" class="text-indigo-600">{{ entry.reversal_of.entry_number }}</Link></span>
+                    </div>
+                    <div v-if="source">
+                        <span class="text-3xs text-slate-400 block mb-0.5">{{ $t('journals.source_doc') }}:</span>
+                        <a v-if="source.url" :href="source.url" class="font-bold text-emerald-700 hover:underline" data-source-link>{{ source.label }} ←</a>
+                        <span v-else class="font-semibold text-slate-800">{{ source.label }}</span>
                     </div>
                     <div>
                         <span class="text-3xs text-slate-400 block mb-0.5">المسؤول:</span>

@@ -1,12 +1,17 @@
 <script setup>
 import { ask } from '@/composables/useDialog';
 import { reactive, ref, computed } from 'vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
+import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { money, amount, monthLabel } from '@/utils/format';
 
-const props = defineProps({ budget: Object, months: Array, rows: Array });
+const props = defineProps({ budget: Object, months: Array, rows: Array, scope: { type: Object, default: null }, dimensionOptions: Object });
+const dimension = ref(props.scope?.dimension || '');
+const dimensionId = ref(props.scope?.id || '');
+const openView = () => router.get(route('accounting.budgets.show', props.budget.id), dimension.value && dimensionId.value ? { dimension: dimension.value, dimension_id: dimensionId.value } : {});
+const changeKind = () => { dimensionId.value = ''; if (!dimension.value) openView(); };
 
 const mode = ref('plan'); // plan | compare
 const editable = computed(() => props.budget.status !== 'approved');
@@ -22,7 +27,7 @@ const spread = async (id) => {
     props.months.forEach((p) => (grid[id][p] = each));
 };
 
-const form = useForm({ lines: [], approve: false });
+const form = useForm({ lines: [], approve: false, dimension: props.scope?.dimension || '', dimension_id: props.scope?.id || '' });
 const save = (approve = false) => {
     form.lines = props.rows.flatMap((r) => props.months.map((p) => ({ account_id: r.id, period: p, amount: Number(grid[r.id][p] || 0) })).filter((l) => l.amount !== 0));
     form.approve = approve;
@@ -45,6 +50,21 @@ const save = (approve = false) => {
                 </template>
             </template>
         </PageHeader>
+
+        <div class="bg-white border border-slate-200 rounded-2xl p-3 mb-3 flex flex-wrap items-end gap-3 text-xs" data-budget-view>
+            <label><span class="block font-bold text-slate-600 mb-1">{{ $t('budgetdim.view') }}</span>
+                <select v-model="dimension" @change="changeKind" class="rounded-xl border-slate-200 text-xs">
+                    <option value="">{{ $t('budgetdim.account_level') }}</option>
+                    <option value="cost_center">{{ $t('budgetdim.cost_center') }}</option>
+                    <option value="project">{{ $t('budgetdim.project') }}</option>
+                    <option value="branch">{{ $t('budgetdim.branch') }}</option>
+                </select>
+            </label>
+            <label v-if="dimension" class="min-w-[220px]"><span class="block font-bold text-slate-600 mb-1">{{ $t('budgetdim.' + dimension) }}</span>
+                <SelectCreate v-model="dimensionId" :options="dimensionOptions[dimension]" :placeholder="$t('budgetdim.pick')" :allow-empty="false" @update:modelValue="openView" />
+            </label>
+            <span v-if="scope" class="text-amber-700 font-bold">{{ $t('budgetdim.hint') }}</span>
+        </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
             <table class="w-full text-[11px]">

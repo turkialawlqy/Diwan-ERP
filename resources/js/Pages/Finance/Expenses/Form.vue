@@ -10,7 +10,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { today } from '@/utils/format';
 
-const props = defineProps({ expenseAccounts: Array, bankAccounts: Array, costCenters: Array, projects: Array, dimensionPolicy: Object, expense: { type: Object, default: null } });
+const props = defineProps({ expenseAccounts: Array, bankAccounts: Array, costCenters: Array, projects: Array, dimensionPolicy: Object, expense: { type: Object, default: null }, prefill: { type: Object, default: null } });
 const editing = props.expense;
 
 const form = useForm({
@@ -29,7 +29,15 @@ const form = useForm({
     reference_number: '',
     vendor_name: '',
     notes: '',
+    payment_request_id: '',
 });
+// Carrying out an approved payment request: its data fills the voucher and the request is tied to it.
+if (props.prefill) {
+    const p = props.prefill;
+    Object.assign(form, { title: p.title || '', account_id: p.account_id || form.account_id, amount: p.amount, cost_center_id: p.cost_center_id || '', project_id: p.project_id || '',
+        bank_account_id: p.bank_account_id || form.bank_account_id, payment_method: p.payment_method || form.payment_method, vendor_name: p.vendor_name || '', notes: p.notes || '', payment_request_id: p.payment_request_id });
+    form.defaults();
+}
 // Editing: the voucher as saved (same number; saving reverses and re-posts it).
 if (editing) {
     Object.assign(form, {

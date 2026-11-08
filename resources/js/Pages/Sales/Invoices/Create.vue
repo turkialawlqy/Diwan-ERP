@@ -36,6 +36,9 @@ import {
 } from '@heroicons/vue/24/outline';
 import CustomerModal from '../Clients/CustomerModal.vue';
 import { today } from '@/utils/format';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({
     costCenters: { type: Array, default: () => [] },
@@ -361,7 +364,7 @@ const submitNewProduct = async () => {
         if (err.response && err.response.data && err.response.data.errors) {
             productModalErrors.value = err.response.data.errors;
         } else {
-            productModalErrors.value = { general: [err.response?.data?.message || 'حدث خطأ أثناء حفظ الصنف'] };
+            productModalErrors.value = { general: [err.response?.data?.message || t('invc.item_save_error')] };
         }
     } finally {
         isSavingProduct.value = false;
@@ -478,7 +481,7 @@ const importLines = (lines, replace) => {
 
 <template>
     <AppLayout own-errors>
-        <Head :title="editing ? `تعديل الفاتورة ${editing.invoice_number}` : 'إنشاء فاتورة مبيعات جديدة'" />
+        <Head :title="editing ? $t('invc.edit_invoice', { number: editing.invoice_number }) : $t('invc.create_a_new_sales_invoice')" />
 
         <!-- Floating Toast Message -->
         <transition
@@ -500,13 +503,13 @@ const importLines = (lines, replace) => {
 
         <div class="space-y-6 w-full pb-12">
             <!-- Header Ribbon & Action Bar -->
-            <PageHeader :title="editing ? `تعديل الفاتورة ${editing.invoice_number}` : 'إنشاء فاتورة'" :crumbs="[{ label: editing ? 'تعديل فاتورة' : 'إنشاء فاتورة' }]">
+            <PageHeader :title="editing ? $t('invc.edit_invoice', { number: editing.invoice_number }) : $t('invc.create_invoice')" :crumbs="[{ label: editing ? $t('invc.edit_invoice_2') : $t('invc.create_invoice') }]">
 <template #actions>
 <Link 
                         :href="route('sales.invoices.index')"
                         class="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-medium text-xs sm:text-sm transition-all"
                     >
-                        إلغاء
+                        {{ $t('invc.cancel') }}
                     </Link>
                     <button 
                         @click="submitInvoice"
@@ -514,14 +517,14 @@ const importLines = (lines, replace) => {
                         class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all disabled:opacity-50"
                     >
                         <CheckIcon class="w-4 h-4 stroke-2" />
-                        <span>{{ form.processing ? 'جاري الإصدار...' : 'حفظ وإصدار الفاتورة' }}</span>
+                        <span>{{ form.processing ? $t('invc.issuing') : $t('invc.save_and_issue_the_invoice') }}</span>
                     </button>
 </template>
 </PageHeader>
 
             <!-- Validation Errors Alert -->
             <div v-if="Object.keys(form.errors).length > 0" class="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm font-semibold">
-                <p class="font-bold mb-1">يرجى تصحيح الأخطاء التالية:</p>
+                <p class="font-bold mb-1">{{ $t('invc.please_correct_the_following_err') }}</p>
                 <ul class="list-disc list-inside space-y-0.5 text-rose-700 text-xs">
                     <li v-for="(err, key) in form.errors" :key="key">{{ err }}</li>
                 </ul>
@@ -534,7 +537,7 @@ const importLines = (lines, replace) => {
                     <div class="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-5">
                         <h2 class="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
                             <DocumentTextIcon class="w-5 h-5 text-indigo-600" />
-                            <span>البيانات الأساسية للفاتورة</span>
+                            <span>{{ $t('invc.invoice_basics') }}</span>
                         </h2>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -542,14 +545,14 @@ const importLines = (lines, replace) => {
                             <div class="sm:col-span-2 relative customer-combobox-wrapper">
                                 <div class="flex items-center justify-between mb-1.5">
                                     <label class="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                                        <span>العميل</span>
+                                        <span>{{ $t('invc.customer') }}</span>
                                         <span class="text-rose-500">*</span>
-                                        <span title="ابحث عن عميل أو اكتب اسمه مباشرة للإنشاء الفوري" class="cursor-help text-slate-400 hover:text-slate-600">
+                                        <span :title="$t('invc.search_for_a_customer_or_type_hi')" class="cursor-help text-slate-400 hover:text-slate-600">
                                             <InformationCircleIcon class="w-3.5 h-3.5" />
                                         </span>
                                     </label>
                                     <span v-if="selectedCustomer" class="text-xs text-slate-500 font-medium">
-                                        الرصيد الحالي: <strong class="text-indigo-600">{{ formatCurrency(selectedCustomer.current_balance) }} ﷼</strong>
+                                        {{ $t('invc.current_balance') }} <strong class="text-indigo-600">{{ formatCurrency(selectedCustomer.current_balance) }} ﷼</strong>
                                     </span>
                                 </div>
 
@@ -559,7 +562,7 @@ const importLines = (lines, replace) => {
                                         v-model="customerSearch"
                                         @focus="isCustomerDropdownOpen = true"
                                         @input="isCustomerDropdownOpen = true"
-                                        placeholder="ابحث برقم العميل، الاسم، الجوال أو اكتب اسماً جديداً..."
+                                        :placeholder="$t('invc.search_by_customer_number_name_m')"
                                         class="w-full text-xs sm:text-sm rounded-xl border border-slate-200 ps-3 pe-10 py-2.5 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 font-bold text-slate-800 transition shadow-2xs"
                                     />
                                     <div class="absolute inset-y-0 end-0 pe-3 flex items-center pointer-events-none text-slate-400">
@@ -579,9 +582,9 @@ const importLines = (lines, replace) => {
                                     >
                                         <div class="flex items-center gap-2">
                                             <UserPlusIcon class="w-4 h-4 stroke-2" />
-                                            <span>إنشاء "{{ customerSearch.trim() || 'عميل جديد' }}"</span>
+                                            <span>{{ $t('invc.create_named', { name: customerSearch.trim() || $t('invc.new_customer_q') }) }}</span>
                                         </div>
-                                        <span class="text-3xs bg-white/20 px-2 py-0.5 rounded-full font-medium">نافذة الإضافة +</span>
+                                        <span class="text-3xs bg-white/20 px-2 py-0.5 rounded-full font-medium">{{ $t('invc.add_window') }}</span>
                                     </div>
 
                                     <!-- Customer List Results -->
@@ -600,7 +603,7 @@ const importLines = (lines, replace) => {
                                                 </div>
                                                 <div class="text-3xs text-slate-400 flex items-center gap-3">
                                                     <span v-if="c.phone">📞 {{ c.phone }}</span>
-                                                    <span v-if="c.tax_number">ضريبي: {{ c.tax_number }}</span>
+                                                    <span v-if="c.tax_number">{{ $t('invc.tax_n', { n: c.tax_number }) }}</span>
                                                 </div>
                                             </div>
                                             <div class="text-end">
@@ -611,7 +614,7 @@ const importLines = (lines, replace) => {
                                         </div>
 
                                         <div v-if="filteredCustomers.length === 0" class="p-3 text-center text-xs text-slate-400">
-                                            لا يوجد عميل بهذا الاسم، اضغط على زر الإنشاء بالأعلى لإضافته فوراً.
+                                            {{ $t('invc.no_customer_with_this_name_press') }}
                                         </div>
                                     </div>
                                 </div>
@@ -620,7 +623,7 @@ const importLines = (lines, replace) => {
 
                             <!-- Invoice Number -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">رقم الفاتورة <span class="text-rose-500">*</span></label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('invc.invoice_number') }} <span class="text-rose-500">*</span></label>
                                 <input 
                                     v-model="form.invoice_number"
                                     type="text" 
@@ -630,18 +633,18 @@ const importLines = (lines, replace) => {
 
                             <!-- Reference Number -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">الرقم المرجعي / أمر الشراء</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('invc.reference_purchase_order_number') }}</label>
                                 <input 
                                     v-model="form.reference_number"
                                     type="text" 
-                                    placeholder="مثال: PO-2026-09"
+                                    :placeholder="$t('invc.e_g_po_2026_09')"
                                     class="w-full text-xs sm:text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                 />
                             </div>
 
                             <!-- Invoice Date -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">تاريخ الإصدار <span class="text-rose-500">*</span></label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('invc.issue_date') }} <span class="text-rose-500">*</span></label>
                                 <DatePicker 
                                     v-model="form.invoice_date" 
                                     class="w-full text-xs sm:text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
@@ -649,7 +652,7 @@ const importLines = (lines, replace) => {
 
                             <!-- Supply Date -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">تاريخ التوريد (الزكاة والضريبة)</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('invc.supply_date_zatca') }}</label>
                                 <DatePicker 
                                     v-model="form.supply_date" 
                                     class="w-full text-xs sm:text-sm rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
@@ -661,30 +664,30 @@ const importLines = (lines, replace) => {
 
                             <!-- Payment Method -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">طريقة الدفع <span class="text-rose-500">*</span></label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('invc.payment_method') }} <span class="text-rose-500">*</span></label>
                                 <select 
                                     v-model="form.payment_method" 
                                     @change="syncSelectedFinancialAccount"
                                     class="w-full text-xs sm:text-sm rounded-xl border border-slate-200 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-semibold"
                                 >
-                                    <option value="bank_transfer">تحويل بنكي (Bank Transfer)</option>
-                                    <option value="cash">نقداً (Cash)</option>
-                                    <option value="card">مدى / بطاقة شبكة (Card/Mada)</option>
-                                    <option value="credit">آجل / ذمم مدينة (Credit)</option>
+                                    <option value="bank_transfer">{{ $t('invc.bank_transfer') }}</option>
+                                    <option value="cash">{{ $t('invc.cash') }}</option>
+                                    <option value="card">{{ $t('invc.mada_network_card') }}</option>
+                                    <option value="credit">{{ $t('invc.credit_receivable') }}</option>
                                 </select>
                             </div>
 
                             <!-- Payment Status -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">حالة السداد <span class="text-rose-500">*</span></label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('invc.payment_status') }} <span class="text-rose-500">*</span></label>
                                 <select 
                                     v-model="form.payment_status" 
                                     @change="syncSelectedFinancialAccount"
                                     class="w-full text-xs sm:text-sm rounded-xl border border-slate-200 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-semibold"
                                 >
-                                    <option value="paid">مدفوعة بالكامل</option>
-                                    <option value="partially_paid">مدفوعة جزئياً</option>
-                                    <option value="unpaid">غير مدفوعة (آجل)</option>
+                                    <option value="paid">{{ $t('invc.fully_paid') }}</option>
+                                    <option value="partially_paid">{{ $t('invc.partially_paid') }}</option>
+                                    <option value="unpaid">{{ $t('invc.unpaid_credit') }}</option>
                                 </select>
                             </div>
 
@@ -694,11 +697,11 @@ const importLines = (lines, replace) => {
                                     <label class="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
                                         <BuildingOfficeIcon v-if="form.payment_method === 'bank_transfer' || form.payment_method === 'card'" class="w-4 h-4 text-indigo-600" />
                                         <BanknotesIcon v-else class="w-4 h-4 text-emerald-600" />
-                                        <span>{{ form.payment_method === 'cash' ? 'الخزينة النقدية المستلمة (صندوق النقدية)' : 'الحساب البنكي المحول إليه (المصرف المستلم)' }}</span>
+                                        <span>{{ form.payment_method === 'cash' ? $t('invc.cash_box_receiving_the_money') : $t('invc.bank_account_transferred_to_rece') }}</span>
                                         <span class="text-rose-500">*</span>
                                     </label>
                                     <span v-if="selectedBankAccountModel" class="text-2xs font-normal text-slate-500">
-                                        الرصيد الدفتري الحالي: <strong class="text-indigo-600 font-mono font-bold">{{ formatCurrency(selectedBankAccountModel.current_balance) }} ﷼</strong>
+                                        {{ $t('invc.current_book_balance') }} <strong class="text-indigo-600 font-mono font-bold">{{ formatCurrency(selectedBankAccountModel.current_balance) }} ﷼</strong>
                                     </span>
                                 </div>
                                 <select 
@@ -706,21 +709,21 @@ const importLines = (lines, replace) => {
                                     class="w-full text-xs sm:text-sm rounded-xl border border-indigo-200 bg-white py-2.5 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 font-bold text-slate-800 shadow-2xs"
                                     required
                                 >
-                                    <option value="" disabled>-- اختر الحساب المالي أو الخزينة المودع بها --</option>
+                                    <option value="" disabled>{{ $t('invc.choose_the_bank_account_or_cash') }}</option>
                                     <option 
                                         v-for="acc in activeFinancialAccounts" 
                                         :key="acc.id" 
                                         :value="acc.id"
                                     >
                                         {{ acc.name }} 
-                                        {{ acc.account_number ? `(${acc.bank_name || 'حساب رقم'}: ${acc.account_number})` : '' }} 
-                                        - الرصيد: {{ formatCurrency(acc.current_balance) }} ﷼
+                                        {{ acc.account_number ? `(${acc.bank_name || $t('invc.account_no')}: ${acc.account_number})` : '' }} 
+                                        - {{ $t('invc.balance_label') }} {{ formatCurrency(acc.current_balance) }} ﷼
                                     </option>
                                 </select>
                                 <p class="text-3xs text-slate-500">
                                     {{ form.payment_method === 'cash' 
-                                        ? 'سيتم تسجيل القيد المحاسبي وإيداع المبلغ في هذه الخزينة تلقائياً وتحديث كشف حساب الصندوق.' 
-                                        : 'سيتم تسجيل القيد المحاسبي وإيداع الحوالة البنكية في كشف حساب هذا البنك مباشرة في دفتر الأستاذ.' 
+                                        ? $t('invc.the_journal_entry_is_recorded_an') 
+                                        : $t('invc.the_journal_entry_is_recorded_an_2') 
                                     }}
                                 </p>
                             </div>
@@ -729,7 +732,7 @@ const importLines = (lines, replace) => {
                             <div v-if="form.payment_status === 'partially_paid'" class="sm:col-span-2 bg-amber-50/50 p-4 rounded-xl border border-amber-200 space-y-3">
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label class="block text-xs font-bold text-amber-900 mb-1.5">المبلغ المدفوع الآن (نقداً / بالحساب)</label>
+                                        <label class="block text-xs font-bold text-amber-900 mb-1.5">{{ $t('invc.amount_paid_now_cash_to_account') }}</label>
                                         <input 
                                             v-model.number="form.paid_amount"
                                             type="text" inputmode="decimal" data-num 
@@ -740,7 +743,7 @@ const importLines = (lines, replace) => {
                                         />
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-amber-900 mb-1.5">المبلغ المتبقي (آجل كذمم مدينة للعميل)</label>
+                                        <label class="block text-xs font-bold text-amber-900 mb-1.5">{{ $t('invc.remaining_amount_on_credit_as_a') }}</label>
                                         <div class="w-full text-xs sm:text-sm rounded-xl border border-slate-200 px-3 py-2.5 bg-slate-50 font-mono font-bold text-rose-600 flex items-center justify-between">
                                             <span>{{ formatCurrency(Math.max(0, grandTotal - (form.paid_amount || 0))) }}</span>
                                             <span class="text-3xs text-slate-400">﷼</span>
@@ -755,9 +758,9 @@ const importLines = (lines, replace) => {
                     <div class="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
                         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                             <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                <span>بنود الفاتورة والأصناف</span>
+                                <span>{{ $t('invc.invoice_lines_and_items') }}</span>
                                 <span class="px-2 py-0.5 rounded-full text-2xs bg-indigo-50 text-indigo-700 font-bold">
-                                    {{ form.items.length }} بنود
+                                    {{ $t('invc.n_lines', { n: form.items.length }) }}
                                 </span>
                             </h2>
                             <ImportLines kind="sales" :customer-id="form.customer_id" @imported="importLines" />
@@ -767,7 +770,7 @@ const importLines = (lines, replace) => {
                                 class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition-colors"
                             >
                                 <PlusIcon class="w-3.5 h-3.5 stroke-2" />
-                                <span>إضافة صنف</span>
+                                <span>{{ $t('invc.add_item') }}</span>
                             </button>
                         </div>
 
@@ -777,13 +780,13 @@ const importLines = (lines, replace) => {
                                 <thead>
                                     <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-500 font-bold">
                                         <th class="py-2.5 px-2 text-center w-8">#</th>
-                                        <th class="py-2.5 px-3 min-w-[240px]">المنتج / الصنف *</th>
-                                        <th class="py-2.5 px-3 min-w-[150px]">الوصف</th>
-                                        <th class="py-2.5 px-2 w-20">الكمية</th>
-                                        <th class="py-2.5 px-2 w-24">السعر</th>
-                                        <th class="py-2.5 px-2 w-20">الخصم</th>
-                                        <th class="py-2.5 px-2 w-16 text-center">الضريبة</th>
-                                        <th class="py-2.5 px-3 w-28 text-end">الإجمالي</th>
+                                        <th class="py-2.5 px-3 min-w-[240px]">{{ $t('invc.product_item') }}</th>
+                                        <th class="py-2.5 px-3 min-w-[150px]">{{ $t('invc.description') }}</th>
+                                        <th class="py-2.5 px-2 w-20">{{ $t('invc.quantity') }}</th>
+                                        <th class="py-2.5 px-2 w-24">{{ $t('invc.price') }}</th>
+                                        <th class="py-2.5 px-2 w-20">{{ $t('invc.discount') }}</th>
+                                        <th class="py-2.5 px-2 w-16 text-center">{{ $t('invc.tax') }}</th>
+                                        <th class="py-2.5 px-3 w-28 text-end">{{ $t('invc.total') }}</th>
                                         <th class="py-2.5 px-2 w-8 text-center"></th>
                                     </tr>
                                 </thead>
@@ -801,7 +804,7 @@ const importLines = (lines, replace) => {
                                                     type="text" 
                                                     @focus="openProductList(item, $event)"
                                                     @input="openProductList(item, $event)"
-                                                    placeholder="اختر أو انشئ منتج..."
+                                                    :placeholder="$t('invc.choose_or_create_a_product')"
                                                     class="w-full text-xs rounded-xl border border-slate-200 ps-2.5 pe-8 py-2 focus:border-indigo-500 font-bold text-slate-800 transition"
                                                     required
                                                 />
@@ -824,9 +827,9 @@ const importLines = (lines, replace) => {
                                                 >
                                                     <div class="flex items-center gap-2">
                                                         <PlusIcon class="w-4 h-4 stroke-2" />
-                                                        <span>إنشاء "{{ item.item_name.trim() || 'صنف جديد' }}"</span>
+                                                        <span>{{ $t('invc.create_named', { name: item.item_name.trim() || $t('invc.new_item_q') }) }}</span>
                                                     </div>
-                                                    <span class="text-3xs bg-white/20 px-2 py-0.5 rounded-full font-medium">نافذة الصنف +</span>
+                                                    <span class="text-3xs bg-white/20 px-2 py-0.5 rounded-full font-medium">{{ $t('invc.item_window') }}</span>
                                                 </div>
 
                                                 <!-- Product Matches -->
@@ -840,7 +843,7 @@ const importLines = (lines, replace) => {
                                                         <div class="space-y-0.5">
                                                             <div class="font-bold text-slate-800">{{ prod.name_ar }}</div>
                                                             <div class="text-3xs text-slate-400 flex items-center gap-2">
-                                                                <span v-if="prod.sku" class="font-mono">كود: {{ prod.sku }}</span>
+                                                                <span v-if="prod.sku" class="font-mono">{{ $t('invc.code_n', { n: prod.sku }) }}</span>
                                                                 <span v-if="prod.unit">({{ prod.unit.name_ar }})</span>
                                                             </div>
                                                         </div>
@@ -850,7 +853,7 @@ const importLines = (lines, replace) => {
                                                     </div>
 
                                                     <div v-if="getFilteredProducts(item.item_name).length === 0" class="p-2.5 text-center text-xs text-slate-400">
-                                                        لا يوجد صنف مطابق، اضغط على زر الإنشاء أعلاه لإضافته فوراً.
+                                                        {{ $t('invc.no_matching_item_press_the_creat') }}
                                                     </div>
                                                 </div>
                                             </div>
@@ -861,7 +864,7 @@ const importLines = (lines, replace) => {
                                             <input 
                                                 v-model="item.description"
                                                 type="text" 
-                                                placeholder="وصف البند..."
+                                                :placeholder="$t('invc.line_description')"
                                                 class="w-full text-2xs rounded-xl border border-slate-200 px-2.5 py-2 text-slate-600 focus:border-indigo-500"
                                             />
                                         </td>
@@ -916,7 +919,7 @@ const importLines = (lines, replace) => {
                                                 @click="removeItem(idx)"
                                                 :disabled="form.items.length <= 1"
                                                 class="p-1 text-slate-300 hover:text-rose-600 disabled:opacity-20 transition-colors"
-                                                title="حذف البند"
+                                                :title="$t('invc.delete_line')"
                                             >
                                                 <TrashIcon class="w-4 h-4" />
                                             </button>
@@ -933,7 +936,7 @@ const importLines = (lines, replace) => {
                             class="w-full py-2.5 rounded-xl border border-dashed border-slate-200 hover:border-indigo-300 bg-slate-50/50 hover:bg-indigo-50/30 text-slate-500 hover:text-indigo-600 font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
                         >
                             <PlusIcon class="w-4 h-4 stroke-2" />
-                            <span>إضافة بند جديد للفاتورة</span>
+                            <span>{{ $t('invc.add_a_new_invoice_line') }}</span>
                         </button>
                     </div>
 
@@ -945,7 +948,7 @@ const importLines = (lines, replace) => {
                     <!-- Notes & Terms -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-2">
-                            <label class="block text-xs font-bold text-slate-700">ملاحظات الفاتورة</label>
+                            <label class="block text-xs font-bold text-slate-700">{{ $t('invc.invoice_notes') }}</label>
                             <textarea 
                                 v-model="form.notes"
                                 rows="3"
@@ -953,7 +956,7 @@ const importLines = (lines, replace) => {
                             ></textarea>
                         </div>
                         <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-2">
-                            <label class="block text-xs font-bold text-slate-700">الشروط والأحكام</label>
+                            <label class="block text-xs font-bold text-slate-700">{{ $t('invc.terms_and_conditions') }}</label>
                             <textarea 
                                 v-model="form.terms"
                                 rows="3"
@@ -968,26 +971,26 @@ const importLines = (lines, replace) => {
                     <!-- Totals Summary Card -->
                     <div class="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4 sticky top-24">
                         <h3 class="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3">
-                            ملخص الحسابات والضريبة
+                            {{ $t('invc.accounts_and_tax_summary') }}
                         </h3>
 
                         <div class="space-y-3 text-xs">
                             <!-- Subtotal -->
                             <div class="flex items-center justify-between text-slate-600">
-                                <span>المجموع قبل الضريبة</span>
+                                <span>{{ $t('invc.subtotal_before_tax') }}</span>
                                 <span class="font-bold text-slate-800 font-mono">{{ formatCurrency(subtotal) }} ﷼</span>
                             </div>
 
                             <!-- Discount -->
                             <div v-if="totalDiscount > 0" class="flex items-center justify-between text-rose-600">
-                                <span>إجمالي الخصم</span>
+                                <span>{{ $t('invc.total_discount') }}</span>
                                 <span class="font-bold font-mono">- {{ formatCurrency(totalDiscount) }} ﷼</span>
                             </div>
 
                             <!-- VAT -->
                             <div class="flex items-center justify-between text-slate-600">
                                 <div class="flex items-center gap-1">
-                                    <span>ضريبة القيمة المضافة</span>
+                                    <span>{{ $t('invc.value_added_tax') }}</span>
                                     <span class="px-1.5 py-0.5 rounded text-3xs font-bold bg-indigo-50 text-indigo-700">{{ lineRate() }}%</span>
                                 </div>
                                 <span class="font-bold text-slate-800 font-mono">{{ formatCurrency(totalTax) }} ﷼</span>
@@ -996,7 +999,7 @@ const importLines = (lines, replace) => {
                             <!-- Divider -->
                             <div class="border-t border-slate-200 pt-3">
                                 <div class="flex items-center justify-between text-slate-900">
-                                    <span class="text-sm font-black">الإجمالي شامل الضريبة</span>
+                                    <span class="text-sm font-black">{{ $t('invc.total_including_tax') }}</span>
                                     <span class="text-base font-black text-indigo-600 font-mono">{{ formatCurrency(grandTotal) }} ﷼</span>
                                 </div>
                             </div>
@@ -1004,11 +1007,11 @@ const importLines = (lines, replace) => {
                             <!-- Payment breakdown if not fully paid -->
                             <div v-if="form.payment_status !== 'paid'" class="bg-slate-50 rounded-xl p-3 space-y-2 border border-slate-100">
                                 <div class="flex items-center justify-between text-2xs text-slate-500">
-                                    <span>المسدد</span>
+                                    <span>{{ $t('invc.paid') }}</span>
                                     <span class="font-bold text-emerald-600 font-mono">{{ formatCurrency(form.paid_amount) }} ﷼</span>
                                 </div>
                                 <div class="flex items-center justify-between text-2xs text-slate-500">
-                                    <span>المتبقي (آجل)</span>
+                                    <span>{{ $t('invc.remaining_credit') }}</span>
                                     <span class="font-bold text-rose-600 font-mono">{{ formatCurrency(remainingBalance) }} ﷼</span>
                                 </div>
                             </div>
@@ -1018,10 +1021,10 @@ const importLines = (lines, replace) => {
                         <div class="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/60 text-emerald-900 text-2xs space-y-1.5">
                             <div class="flex items-center gap-1.5 font-bold">
                                 <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                <span>متوافق مع هيئة الزكاة والضريبة (ZATCA)</span>
+                                <span>{{ $t('invc.compliant_with_zatca') }}</span>
                             </div>
                             <p class="text-slate-600 leading-relaxed">
-                                سيتم تلقائياً تشفير وتوليد رمز الاستجابة السريعة (QR Code) المتوافق مع المرحلة الأولى والثانية للفوترة الإلكترونية السعودية فور حفظ الفاتورة.
+                                {{ $t('invc.a_qr_code_compliant_with_phases') }}
                             </p>
                         </div>
 
@@ -1032,7 +1035,7 @@ const importLines = (lines, replace) => {
                             class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                             <CheckIcon class="w-4 h-4 stroke-2" />
-                            <span>{{ form.processing ? 'جاري الحفظ...' : 'حفظ وإصدار الفاتورة' }}</span>
+                            <span>{{ form.processing ? $t('invc.saving') : $t('invc.save_and_issue_the_invoice') }}</span>
                         </button>
                     </div>
                 </div>
@@ -1063,8 +1066,8 @@ const importLines = (lines, replace) => {
                             <CubeIcon class="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 class="text-sm font-black text-slate-900">إضافة صنف / منتج جديد</h3>
-                            <p class="text-3xs text-slate-500">أدخل تفاصيل الصنف وسيتم إدراجه في الفاتورة مباشرة</p>
+                            <h3 class="text-sm font-black text-slate-900">{{ $t('invc.add_a_new_item_product') }}</h3>
+                            <p class="text-3xs text-slate-500">{{ $t('invc.enter_the_item_details_and_it_is') }}</p>
                         </div>
                     </div>
                     <button 
@@ -1090,7 +1093,7 @@ const importLines = (lines, replace) => {
                             :class="newProductForm.type === 'product' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'text-slate-600 font-medium'"
                             class="flex-1 py-1.5 rounded-lg text-xs transition text-center"
                         >
-                            منتج مخزني
+                            {{ $t('invc.stock_product') }}
                         </button>
                         <button 
                             type="button"
@@ -1098,19 +1101,19 @@ const importLines = (lines, replace) => {
                             :class="newProductForm.type === 'service' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'text-slate-600 font-medium'"
                             class="flex-1 py-1.5 rounded-lg text-xs transition text-center"
                         >
-                            خدمة / استشارة
+                            {{ $t('invc.service_consultation') }}
                         </button>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <!-- Name Arabic -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">اسم الصنف (بالعربية) <span class="text-rose-500">*</span></label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('invc.item_name_arabic') }} <span class="text-rose-500">*</span></label>
                             <input 
                                 v-model="newProductForm.name_ar"
                                 type="text" 
                                 required
-                                placeholder="مثال: شاشة ذكية 55 بوصة"
+                                :placeholder="$t('invc.e_g_55_inch_smart_screen')"
                                 class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-bold"
                             />
                             <p v-if="productModalErrors.name_ar" class="text-3xs text-rose-600 mt-1 font-semibold">{{ productModalErrors.name_ar[0] }}</p>
@@ -1118,7 +1121,7 @@ const importLines = (lines, replace) => {
 
                         <!-- Name English -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">اسم الصنف (باللغة الإنجليزية)</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('invc.item_name_english') }}</label>
                             <input 
                                 v-model="newProductForm.name_en"
                                 type="text" 
@@ -1130,19 +1133,19 @@ const importLines = (lines, replace) => {
 
                         <!-- Category -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">التصنيف</label>
-                            <SelectCreate v-model="newProductForm.category_id" :options="categoriesList" entity="category" label="name_ar" placeholder="بدون تصنيف (عام)" />
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('invc.category') }}</label>
+                            <SelectCreate v-model="newProductForm.category_id" :options="categoriesList" entity="category" label="name_ar" :placeholder="$t('invc.no_category_general')" />
                         </div>
 
                         <!-- Unit -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">الوحدة</label>
-                            <SelectCreate v-model="newProductForm.unit_id" :options="unitsList" entity="unit" :label="(u) => `${u.name_ar} (${u.code || u.name_en || '-'})`" placeholder="اختر الوحدة..." />
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('invc.unit') }}</label>
+                            <SelectCreate v-model="newProductForm.unit_id" :options="unitsList" entity="unit" :label="(u) => `${u.name_ar} (${u.code || u.name_en || '-'})`" :placeholder="$t('invc.choose_the_unit')" />
                         </div>
 
                         <!-- Selling Price -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">سعر البيع الافتراضي (﷼) <span class="text-rose-500">*</span></label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('invc.default_selling_price_sar') }} <span class="text-rose-500">*</span></label>
                             <input 
                                 v-model.number="newProductForm.selling_price"
                                 type="text" inputmode="decimal" data-num 
@@ -1157,7 +1160,7 @@ const importLines = (lines, replace) => {
 
                         <!-- Purchase Price -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">سعر الشراء / التكلفة (﷼)</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('invc.purchase_price_cost_sar') }}</label>
                             <input 
                                 v-model.number="newProductForm.purchase_price"
                                 type="text" inputmode="decimal" data-num 
@@ -1170,7 +1173,7 @@ const importLines = (lines, replace) => {
 
                         <!-- Tax Rate -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">نسبة الضريبة (%)</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('invc.tax_rate') }}</label>
                             <input 
                                 v-model.number="newProductForm.tax_rate"
                                 type="text" inputmode="decimal" data-num 
@@ -1183,7 +1186,7 @@ const importLines = (lines, replace) => {
 
                         <!-- SKU -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">كود الصنف (SKU)</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('invc.item_code_sku') }}</label>
                             <input 
                                 v-model="newProductForm.sku"
                                 type="text" 
@@ -1195,7 +1198,7 @@ const importLines = (lines, replace) => {
 
                         <!-- Barcode -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">الباركود (Barcode)</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('invc.barcode') }}</label>
                             <input 
                                 v-model="newProductForm.barcode"
                                 type="text" 
@@ -1207,7 +1210,7 @@ const importLines = (lines, replace) => {
 
                         <!-- Initial Stock (Only if product) -->
                         <div v-if="newProductForm.type === 'product'">
-                            <label class="block text-xs font-bold text-slate-700 mb-1">الكمية الافتتاحية للمخزون</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('invc.opening_stock_quantity') }}</label>
                             <input 
                                 v-model.number="newProductForm.initial_stock"
                                 type="text" inputmode="decimal" data-num 
@@ -1221,11 +1224,11 @@ const importLines = (lines, replace) => {
 
                     <!-- Description -->
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">وصف الصنف / تفاصيل إضافية</label>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('invc.item_description_extra_details') }}</label>
                         <textarea 
                             v-model="newProductForm.description"
                             rows="2"
-                            placeholder="وصف مختصر لمواصفات الصنف يظهر على الفاتورة..."
+                            :placeholder="$t('invc.short_description_of_the_item_sp')"
                             class="w-full text-xs rounded-xl border border-slate-200 p-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none text-slate-600"
                         ></textarea>
                     </div>
@@ -1238,7 +1241,7 @@ const importLines = (lines, replace) => {
                         @click="closeProductModal"
                         class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition"
                     >
-                        إلغاء
+                        {{ $t('invc.cancel') }}
                     </button>
                     <button 
                         type="button"
@@ -1248,7 +1251,7 @@ const importLines = (lines, replace) => {
                     >
                         <ArrowPathIcon v-if="isSavingProduct" class="w-4 h-4 animate-spin" />
                         <CheckIcon v-else class="w-4 h-4 stroke-2" />
-                        <span>حفظ وإدراج في الفاتورة</span>
+                        <span>{{ $t('invc.save_and_insert_into_the_invoice') }}</span>
                     </button>
                 </div>
             </div>

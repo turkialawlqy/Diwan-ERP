@@ -10,7 +10,7 @@ class BudgetLine extends Model
 {
     use BelongsToCompany;
 
-    protected $fillable = ['company_id', 'budget_id', 'account_id', 'cost_center_id', 'period', 'amount'];
+    protected $fillable = ['company_id', 'budget_id', 'account_id', 'cost_center_id', 'project_id', 'branch_id', 'period', 'amount'];
 
     protected $casts = ['amount' => 'decimal:2'];
 

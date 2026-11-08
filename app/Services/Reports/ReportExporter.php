@@ -9,6 +9,7 @@ use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithProperties;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Events\AfterSheet;
@@ -27,7 +28,7 @@ class ReportExporter
         $bold = $table['bold'] ?? [];
         $title = mb_substr(preg_replace('/[\\\\\/\?\*\[\]:]/', ' ', $table['title']), 0, 31);
 
-        $export = new class($table, $data, $bold, $title) implements FromArray, ShouldAutoSize, WithEvents, WithHeadings, WithStyles, WithTitle
+        $export = new class($table, $data, $bold, $title) implements FromArray, ShouldAutoSize, WithEvents, WithHeadings, WithProperties, WithStyles, WithTitle
         {
             public function __construct(protected array $table, protected array $data, protected array $bold, protected string $title) {}
 
@@ -44,6 +45,12 @@ class ReportExporter
             public function title(): string
             {
                 return $this->title;
+            }
+
+            /** Period and creation time travel with the file (workbook properties), keeping the sheet itself a clean table. */
+            public function properties(): array
+            {
+                return ['title' => $this->table['title'], 'description' => $this->table['subtitle'] ?? ''];
             }
 
             public function styles(Worksheet $sheet): array

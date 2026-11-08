@@ -2,6 +2,7 @@
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { HomeIcon, ChevronRightIcon, ChevronDownIcon } from '@heroicons/vue/24/outline';
@@ -27,12 +28,14 @@ const apply = () => {
     router.get(route('audit.index'), query, { preserveState: true, preserveScroll: true });
 };
 
+const { t } = useI18n();
 const eventLabels = {
     created: 'إنشاء',
     updated: 'تعديل',
     deleted: 'حذف',
     login: 'تسجيل دخول',
     login_failed: 'محاولة دخول فاشلة',
+    'report.exported': t('repgap.report_exported'),
     role_created: 'إنشاء دور',
     role_renamed: 'إعادة تسمية دور',
     role_deleted: 'حذف دور',

@@ -13,6 +13,7 @@ const props = defineProps({ report: Object, comparison: { type: Object, default:
 const costCenter = ref(props.filters.cost_center_id ?? '');
 const compare = ref(props.filters.compare ?? '');
 const printPage = () => window.print();
+const pct = (part, whole) => (Number(whole) ? `${(Number(part) / Number(whole) * 100).toFixed(1)}%` : '—');
 </script>
 
 <template>
@@ -31,6 +32,7 @@ const printPage = () => window.print();
                     <option value="">بدون مقارنة</option>
                     <option value="previous">الفترة السابقة</option>
                     <option value="year">نفس الفترة من السنة السابقة</option>
+                    <option value="budget">{{ $t('repgap.vs_budget') }}</option>
                 </select>
             </label>
             <label><span class="block font-bold text-slate-600 mb-1">مركز التكلفة</span>
@@ -53,6 +55,10 @@ const printPage = () => window.print();
                     <p>{{ report.net_profit >= 0 ? 'صافي الربح' : 'صافي الخسارة' }}</p>
                     <p class="font-mono font-black text-lg mt-1">{{ amount(report.net_profit) }}</p>
                 </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 text-xs" data-margins>
+                <div class="rounded-xl border border-slate-200 p-3"><p class="text-slate-500">{{ $t('repgap.gross_margin') }}</p><p class="font-mono font-black text-slate-800 mt-1" data-gross-margin>{{ pct(report.gross_profit, report.total_revenue) }}</p></div>
+                <div class="rounded-xl border border-slate-200 p-3"><p class="text-slate-500">{{ $t('repgap.net_margin') }}</p><p class="font-mono font-black text-slate-800 mt-1" data-net-margin>{{ pct(report.net_profit, report.total_revenue) }}</p></div>
             </div>
         </div>
     </AppLayout>

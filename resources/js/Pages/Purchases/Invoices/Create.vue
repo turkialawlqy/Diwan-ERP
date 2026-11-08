@@ -33,6 +33,9 @@ import {
     InformationCircleIcon,
 } from '@heroicons/vue/24/outline';
 import { today, addDays } from '@/utils/format';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({
     costCenters: { type: Array, default: () => [] },
@@ -86,7 +89,7 @@ const form = useForm({
     items: [
         {
             product_id: productsList.value[0]?.id || null,
-            item_name: productsList.value[0]?.name_ar || 'بند توريد جديد',
+            item_name: productsList.value[0]?.name_ar || t('pinv.new_supply_line'),
             quantity: 1,
             unit_price: Number(productsList.value[0]?.purchase_price) || 0,
             discount: 0,
@@ -251,7 +254,7 @@ const submitNewSupplier = async () => {
         if (err.response && err.response.data && err.response.data.errors) {
             supplierModalErrors.value = err.response.data.errors;
         } else {
-            supplierModalErrors.value = { general: [err.response?.data?.message || 'حدث خطأ أثناء حفظ بيانات المورد'] };
+            supplierModalErrors.value = { general: [err.response?.data?.message || t('pinv.supplier_save_error')] };
         }
     } finally {
         isSavingSupplier.value = false;
@@ -389,7 +392,7 @@ const submitNewProduct = async () => {
         if (err.response && err.response.data && err.response.data.errors) {
             productModalErrors.value = err.response.data.errors;
         } else {
-            productModalErrors.value = { general: [err.response?.data?.message || 'حدث خطأ أثناء حفظ الصنف'] };
+            productModalErrors.value = { general: [err.response?.data?.message || t('pinv.item_save_error')] };
         }
     } finally {
         isSavingProduct.value = false;
@@ -505,7 +508,7 @@ const importLines = (lines, replace) => {
 
 <template>
     <AppLayout>
-        <Head :title="editing ? `تعديل فاتورة الشراء ${editing.invoice_number}` : 'إنشاء فاتورة شراء جديدة'" />
+        <Head :title="editing ? $t('pinv.edit_invoice', { number: editing.invoice_number }) : $t('pinv.create_a_new_purchase_invoice')" />
 
         <!-- Notification Toast -->
         <Transition
@@ -527,13 +530,13 @@ const importLines = (lines, replace) => {
 
         <div class="space-y-6 w-full">
             <!-- Header Ribbon -->
-            <PageHeader :title="editing ? `تعديل فاتورة الشراء ${editing.invoice_number}` : 'إنشاء فاتورة شراء'" :crumbs="[{ label: 'فواتير الشراء' }, { label: editing ? 'تعديل' : 'إنشاء فاتورة شراء' }]">
+            <PageHeader :title="editing ? $t('pinv.edit_invoice', { number: editing.invoice_number }) : $t('pinv.create_purchase_invoice')" :crumbs="[{ label: $t('pinv.purchase_invoices') }, { label: editing ? $t('pinv.edit') : $t('pinv.create_purchase_invoice') }]">
 <template #actions>
 <Link 
                         :href="route('purchases.invoices.index')"
                         class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50"
                     >
-                        إلغاء
+                        {{ $t('pinv.cancel') }}
                     </Link>
                     <button 
                         @click="submit"
@@ -541,7 +544,7 @@ const importLines = (lines, replace) => {
                         class="px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs hover:shadow-indigo-500/20 disabled:opacity-50 flex items-center gap-1.5"
                     >
                         <CheckIcon class="w-4 h-4 stroke-2" />
-                        <span>حفظ الفاتورة وتحديث المخزون</span>
+                        <span>{{ $t('pinv.save_the_invoice_and_update_stoc') }}</span>
                     </button>
 </template>
 </PageHeader>
@@ -554,7 +557,7 @@ const importLines = (lines, replace) => {
                     <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-4">
                         <h2 class="text-xs font-bold text-slate-800 flex items-center gap-2 pb-2 border-b border-slate-100">
                             <BuildingOfficeIcon class="w-4 h-4 text-indigo-600" />
-                            <span>بيانات المورد والمستودع</span>
+                            <span>{{ $t('pinv.supplier_and_warehouse') }}</span>
                         </h2>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -562,14 +565,14 @@ const importLines = (lines, replace) => {
                             <div class="sm:col-span-2 relative supplier-combobox-wrapper">
                                 <div class="flex items-center justify-between mb-1.5">
                                     <label class="block font-bold text-slate-700 flex items-center gap-1.5">
-                                        <span>المورد</span>
+                                        <span>{{ $t('pinv.supplier') }}</span>
                                         <span class="text-rose-500">*</span>
-                                        <span title="ابحث برقم المورد أو الاسم أو الجوال، أو اكتب اسماً جديداً للإنشاء المباشر" class="cursor-help text-slate-400 hover:text-slate-600">
+                                        <span :title="$t('pinv.search_by_supplier_number_name_o')" class="cursor-help text-slate-400 hover:text-slate-600">
                                             <InformationCircleIcon class="w-3.5 h-3.5" />
                                         </span>
                                     </label>
                                     <span v-if="selectedSupplier" class="text-xs text-slate-500 font-medium">
-                                        الرصيد الحالي المستحق: <strong class="text-indigo-600">{{ formatCurrency(selectedSupplier.current_balance) }} ﷼</strong>
+                                        {{ $t('pinv.current_balance_due') }} <strong class="text-indigo-600">{{ formatCurrency(selectedSupplier.current_balance) }} ﷼</strong>
                                     </span>
                                 </div>
 
@@ -579,7 +582,7 @@ const importLines = (lines, replace) => {
                                         v-model="supplierSearch"
                                         @focus="isSupplierDropdownOpen = true"
                                         @input="isSupplierDropdownOpen = true"
-                                        placeholder="ابحث برقم المورد، الاسم، الجوال أو اكتب اسماً جديداً..."
+                                        :placeholder="$t('pinv.search_by_supplier_number_name_m')"
                                         class="w-full text-xs sm:text-sm rounded-xl border border-slate-200 ps-3 pe-10 py-2.5 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 font-bold text-slate-800 transition shadow-2xs"
                                         required
                                     />
@@ -601,9 +604,9 @@ const importLines = (lines, replace) => {
                                     >
                                         <div class="flex items-center gap-2">
                                             <UserPlusIcon class="w-4 h-4 stroke-2" />
-                                            <span>إنشاء "{{ supplierSearch.trim() }}"</span>
+                                            <span>{{ $t('pinv.create_named', { name: supplierSearch.trim() }) }}</span>
                                         </div>
-                                        <span class="text-3xs bg-white/20 px-2 py-0.5 rounded-full font-medium">نافذة الإضافة +</span>
+                                        <span class="text-3xs bg-white/20 px-2 py-0.5 rounded-full font-medium">{{ $t('pinv.add_window') }}</span>
                                     </div>
 
                                     <!-- Supplier Matches List -->
@@ -622,7 +625,7 @@ const importLines = (lines, replace) => {
                                                 </div>
                                                 <div class="text-3xs text-slate-400 flex items-center gap-3">
                                                     <span v-if="s.phone">📞 {{ s.phone }}</span>
-                                                    <span v-if="s.tax_number">الرقم الضريبي: {{ s.tax_number }}</span>
+                                                    <span v-if="s.tax_number">{{ $t('pinv.tax_n', { n: s.tax_number }) }}</span>
                                                 </div>
                                             </div>
                                             <div class="text-end">
@@ -633,7 +636,7 @@ const importLines = (lines, replace) => {
                                         </div>
 
                                         <div v-if="filteredSuppliers.length === 0" class="p-3 text-center text-xs text-slate-400">
-                                            لا يوجد مورد بهذا الاسم، اضغط على زر الإنشاء بالأعلى لإضافته فوراً.
+                                            {{ $t('pinv.no_supplier_with_this_name_press') }}
                                         </div>
                                     </div>
                                 </div>
@@ -642,13 +645,13 @@ const importLines = (lines, replace) => {
 
                             <!-- Warehouse Selection -->
                             <div>
-                                <label class="block font-bold text-slate-700 mb-1">المستودع المستلم <span class="text-rose-500">*</span></label>
+                                <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.receiving_warehouse') }} <span class="text-rose-500">*</span></label>
                                 <SelectCreate v-model="form.warehouse_id" :options="branchWarehouses" entity="warehouse" label="name" :allow-empty="false" required />
                             </div>
 
                             <!-- Invoice Number -->
                             <div>
-                                <label class="block font-bold text-slate-700 mb-1">رقم الفاتورة بالنظام <span class="text-rose-500">*</span></label>
+                                <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.system_invoice_number') }} <span class="text-rose-500">*</span></label>
                                 <input 
                                     v-model="form.invoice_number" 
                                     type="text" 
@@ -659,11 +662,11 @@ const importLines = (lines, replace) => {
 
                             <!-- Supplier's Own Invoice Number -->
                             <div>
-                                <label class="block font-bold text-slate-700 mb-1">رقم فاتورة المورد (المرجع)</label>
+                                <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.supplier_invoice_number_referenc') }}</label>
                                 <input 
                                     v-model="form.supplier_invoice_number" 
                                     type="text" 
-                                    placeholder="مثال: INV-SUP-2026-99" 
+                                    :placeholder="$t('pinv.e_g_inv_sup_2026_99')" 
                                     class="w-full rounded-xl border border-slate-200 px-3 py-2.5 font-mono focus:border-indigo-500"
                                 />
                             </div>
@@ -672,20 +675,20 @@ const importLines = (lines, replace) => {
                         <!-- Dates -->
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
                             <div>
-                                <label class="block font-bold text-slate-600 mb-1">تاريخ الفاتورة</label>
+                                <label class="block font-bold text-slate-600 mb-1">{{ $t('pinv.invoice_date') }}</label>
                                 <DatePicker 
                                     v-model="form.invoice_date" 
                                     required 
                                     class="w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-indigo-500" />
                             </div>
                             <div>
-                                <label class="block font-bold text-slate-600 mb-1">تاريخ الاستحقاق</label>
+                                <label class="block font-bold text-slate-600 mb-1">{{ $t('pinv.due_date') }}</label>
                                 <DatePicker 
                                     v-model="form.due_date" 
                                     class="w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-indigo-500" />
                             </div>
                             <div>
-                                <label class="block font-bold text-slate-600 mb-1">تاريخ استلام البضاعة</label>
+                                <label class="block font-bold text-slate-600 mb-1">{{ $t('pinv.goods_receipt_date') }}</label>
                                 <DatePicker 
                                     v-model="form.supply_date" 
                                     class="w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-indigo-500" />
@@ -699,7 +702,7 @@ const importLines = (lines, replace) => {
                         <div class="flex items-center justify-between pb-2 border-b border-slate-100">
                             <h2 class="text-xs font-bold text-slate-800 flex items-center gap-2">
                                 <ArchiveBoxIcon class="w-4 h-4 text-indigo-600" />
-                                <span>بنود فاتورة الشراء والمنتجات المستلمة</span>
+                                <span>{{ $t('pinv.purchase_invoice_lines_and_recei') }}</span>
                             </h2>
                             <ImportLines kind="purchase" @imported="importLines" />
                             <button 
@@ -708,7 +711,7 @@ const importLines = (lines, replace) => {
                                 class="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors flex items-center gap-1 border border-indigo-200/60"
                             >
                                 <PlusIcon class="w-3.5 h-3.5 stroke-2" />
-                                <span>إضافة سطر</span>
+                                <span>{{ $t('pinv.add_line') }}</span>
                             </button>
                         </div>
 
@@ -718,11 +721,11 @@ const importLines = (lines, replace) => {
                                 <thead>
                                     <tr class="text-slate-400 font-bold border-b border-slate-100 pb-2">
                                         <th class="py-2.5 px-2 text-center w-8">#</th>
-                                        <th class="py-2.5 px-3 min-w-[240px]">المنتج / الصنف *</th>
-                                        <th class="py-2.5 px-2 w-24">الكمية</th>
-                                        <th class="py-2.5 px-2 w-28">سعر الشراء</th>
-                                        <th class="py-2.5 px-2 w-16 text-center">الضريبة</th>
-                                        <th class="py-2.5 px-3 w-28 text-end">الإجمالي</th>
+                                        <th class="py-2.5 px-3 min-w-[240px]">{{ $t('pinv.product_item') }}</th>
+                                        <th class="py-2.5 px-2 w-24">{{ $t('pinv.quantity') }}</th>
+                                        <th class="py-2.5 px-2 w-28">{{ $t('pinv.purchase_price') }}</th>
+                                        <th class="py-2.5 px-2 w-16 text-center">{{ $t('pinv.tax') }}</th>
+                                        <th class="py-2.5 px-3 w-28 text-end">{{ $t('pinv.total') }}</th>
                                         <th class="py-2.5 px-1 text-center w-8"></th>
                                     </tr>
                                 </thead>
@@ -740,7 +743,7 @@ const importLines = (lines, replace) => {
                                                     type="text" 
                                                     @focus="openProductList(item, $event)"
                                                     @input="openProductList(item, $event)"
-                                                    placeholder="اختر أو اكتب اسم منتج للإنشاء..."
+                                                    :placeholder="$t('pinv.choose_or_type_a_product_name_to')"
                                                     class="w-full text-xs rounded-xl border border-slate-200 ps-2.5 pe-8 py-2 focus:border-indigo-500 font-bold text-slate-800 transition"
                                                     required
                                                 />
@@ -764,9 +767,9 @@ const importLines = (lines, replace) => {
                                                 >
                                                     <div class="flex items-center gap-2">
                                                         <CubeIcon class="w-4 h-4 stroke-2" />
-                                                        <span>إنشاء "{{ item.item_name.trim() }}"</span>
+                                                        <span>{{ $t('pinv.create_named', { name: item.item_name.trim() }) }}</span>
                                                     </div>
-                                                    <span class="text-3xs bg-white/20 px-2 py-0.5 rounded-full font-medium">نافذة الصنف +</span>
+                                                    <span class="text-3xs bg-white/20 px-2 py-0.5 rounded-full font-medium">{{ $t('pinv.item_window') }}</span>
                                                 </div>
 
                                                 <!-- Product Matches -->
@@ -780,20 +783,20 @@ const importLines = (lines, replace) => {
                                                         <div class="space-y-0.5">
                                                             <div class="font-bold text-slate-800">{{ prod.name_ar }}</div>
                                                             <div class="text-3xs text-slate-400 flex items-center gap-2">
-                                                                <span v-if="prod.sku" class="font-mono">كود: {{ prod.sku }}</span>
-                                                                <span v-if="prod.barcode" class="font-mono">باركد: {{ prod.barcode }}</span>
+                                                                <span v-if="prod.sku" class="font-mono">{{ $t('pinv.code_n', { n: prod.sku }) }}</span>
+                                                                <span v-if="prod.barcode" class="font-mono">{{ $t('pinv.barcode_n', { n: prod.barcode }) }}</span>
                                                             </div>
                                                         </div>
                                                         <div class="text-end">
                                                             <span class="font-bold text-indigo-600 font-mono">
                                                                 {{ formatCurrency(prod.purchase_price) }} ﷼
                                                             </span>
-                                                            <div class="text-3xs text-slate-400">سعر الشراء</div>
+                                                            <div class="text-3xs text-slate-400">{{ $t('pinv.purchase_price') }}</div>
                                                         </div>
                                                     </div>
 
                                                     <div v-if="getFilteredProducts(item.item_name).length === 0" class="p-2.5 text-center text-xs text-slate-400">
-                                                        لا يوجد صنف مطابق، اضغط على زر الإنشاء أعلاه لإضافته فوراً.
+                                                        {{ $t('pinv.no_matching_item_press_the_creat') }}
                                                     </div>
                                                 </div>
                                             </div>
@@ -858,11 +861,11 @@ const importLines = (lines, replace) => {
 
                         <!-- Notes -->
                         <div class="pt-3 border-t border-slate-100">
-                            <label class="block text-2xs font-bold text-slate-600 mb-1">ملاحظات الفاتورة أو شروط التوريد</label>
+                            <label class="block text-2xs font-bold text-slate-600 mb-1">{{ $t('pinv.invoice_notes_or_supply_terms') }}</label>
                             <textarea 
                                 v-model="form.notes" 
                                 rows="2" 
-                                placeholder="اكتب أي شروط خاصة أو بيانات التسليم هنا..." 
+                                :placeholder="$t('pinv.write_any_special_terms_or_deliv')" 
                                 class="w-full text-xs rounded-xl border border-slate-200 p-3 focus:border-indigo-500"
                             ></textarea>
                         </div>
@@ -874,12 +877,12 @@ const importLines = (lines, replace) => {
                     <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-4">
                         <h2 class="text-xs font-bold text-slate-800 flex items-center gap-2 pb-2 border-b border-slate-100">
                             <ReceiptPercentIcon class="w-4 h-4 text-indigo-600" />
-                            <span>ملخص الحساب والضريبة</span>
+                            <span>{{ $t('pinv.account_and_tax_summary') }}</span>
                         </h2>
 
                         <div class="space-y-2 text-xs">
                             <div class="flex justify-between py-1 text-slate-600">
-                                <span>المجموع غير شامل الضريبة:</span>
+                                <span>{{ $t('pinv.total_excluding_tax') }}</span>
                                 <span class="font-mono font-bold">{{ formatCurrency(subtotal) }} ﷼</span>
                             </div>
                             <div class="flex justify-between py-1 text-slate-600">
@@ -887,7 +890,7 @@ const importLines = (lines, replace) => {
                                 <span class="font-mono font-bold text-indigo-600">{{ formatCurrency(taxAmount) }} ﷼</span>
                             </div>
                             <div class="flex justify-between py-2 border-t border-slate-200 text-sm font-black text-slate-900">
-                                <span>المجموع النهائي:</span>
+                                <span>{{ $t('pinv.final_total') }}</span>
                                 <span class="font-mono text-indigo-700">{{ formatCurrency(total) }} ﷼</span>
                             </div>
                         </div>
@@ -895,23 +898,23 @@ const importLines = (lines, replace) => {
                         <!-- Payment Status & Method -->
                         <div class="pt-4 border-t border-slate-100 space-y-3 text-xs">
                             <div class="flex items-center justify-between">
-                                <label class="block font-bold text-slate-700">الدفعات عند الإصدار</label>
-                                <button type="button" @click="addPayment" class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold" data-add-payment>+ دفعة</button>
+                                <label class="block font-bold text-slate-700">{{ $t('pinv.payments_at_issue') }}</label>
+                                <button type="button" @click="addPayment" class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold" data-add-payment>{{ $t('pinv.payment') }}</button>
                             </div>
-                            <p v-if="!form.payments.length" class="text-slate-500">الفاتورة آجلة بالكامل. أضف دفعة (أو أكثر: نقد وتحويل مثلًا) لتسجيل ما دُفع الآن.</p>
+                            <p v-if="!form.payments.length" class="text-slate-500">{{ $t('pinv.the_invoice_is_fully_on_credit_a') }}</p>
                             <div v-for="(p, i) in form.payments" :key="i" class="grid grid-cols-12 gap-2 items-end p-2 rounded-xl bg-slate-50 border border-slate-100" data-payment-row>
                                 <select v-model="p.method" class="col-span-4 rounded-lg border border-slate-200 ps-2 pe-8 py-1.5 font-medium">
-                                    <option value="cash">نقداً</option>
-                                    <option value="bank_transfer">تحويل بنكي</option>
-                                    <option value="card">بطاقة / مدى</option>
+                                    <option value="cash">{{ $t('pinv.cash') }}</option>
+                                    <option value="bank_transfer">{{ $t('pinv.bank_transfer') }}</option>
+                                    <option value="card">{{ $t('pinv.card_mada') }}</option>
                                 </select>
-                                <div class="col-span-4"><SelectCreate v-model="p.bank_account_id" :options="bankAccounts" entity="bank" label="name" placeholder="الصندوق / البنك" /></div>
+                                <div class="col-span-4"><SelectCreate v-model="p.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('pinv.cash_box_bank')" /></div>
                                 <input v-model="p.amount" type="text" inputmode="decimal" data-num class="col-span-3 rounded-lg border border-slate-200 px-2 py-1.5 font-mono font-bold text-emerald-600" />
                                 <button type="button" @click="form.payments.splice(i, 1)" class="col-span-1 text-rose-500 font-bold">×</button>
                             </div>
                             <div v-if="form.payments.length" class="flex justify-between text-slate-600">
-                                <span>المدفوع: <b class="font-mono text-emerald-600">{{ formatCurrency(paidNow) }}</b></span>
-                                <span>المتبقي للمورد: <b class="font-mono" :class="remainingNow < 0 ? 'text-rose-600' : 'text-slate-800'">{{ formatCurrency(remainingNow) }}</b></span>
+                                <span>{{ $t('pinv.paid') }} <b class="font-mono text-emerald-600">{{ formatCurrency(paidNow) }}</b></span>
+                                <span>{{ $t('pinv.remaining_to_the_supplier') }} <b class="font-mono" :class="remainingNow < 0 ? 'text-rose-600' : 'text-slate-800'">{{ formatCurrency(remainingNow) }}</b></span>
                             </div>
                             <p v-if="form.errors.payments" class="text-rose-600 font-bold">{{ form.errors.payments }}</p>
                         </div>
@@ -923,7 +926,7 @@ const importLines = (lines, replace) => {
                                 class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-xs hover:shadow-indigo-500/20 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                             >
                                 <CheckIcon class="w-4 h-4 stroke-2" />
-                                <span>حفظ الفاتورة وإدخال البضاعة</span>
+                                <span>{{ $t('pinv.save_the_invoice_and_receive_the') }}</span>
                             </button>
                         </div>
                     </div>
@@ -946,8 +949,8 @@ const importLines = (lines, replace) => {
                             <UserPlusIcon class="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 class="text-sm font-black text-slate-900">إضافة مورد جديد</h3>
-                            <p class="text-3xs text-slate-500">تسجيل بيانات مورد واعتماده في الفاتورة مباشرة</p>
+                            <h3 class="text-sm font-black text-slate-900">{{ $t('pinv.add_a_new_supplier') }}</h3>
+                            <p class="text-3xs text-slate-500">{{ $t('pinv.record_a_supplier_and_use_him_in') }}</p>
                         </div>
                     </div>
                     <button 
@@ -969,12 +972,12 @@ const importLines = (lines, replace) => {
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <!-- Supplier Name -->
                         <div class="sm:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">اسم المورد / المسؤول <span class="text-rose-500">*</span></label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.supplier_contact_name') }} <span class="text-rose-500">*</span></label>
                             <input 
                                 v-model="newSupplierForm.name"
                                 type="text" 
                                 required
-                                placeholder="مثال: شركة التوريدات المتقدمة / أحمد محمود"
+                                :placeholder="$t('pinv.e_g_advanced_supplies_co_ahmad_m')"
                                 class="w-full rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 font-bold"
                             />
                             <p v-if="supplierModalErrors.name" class="text-3xs text-rose-600 mt-1 font-semibold">{{ supplierModalErrors.name[0] }}</p>
@@ -982,18 +985,18 @@ const importLines = (lines, replace) => {
 
                         <!-- Company Name -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">اسم الشركة / المؤسسة</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.company_establishment_name') }}</label>
                             <input 
                                 v-model="newSupplierForm.company_name"
                                 type="text" 
-                                placeholder="اسم الشركة التجاري"
+                                :placeholder="$t('pinv.company_trade_name')"
                                 class="w-full rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500"
                             />
                         </div>
 
                         <!-- Phone -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">رقم الهاتف / الجوال</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.phone_mobile_number') }}</label>
                             <input 
                                 v-model="newSupplierForm.phone"
                                 type="text" 
@@ -1005,7 +1008,7 @@ const importLines = (lines, replace) => {
 
                         <!-- Tax Number -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">الرقم الضريبي (15 رقم)</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.tax_number_15_digits') }}</label>
                             <input 
                                 v-model="newSupplierForm.tax_number"
                                 type="text" 
@@ -1018,7 +1021,7 @@ const importLines = (lines, replace) => {
 
                         <!-- Commercial Register -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">السجل التجاري</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.commercial_register') }}</label>
                             <input 
                                 v-model="newSupplierForm.commercial_register"
                                 type="text" 
@@ -1030,7 +1033,7 @@ const importLines = (lines, replace) => {
 
                         <!-- Email -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">البريد الإلكتروني</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.email') }}</label>
                             <input 
                                 v-model="newSupplierForm.email"
                                 type="email" 
@@ -1042,7 +1045,7 @@ const importLines = (lines, replace) => {
 
                         <!-- Opening Balance -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">الرصيد الافتتاحي (﷼)</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.opening_balance_sar') }}</label>
                             <input 
                                 v-model.number="newSupplierForm.opening_balance"
                                 type="text" inputmode="decimal" data-num 
@@ -1054,11 +1057,11 @@ const importLines = (lines, replace) => {
 
                         <!-- Address -->
                         <div class="sm:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">العنوان / المدينة</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.address_city') }}</label>
                             <input 
                                 v-model="newSupplierForm.address"
                                 type="text" 
-                                placeholder="المدينة، الحي، الشارع"
+                                :placeholder="$t('pinv.city_district_street')"
                                 class="w-full rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500"
                             />
                         </div>
@@ -1072,7 +1075,7 @@ const importLines = (lines, replace) => {
                         @click="closeSupplierModal"
                         class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition"
                     >
-                        إلغاء
+                        {{ $t('pinv.cancel') }}
                     </button>
                     <button 
                         type="button"
@@ -1082,7 +1085,7 @@ const importLines = (lines, replace) => {
                     >
                         <ArrowPathIcon v-if="isSavingSupplier" class="w-4 h-4 animate-spin" />
                         <CheckIcon v-else class="w-4 h-4 stroke-2" />
-                        <span>حفظ واعتماد المورد</span>
+                        <span>{{ $t('pinv.save_and_approve_the_supplier') }}</span>
                     </button>
                 </div>
             </div>
@@ -1103,8 +1106,8 @@ const importLines = (lines, replace) => {
                             <CubeIcon class="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 class="text-sm font-black text-slate-900">إضافة صنف / منتج جديد للمخزون</h3>
-                            <p class="text-3xs text-slate-500">أدخل تفاصيل الصنف وسيتم إدراجه في الفاتورة وحفظه في المنتجات</p>
+                            <h3 class="text-sm font-black text-slate-900">{{ $t('pinv.add_a_new_stock_item_product') }}</h3>
+                            <p class="text-3xs text-slate-500">{{ $t('pinv.enter_the_item_details_it_is_ins') }}</p>
                         </div>
                     </div>
                     <button 
@@ -1131,7 +1134,7 @@ const importLines = (lines, replace) => {
                             :class="newProductForm.type === 'product' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'text-slate-600 font-medium'"
                             class="flex-1 py-1.5 rounded-lg text-xs transition text-center"
                         >
-                            منتج مخزني
+                            {{ $t('pinv.stock_product') }}
                         </button>
                         <button 
                             type="button"
@@ -1139,19 +1142,19 @@ const importLines = (lines, replace) => {
                             :class="newProductForm.type === 'service' ? 'bg-white text-indigo-700 shadow-xs font-bold' : 'text-slate-600 font-medium'"
                             class="flex-1 py-1.5 rounded-lg text-xs transition text-center"
                         >
-                            خدمة / استشارة
+                            {{ $t('pinv.service_consultation') }}
                         </button>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <!-- Name Arabic -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">اسم الصنف (بالعربية) <span class="text-rose-500">*</span></label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.item_name_arabic') }} <span class="text-rose-500">*</span></label>
                             <input 
                                 v-model="newProductForm.name_ar"
                                 type="text" 
                                 required
-                                placeholder="مثال: زيت محرك 5W-30"
+                                :placeholder="$t('pinv.e_g_5w_30_engine_oil')"
                                 class="w-full rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 font-bold"
                             />
                             <p v-if="productModalErrors.name_ar" class="text-3xs text-rose-600 mt-1 font-semibold">{{ productModalErrors.name_ar[0] }}</p>
@@ -1159,7 +1162,7 @@ const importLines = (lines, replace) => {
 
                         <!-- Name English -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">اسم الصنف (بالإنجليزية)</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.item_name_english') }}</label>
                             <input 
                                 v-model="newProductForm.name_en"
                                 type="text" 
@@ -1171,19 +1174,19 @@ const importLines = (lines, replace) => {
 
                         <!-- Category -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">التصنيف</label>
-                            <SelectCreate v-model="newProductForm.category_id" :options="categoriesList" entity="category" label="name_ar" placeholder="بدون تصنيف (عام)" />
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.category') }}</label>
+                            <SelectCreate v-model="newProductForm.category_id" :options="categoriesList" entity="category" label="name_ar" :placeholder="$t('pinv.no_category_general')" />
                         </div>
 
                         <!-- Unit -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">الوحدة</label>
-                            <SelectCreate v-model="newProductForm.unit_id" :options="unitsList" entity="unit" :label="(u) => `${u.name_ar} (${u.code || u.name_en || '-'})`" placeholder="اختر الوحدة..." />
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.unit') }}</label>
+                            <SelectCreate v-model="newProductForm.unit_id" :options="unitsList" entity="unit" :label="(u) => `${u.name_ar} (${u.code || u.name_en || '-'})`" :placeholder="$t('pinv.choose_the_unit')" />
                         </div>
 
                         <!-- Purchase Price -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">سعر الشراء / التكلفة (﷼) <span class="text-rose-500">*</span></label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.purchase_price_cost_sar') }} <span class="text-rose-500">*</span></label>
                             <input 
                                 v-model.number="newProductForm.purchase_price"
                                 type="text" inputmode="decimal" data-num 
@@ -1197,20 +1200,20 @@ const importLines = (lines, replace) => {
 
                         <!-- Selling Price -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">سعر البيع المقترح (﷼)</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.suggested_selling_price_sar') }}</label>
                             <input 
                                 v-model.number="newProductForm.selling_price"
                                 type="text" inputmode="decimal" data-num 
                                 step="0.01" 
                                 min="0" 
-                                placeholder="0.00 (اختياري، يطابق الشراء إن ترك فارغاً)"
+                                :placeholder="$t('pinv.0_00_optional_equals_the_purchas')"
                                 class="w-full rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 font-mono"
                             />
                         </div>
 
                         <!-- Tax Rate -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">نسبة الضريبة (%)</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.tax_rate') }}</label>
                             <input 
                                 v-model.number="newProductForm.tax_rate"
                                 type="text" inputmode="decimal" data-num 
@@ -1223,7 +1226,7 @@ const importLines = (lines, replace) => {
 
                         <!-- SKU -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">كود الصنف (SKU)</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.item_code_sku') }}</label>
                             <input 
                                 v-model="newProductForm.sku"
                                 type="text" 
@@ -1235,7 +1238,7 @@ const importLines = (lines, replace) => {
 
                         <!-- Barcode -->
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">الباركود (Barcode)</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.barcode') }}</label>
                             <input 
                                 v-model="newProductForm.barcode"
                                 type="text" 
@@ -1247,11 +1250,11 @@ const importLines = (lines, replace) => {
 
                         <!-- Description -->
                         <div class="sm:col-span-2">
-                            <label class="block font-bold text-slate-700 mb-1">وصف الصنف / تفاصيل إضافية</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('pinv.item_description_extra_details') }}</label>
                             <textarea 
                                 v-model="newProductForm.description"
                                 rows="2" 
-                                placeholder="وصف مواصفات الصنف..." 
+                                :placeholder="$t('pinv.item_specifications')" 
                                 class="w-full rounded-xl border border-slate-200 p-2.5 focus:border-indigo-500 resize-none text-slate-600"
                             ></textarea>
                         </div>
@@ -1265,7 +1268,7 @@ const importLines = (lines, replace) => {
                         @click="closeProductModal"
                         class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition"
                     >
-                        إلغاء
+                        {{ $t('pinv.cancel') }}
                     </button>
                     <button 
                         type="button"
@@ -1275,7 +1278,7 @@ const importLines = (lines, replace) => {
                     >
                         <ArrowPathIcon v-if="isSavingProduct" class="w-4 h-4 animate-spin" />
                         <CheckIcon v-else class="w-4 h-4 stroke-2" />
-                        <span>حفظ وإدراج في الفاتورة</span>
+                        <span>{{ $t('pinv.save_and_insert_into_the_invoice') }}</span>
                     </button>
                 </div>
             </div>

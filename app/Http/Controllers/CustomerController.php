@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\CreditNote;
 use App\Models\Customer;
+use App\Models\Invoice;
 use App\Rules\TaxNumber;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Sales\CustomerStatement;
 use App\Services\Tax\TaxProfile;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -230,15 +232,20 @@ class CustomerController extends Controller
     /**
      * Show statement for customer.
      */
-    public function statement(Customer $client, CustomerStatement $statements)
+    public function statement(Request $request, Customer $client, CustomerStatement $statements)
     {
-        $statement = $statements->build($client);
+        $v = $request->validate(['start_date' => 'nullable|date', 'end_date' => 'nullable|date|after_or_equal:start_date']);
+        $statement = $statements->build($client, isset($v['start_date']) ? Carbon::parse($v['start_date']) : null, isset($v['end_date']) ? Carbon::parse($v['end_date']) : null);
+        $openInvoices = Invoice::where('customer_id', $client->id)->where('remaining_amount', '>', 0.004)->orderBy('due_date')->orderBy('invoice_date')
+            ->get(['id', 'invoice_number', 'invoice_date', 'due_date', 'total', 'remaining_amount', 'currency_code']);
 
         return Inertia::render('Sales/Clients/Statement', [
             'client' => $client->setRelations([]),
             'transactions' => $statement['transactions'],
             'openingBalance' => $statement['opening'],
             'closingBalance' => $statement['closing'],
+            'openInvoices' => $openInvoices,
+            'filters' => ['start_date' => $v['start_date'] ?? null, 'end_date' => $v['end_date'] ?? null],
         ]);
     }
 
