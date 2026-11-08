@@ -2,6 +2,9 @@
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import { taxRate } from '@/utils/tax';
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 import axios from 'axios';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -16,7 +19,7 @@ import { money, date, thisMonth, addMonths, monthEnd } from '@/utils/format';
 const props = defineProps({ equipment: Object, schedules: Array, readings: Array, rentals: Array, orders: Array, billings: Array, profit: Object, profitFrom: String, others: Array, statuses: Object, lookups: Object });
 const e = computed(() => props.equipment);
 const tab = ref('schedules');
-const tabs = { schedules: 'جدول الصيانة الدورية', readings: 'القراءات', rentals: 'العقود', orders: 'سجل الصيانة', money: 'الإيرادات والتكاليف' };
+const tabs = computed(() => ({ schedules: t('eqshow.tab_schedules'), readings: t('eqshow.tab_readings'), rentals: t('eqshow.tab_rentals'), orders: t('eqshow.tab_orders'), money: t('eqshow.tab_money') }));
 const usesHours = computed(() => ['hours', 'both'].includes(e.value.meter_type));
 const usesKm = computed(() => ['km', 'both'].includes(e.value.meter_type));
 const statusColors = { available: 'bg-emerald-50 text-emerald-700', rented: 'bg-indigo-50 text-indigo-700', internal: 'bg-sky-50 text-sky-700', maintenance: 'bg-amber-50 text-amber-700', out_of_service: 'bg-slate-100 text-slate-500' };
@@ -33,7 +36,7 @@ const edit = () => {
     editing.value = true;
 };
 const saveEdit = () => editForm.put(route('equipment.update', e.value.id), { preserveScroll: true, onSuccess: () => { editing.value = false; } });
-const remove = () => confirm(`حذف المعدة «${e.value.name}»؟`) && router.delete(route('equipment.destroy', e.value.id));
+const remove = () => confirm(t('eqshow.del_equipment', { name: e.value.name })) && router.delete(route('equipment.destroy', e.value.id));
 
 // --- schedules
 const blankSchedule = () => ({ name: '', product_id: null, default_quantity: 1, interval_hours: '', interval_km: '', interval_days: '', warn_hours: '', warn_km: '', warn_days: '',
@@ -54,10 +57,10 @@ const saveSchedule = () => {
     const options = { preserveScroll: true, onSuccess: () => { scheduleOpen.value = false; } };
     scheduleEditing.value ? scheduleForm.put(route('equipment.schedules.update', scheduleEditing.value.id), options) : scheduleForm.post(route('equipment.schedules.store', e.value.id), options);
 };
-const removeSchedule = (s) => confirm(`حذف بند «${s.name}»؟`) && router.delete(route('equipment.schedules.destroy', s.id), { preserveScroll: true });
+const removeSchedule = (s) => confirm(t('eqshow.del_item', { name: s.name })) && router.delete(route('equipment.schedules.destroy', s.id), { preserveScroll: true });
 const copyFrom = ref('');
 const copySchedules = () => copyFrom.value && router.post(route('equipment.schedules.copy', e.value.id), { from_id: copyFrom.value }, { preserveScroll: true, onSuccess: () => { copyFrom.value = ''; } });
-const interval = (s) => [s.interval_hours && `${Number(s.interval_hours)} ساعة`, s.interval_km && `${Number(s.interval_km).toLocaleString('en-US')} كم`, s.interval_days && `${s.interval_days} يوم`].filter(Boolean).join(' أو ');
+const interval = (s) => [s.interval_hours && t('eqshow.every_hours', { n: Number(s.interval_hours) }), s.interval_km && t('eqshow.n_km', { n: Number(s.interval_km).toLocaleString('en-US') }), s.interval_days && t('eqshow.every_days', { n: s.interval_days })].filter(Boolean).join(t('eqshow.or_join'));
 const dueCount = computed(() => props.schedules.filter((s) => s.status.state !== 'ok' && s.is_active).length);
 
 // --- supplier rent (hired-in)
@@ -78,7 +81,7 @@ const loadSupplierPreview = async () => {
     try {
         const { data } = await axios.get(route('equipment.supplier.preview', e.value.id), { params: { period_from: supplierForm.period_from, period_to: supplierForm.period_to, tax_rate: supplierForm.tax_rate } });
         supplierPreview.value = data;
-    } catch (err) { supplierPreview.value = { error: err.response?.data?.message || 'تعذّر الحساب' }; }
+    } catch (err) { supplierPreview.value = { error: err.response?.data?.message || t('eqshow.calc_failed') }; }
 };
 const saveSupplier = () => supplierForm.post(route('equipment.supplier.bill', e.value.id), { preserveScroll: true, onSuccess: () => { supplierOpen.value = false; } });
 </script>
@@ -86,24 +89,24 @@ const saveSupplier = () => supplierForm.post(route('equipment.supplier.bill', e.
 <template>
     <AppLayout>
         <Head :title="e.name" />
-        <PageHeader :title="`${e.name}`" :subtitle="[e.code, e.category, e.model, e.plate_number].filter(Boolean).join(' · ')" :crumbs="[{ label: 'المعدات', href: route('equipment.index') }, { label: e.code }]">
+        <PageHeader :title="`${e.name}`" :subtitle="[e.code, e.category, e.model, e.plate_number].filter(Boolean).join(' · ')" :crumbs="[{ label: $t('eqshow.equipment'), href: route('equipment.index') }, { label: e.code }]">
             <template #actions>
-                <Link v-if="$can('equipment.maintenance.create')" :href="route('equipment.maintenance.index', { equipment_id: e.id })" class="px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold">أمر صيانة</Link>
-                <Link v-if="$can('equipment.rentals.create') && e.status !== 'out_of_service'" :href="route('equipment.rentals.index', { equipment: e.id })" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">عقد تأجير</Link>
-                <button v-if="$can('equipment.rentals.bill') && e.ownership === 'rented_in'" @click="openSupplier" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">تسجيل إيجار المورد</button>
-                <button v-if="$can('equipment.assets.edit')" @click="edit" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">تعديل</button>
-                <button v-if="$can('equipment.assets.delete')" @click="remove" class="px-4 py-2 rounded-xl border border-rose-200 text-rose-600 text-xs font-bold">حذف</button>
+                <Link v-if="$can('equipment.maintenance.create')" :href="route('equipment.maintenance.index', { equipment_id: e.id })" class="px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold">{{ $t('eqshow.maintenance_order') }}</Link>
+                <Link v-if="$can('equipment.rentals.create') && e.status !== 'out_of_service'" :href="route('equipment.rentals.index', { equipment: e.id })" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('eqshow.rental_contract') }}</Link>
+                <button v-if="$can('equipment.rentals.bill') && e.ownership === 'rented_in'" @click="openSupplier" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('eqshow.record_supplier_rent') }}</button>
+                <button v-if="$can('equipment.assets.edit')" @click="edit" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('eqshow.edit') }}</button>
+                <button v-if="$can('equipment.assets.delete')" @click="remove" class="px-4 py-2 rounded-xl border border-rose-200 text-rose-600 text-xs font-bold">{{ $t('eqshow.delete') }}</button>
             </template>
         </PageHeader>
 
         <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 text-xs">
-            <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">الحالة</div><span :class="[statusColors[e.status], 'inline-block mt-1 px-2 py-0.5 rounded-full font-bold']">{{ statuses[e.status] }}</span></div>
-            <div v-if="usesHours" class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">عداد الساعات</div><div class="font-mono font-black text-lg text-slate-800">{{ Number(e.current_hours).toLocaleString('en-US') }}</div></div>
-            <div v-if="usesKm" class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">عداد الكيلومترات</div><div class="font-mono font-black text-lg text-slate-800">{{ Number(e.current_km).toLocaleString('en-US') }}</div></div>
-            <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">بنود صيانة مستحقة</div><div :class="['font-black text-lg', dueCount ? 'text-rose-600' : 'text-emerald-600']">{{ dueCount }}</div></div>
-            <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">صافي الربح (12 شهراً)</div><div :class="['font-black text-lg font-mono', (profit?.net || 0) < 0 ? 'text-rose-600' : 'text-slate-800']">{{ money(profit?.net || 0) }}</div></div>
+            <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">{{ $t('eqshow.status') }}</div><span :class="[statusColors[e.status], 'inline-block mt-1 px-2 py-0.5 rounded-full font-bold']">{{ statuses[e.status] }}</span></div>
+            <div v-if="usesHours" class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">{{ $t('eqshow.hour_meter') }}</div><div class="font-mono font-black text-lg text-slate-800">{{ Number(e.current_hours).toLocaleString('en-US') }}</div></div>
+            <div v-if="usesKm" class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">{{ $t('eqshow.odometer') }}</div><div class="font-mono font-black text-lg text-slate-800">{{ Number(e.current_km).toLocaleString('en-US') }}</div></div>
+            <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">{{ $t('eqshow.maintenance_items_due') }}</div><div :class="['font-black text-lg', dueCount ? 'text-rose-600' : 'text-emerald-600']">{{ dueCount }}</div></div>
+            <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">{{ $t('eqshow.net_profit_12_months') }}</div><div :class="['font-black text-lg font-mono', (profit?.net || 0) < 0 ? 'text-rose-600' : 'text-slate-800']">{{ money(profit?.net || 0) }}</div></div>
         </div>
-        <p v-if="e.ownership === 'rented_in'" class="mb-3 text-xs text-slate-500">مستأجرة من <b>{{ e.supplier?.name }}</b> بسعر {{ money(e.supplier_rate) }} لكل {{ lookups.bases[e.supplier_rate_basis] }}</p>
+        <p v-if="e.ownership === 'rented_in'" class="mb-3 text-xs text-slate-500">{{ $t('eqshow.rented_from') }} <b>{{ e.supplier?.name }}</b> {{ $t('eqshow.at_price', { price: money(e.supplier_rate), basis: lookups.bases[e.supplier_rate_basis] }) }}</p>
 
         <div class="flex flex-wrap gap-1 border-b border-slate-200 mb-4 text-xs" role="tablist">
             <button v-for="(l, k) in tabs" :key="k" role="tab" :aria-selected="tab === k" @click="tab = k" :class="['px-4 py-2 font-bold border-b-2 -mb-px', tab === k ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500']">{{ l }}</button>
@@ -112,28 +115,28 @@ const saveSupplier = () => supplierForm.post(route('equipment.supplier.bill', e.
         <!-- Maintenance plan -->
         <section v-if="tab === 'schedules'" class="space-y-3 text-xs">
             <div v-if="$can('equipment.assets.edit')" class="flex flex-wrap items-center gap-2">
-                <button @click="newSchedule" class="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold">+ بند صيانة دورية</button>
+                <button @click="newSchedule" class="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold">{{ $t('eqshow.periodic_maintenance_item') }}</button>
                 <template v-if="others.length">
-                    <span class="text-slate-400 ms-3">أو انسخ الجدول من:</span>
-                    <select v-model="copyFrom" class="rounded-xl border-slate-200 text-xs" aria-label="نسخ الجدول من معدة"><option value="">اختر معدة</option><option v-for="o in others" :key="o.id" :value="o.id">{{ o.code }} — {{ o.name }}{{ o.model ? ` (${o.model})` : '' }}</option></select>
-                    <button @click="copySchedules" :disabled="!copyFrom" class="px-3 py-2 rounded-xl border border-slate-200 font-bold disabled:opacity-40">نسخ</button>
+                    <span class="text-slate-400 ms-3">{{ $t('eqshow.or_copy_the_schedule_from') }}</span>
+                    <select v-model="copyFrom" class="rounded-xl border-slate-200 text-xs" :aria-label="$t('eqshow.copy_from_aria')"><option value="">{{ $t('eqshow.choose_equipment') }}</option><option v-for="o in others" :key="o.id" :value="o.id">{{ o.code }} — {{ o.name }}{{ o.model ? ` (${o.model})` : '' }}</option></select>
+                    <button @click="copySchedules" :disabled="!copyFrom" class="px-3 py-2 rounded-xl border border-slate-200 font-bold disabled:opacity-40">{{ $t('eqshow.copy') }}</button>
                 </template>
             </div>
             <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
                 <table class="w-full">
-                    <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 text-start">البند</th><th class="px-3 py-2 text-start">الصنف من المستودع</th><th class="px-3 py-2 text-start">كل</th><th class="px-3 py-2 text-start">آخر تنفيذ</th><th class="px-3 py-2 text-start w-64">الحالة</th><th></th></tr></thead>
+                    <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 text-start">{{ $t('eqshow.item') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.stock_item') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.every') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.last_done') }}</th><th class="px-3 py-2 text-start w-64">{{ $t('eqshow.status') }}</th><th></th></tr></thead>
                     <tbody>
                         <tr v-for="s in schedules" :key="s.id" :class="['border-t border-slate-100', !s.is_active && 'opacity-50']">
                             <td class="px-3 py-2 font-bold text-slate-800">{{ s.name }}</td>
                             <td class="px-3 py-2">{{ s.product?.name_ar || '—' }}<span v-if="s.product" class="text-slate-400"> × {{ Number(s.default_quantity) }}</span></td>
                             <td class="px-3 py-2">{{ interval(s) }}</td>
-                            <td class="px-3 py-2 text-slate-500">{{ date(s.last_done_date) }}<span v-if="s.last_done_hours !== null && usesHours"> · {{ Number(s.last_done_hours) }} س</span><span v-if="s.last_done_km !== null && usesKm"> · {{ Number(s.last_done_km).toLocaleString('en-US') }} كم</span></td>
+                            <td class="px-3 py-2 text-slate-500">{{ date(s.last_done_date) }}<span v-if="s.last_done_hours !== null && usesHours"> · {{ $t('eqshow.n_h', { n: Number(s.last_done_hours) }) }}</span><span v-if="s.last_done_km !== null && usesKm"> · {{ $t('eqshow.n_km', { n: Number(s.last_done_km).toLocaleString('en-US') }) }}</span></td>
                             <td class="px-3 py-2"><MaintenanceStatus :status="s.status" /></td>
                             <td class="px-3 py-2 whitespace-nowrap text-end">
-                                <template v-if="$can('equipment.assets.edit')"><button @click="editSchedule(s)" class="text-indigo-600 font-bold me-3">تعديل</button><button @click="removeSchedule(s)" class="text-rose-600 font-bold">حذف</button></template>
+                                <template v-if="$can('equipment.assets.edit')"><button @click="editSchedule(s)" class="text-indigo-600 font-bold me-3">{{ $t('eqshow.edit') }}</button><button @click="removeSchedule(s)" class="text-rose-600 font-bold">{{ $t('eqshow.delete') }}</button></template>
                             </td>
                         </tr>
-                        <tr v-if="!schedules.length"><td colspan="6" class="px-3 py-8 text-center text-slate-400">لا توجد بنود صيانة دورية. أضف مثلاً: «زيت المحرك كل 250 ساعة أو 90 يوماً»، «فلتر الهواء كل 500 ساعة»، «الإطارات كل 40,000 كم».</td></tr>
+                        <tr v-if="!schedules.length"><td colspan="6" class="px-3 py-8 text-center text-slate-400">{{ $t('eqshow.no_periodic_maintenance_items_ad') }}</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -143,7 +146,7 @@ const saveSupplier = () => supplierForm.post(route('equipment.supplier.bill', e.
         <section v-if="tab === 'readings'" class="text-xs">
             <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
                 <table class="w-full">
-                    <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 text-start">التاريخ</th><th v-if="usesHours" class="px-3 py-2 text-start">عداد الساعات</th><th v-if="usesKm" class="px-3 py-2 text-start">الكيلومترات</th><th class="px-3 py-2 text-start">ساعات العمل</th><th class="px-3 py-2 text-start">المشغّل</th><th class="px-3 py-2 text-start">العقد</th></tr></thead>
+                    <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 text-start">{{ $t('eqshow.date') }}</th><th v-if="usesHours" class="px-3 py-2 text-start">{{ $t('eqshow.hour_meter') }}</th><th v-if="usesKm" class="px-3 py-2 text-start">{{ $t('eqshow.kilometres') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.working_hours') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.operator') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.contract') }}</th></tr></thead>
                     <tbody>
                         <tr v-for="r in readings" :key="r.id" class="border-t border-slate-100">
                             <td class="px-3 py-2">{{ date(r.date) }}</td>
@@ -153,7 +156,7 @@ const saveSupplier = () => supplierForm.post(route('equipment.supplier.bill', e.
                             <td class="px-3 py-2">{{ r.operator || '—' }}</td>
                             <td class="px-3 py-2"><Link v-if="r.rental" :href="route('equipment.rentals.show', r.rental.id)" class="text-indigo-600 font-mono">{{ r.rental.number }}</Link></td>
                         </tr>
-                        <tr v-if="!readings.length"><td colspan="6" class="px-3 py-8 text-center text-slate-400">لا توجد قراءات. تُدخل يومياً من شاشة «قراءات العدادات».</td></tr>
+                        <tr v-if="!readings.length"><td colspan="6" class="px-3 py-8 text-center text-slate-400">{{ $t('eqshow.no_readings_they_are_entered_dai') }}</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -163,16 +166,16 @@ const saveSupplier = () => supplierForm.post(route('equipment.supplier.bill', e.
         <section v-if="tab === 'rentals'" class="text-xs">
             <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
                 <table class="w-full">
-                    <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 text-start">العقد</th><th class="px-3 py-2 text-start">الجهة</th><th class="px-3 py-2 text-start">السعر</th><th class="px-3 py-2 text-start">الفترة</th><th class="px-3 py-2 text-start">الحالة</th></tr></thead>
+                    <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 text-start">{{ $t('eqshow.contract') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.party') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.price') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.period') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.status') }}</th></tr></thead>
                     <tbody>
                         <tr v-for="r in rentals" :key="r.id" class="border-t border-slate-100">
                             <td class="px-3 py-2"><Link :href="route('equipment.rentals.show', r.id)" class="text-indigo-600 font-mono font-bold">{{ r.number }}</Link></td>
-                            <td class="px-3 py-2">{{ r.customer?.name || `مشروع ${r.project?.code} — ${r.project?.name}` }}</td>
+                            <td class="px-3 py-2">{{ r.customer?.name || $t('eqshow.project_label', { code: r.project?.code, name: r.project?.name }) }}</td>
                             <td class="px-3 py-2">{{ money(r.rate) }} / {{ lookups.bases[r.billing_basis] }}</td>
-                            <td class="px-3 py-2">{{ date(r.start_date) }} — {{ r.end_date ? date(r.end_date) : 'مفتوح' }}</td>
-                            <td class="px-3 py-2">{{ r.status === 'active' ? 'نشط' : 'منتهٍ' }}</td>
+                            <td class="px-3 py-2">{{ date(r.start_date) }} — {{ r.end_date ? date(r.end_date) : $t('eqshow.open') }}</td>
+                            <td class="px-3 py-2">{{ r.status === 'active' ? $t('eqshow.active') : $t('eqshow.ended') }}</td>
                         </tr>
-                        <tr v-if="!rentals.length"><td colspan="5" class="px-3 py-8 text-center text-slate-400">لا توجد عقود.</td></tr>
+                        <tr v-if="!rentals.length"><td colspan="5" class="px-3 py-8 text-center text-slate-400">{{ $t('eqshow.no_contracts') }}</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -182,18 +185,18 @@ const saveSupplier = () => supplierForm.post(route('equipment.supplier.bill', e.
         <section v-if="tab === 'orders'" class="text-xs">
             <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
                 <table class="w-full">
-                    <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 text-start">الأمر</th><th class="px-3 py-2 text-start">النوع</th><th class="px-3 py-2 text-start">التاريخ</th><th class="px-3 py-2 text-start">القراءة</th><th class="px-3 py-2 text-start">الأصناف</th><th class="px-3 py-2 text-start">تكلفة القطع</th><th class="px-3 py-2 text-start">الحالة</th></tr></thead>
+                    <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 text-start">{{ $t('eqshow.order') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.type') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.date') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.reading') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.items') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.parts_cost') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.status') }}</th></tr></thead>
                     <tbody>
                         <tr v-for="o in orders" :key="o.id" class="border-t border-slate-100">
                             <td class="px-3 py-2"><Link :href="route('equipment.maintenance.show', o.id)" class="text-indigo-600 font-mono font-bold">{{ o.number }}</Link></td>
-                            <td class="px-3 py-2">{{ o.type === 'preventive' ? 'وقائية' : 'إصلاح عطل' }}</td>
+                            <td class="px-3 py-2">{{ o.type === 'preventive' ? $t('eqshow.preventive') : $t('eqshow.breakdown_repair') }}</td>
                             <td class="px-3 py-2">{{ date(o.date) }}</td>
-                            <td class="px-3 py-2 font-mono">{{ o.hours_reading ?? '' }}{{ o.km_reading ? ` / ${Number(o.km_reading).toLocaleString('en-US')} كم` : '' }}</td>
+                            <td class="px-3 py-2 font-mono">{{ o.hours_reading ?? '' }}{{ o.km_reading ? ` / ${$t('eqshow.n_km', { n: Number(o.km_reading).toLocaleString('en-US') })}` : '' }}</td>
                             <td class="px-3 py-2">{{ o.items_count }}</td>
                             <td class="px-3 py-2 font-mono">{{ money(o.parts_cost) }}</td>
-                            <td class="px-3 py-2">{{ o.status === 'open' ? 'مفتوح' : 'مكتمل' }}</td>
+                            <td class="px-3 py-2">{{ o.status === 'open' ? $t('eqshow.open') : $t('eqshow.completed') }}</td>
                         </tr>
-                        <tr v-if="!orders.length"><td colspan="7" class="px-3 py-8 text-center text-slate-400">لا توجد أوامر صيانة.</td></tr>
+                        <tr v-if="!orders.length"><td colspan="7" class="px-3 py-8 text-center text-slate-400">{{ $t('eqshow.no_maintenance_orders') }}</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -201,94 +204,94 @@ const saveSupplier = () => supplierForm.post(route('equipment.supplier.bill', e.
 
         <!-- Money -->
         <section v-if="tab === 'money'" class="space-y-3 text-xs">
-            <p class="text-slate-500">من {{ profitFrom }} حتى اليوم</p>
+            <p class="text-slate-500">{{ $t('eqshow.from_to_today', { from: profitFrom }) }}</p>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">إيراد التأجير للعملاء</div><div class="font-mono font-black text-emerald-700">{{ money(profit?.revenue || 0) }}</div></div>
-                <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">المحمّل على المشاريع</div><div class="font-mono font-black text-emerald-700">{{ money(profit?.recovery || 0) }}</div></div>
-                <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">الصيانة وقطع الغيار</div><div class="font-mono font-black text-rose-600">{{ money(profit?.maintenance || 0) }}</div></div>
-                <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">{{ e.ownership === 'rented_in' ? 'إيجار المورد' : 'الإهلاك' }}</div><div class="font-mono font-black text-rose-600">{{ money(e.ownership === 'rented_in' ? profit?.rent_in : profit?.depreciation) }}</div></div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">{{ $t('eqshow.rental_revenue_from_customers') }}</div><div class="font-mono font-black text-emerald-700">{{ money(profit?.revenue || 0) }}</div></div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">{{ $t('eqshow.charged_to_projects') }}</div><div class="font-mono font-black text-emerald-700">{{ money(profit?.recovery || 0) }}</div></div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">{{ $t('eqshow.maintenance_and_spare_parts') }}</div><div class="font-mono font-black text-rose-600">{{ money(profit?.maintenance || 0) }}</div></div>
+                <div class="bg-white border border-slate-200 rounded-2xl p-3"><div class="text-slate-400">{{ e.ownership === 'rented_in' ? $t('eqshow.supplier_rent') : $t('eqshow.depreciation') }}</div><div class="font-mono font-black text-rose-600">{{ money(e.ownership === 'rented_in' ? profit?.rent_in : profit?.depreciation) }}</div></div>
             </div>
             <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
                 <table class="w-full">
-                    <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 text-start">النوع</th><th class="px-3 py-2 text-start">الفترة</th><th class="px-3 py-2 text-start">الكمية</th><th class="px-3 py-2 text-start">المبلغ</th><th class="px-3 py-2 text-start">المرجع</th></tr></thead>
+                    <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 text-start">{{ $t('eqshow.type') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.period') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.quantity') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.amount') }}</th><th class="px-3 py-2 text-start">{{ $t('eqshow.reference') }}</th></tr></thead>
                     <tbody>
                         <tr v-for="b in billings" :key="b.id" class="border-t border-slate-100">
-                            <td class="px-3 py-2">{{ b.direction === 'in' ? 'إيجار مورد' : (b.rental?.type === 'project' ? 'تحميل مشروع' : 'فاتورة عميل') }}</td>
+                            <td class="px-3 py-2">{{ b.direction === 'in' ? $t('eqshow.supplier_rent_2') : (b.rental?.type === 'project' ? $t('eqshow.project_charge') : $t('eqshow.customer_invoice')) }}</td>
                             <td class="px-3 py-2">{{ date(b.period_from) }} — {{ date(b.period_to) }}</td>
                             <td class="px-3 py-2">{{ Number(b.quantity) }} {{ lookups.bases[b.unit] }}</td>
                             <td class="px-3 py-2 font-mono">{{ money(b.amount) }}</td>
                             <td class="px-3 py-2"><Link v-if="b.invoice" :href="route('sales.invoices.show', b.invoice.id)" class="text-indigo-600 font-mono">{{ b.invoice.invoice_number }}</Link><span v-else class="font-mono">{{ b.reference }}</span></td>
                         </tr>
-                        <tr v-if="!billings.length"><td colspan="5" class="px-3 py-8 text-center text-slate-400">لا توجد فوترة بعد.</td></tr>
+                        <tr v-if="!billings.length"><td colspan="5" class="px-3 py-8 text-center text-slate-400">{{ $t('eqshow.no_billing_yet') }}</td></tr>
                     </tbody>
                 </table>
             </div>
         </section>
 
-        <Dialog :show="editing" title="تعديل المعدة" size="xl" @close="editing = false">
+        <Dialog :show="editing" :title="$t('eqshow.edit_equipment')" size="xl" @close="editing = false">
             <EquipmentForm :form="editForm" :lookups="lookups" :supplier="e.supplier" :meters-locked="readings.length > 0" />
-            <label class="flex items-center gap-2 mt-3 text-xs font-bold text-slate-700"><input v-model="editForm.out_of_service" type="checkbox" class="rounded border-slate-300" /> خارج الخدمة (لا تظهر في التأجير ولا التنبيهات)</label>
+            <label class="flex items-center gap-2 mt-3 text-xs font-bold text-slate-700"><input v-model="editForm.out_of_service" type="checkbox" class="rounded border-slate-300" /> {{ $t('eqshow.out_of_service_not_shown_in_rent') }}</label>
             <template #footer>
-                <button type="button" @click="editing = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">إلغاء</button>
-                <button type="button" @click="saveEdit" :disabled="editForm.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">حفظ</button>
+                <button type="button" @click="editing = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('eqshow.cancel') }}</button>
+                <button type="button" @click="saveEdit" :disabled="editForm.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">{{ $t('eqshow.save') }}</button>
             </template>
         </Dialog>
 
-        <Dialog :show="scheduleOpen" :title="scheduleEditing ? 'تعديل بند الصيانة' : 'بند صيانة دورية'" size="lg" @close="scheduleOpen = false">
+        <Dialog :show="scheduleOpen" :title="scheduleEditing ? $t('eqshow.edit_maintenance_item') : $t('eqshow.periodic_maintenance_item_2')" size="lg" @close="scheduleOpen = false">
             <div class="space-y-3 text-xs">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <Field label="اسم البند" :error="scheduleForm.errors.name" class="md:col-span-2"><input v-model="scheduleForm.name" placeholder="مثال: تغيير زيت المحرك" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="مفعّل"><label class="flex items-center gap-2 mt-2"><input v-model="scheduleForm.is_active" type="checkbox" class="rounded border-slate-300" /> يُتابع ويُنبَّه عليه</label></Field>
-                    <Field label="الصنف المستخدم من المستودع (اختياري)" :error="scheduleForm.errors.product_id" class="md:col-span-2"><ProductPicker v-model="scheduleForm.product_id" :initial="scheduleProduct" /></Field>
-                    <Field label="الكمية المعتادة" :error="scheduleForm.errors.default_quantity"><input v-model.number="scheduleForm.default_quantity" type="text" inputmode="decimal" data-num min="0" step="0.001" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('eqshow.item_name')" :error="scheduleForm.errors.name" class="md:col-span-2"><input v-model="scheduleForm.name" :placeholder="$t('eqshow.e_g_engine_oil_change')" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('eqshow.enabled')"><label class="flex items-center gap-2 mt-2"><input v-model="scheduleForm.is_active" type="checkbox" class="rounded border-slate-300" /> {{ $t('eqshow.tracked_and_alerted') }}</label></Field>
+                    <Field :label="$t('eqshow.stock_item_used_optional')" :error="scheduleForm.errors.product_id" class="md:col-span-2"><ProductPicker v-model="scheduleForm.product_id" :initial="scheduleProduct" /></Field>
+                    <Field :label="$t('eqshow.usual_quantity')" :error="scheduleForm.errors.default_quantity"><input v-model.number="scheduleForm.default_quantity" type="text" inputmode="decimal" data-num min="0" step="0.001" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 </div>
-                <p class="font-bold text-slate-700">يستحق كل… (أيّها يأتي أولاً)</p>
+                <p class="font-bold text-slate-700">{{ $t('eqshow.due_every_whichever_comes_first') }}</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <Field v-if="usesHours" label="ساعات تشغيل" :error="scheduleForm.errors.interval_hours"><input v-model.number="scheduleForm.interval_hours" type="text" inputmode="decimal" data-num min="1" placeholder="250" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field v-if="usesKm" label="كيلومترات" :error="scheduleForm.errors.interval_km"><input v-model.number="scheduleForm.interval_km" type="text" inputmode="decimal" data-num min="1" placeholder="10000" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="أيام" :error="scheduleForm.errors.interval_days || (!usesHours && !usesKm ? scheduleForm.errors.interval_hours : '')"><input v-model.number="scheduleForm.interval_days" type="text" inputmode="decimal" data-num min="1" placeholder="90" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field v-if="usesHours" :label="$t('eqshow.operating_hours')" :error="scheduleForm.errors.interval_hours"><input v-model.number="scheduleForm.interval_hours" type="text" inputmode="decimal" data-num min="1" placeholder="250" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field v-if="usesKm" :label="$t('eqshow.kilometres_2')" :error="scheduleForm.errors.interval_km"><input v-model.number="scheduleForm.interval_km" type="text" inputmode="decimal" data-num min="1" placeholder="10000" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('eqshow.days')" :error="scheduleForm.errors.interval_days || (!usesHours && !usesKm ? scheduleForm.errors.interval_hours : '')"><input v-model.number="scheduleForm.interval_days" type="text" inputmode="decimal" data-num min="1" placeholder="90" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 </div>
                 <p v-if="scheduleForm.errors.interval_hours && !usesHours" class="text-rose-600">{{ scheduleForm.errors.interval_hours }}</p>
-                <p class="font-bold text-slate-700">التنبيه المبكر قبل الموعد بـ <span class="font-normal text-slate-400">(فارغ = 10% من الفترة)</span></p>
+                <p class="font-bold text-slate-700">{{ $t('eqshow.early_warning_before_the_due_tim') }} <span class="font-normal text-slate-400">{{ $t('eqshow.empty_10_of_the_period') }}</span></p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <Field v-if="usesHours" label="ساعات"><input v-model.number="scheduleForm.warn_hours" type="text" inputmode="decimal" data-num min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field v-if="usesKm" label="كيلومترات"><input v-model.number="scheduleForm.warn_km" type="text" inputmode="decimal" data-num min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="أيام"><input v-model.number="scheduleForm.warn_days" type="text" inputmode="decimal" data-num min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field v-if="usesHours" :label="$t('eqshow.hours')"><input v-model.number="scheduleForm.warn_hours" type="text" inputmode="decimal" data-num min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field v-if="usesKm" :label="$t('eqshow.kilometres_2')"><input v-model.number="scheduleForm.warn_km" type="text" inputmode="decimal" data-num min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('eqshow.days')"><input v-model.number="scheduleForm.warn_days" type="text" inputmode="decimal" data-num min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 </div>
-                <p class="font-bold text-slate-700">آخر تنفيذ <span class="font-normal text-slate-400">(فارغ = القراءة الحالية واليوم)</span></p>
+                <p class="font-bold text-slate-700">{{ $t('eqshow.last_done') }} <span class="font-normal text-slate-400">{{ $t('eqshow.empty_the_current_reading_and_to') }}</span></p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <Field label="التاريخ"><DatePicker v-model="scheduleForm.last_done_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field v-if="usesHours" label="عند قراءة ساعات"><input v-model.number="scheduleForm.last_done_hours" type="text" inputmode="decimal" data-num min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field v-if="usesKm" label="عند قراءة كم"><input v-model.number="scheduleForm.last_done_km" type="text" inputmode="decimal" data-num min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('eqshow.date')"><DatePicker v-model="scheduleForm.last_done_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field v-if="usesHours" :label="$t('eqshow.at_an_hour_reading')"><input v-model.number="scheduleForm.last_done_hours" type="text" inputmode="decimal" data-num min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field v-if="usesKm" :label="$t('eqshow.at_a_km_reading')"><input v-model.number="scheduleForm.last_done_km" type="text" inputmode="decimal" data-num min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 </div>
             </div>
             <template #footer>
-                <button type="button" @click="scheduleOpen = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">إلغاء</button>
-                <button type="button" @click="saveSchedule" :disabled="scheduleForm.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">حفظ</button>
+                <button type="button" @click="scheduleOpen = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('eqshow.cancel') }}</button>
+                <button type="button" @click="saveSchedule" :disabled="scheduleForm.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">{{ $t('eqshow.save') }}</button>
             </template>
         </Dialog>
 
-        <Dialog :show="supplierOpen" title="تسجيل إيجار المورد" size="md" @close="supplierOpen = false">
+        <Dialog :show="supplierOpen" :title="$t('eqshow.record_supplier_rent')" size="md" @close="supplierOpen = false">
             <div class="space-y-3 text-xs">
                 <div class="grid grid-cols-2 gap-3">
-                    <Field label="من" :error="supplierForm.errors.period_from"><DatePicker v-model="supplierForm.period_from" @change="loadSupplierPreview" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="إلى" :error="supplierForm.errors.period_to"><DatePicker v-model="supplierForm.period_to" @change="loadSupplierPreview" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field :label="`الكمية (${lookups.bases[e.supplier_rate_basis] || ''})`" :error="supplierForm.errors.quantity" hint="فارغ = المحسوب أدناه"><input v-model.number="supplierForm.quantity" type="text" inputmode="decimal" data-num min="0" step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="نسبة الضريبة %"><input v-model.number="supplierForm.tax_rate" @change="loadSupplierPreview" type="text" inputmode="decimal" data-num min="0" max="100" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="رقم فاتورة المورد" class="col-span-2"><input v-model="supplierForm.reference" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('eqshow.from')" :error="supplierForm.errors.period_from"><DatePicker v-model="supplierForm.period_from" @change="loadSupplierPreview" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('eqshow.to')" :error="supplierForm.errors.period_to"><DatePicker v-model="supplierForm.period_to" @change="loadSupplierPreview" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('eqshow.quantity_with', { basis: lookups.bases[e.supplier_rate_basis] || '' })" :error="supplierForm.errors.quantity" :hint="$t('eqshow.empty_computed_below')"><input v-model.number="supplierForm.quantity" type="text" inputmode="decimal" data-num min="0" step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('eqshow.tax_rate')"><input v-model.number="supplierForm.tax_rate" @change="loadSupplierPreview" type="text" inputmode="decimal" data-num min="0" max="100" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('eqshow.supplier_invoice_number')" class="col-span-2"><input v-model="supplierForm.reference" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 </div>
                 <div v-if="supplierPreview" class="rounded-xl bg-slate-50 border border-slate-200 p-3">
                     <p v-if="supplierPreview.error" class="text-rose-600">{{ supplierPreview.error }}</p>
                     <template v-else>
-                        <p>الكمية المحسوبة: <b>{{ supplierPreview.quantity }}</b> {{ lookups.bases[e.supplier_rate_basis] }} × {{ money(supplierPreview.rate) }} = <b>{{ money(supplierPreview.amount) }}</b> + ضريبة {{ money(supplierPreview.tax) }}</p>
-                        <p v-if="supplierPreview.overlap" class="text-rose-600 mt-1 font-bold">تنبيه: سُجّل إيجار لجزء من هذه الفترة سابقاً ({{ date(supplierPreview.overlap.period_from) }} — {{ date(supplierPreview.overlap.period_to) }}).</p>
+                        <p>{{ $t('eqshow.computed_quantity') }} <b>{{ supplierPreview.quantity }}</b> {{ lookups.bases[e.supplier_rate_basis] }} × {{ money(supplierPreview.rate) }} = <b>{{ money(supplierPreview.amount) }}</b> {{ $t('eqshow.plus_tax', { tax: money(supplierPreview.tax) }) }}</p>
+                        <p v-if="supplierPreview.overlap" class="text-rose-600 mt-1 font-bold">{{ $t('eqshow.overlap_warning', { from: date(supplierPreview.overlap.period_from), to: date(supplierPreview.overlap.period_to) }) }}</p>
                     </template>
                 </div>
                 <p v-if="supplierForm.errors.period_from || supplierForm.errors.equipment" class="text-rose-600">{{ supplierForm.errors.equipment }}</p>
             </div>
             <template #footer>
-                <button type="button" @click="supplierOpen = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">إلغاء</button>
-                <button type="button" @click="saveSupplier" :disabled="supplierForm.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">تسجيل</button>
+                <button type="button" @click="supplierOpen = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('eqshow.cancel') }}</button>
+                <button type="button" @click="saveSupplier" :disabled="supplierForm.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">{{ $t('eqshow.record') }}</button>
             </template>
         </Dialog>
     </AppLayout>

@@ -3,6 +3,9 @@ import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import LocalAccessCard from '@/Components/LocalAccessCard.vue';
@@ -162,12 +165,12 @@ const handleLogoUpload = async (event) => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-        logoError.value = 'يرجى اختيار ملف صورة صالح (PNG, JPG, WebP, GIF).';
+        logoError.value = t('setidx.logo_type_err');
         return;
     }
 
     if (file.size > 3 * 1024 * 1024) {
-        logoError.value = 'حجم الصورة يجب ألا يتجاوز 3 ميجابايت.';
+        logoError.value = t('setidx.logo_size_err');
         return;
     }
 
@@ -186,7 +189,7 @@ const handleLogoUpload = async (event) => {
             router.reload({ only: ['company'] });
         }
     } catch (err) {
-        logoError.value = err.response?.data?.message || 'حدث خطأ أثناء رفع الشعار.';
+        logoError.value = err.response?.data?.message || t('setidx.logo_upload_err');
     } finally {
         isUploadingLogo.value = false;
         if (fileInputRef.value) fileInputRef.value.value = '';
@@ -194,7 +197,7 @@ const handleLogoUpload = async (event) => {
 };
 
 const removeLogo = async () => {
-    if (!confirm('هل أنت متأكد من حذف شعار المنشأة؟')) return;
+    if (!confirm(t('setidx.logo_del_q'))) return;
 
     isUploadingLogo.value = true;
     try {
@@ -204,7 +207,7 @@ const removeLogo = async () => {
             router.reload({ only: ['company'] });
         }
     } catch (err) {
-        logoError.value = 'تعذر حذف الشعار.';
+        logoError.value = t('setidx.logo_del_err');
     } finally {
         isUploadingLogo.value = false;
     }
@@ -213,15 +216,15 @@ const removeLogo = async () => {
 
 <template>
     <AppLayout>
-        <Head :title="$feature('zatca') ? 'إعدادات المنشأة والزكاة' : 'إعدادات المنشأة'" />
+        <Head :title="$feature('zatca') ? $t('setidx.company_and_zatca_settings') : $t('setidx.company_settings')" />
 
         <div class="space-y-5 w-full pb-12">
             <!-- Top Breadcrumbs & Action Bar -->
-            <PageHeader title="الإعدادات والفوترة" :crumbs="[{ label: 'الإعدادات والفوترة' }]">
+            <PageHeader :title="$t('setidx.settings_and_invoicing')" :crumbs="[{ label: $t('setidx.settings_and_invoicing') }]">
 <template #actions>
 <button 
                         @click="router.reload()" 
-                        title="تحديث البيانات"
+                        :title="$t('setidx.update_data')"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-xs transition-all"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
@@ -232,7 +235,7 @@ const removeLogo = async () => {
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150 disabled:opacity-50"
                     >
                         <CheckBadgeIcon class="w-4 h-4 stroke-2" />
-                        <span>{{ form.processing ? 'جارٍ الحفظ...' : 'حفظ كافة التعديلات' }}</span>
+                        <span>{{ form.processing ? $t('setidx.saving') : $t('setidx.save_all_changes') }}</span>
                     </button>
 </template>
 </PageHeader>
@@ -250,7 +253,7 @@ const removeLogo = async () => {
                         class="w-full text-right px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2.5 transition"
                     >
                         <BuildingOffice2Icon class="w-4 h-4 text-indigo-600" />
-                        <span>بيانات المنشأة</span>
+                        <span>{{ $t('setidx.company_details') }}</span>
                     </button>
 
                     <button 
@@ -261,7 +264,7 @@ const removeLogo = async () => {
                         class="w-full text-right px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2.5 transition relative"
                     >
                         <ShieldCheckIcon class="w-4 h-4 text-emerald-600" />
-                        <span>الفوترة والزكاة (ZATCA)</span>
+                        <span>{{ $t('setidx.invoicing_and_zatca') }}</span>
                         <span 
                             class="absolute end-2 top-2.5 w-2 h-2 rounded-full"
                             :class="form.zatca_phase === 'phase2' ? 'bg-indigo-600' : 'bg-emerald-500'"
@@ -275,7 +278,7 @@ const removeLogo = async () => {
                         class="w-full text-right px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2.5 transition"
                     >
                         <DocumentTextIcon class="w-4 h-4 text-indigo-600" />
-                        <span>الفوترة والضريبة</span>
+                        <span>{{ $t('setidx.invoicing_and_tax') }}</span>
                     </button>
 
                     <button 
@@ -285,7 +288,7 @@ const removeLogo = async () => {
                         class="w-full text-right px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2.5 transition"
                     >
                         <ScaleIcon class="w-4 h-4 text-indigo-600" />
-                        <span>الربط والتوجيه المحاسبي</span>
+                        <span>{{ $t('setidx.accounting_mapping') }}</span>
                     </button>
 
                     <button 
@@ -295,7 +298,7 @@ const removeLogo = async () => {
                         class="w-full text-right px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2.5 transition"
                     >
                         <GlobeAltIcon class="w-4 h-4 text-indigo-600" />
-                        <span>العملة واللغة</span>
+                        <span>{{ $t('setidx.currency_and_language') }}</span>
                     </button>
 
                     <button 
@@ -305,7 +308,7 @@ const removeLogo = async () => {
                         class="w-full text-right px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-2.5 transition"
                     >
                         <DeviceTabletIcon class="w-4 h-4 text-indigo-600" />
-                        <span>نقاط البيع (POS)</span>
+                        <span>{{ $t('setidx.point_of_sale_pos') }}</span>
                     </button>
                 </div>
 
@@ -315,12 +318,12 @@ const removeLogo = async () => {
                         <!-- 1. General Profile Tab -->
                         <div v-show="activeTab === 'general'" class="space-y-4">
                             <h2 class="text-sm font-black text-slate-900 border-b border-slate-100 pb-3 mb-4">
-                                الهوية والبيانات الرسمية للمنشأة
+                                {{ $t('setidx.company_identity_and_official_da') }}
                             </h2>
 
                             <!-- Logo Upload Card -->
                             <div class="mb-5 p-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 hover:bg-slate-50 transition">
-                                <label class="block text-xs font-bold text-slate-800 mb-2">شعار المنشأة / المؤسسة (Logo)</label>
+                                <label class="block text-xs font-bold text-slate-800 mb-2">{{ $t('setidx.company_logo') }}</label>
                                 
                                 <div class="flex flex-col sm:flex-row items-center gap-4">
                                     <!-- Logo Preview -->
@@ -328,12 +331,12 @@ const removeLogo = async () => {
                                         <img 
                                             v-if="currentLogo" 
                                             :src="currentLogo" 
-                                            alt="شعار المنشأة" 
+                                            :alt="$t('setidx.logo_alt')" 
                                             class="w-full h-full object-contain p-2"
                                         />
                                         <div v-else class="text-center p-2 text-slate-400">
                                             <PhotoIcon class="w-8 h-8 mx-auto stroke-1 text-slate-300" />
-                                            <span class="text-3xs font-medium block mt-1">لا يوجد شعار</span>
+                                            <span class="text-3xs font-medium block mt-1">{{ $t('setidx.no_logo') }}</span>
                                         </div>
                                         
                                         <div v-if="isUploadingLogo" class="absolute inset-0 bg-slate-900/40 backdrop-blur-2xs flex items-center justify-center text-white">
@@ -359,7 +362,7 @@ const removeLogo = async () => {
                                                 class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition disabled:opacity-50"
                                             >
                                                 <ArrowUpTrayIcon class="w-4 h-4 stroke-2" />
-                                                <span>{{ currentLogo ? 'تغيير الشعار' : 'رفع شعار المنشأة' }}</span>
+                                                <span>{{ currentLogo ? $t('setidx.change_logo') : $t('setidx.upload_company_logo') }}</span>
                                             </button>
 
                                             <button 
@@ -370,13 +373,13 @@ const removeLogo = async () => {
                                                 class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold transition flex items-center gap-1"
                                             >
                                                 <TrashIcon class="w-4 h-4" />
-                                                <span>حذف</span>
+                                                <span>{{ $t('setidx.delete') }}</span>
                                             </button>
                                         </div>
 
                                         <p class="text-3xs text-slate-400 leading-relaxed">
-                                            الصيغ المدعومة: PNG, JPG, WebP, GIF (حتى 3 ميجابايت).<br>
-                                            يظهر الشعار تلقائياً في ترويسة الفواتير الضريبية المطبوعة، قوالب الـ POS الحرارية، وعروض الأسعار.
+                                            {{ $t('setidx.supported_formats_png_jpg_webp_g') }}<br>
+                                            {{ $t('setidx.the_logo_appears_automatically_i') }}
                                         </p>
 
                                         <p v-if="logoError" class="text-3xs text-rose-600 font-bold">
@@ -387,7 +390,7 @@ const removeLogo = async () => {
                             </div>
 
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">اسم المؤسسة / الشركة *</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('setidx.company_establishment_name') }}</label>
                                 <input 
                                     v-model="form.name" 
                                     type="text" 
@@ -399,7 +402,7 @@ const removeLogo = async () => {
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $page.props.tax?.tax_number_label || 'الرقم الضريبي' }} *</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $page.props.tax?.tax_number_label || $t('setidx.tax_number') }} *</label>
                                     <input 
                                         v-model="form.tax_number" 
                                         type="text" 
@@ -407,11 +410,11 @@ const removeLogo = async () => {
                                         class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 font-mono"
                                         dir="ltr"
                                     />
-                                    <p v-if="$feature('zatca')" class="text-2xs text-slate-400 mt-1">الرقم المكون من 15 خانة المسجل لدى هيئة الزكاة.</p>
+                                    <p v-if="$feature('zatca')" class="text-2xs text-slate-400 mt-1">{{ $t('setidx.the_15_digit_number_registered_w') }}</p>
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">رقم السجل التجاري (CR)</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('setidx.commercial_register_number_cr') }}</label>
                                     <input 
                                         v-model="form.commercial_registration" 
                                         type="text" 
@@ -424,7 +427,7 @@ const removeLogo = async () => {
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">البريد الإلكتروني الرسمي</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('setidx.official_email') }}</label>
                                     <input 
                                         v-model="form.email" 
                                         type="email" 
@@ -434,7 +437,7 @@ const removeLogo = async () => {
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف أو الجوال</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('setidx.phone_or_mobile_number') }}</label>
                                     <input 
                                         v-model="form.phone" 
                                         type="text" 
@@ -451,21 +454,21 @@ const removeLogo = async () => {
                                 <div>
                                     <h2 class="text-sm font-black text-slate-900 flex items-center gap-2">
                                         <ShieldCheckIcon class="w-5 h-5 text-emerald-600" />
-                                        <span>منظومة الفوترة الإلكترونية (ZATCA Fatoora)</span>
+                                        <span>{{ $t('setidx.e_invoicing_system_zatca_fatoora') }}</span>
                                     </h2>
-                                    <p class="text-2xs text-slate-500 mt-0.5">تحديد مرحلة الالتزام الضريبي وإدارة الربط مع منصة "فاتورة" لهيئة الزكاة والضريبة والجمارك</p>
+                                    <p class="text-2xs text-slate-500 mt-0.5">{{ $t('setidx.choose_the_tax_compliance_phase') }}</p>
                                 </div>
                                 <span 
                                     class="text-xs font-bold px-3 py-1 rounded-full border self-start"
                                     :class="form.zatca_phase === 'phase2' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'"
                                 >
-                                    {{ form.zatca_phase === 'phase2' ? 'المرحلة الثانية (الربط والتكامل)' : 'المرحلة الأولى (الإصدار والحفظ)' }}
+                                    {{ form.zatca_phase === 'phase2' ? $t('setidx.phase_2_linking_and_integrat') : $t('setidx.phase_1_issue_and_store_2') }}
                                 </span>
                             </div>
 
                             <!-- Phase Selection Interactive Cards -->
                             <div class="space-y-3">
-                                <label class="block text-xs font-black text-slate-800">اختر المرحلة المطبقة في منشأتك *</label>
+                                <label class="block text-xs font-black text-slate-800">{{ $t('setidx.choose_the_phase_applied_in_your') }}</label>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <!-- Phase 1 Card -->
                                     <div 
@@ -478,23 +481,23 @@ const removeLogo = async () => {
                                                 <div class="w-4 h-4 rounded-full border flex items-center justify-center" :class="form.zatca_phase === 'phase1' ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'">
                                                     <div v-if="form.zatca_phase === 'phase1'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
                                                 </div>
-                                                <h3 class="text-xs font-black text-slate-800">المرحلة الأولى: الإصدار والحفظ</h3>
+                                                <h3 class="text-xs font-black text-slate-800">{{ $t('setidx.phase_1_issue_and_store') }}</h3>
                                             </div>
-                                            <span class="text-3xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">بدون إنترنت</span>
+                                            <span class="text-3xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">{{ $t('setidx.offline') }}</span>
                                         </div>
 
                                         <p class="text-2xs text-slate-500 mt-2 leading-relaxed">
-                                            إصدار الفواتير إلكترونياً وحفظها مع توليد الـ QR Code المشفر TLV محلياً دون الحاجة للربط المباشر مع خوادم الهيئة.
+                                            {{ $t('setidx.issue_invoices_electronically_an') }}
                                         </p>
 
                                         <ul class="text-2xs text-slate-600 mt-3 space-y-1 font-medium">
                                             <li class="flex items-center gap-1.5">
                                                 <CheckCircleIcon class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                                                <span>QR Code خماسي الحقول متوافق مع تطبيق زاتكا</span>
+                                                <span>{{ $t('setidx.five_field_qr_code_compatible_wi') }}</span>
                                             </li>
                                             <li class="flex items-center gap-1.5">
                                                 <CheckCircleIcon class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                                                <span>جاهزة وتعمل فوراً لجميع فواتير المبيعات ونقاط البيع</span>
+                                                <span>{{ $t('setidx.ready_and_working_at_once_for_al') }}</span>
                                             </li>
                                         </ul>
                                     </div>
@@ -510,23 +513,23 @@ const removeLogo = async () => {
                                                 <div class="w-4 h-4 rounded-full border flex items-center justify-center" :class="form.zatca_phase === 'phase2' ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'">
                                                     <div v-if="form.zatca_phase === 'phase2'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
                                                 </div>
-                                                <h3 class="text-xs font-black text-slate-800">المرحلة الثانية: الربط والتكامل</h3>
+                                                <h3 class="text-xs font-black text-slate-800">{{ $t('setidx.phase_2_linking_and_integration') }}</h3>
                                             </div>
-                                            <span class="text-3xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">ربط سحابي API</span>
+                                            <span class="text-3xs font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">{{ $t('setidx.cloud_api_link') }}</span>
                                         </div>
 
                                         <p class="text-2xs text-slate-500 mt-2 leading-relaxed">
-                                            الربط المباشر مع منصة "فاتورة" (ZATCA Fatoora Portal) عبر واجهات برمجة التطبيقات، مع التوقيع الرقمي والشهادات المشفرة (CSID).
+                                            {{ $t('setidx.direct_link_with_the_fatoora_pla') }}
                                         </p>
 
                                         <ul class="text-2xs text-slate-600 mt-3 space-y-1 font-medium">
                                             <li class="flex items-center gap-1.5">
                                                 <CheckCircleIcon class="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
-                                                <span>بناء ملفات UBL 2.1 XML والهاش المشفر</span>
+                                                <span>{{ $t('setidx.build_ubl_2_1_xml_files_and_the') }}</span>
                                             </li>
                                             <li class="flex items-center gap-1.5">
                                                 <CheckCircleIcon class="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
-                                                <span>اعتماد الفواتير (Clearance) والإبلاغ (Reporting)</span>
+                                                <span>{{ $t('setidx.invoice_clearance_and_reporting') }}</span>
                                             </li>
                                         </ul>
                                     </div>
@@ -534,21 +537,21 @@ const removeLogo = async () => {
                             </div>
 
                             <div v-show="form.zatca_phase === 'phase2'" class="bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-5 text-xs space-y-2">
-                                <h4 class="font-black text-indigo-900">الربط والتكامل (المرحلة الثانية)</h4>
-                                <p class="text-indigo-700">تُدار أجهزة الفوترة (EGS) والشهادات وفحوصات الامتثال ومتابعة الاعتماد والإبلاغ من شاشة الفوترة الإلكترونية. تتفعل المرحلة الثانية تلقائياً عند ربط جهاز.</p>
-                                <Link :href="route('zatca.index')" class="inline-block px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold">فتح شاشة الفوترة الإلكترونية</Link>
+                                <h4 class="font-black text-indigo-900">{{ $t('setidx.linking_and_integration_phase_2') }}</h4>
+                                <p class="text-indigo-700">{{ $t('setidx.invoicing_devices_egs_certificat') }}</p>
+                                <Link :href="route('zatca.index')" class="inline-block px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold">{{ $t('setidx.open_the_e_invoicing_screen') }}</Link>
                             </div>
                         </div>
 
                         <!-- 3. Invoicing & Tax Tab -->
                         <div v-show="activeTab === 'invoicing'" class="space-y-4">
                             <h2 class="text-sm font-black text-slate-900 border-b border-slate-100 pb-3 mb-4">
-                                إعدادات الفاتورة الإلكترونية والضرائب
+                                {{ $t('setidx.e_invoice_and_tax_settings') }}
                             </h2>
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">نسبة ضريبة القيمة المضافة (%)</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('setidx.vat_rate') }}</label>
                                     <input 
                                         :value="15"
                                         type="text" inputmode="decimal" data-num 
@@ -556,40 +559,40 @@ const removeLogo = async () => {
                                         disabled
                                         class="w-full text-xs rounded-xl border-slate-200 bg-slate-50 font-mono font-bold"
                                     />
-                                    <p class="text-3xs text-slate-500 mt-1">النسبة النظامية في المملكة. البنود الصفرية والمعفاة تُحدَّد من بطاقة الصنف.</p>
+                                    <p class="text-3xs text-slate-500 mt-1">{{ $t('setidx.the_statutory_rate_in_the_kingdo') }}</p>
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">ترقيم الفواتير والمستندات</label>
-                                    <Link v-if="$canRoute('settings.numbering')" :href="route('settings.numbering')" class="inline-flex items-center px-3 py-2 rounded-xl border border-indigo-200 text-indigo-700 text-xs font-bold hover:bg-indigo-50" data-numbering-link>دليل الترميز: البادئات وعدد الخانات</Link>
-                                    <p v-else class="text-3xs text-slate-500">تُضبط بادئات الترقيم من «دليل الترميز» لمن يملك صلاحيته.</p>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('setidx.invoice_and_document_numbering') }}</label>
+                                    <Link v-if="$canRoute('settings.numbering')" :href="route('settings.numbering')" class="inline-flex items-center px-3 py-2 rounded-xl border border-indigo-200 text-indigo-700 text-xs font-bold hover:bg-indigo-50" data-numbering-link>{{ $t('setidx.numbering_guide_prefixes_and_dig') }}</Link>
+                                    <p v-else class="text-3xs text-slate-500">{{ $t('setidx.numbering_prefixes_are_set_in_th') }}</p>
                                 </div>
                             </div>
 
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">الشروط والأحكام الافتراضية للفاتورة</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('setidx.default_invoice_terms_and_condit') }}</label>
                                 <textarea 
                                     v-model="form.invoice_terms" 
                                     rows="4"
                                     class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 leading-relaxed"
-                                    placeholder="تظهر هذه الشروط في أسفل جميع الفواتير الصادرة للعملاء..."
+                                    :placeholder="$t('setidx.these_terms_appear_at_the_bottom')"
                                 ></textarea>
                             </div>
 
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">نص رسالة إرسال المستندات للعملاء (بريد / واتساب)</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('setidx.message_text_for_sending_documen') }}</label>
                                 <textarea
                                     v-model="form.document_message"
                                     rows="5"
                                     class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 leading-relaxed"
-                                    placeholder="اتركه فارغاً لاستخدام النص الافتراضي"
+                                    :placeholder="$t('setidx.leave_empty_to_use_the_default_t')"
                                 ></textarea>
-                                <p class="text-2xs text-slate-400 mt-1">المتغيرات المتاحة: {customer} {document} {number} {total} {currency} {company}</p>
+                                <p class="text-2xs text-slate-400 mt-1">{{ $t('setidx.variables_available') }} {customer} {document} {number} {total} {currency} {company}</p>
                             </div>
 
                             <label class="flex items-center gap-2 text-xs font-bold text-slate-700">
                                 <input v-model="form.show_hijri" type="checkbox" class="rounded border-slate-300 text-indigo-600" />
-                                إظهار التاريخ الهجري (أم القرى) في ملفات PDF للمستندات
+                                {{ $t('setidx.show_the_hijri_date_umm_al_qura') }}
                             </label>
                         </div>
 
@@ -598,22 +601,22 @@ const removeLogo = async () => {
                             <div class="border-b border-slate-100 pb-3 mb-2 flex items-center justify-between">
                                 <div>
                                     <h2 class="text-sm font-black text-slate-900">
-                                        الربط والتوجيه المحاسبي لشجرة الحسابات
+                                        {{ $t('setidx.chart_of_accounts_mapping') }}
                                     </h2>
                                     <p class="text-2xs text-slate-500 mt-1">
-                                        حدد الحسابات الافتراضية في شجرة الحسابات التي يتم توجيه القيود اليومية التلقائية إليها عند إصدار الفواتير أو المشتريات أو الضرائب.
+                                        {{ $t('setidx.choose_the_default_accounts_in_t') }}
                                     </p>
                                 </div>
                                 <span class="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-3xs font-black rounded-lg border border-indigo-100">
-                                    دليل الحسابات المخصص
+                                    {{ $t('setidx.custom_chart_of_accounts') }}
                                 </span>
                             </div>
 
                             <div class="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-amber-900">
                                 <InformationCircleIcon class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                                 <div class="text-[11px] leading-relaxed">
-                                    <strong class="font-bold block text-amber-950 mb-0.5">كيف يتعرف النظام على الحسابات في حالة إنشاء شجرة حسابات مخصصة؟</strong>
-                                    يقوم النظام بربط المعاملات التشغيلية (فواتير بيع، شراء، دفعات نقدية، تحويلات بنكية، ضرائب) مع الحسابات المحددة أدناه لإنشاء القيود آلياً. في حالة لم يتم تحديد حساب، سيعتمد النظام ذكياً على الأرقام الدليلية القياسية.
+                                    <strong class="font-bold block text-amber-950 mb-0.5">{{ $t('setidx.how_does_the_system_recognise_ac') }}</strong>
+                                    {{ $t('setidx.the_system_links_operational_tra') }}
                                 </div>
                             </div>
 
@@ -621,23 +624,23 @@ const removeLogo = async () => {
                             <div class="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-4">
                                 <h3 class="text-xs font-black text-slate-800 flex items-center gap-2">
                                     <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                    <span>حسابات المبيعات والعملاء (Sales & Receivables)</span>
+                                    <span>{{ $t('setidx.sales_and_receivables_accounts') }}</span>
                                 </h3>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
-                                            حساب إيرادات المبيعات (الدائن الافتراضي) *
+                                            {{ $t('setidx.sales_revenue_account_default_cr') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_sales_revenue_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" placeholder="-- اختر حساب المبيعات من الدليل --" />
-                                        <p class="text-[10px] text-slate-400 mt-1">يُسجل في الطرف الدائن كإيراد عند إصدار أي فاتورة بيع.</p>
+                                        <SelectCreate v-model="form.acc_sales_revenue_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_sales_account_from_th')" />
+                                        <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.credited_as_revenue_when_any_sal') }}</p>
                                     </div>
 
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
-                                            حساب الذمم المدينة / العملاء (المدين في الآجل) *
+                                            {{ $t('setidx.receivables_customers_account_de') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_receivables_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" placeholder="-- اختر حساب العملاء والمدينين --" />
-                                        <p class="text-[10px] text-slate-400 mt-1">يُسجل في الطرف المدين في حالة الفواتير الآجلة أو المبالغ المتبقية غير المسددة.</p>
+                                        <SelectCreate v-model="form.acc_receivables_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_customers_receivables')" />
+                                        <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.debited_for_credit_invoices_or_r') }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -646,23 +649,23 @@ const removeLogo = async () => {
                             <div class="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-4">
                                 <h3 class="text-xs font-black text-slate-800 flex items-center gap-2">
                                     <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                                    <span>حسابات المشتريات والموردين (Purchases & Payables)</span>
+                                    <span>{{ $t('setidx.purchases_and_payables_accounts') }}</span>
                                 </h3>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
-                                            حساب المشتريات / تكلفة البضاعة المباعة *
+                                            {{ $t('setidx.purchases_cost_of_goods_sold_acc') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_purchases_cogs_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" placeholder="-- اختر حساب تكلفة المشتريات --" />
-                                        <p class="text-[10px] text-slate-400 mt-1">يُسجل كمصروف أو تكلفة مشتريات عند شراء بضاعة ومواد.</p>
+                                        <SelectCreate v-model="form.acc_purchases_cogs_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_purchases_cost_accoun')" />
+                                        <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.recorded_as_an_expense_or_purcha') }}</p>
                                     </div>
 
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
-                                            حساب الذمم الدائنة / الموردين *
+                                            {{ $t('setidx.payables_suppliers_account') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_payables_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" placeholder="-- اختر حساب الموردين والدائنين --" />
-                                        <p class="text-[10px] text-slate-400 mt-1">يُسجل في الطرف الدائن كالتزام مالي عند فواتير المشتريات الآجلة.</p>
+                                        <SelectCreate v-model="form.acc_payables_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_suppliers_payables_ac')" />
+                                        <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.credited_as_a_financial_liabilit') }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -671,23 +674,23 @@ const removeLogo = async () => {
                             <div class="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-4">
                                 <h3 class="text-xs font-black text-slate-800 flex items-center gap-2">
                                     <span class="w-2 h-2 rounded-full bg-purple-500"></span>
-                                    <span>حسابات ضريبة القيمة المضافة (VAT Accounts)</span>
+                                    <span>{{ $t('setidx.vat_accounts') }}</span>
                                 </h3>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
-                                            ضريبة القيمة المضافة المحصلة (مخرجات المبيعات) *
+                                            {{ $t('setidx.output_vat_collected_sales') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_vat_output_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" placeholder="-- اختر حساب ضريبة المبيعات المحصلة --" />
-                                        <p class="text-[10px] text-slate-400 mt-1">حساب التزام مستحق للهيئة يُسجل فيه مبلغ الضريبة المضاف على فواتير المبيعات.</p>
+                                        <SelectCreate v-model="form.acc_vat_output_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_output_vat_account')" />
+                                        <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.a_liability_account_owed_to_the') }}</p>
                                     </div>
 
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
-                                            ضريبة القيمة المضافة المدخلة (مدخلات المشتريات) *
+                                            {{ $t('setidx.input_vat_purchases') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_vat_input_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" placeholder="-- اختر حساب ضريبة المشتريات المدخلة --" />
-                                        <p class="text-[10px] text-slate-400 mt-1">حساب أصل متداول يُسجل فيه ضريبة المشتريات القابلة للاسترداد والخصم من الإقرار.</p>
+                                        <SelectCreate v-model="form.acc_vat_input_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_input_vat_account')" />
+                                        <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.a_current_asset_account_where_re') }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -696,23 +699,23 @@ const removeLogo = async () => {
                             <div class="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-4">
                                 <h3 class="text-xs font-black text-slate-800 flex items-center gap-2">
                                     <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-                                    <span>النقدية والبنوك الافتراضية (Cash & Banks)</span>
+                                    <span>{{ $t('setidx.default_cash_and_banks') }}</span>
                                 </h3>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
-                                            الصندوق الرئيسي الافتراضي (الخزينة النقدية) *
+                                            {{ $t('setidx.default_main_cash_box') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_default_cash_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" placeholder="-- اختر حساب الصندوق النقدي الرئيسي --" />
-                                        <p class="text-[10px] text-slate-400 mt-1">يُستخدم لتسجيل المقبوضات النقدية السريعة وفواتير نقاط البيع (الكاش).</p>
+                                        <SelectCreate v-model="form.acc_default_cash_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_main_cash_box_account')" />
+                                        <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.used_to_record_quick_cash_receip') }}</p>
                                     </div>
 
                                     <div>
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
-                                            الحساب البنكي الافتراضي الرئيسي *
+                                            {{ $t('setidx.default_main_bank_account') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_default_bank_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" placeholder="-- اختر الحساب البنكي الافتراضي --" />
-                                        <p class="text-[10px] text-slate-400 mt-1">يُعتمد تلقائياً للتحويلات البنكية ومدفوعات الشبكة إذا لم يحدد الكاشير بنكاً بعينه.</p>
+                                        <SelectCreate v-model="form.acc_default_bank_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_default_bank_account')" />
+                                        <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.used_automatically_for_bank_tran') }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -721,16 +724,16 @@ const removeLogo = async () => {
                         <!-- 4. System & Localization Tab -->
                         <div v-show="activeTab === 'system'" class="space-y-4">
                             <h2 class="text-sm font-black text-slate-900 border-b border-slate-100 pb-3 mb-4">
-                                العملة والمنطقة واللغة
+                                {{ $t('setidx.currency_region_and_language') }}
                             </h2>
 
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div class="sm:col-span-3 lg:col-span-1">
                                     <div class="flex items-center justify-between mb-1">
-                                        <label class="block text-xs font-bold text-slate-700">العملة الأساسية</label>
+                                        <label class="block text-xs font-bold text-slate-700">{{ $t('setidx.base_currency') }}</label>
                                         <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                                             <LockClosedIcon class="w-3 h-3 text-slate-500" />
-                                            <span>مقفلة محاسبياً</span>
+                                            <span>{{ $t('setidx.locked_for_accounting') }}</span>
                                         </span>
                                     </div>
                                     <select 
@@ -742,21 +745,21 @@ const removeLogo = async () => {
                                     </select>
                                     <p class="text-[11px] text-amber-800 bg-amber-50/70 border border-amber-200/60 rounded-xl p-2.5 mt-2 flex items-start gap-1.5 leading-relaxed font-medium">
                                         <LockClosedIcon class="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
-                                        <span>تم قفل العملة الأساسية للحفاظ على سلامة القيود المحاسبية، وتطابق الفواتير الضريبية مع منظومة ZATCA، ومنع تعارض أسعار الصرف.</span>
+                                        <span>{{ $t('setidx.the_base_currency_is_locked_to_k') }}</span>
                                     </p>
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">دولة المنشأة</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('setidx.company_country') }}</label>
                                     <select v-model="form.country_code" :disabled="countryLocked" class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 disabled:bg-slate-100" data-company-country>
                                         <option v-for="c in countries" :key="c.code" :value="c.code">{{ c.name }}</option>
                                     </select>
-                                    <p class="text-[11px] text-slate-500 mt-1">{{ countryLocked ? 'لا تتغير بعد إصدار فواتير. الفروع في دول أخرى تُضاف من شاشة الفروع.' : 'تحدد ضريبة المنشأة ورقمها الضريبي. الفروع في دول أخرى تُضاف من شاشة الفروع.' }}</p>
+                                    <p class="text-[11px] text-slate-500 mt-1">{{ countryLocked ? $t('setidx.cannot_change_after_invoices') : $t('setidx.sets_the_company_tax_and_its') }}</p>
                                     <p v-if="form.errors.country_code" class="text-[11px] text-rose-600 mt-1">{{ form.errors.country_code }}</p>
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">المنطقة الزمنية</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('setidx.time_zone') }}</label>
                                     <select 
                                         v-model="form.timezone"
                                         class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 font-mono"
@@ -766,35 +769,35 @@ const removeLogo = async () => {
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">لغة النظام الافتراضية</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('setidx.default_system_language') }}</label>
                                     <select 
                                         v-model="form.language"
                                         class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 font-bold"
                                     >
-                                        <option value="ar">العربية (Arabic)</option>
-                                        <option value="en">الإنجليزية (English)</option>
+                                        <option value="ar">{{ $t('setidx.arabic') }}</option>
+                                        <option value="en">{{ $t('setidx.english') }}</option>
                                     </select>
                                 </div>
                             </div>
                             <h2 class="text-sm font-black text-slate-900 border-b border-slate-100 pb-3 mb-2 mt-6">
-                                الأمان: التحقق الثنائي الإلزامي
+                                {{ $t('setidx.security_mandatory_two_factor_au') }}
                             </h2>
-                            <p class="text-xs text-slate-500">المستخدمون في الأدوار المختارة يجب أن يفعّلوا التحقق الثنائي (تطبيق المصادقة) قبل استخدام النظام.</p>
+                            <p class="text-xs text-slate-500">{{ $t('setidx.users_in_the_chosen_roles_must_e') }}</p>
                             <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                                 <label class="flex items-center gap-2 font-bold text-indigo-700">
                                     <input v-model="form.two_factor_required_roles" type="checkbox" value="*" class="rounded border-slate-300 text-indigo-600" />
-                                    جميع المستخدمين
+                                    {{ $t('setidx.all_users') }}
                                 </label>
                                 <label v-for="r in roles" :key="r.name" class="flex items-center gap-2" :class="form.two_factor_required_roles.includes('*') ? 'opacity-50' : ''">
                                     <input v-model="form.two_factor_required_roles" type="checkbox" :value="r.name" :disabled="form.two_factor_required_roles.includes('*')" class="rounded border-slate-300 text-indigo-600" />
                                     {{ r.label }}
                                 </label>
                             </div>
-                            <h2 class="text-sm font-black text-slate-900 border-b border-slate-100 pb-3 mb-2 mt-6">الأمان: تسجيل الخروج التلقائي</h2>
+                            <h2 class="text-sm font-black text-slate-900 border-b border-slate-100 pb-3 mb-2 mt-6">{{ $t('setidx.security_automatic_sign_out') }}</h2>
                             <div class="flex flex-wrap items-center gap-3 text-xs">
-                                <label class="font-bold text-slate-700">المهلة دون نشاط قبل تسجيل الخروج (دقيقة)</label>
+                                <label class="font-bold text-slate-700">{{ $t('setidx.inactivity_timeout_before_sign_o') }}</label>
                                 <input v-model="form.session_timeout_minutes" type="text" inputmode="decimal" data-num class="w-24 rounded-xl border-slate-200 text-xs font-mono" data-session-timeout />
-                                <span class="text-slate-500">يظهر تنبيه بعدّ تنازلي قبل دقيقة من الخروج. صفر = بلا خروج تلقائي.</span>
+                                <span class="text-slate-500">{{ $t('setidx.a_countdown_warning_appears_one') }}</span>
                             </div>
                         </div>
 
@@ -802,7 +805,7 @@ const removeLogo = async () => {
                         <!-- 5. POS Tab -->
                         <div v-show="activeTab === 'pos'" class="space-y-4">
                             <h2 class="text-sm font-black text-slate-900 border-b border-slate-100 pb-3 mb-4">
-                                إعدادات نقاط البيع (POS)
+                                {{ $t('setidx.point_of_sale_settings_pos') }}
                             </h2>
 
                             <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/60">
@@ -813,8 +816,8 @@ const removeLogo = async () => {
                                         class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 w-4 h-4"
                                     />
                                     <div>
-                                        <span class="text-xs font-bold text-slate-800">الطباعة التلقائية للإيصال بعد إتمام الطلب</span>
-                                        <p class="text-[11px] text-slate-500">يقوم بإرسال الإيصال المبسط مباشرة إلى طابعة الكاشير الحرارية فور الضغط على دفع.</p>
+                                        <span class="text-xs font-bold text-slate-800">{{ $t('setidx.print_the_receipt_automatically') }}</span>
+                                        <p class="text-[11px] text-slate-500">{{ $t('setidx.sends_the_simplified_receipt_str') }}</p>
                                     </div>
                                 </label>
                             </div>
@@ -823,27 +826,27 @@ const removeLogo = async () => {
                                 <label class="flex items-center gap-3 cursor-pointer">
                                     <input v-model="form.pos_allow_credit" type="checkbox" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 w-4 h-4" data-pos-allow-credit />
                                     <div>
-                                        <span class="text-xs font-bold text-slate-800">السماح بالبيع الآجل في الكاشير</span>
-                                        <p class="text-[11px] text-slate-500">يظهر زر «بيع آجل» لعميل محدد (لا يكون للعميل النقدي) مع دفعة مقدّمة اختيارية، ويُسجَّل المتبقي ذمة على العميل ويُراعى حده الائتماني.</p>
+                                        <span class="text-xs font-bold text-slate-800">{{ $t('setidx.allow_credit_sales_at_the_cashie') }}</span>
+                                        <p class="text-[11px] text-slate-500">{{ $t('setidx.a_credit_sale_button_appears_for') }}</p>
                                     </div>
                                 </label>
                             </div>
 
                             <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/60">
-                                <label class="block text-xs font-bold text-slate-800 mb-1">أقصى خصم للكاشير %</label>
+                                <label class="block text-xs font-bold text-slate-800 mb-1">{{ $t('setidx.maximum_cashier_discount') }}</label>
                                 <input v-model="form.pos_max_discount_percent" type="text" inputmode="decimal" data-num class="w-28 rounded-xl border-slate-200 text-xs font-mono" data-pos-max-discount />
-                                <p class="text-[11px] text-slate-500 mt-1">يشمل خصم السطر وخصم الطلب والبيع بأقل من سعر الصنف؛ ما فوقه يتطلب صلاحية «التحكم بالخصومات» (الورديات ← إدارة افتراضيًا).</p>
+                                <p class="text-[11px] text-slate-500 mt-1">{{ $t('setidx.covers_line_discount_order_disco') }}</p>
                             </div>
                         </div>
 
                         <div class="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200/60" data-budget-enforcement-box>
-                            <label class="block text-xs font-bold text-slate-800 mb-1">إلزام الموازنات التقديرية</label>
+                            <label class="block text-xs font-bold text-slate-800 mb-1">{{ $t('setidx.budget_enforcement') }}</label>
                             <select v-model="form.budget_enforcement" class="rounded-xl border-slate-200 text-xs ps-3 pe-8" data-budget-enforcement>
-                                <option value="off">إيقاف (للعلم فقط)</option>
-                                <option value="warn">تنبيه عند تجاوز الموازنة</option>
-                                <option value="block">منع التجاوز (إلا لمن يملك «تجاوز الموازنة»)</option>
+                                <option value="off">{{ $t('setidx.off_for_information_only') }}</option>
+                                <option value="warn">{{ $t('setidx.warn_when_the_budget_is_exceeded') }}</option>
+                                <option value="block">{{ $t('setidx.block_overruns_except_for_those') }}</option>
                             </select>
-                            <p class="text-[11px] text-slate-500 mt-1">يقارن المصروف وفاتورة الشراء وأمر الشراء بالمخطط المعتمد من أول السنة المالية حتى شهر المستند؛ الحسابات بلا سطر موازنة لا تُقيَّد.</p>
+                            <p class="text-[11px] text-slate-500 mt-1">{{ $t('setidx.compares_the_expense_purchase_in') }}</p>
                         </div>
 
                         <!-- Submit Footer -->
@@ -854,7 +857,7 @@ const removeLogo = async () => {
                                 class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-indigo-500/20 transition-all flex items-center gap-2 disabled:opacity-50"
                             >
                                 <CheckCircleIcon class="w-4 h-4" />
-                                <span>حفظ جميع الإعدادات</span>
+                                <span>{{ $t('setidx.save_all_settings') }}</span>
                             </button>
                         </div>
                     </form>
