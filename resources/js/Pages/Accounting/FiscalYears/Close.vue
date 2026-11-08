@@ -22,7 +22,11 @@ const submit = () => {
 <template>
     <AppLayout>
         <Head title="إقفال السنة المالية" />
-        <PageHeader :title="`إقفال السنة المالية ${year.name}`" :subtitle="`${date(year.start_date)} → ${date(year.end_date)}`" :crumbs="[{ label: 'المحاسبة' }, { label: 'السنوات المالية', href: route('accounting.fiscal-years.index') }, { label: 'إقفال' }]" />
+        <PageHeader :title="`إقفال السنة المالية ${year.name}`" :subtitle="`${date(year.start_date)} → ${date(year.end_date)}`" :crumbs="[{ label: 'المحاسبة' }, { label: 'السنوات المالية', href: route('accounting.fiscal-years.index') }, { label: 'إقفال' }]">
+            <template #actions>
+                <Link v-if="$can('accounting.controls.view')" :href="route('accounting.controls.show', { report: 'closing-checklist', fiscal_year_id: year.id })" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-indigo-600" data-closing-checklist-link>{{ $t('controls.closing_checklist') }}</Link>
+            </template>
+        </PageHeader>
 
         <p v-if="!ended" class="mb-4 border border-amber-200 bg-amber-50 text-amber-700 rounded-xl px-4 py-3 text-xs font-bold">لا يمكن إقفال سنة قبل انتهائها ({{ date(year.end_date) }}).</p>
         <div v-for="w in warnings" :key="w" class="mb-3 border border-amber-200 bg-amber-50 text-amber-800 rounded-xl px-4 py-3 text-xs" data-close-warning>⚠ {{ w }}</div>

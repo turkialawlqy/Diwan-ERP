@@ -12,6 +12,9 @@ import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
 import { money, date, today, thisMonth, addMonths } from '@/utils/format';
 import { PlusIcon } from '@heroicons/vue/24/outline';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({ assets: Object, categories: Array, accounts: Array, branches: Array, costCenters: Array, bankAccounts: Array, totals: Object, filters: Object });
 
@@ -36,31 +39,31 @@ const saveAsset = () => assetForm.transform((d) => ({
 const saveCategory = () => categoryForm.post(route('accounting.fixed-assets.categories.store'), { preserveScroll: true, onSuccess: () => { categoryOpen.value = false; categoryForm.reset(); } });
 const runDepreciation = () => depreciateForm.post(route('accounting.fixed-assets.depreciate'), { preserveScroll: true, onSuccess: () => (depreciateOpen.value = false) });
 
-const statusLabel = { active: 'نشط', fully_depreciated: 'مهلك بالكامل', disposed: 'مستبعد' };
+const statusLabel = computed(() => ({ active: t('fassets.st_active'), fully_depreciated: t('fassets.st_fully'), disposed: t('fassets.st_disposed') }));
 </script>
 
 <template>
     <AppLayout>
-        <Head title="الأصول الثابتة" />
-        <PageHeader title="الأصول الثابتة" :crumbs="[{ label: 'المحاسبة' }, { label: 'الأصول الثابتة' }]">
+        <Head :title="$t('fassets.fixed_assets')" />
+        <PageHeader :title="$t('fassets.fixed_assets')" :crumbs="[{ label: $t('fassets.accounting') }, { label: $t('fassets.fixed_assets') }]">
             <template #actions>
 
-                <button v-if="$can('accounting.fixed_assets.post')" @click="depreciateOpen = true" class="px-3 py-2 rounded-xl border border-amber-300 text-amber-700 text-xs font-bold">ترحيل الإهلاك الشهري</button>
-                <button v-if="$can('accounting.fixed_assets.edit')" @click="categoryOpen = true" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">فئة أصول</button>
-                <button v-if="$can('accounting.fixed_assets.create')" @click="assetOpen = true" :disabled="!categories.length" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40"><PlusIcon class="w-4 h-4" /> أصل جديد</button>
-            <ImportButton v-if="$can('accounting.fixed_assets.create')" type="fixed_assets" title="استيراد الأصول الثابتة من Excel" hint="تُسجّل كأصول افتتاحية بتاريخ اليوم: التكلفة والمجمع السابق (opening_accumulated) مقابل الأرصدة الافتتاحية. الفئة باسمها كما في النظام." />
+                <button v-if="$can('accounting.fixed_assets.post')" @click="depreciateOpen = true" class="px-3 py-2 rounded-xl border border-amber-300 text-amber-700 text-xs font-bold">{{ $t('fassets.post_monthly_depreciation') }}</button>
+                <button v-if="$can('accounting.fixed_assets.edit')" @click="categoryOpen = true" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">{{ $t('fassets.asset_category') }}</button>
+                <button v-if="$can('accounting.fixed_assets.create')" @click="assetOpen = true" :disabled="!categories.length" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40"><PlusIcon class="w-4 h-4" /> {{ $t('fassets.new_asset') }}</button>
+            <ImportButton v-if="$can('accounting.fixed_assets.create')" type="fixed_assets" :title="$t('fassets.import_fixed_assets_from_excel')" :hint="$t('fassets.recorded_as_opening_assets_dated')" />
 </template>
         </PageHeader>
 
         <div class="grid grid-cols-3 gap-3 mb-4">
-            <StatCard label="تكلفة الأصول" :value="money(totals.cost)" />
-            <StatCard label="مجمع الإهلاك" :value="money(totals.accumulated)" tone="amber" />
-            <StatCard label="صافي القيمة الدفترية" :value="money(totals.book_value)" tone="emerald" />
+            <StatCard :label="$t('fassets.assets_cost')" :value="money(totals.cost)" />
+            <StatCard :label="$t('fassets.accumulated_depreciation')" :value="money(totals.accumulated)" tone="amber" />
+            <StatCard :label="$t('fassets.net_book_value')" :value="money(totals.book_value)" tone="emerald" />
         </div>
 
         <form @submit.prevent="apply" class="flex flex-wrap gap-2 mb-3 text-xs">
-            <input v-model="filters.search" placeholder="بحث بالاسم / الرمز / الرقم التسلسلي" class="rounded-xl border-slate-200 text-xs w-64" />
-            <select v-model="filters.status" class="rounded-xl border-slate-200 text-xs"><option value="">كل الحالات</option><option v-for="(l, k) in statusLabel" :key="k" :value="k">{{ l }}</option></select>
+            <input v-model="filters.search" :placeholder="$t('fassets.search_by_name_code_serial_numbe')" class="rounded-xl border-slate-200 text-xs w-64" />
+            <select v-model="filters.status" class="rounded-xl border-slate-200 text-xs"><option value="">{{ $t('fassets.all_statuses') }}</option><option v-for="(l, k) in statusLabel" :key="k" :value="k">{{ l }}</option></select>
             <button class="px-4 rounded-xl bg-slate-800 text-white font-bold">{{ $t('ui.apply') }}</button>
         </form>
 
@@ -68,8 +71,8 @@ const statusLabel = { active: 'نشط', fully_depreciated: 'مهلك بالكا�
             <div class="overflow-x-auto">
                 <table class="w-full text-xs">
                     <thead class="bg-slate-50 text-slate-500"><tr>
-                        <th class="text-start px-3 py-2">{{ $t('ui.code') }}</th><th class="text-start px-3 py-2">الأصل</th><th class="text-start px-3 py-2">الفئة</th>
-                        <th class="px-3 py-2">تاريخ الشراء</th><th class="text-end px-3 py-2">التكلفة</th><th class="text-end px-3 py-2">مجمع الإهلاك</th><th class="text-end px-3 py-2">القيمة الدفترية</th><th class="px-3 py-2">{{ $t('ui.status') }}</th>
+                        <th class="text-start px-3 py-2">{{ $t('ui.code') }}</th><th class="text-start px-3 py-2">{{ $t('fassets.asset') }}</th><th class="text-start px-3 py-2">{{ $t('fassets.category') }}</th>
+                        <th class="px-3 py-2">{{ $t('fassets.purchase_date') }}</th><th class="text-end px-3 py-2">{{ $t('fassets.cost') }}</th><th class="text-end px-3 py-2">{{ $t('fassets.accumulated_depreciation') }}</th><th class="text-end px-3 py-2">{{ $t('fassets.book_value') }}</th><th class="px-3 py-2">{{ $t('ui.status') }}</th>
                     </tr></thead>
                     <tbody>
                         <tr v-for="a in assets.data" :key="a.id" class="border-t border-slate-100 hover:bg-slate-50/60">
@@ -82,36 +85,36 @@ const statusLabel = { active: 'نشط', fully_depreciated: 'مهلك بالكا�
                             <td class="px-3 py-2 text-end font-mono font-bold">{{ money(a.book_value) }}</td>
                             <td class="px-3 py-2 text-center">{{ statusLabel[a.status] }}</td>
                         </tr>
-                        <tr v-if="!assets.data.length"><td colspan="8" class="py-10 text-center text-slate-400">{{ categories.length ? 'لا توجد أصول' : 'ابدأ بإضافة فئة أصول (مثل: أجهزة حاسب، سيارات)' }}</td></tr>
+                        <tr v-if="!assets.data.length"><td colspan="8" class="py-10 text-center text-slate-400">{{ categories.length ? $t('fassets.no_assets') : $t('fassets.add_category_first') }}</td></tr>
                     </tbody>
                 </table>
             </div>
             <Pagination :paginator="assets" />
         </div>
 
-        <Dialog :show="assetOpen" title="تسجيل أصل ثابت" size="lg" @close="assetOpen = false">
+        <Dialog :show="assetOpen" :title="$t('fassets.register_a_fixed_asset')" size="lg" @close="assetOpen = false">
             <form @submit.prevent="saveAsset" class="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-                <Field label="الفئة" :error="assetForm.errors.asset_category_id"><SelectCreate v-model="assetForm.asset_category_id" :options="categories" entity="category" label="name_ar" :allow-empty="false" required /></Field>
-                <Field label="رمز الأصل" :error="assetForm.errors.code"><input v-model="assetForm.code" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="اسم الأصل" :error="assetForm.errors.name_ar"><input v-model="assetForm.name_ar" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="الرقم التسلسلي"><input v-model="assetForm.serial_number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="الموقع"><input v-model="assetForm.location" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="مركز التكلفة"><SelectCreate v-model="assetForm.cost_center_id" :options="costCenters" entity="cost_center" label="name_ar" placeholder="—" /></Field>
-                <Field label="تاريخ الشراء" :error="assetForm.errors.acquisition_date"><DatePicker v-model="assetForm.acquisition_date" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="التكلفة" :error="assetForm.errors.cost"><input v-model.number="assetForm.cost" type="text" inputmode="decimal" data-num step="0.01" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="القيمة التخريدية" :error="assetForm.errors.salvage_value"><input v-model.number="assetForm.salvage_value" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="العمر الإنتاجي (شهر)" hint="فارغ = حسب الفئة"><input v-model.number="assetForm.useful_life_months" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('fassets.category')" :error="assetForm.errors.asset_category_id"><SelectCreate v-model="assetForm.asset_category_id" :options="categories" entity="category" label="name_ar" :allow-empty="false" required /></Field>
+                <Field :label="$t('fassets.asset_code')" :error="assetForm.errors.code"><input v-model="assetForm.code" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('fassets.asset_name')" :error="assetForm.errors.name_ar"><input v-model="assetForm.name_ar" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('fassets.serial_number')"><input v-model="assetForm.serial_number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('fassets.location')"><input v-model="assetForm.location" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('fassets.cost_center')"><SelectCreate v-model="assetForm.cost_center_id" :options="costCenters" entity="cost_center" label="name_ar" placeholder="—" /></Field>
+                <Field :label="$t('fassets.purchase_date')" :error="assetForm.errors.acquisition_date"><DatePicker v-model="assetForm.acquisition_date" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('fassets.cost')" :error="assetForm.errors.cost"><input v-model.number="assetForm.cost" type="text" inputmode="decimal" data-num step="0.01" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('fassets.salvage_value')" :error="assetForm.errors.salvage_value"><input v-model.number="assetForm.salvage_value" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('fassets.useful_life_months')" :hint="$t('fassets.empty_by_category')"><input v-model.number="assetForm.useful_life_months" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <template v-if="unitsCategory">
-                    <Field label="إجمالي الوحدات المتوقعة طوال العمر" :error="assetForm.errors.total_units"><input v-model.number="assetForm.total_units" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="وحدة القياس"><input v-model="assetForm.unit_label" placeholder="ساعة، كم، قطعة" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('fassets.total_expected_units_over_the_li')" :error="assetForm.errors.total_units"><input v-model.number="assetForm.total_units" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('fassets.unit_of_measure')"><input v-model="assetForm.unit_label" :placeholder="$t('fassets.hour_km_piece')" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 </template>
-                <Field label="طريقة السداد"><select v-model="assetForm.paid_from" class="w-full rounded-xl border-slate-200 text-xs"><option value="bank_transfer">بنك</option><option value="cash">نقداً</option><option value="payables">آجل لمورد</option><option value="opening">رصيد افتتاحي</option></select></Field>
-                <Field v-if="['cash','bank_transfer'].includes(assetForm.paid_from)" label="الصندوق / البنك"><SelectCreate v-model="assetForm.bank_account_id" :options="bankAccounts" entity="bank" label="name" placeholder="الافتراضي" /></Field>
-                <Field v-if="assetForm.paid_from === 'payables'" label="رقم المورد" :error="assetForm.errors.supplier_id"><input v-model.number="assetForm.supplier_id" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field v-if="assetForm.paid_from !== 'opening'" label="ضريبة المدخلات" :error="assetForm.errors.acquisition_vat">
-                    <label class="flex items-center gap-2 py-2"><input v-model="assetForm.taxable" type="checkbox" class="rounded" /> فاتورة ضريبية {{ $taxRate() }}% ({{ ((parseFloat(assetForm.cost) || 0) * $taxRate() / 100).toFixed(2) }})</label>
+                <Field :label="$t('fassets.payment_method')"><select v-model="assetForm.paid_from" class="w-full rounded-xl border-slate-200 text-xs"><option value="bank_transfer">{{ $t('fassets.bank') }}</option><option value="cash">{{ $t('fassets.cash') }}</option><option value="payables">{{ $t('fassets.on_credit_from_a_supplier') }}</option><option value="opening">{{ $t('fassets.opening_balance') }}</option></select></Field>
+                <Field v-if="['cash','bank_transfer'].includes(assetForm.paid_from)" :label="$t('fassets.cash_box_bank')"><SelectCreate v-model="assetForm.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('fassets.default')" /></Field>
+                <Field v-if="assetForm.paid_from === 'payables'" :label="$t('fassets.supplier_number')" :error="assetForm.errors.supplier_id"><input v-model.number="assetForm.supplier_id" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field v-if="assetForm.paid_from !== 'opening'" :label="$t('fassets.input_tax')" :error="assetForm.errors.acquisition_vat">
+                    <label class="flex items-center gap-2 py-2"><input v-model="assetForm.taxable" type="checkbox" class="rounded" /> {{ $t('fassets.taxable_invoice', { rate: $taxRate(), amount: ((parseFloat(assetForm.cost) || 0) * $taxRate() / 100).toFixed(2) }) }}</label>
                 </Field>
-                <Field v-else label="مجمع الإهلاك حتى تاريخ البدء" :error="assetForm.errors.opening_accumulated"><input v-model.number="assetForm.opening_accumulated" type="text" inputmode="decimal" data-num step="0.01" min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field v-else :label="$t('fassets.accumulated_depreciation_up_to_t')" :error="assetForm.errors.opening_accumulated"><input v-model.number="assetForm.opening_accumulated" type="text" inputmode="decimal" data-num step="0.01" min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
             </form>
             <template #footer>
                 <button @click="assetOpen = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('ui.cancel') }}</button>
@@ -119,26 +122,26 @@ const statusLabel = { active: 'نشط', fully_depreciated: 'مهلك بالكا�
             </template>
         </Dialog>
 
-        <Dialog :show="categoryOpen" title="فئة أصول جديدة" @close="categoryOpen = false">
+        <Dialog :show="categoryOpen" :title="$t('fassets.new_asset_category')" @close="categoryOpen = false">
             <form @submit.prevent="saveCategory" class="space-y-3 text-xs">
-                <Field label="اسم الفئة" :error="categoryForm.errors.name_ar"><input v-model="categoryForm.name_ar" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('fassets.category_name')" :error="categoryForm.errors.name_ar"><input v-model="categoryForm.name_ar" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <div class="grid grid-cols-2 gap-3">
-                    <Field label="العمر الإنتاجي (شهر)"><input v-model.number="categoryForm.useful_life_months" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="طريقة الإهلاك"><select v-model="categoryForm.depreciation_method" class="w-full rounded-xl border-slate-200 text-xs"><option value="straight_line">القسط الثابت</option><option value="declining_balance">القسط المتناقص</option><option value="units_of_production">وحدات الإنتاج (ساعات/كم/وحدات)</option></select></Field>
+                    <Field :label="$t('fassets.useful_life_months')"><input v-model.number="categoryForm.useful_life_months" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('fassets.depreciation_method')"><select v-model="categoryForm.depreciation_method" class="w-full rounded-xl border-slate-200 text-xs"><option value="straight_line">{{ $t('fassets.straight_line') }}</option><option value="declining_balance">{{ $t('fassets.declining_balance') }}</option><option value="units_of_production">{{ $t('fassets.units_of_production_hours_km_uni') }}</option></select></Field>
                 </div>
-                <Field label="حساب الأصل" hint="فارغ = الحساب الافتراضي"><SelectCreate v-model="categoryForm.asset_account_id" :options="accounts.filter(x => x.type === 'asset')" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" placeholder="الافتراضي" /></Field>
-                <Field label="حساب مجمع الإهلاك"><SelectCreate v-model="categoryForm.accumulated_account_id" :options="accounts.filter(x => x.type === 'asset')" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" placeholder="الافتراضي" /></Field>
-                <Field label="حساب مصروف الإهلاك"><SelectCreate v-model="categoryForm.expense_account_id" :options="accounts.filter(x => x.type === 'expense')" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" placeholder="الافتراضي" /></Field>
+                <Field :label="$t('fassets.asset_account')" :hint="$t('fassets.empty_the_default_account')"><SelectCreate v-model="categoryForm.asset_account_id" :options="accounts.filter(x => x.type === 'asset')" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('fassets.default')" /></Field>
+                <Field :label="$t('fassets.accumulated_depreciation_account')"><SelectCreate v-model="categoryForm.accumulated_account_id" :options="accounts.filter(x => x.type === 'asset')" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('fassets.default')" /></Field>
+                <Field :label="$t('fassets.depreciation_expense_account')"><SelectCreate v-model="categoryForm.expense_account_id" :options="accounts.filter(x => x.type === 'expense')" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('fassets.default')" /></Field>
             </form>
             <template #footer>
                 <button @click="saveCategory" :disabled="categoryForm.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('ui.save') }}</button>
             </template>
         </Dialog>
 
-        <Dialog :show="depreciateOpen" title="ترحيل الإهلاك الشهري" size="sm" @close="depreciateOpen = false">
-            <Field label="الشهر" hint="يتم ترحيل إهلاك كل الأصول النشطة لهذا الشهر (لا يتكرر لنفس الشهر)"><DatePicker v-model="depreciateForm.month" type="month" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+        <Dialog :show="depreciateOpen" :title="$t('fassets.post_monthly_depreciation')" size="sm" @close="depreciateOpen = false">
+            <Field :label="$t('fassets.month')" :hint="$t('fassets.depreciation_of_all_active_asset')"><DatePicker v-model="depreciateForm.month" type="month" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
             <template #footer>
-                <button @click="runDepreciation" :disabled="depreciateForm.processing" class="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold">ترحيل</button>
+                <button @click="runDepreciation" :disabled="depreciateForm.processing" class="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold">{{ $t('fassets.post') }}</button>
             </template>
         </Dialog>
     </AppLayout>

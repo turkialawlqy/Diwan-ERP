@@ -7,11 +7,14 @@ use App\Models\Account;
 use App\Models\BankAccount;
 use App\Models\CostCenter;
 use App\Models\Expense;
+use App\Models\PaymentRequest;
 use App\Models\Project;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\BudgetService;
 use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\ActiveBranch;
+use App\Services\Finance\PaymentRequestService;
 use App\Services\Tax\TaxProfile;
 use App\Services\Workflow\ApprovalGate;
 use Illuminate\Http\Request;
@@ -61,9 +64,16 @@ class ExpenseController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $prefill = null;
+        if ($request->filled('payment_request')) {
+            $paymentRequest = PaymentRequest::where('status', 'approved')->where('kind', 'expense')->find($request->integer('payment_request'));
+            $prefill = $paymentRequest ? app(PaymentRequestService::class)->prefill($paymentRequest) : null;
+        }
+
         return Inertia::render('Finance/Expenses/Form', [
+            'prefill' => $prefill,
             'costCenters' => CostCenter::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_ar']),
             'projects' => Project::orderBy('name')->get(['id', 'name']),
             'dimensionPolicy' => app(DimensionPolicy::class)->modes(),
@@ -90,7 +100,10 @@ class ExpenseController extends Controller
             'reference_number' => 'nullable|string|max:100',
             'vendor_name' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
+            'payment_request_id' => 'nullable|tenant_exists:payment_requests,id',
         ]);
+        $requests = app(PaymentRequestService::class);
+        $requestId = $replace ? null : ($validated['payment_request_id'] ?? null);
 
         // No VAT unless the voucher is marked taxable (government fees, salaries,
         // unregistered vendors carry none).
@@ -102,11 +115,14 @@ class ExpenseController extends Controller
             throw ValidationException::withMessages(['tax_amount' => 'الضريبة يجب أن تكون '.TaxProfile::current()->ratesLabel().' من المبلغ قبل الضريبة.']);
         }
         $total = $validated['amount'] + $tax;
-        app(ApprovalGate::class)->check('expense', ApprovalGate::keyFor(['t' => $validated['title'], 'a' => round((float) $validated['amount'], 2), 'd' => $validated['expense_date'] ?? null, 'acc' => (int) ($validated['account_id'] ?? 0), 'r' => $replace?->id]), (float) $total, 'مصروف: '.$validated['title']);
+        // A voucher made for an approved payment request needs no second approval: the request's approval is it.
+        if (! $requests->covering($requestId, 'expense', (float) $total)) {
+            app(ApprovalGate::class)->check('expense', ApprovalGate::keyFor(['t' => $validated['title'], 'a' => round((float) $validated['amount'], 2), 'd' => $validated['expense_date'] ?? null, 'acc' => (int) ($validated['account_id'] ?? 0), 'r' => $replace?->id]), (float) $total, 'مصروف: '.$validated['title']);
+        }
 
-        $budgetWarning = app(BudgetService::class)->check((int) ($validated['account_id'] ?? app(AccountMap::class)->id('general_expense')), $validated['expense_date'] ?? now(), (float) $validated['amount'], 'مصروف');
+        $budgetWarning = app(BudgetService::class)->check((int) ($validated['account_id'] ?? app(AccountMap::class)->id('general_expense')), $validated['expense_date'] ?? now(), (float) $validated['amount'], 'مصروف', ['cost_center_id' => $validated['cost_center_id'] ?? null, 'project_id' => $validated['project_id'] ?? null, 'branch_id' => $validated['branch_id'] ?? app(ActiveBranch::class)->forWrite()]);
 
-        $expense = DB::transaction(function () use ($validated, $tax, $total, $replace) {
+        $expense = DB::transaction(function () use ($validated, $tax, $total, $replace, $requests, $requestId) {
             // Editing: undo the old voucher (entry and box balance), keep its record and number.
             if ($replace) {
                 $this->undo($replace, 'تعديل سند رقم '.$replace->expense_number);
@@ -143,6 +159,9 @@ class ExpenseController extends Controller
             }
 
             app(DocumentPoster::class)->expense($expense);
+            if ($paid = $requests->covering($requestId, 'expense', (float) $total)) {
+                $requests->markPaid($paid, $expense);
+            }
 
             return $expense;
         });
@@ -167,7 +186,7 @@ class ExpenseController extends Controller
 
     public function edit(Expense $expense): Response
     {
-        return $this->create()->with('expense', $expense);
+        return $this->create(new Request)->with('expense', $expense);
     }
 
     public function update(Request $request, Expense $expense)

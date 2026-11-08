@@ -2,6 +2,9 @@
 import { notify } from '@/composables/useDialog';
 import { ref, computed, watch, onMounted } from 'vue';
 import axios from 'axios';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import {
     XMarkIcon,
@@ -249,7 +252,7 @@ const onDropFile = (e) => {
 // Save customer
 const saveCustomer = async () => {
     if (!form.value.name.trim()) {
-        formErrors.value = { name: ['يرجى إدخال اسم العميل'] };
+        formErrors.value = { name: [t('cmodal.name_required')] };
         return;
     }
 
@@ -270,7 +273,7 @@ const saveCustomer = async () => {
         if (error.response?.data?.errors) {
             formErrors.value = error.response.data.errors;
         } else {
-            notify('حدث خطأ أثناء حفظ بيانات العميل، يرجى المحاولة مجدداً.');
+            notify(t('cmodal.save_error'));
         }
     } finally {
         isSubmitting.value = false;
@@ -291,7 +294,7 @@ const saveCustomer = async () => {
             <div v-if="!page" class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white sticky top-0 z-10">
                 <div class="flex items-center gap-3">
                     <h2 class="text-xl font-bold text-slate-800">
-                        {{ customer ? 'تعديل بيانات العميل' : 'إضافة عميل' }}
+                        {{ customer ? $t('cmodal.edit_customer') : $t('cmodal.add_customer') }}
                     </h2>
                 </div>
                 <button
@@ -312,7 +315,7 @@ const saveCustomer = async () => {
                     <div class="space-y-5">
                         <!-- Customer Type Radio Options -->
                         <div class="flex items-center justify-between pb-2">
-                            <span class="text-xs font-bold text-slate-700">النوع</span>
+                            <span class="text-xs font-bold text-slate-700">{{ $t('cmodal.type') }}</span>
                             <div class="flex items-center gap-6">
                                 <!-- Individual (فردي) -->
                                 <label class="inline-flex items-center gap-2 cursor-pointer group">
@@ -323,7 +326,7 @@ const saveCustomer = async () => {
                                         class="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-slate-300"
                                     />
                                     <span class="text-sm font-medium text-slate-700 group-hover:text-indigo-600 transition-colors">
-                                        فردي
+                                        {{ $t('cmodal.individual') }}
                                     </span>
                                 </label>
 
@@ -336,7 +339,7 @@ const saveCustomer = async () => {
                                         class="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-slate-300"
                                     />
                                     <span class="text-sm font-medium text-slate-700 group-hover:text-indigo-600 transition-colors">
-                                        تجاري
+                                        {{ $t('cmodal.commercial') }}
                                     </span>
                                 </label>
                             </div>
@@ -344,21 +347,21 @@ const saveCustomer = async () => {
 
                         <!-- Customer group (may post to its own receivable account) -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">مجموعة العميل</label>
-                            <SelectCreate v-model="form.customer_group_id" :options="customerGroups" entity="customer_group" label="label" placeholder="بدون مجموعة" @created="(g) => customerGroups.push(g)" />
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.customer_group') }}</label>
+                            <SelectCreate v-model="form.customer_group_id" :options="customerGroups" entity="customer_group" label="label" :placeholder="$t('cmodal.no_group')" @created="(g) => customerGroups.push(g)" />
                         </div>
 
                         <!-- Code Field with Edit Pencil Icon -->
                         <div>
                             <div class="flex items-center justify-between mb-1">
-                                <label class="block text-xs font-bold text-slate-700">الكود</label>
+                                <label class="block text-xs font-bold text-slate-700">{{ $t('cmodal.code') }}</label>
                             </div>
                             <div class="relative flex items-center">
                                 <button
                                     type="button"
                                     @click="toggleCodeEdit"
                                     class="absolute start-3 p-1 text-slate-400 hover:text-indigo-600 transition-colors"
-                                    title="تعديل الكود يدويًا"
+                                    :title="$t('cmodal.edit_the_code_manually')"
                                 >
                                     <PencilSquareIcon class="w-4 h-4" />
                                 </button>
@@ -376,13 +379,13 @@ const saveCustomer = async () => {
                         <!-- Name Field -->
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1">
-                                الاسم <span class="text-rose-500">*</span>
+                                {{ $t('cmodal.name') }} <span class="text-rose-500">*</span>
                             </label>
                             <input
                                 v-model="form.name"
                                 type="text"
                                 required
-                                placeholder="مثال: شركة شبوة سوفت"
+                                :placeholder="$t('cmodal.e_g_shabwa_soft_company')"
                                 class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                 :class="{ 'border-rose-400': formErrors.name }"
                             />
@@ -395,23 +398,23 @@ const saveCustomer = async () => {
                         <div v-if="form.customer_type === 'commercial'" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <!-- Commercial Registration (CR) -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">السجل التجاري</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.commercial_register') }}</label>
                                 <input
                                     v-model="form.commercial_registration"
                                     type="text"
-                                    placeholder="مثال: ××××××××××"
+                                    :placeholder="$t('cmodal.e_g')"
                                     class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 font-mono transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                 />
                             </div>
 
                             <!-- Tax / VAT Number -->
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">الرقم الضريبي</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.tax_number') }}</label>
                                 <input
                                     v-model="form.tax_number"
                                     type="text"
                                     maxlength="15"
-                                    placeholder="مثال: ××××××××××××××××"
+                                    :placeholder="$t('cmodal.e_g_2')"
                                     class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 font-mono transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                 />
                             </div>
@@ -419,7 +422,7 @@ const saveCustomer = async () => {
 
                         <!-- Opening Balance -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">الرصيد الافتتاحي</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.opening_balance') }}</label>
                             <div class="relative">
                                 <input
                                     v-model.number="form.opening_balance"
@@ -436,18 +439,18 @@ const saveCustomer = async () => {
 
                         <!-- Notes Textarea -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">ملاحظات</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.notes') }}</label>
                             <textarea
                                 v-model="form.notes"
                                 rows="3"
-                                placeholder="أية ملاحظات إضافية عن العميل أو شروط السداد..."
+                                :placeholder="$t('cmodal.any_extra_notes_about_the_custom')"
                                 class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-y"
                             ></textarea>
                         </div>
 
                         <!-- Attachments Drag & Drop Area -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">المرفقات</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.attachments') }}</label>
                             <div
                                 @click="triggerFilePicker"
                                 @dragover.prevent="isDraggingFile = true"
@@ -472,10 +475,10 @@ const saveCustomer = async () => {
                                         <PhotoIcon class="w-6 h-6" />
                                     </div>
                                     <div class="text-xs text-slate-600">
-                                        <span class="text-indigo-600 font-bold hover:underline">اضغط لرفع الملفات</span>
-                                        <span> أو اسحبها هنا</span>
+                                        <span class="text-indigo-600 font-bold hover:underline">{{ $t('cmodal.click_to_upload_files') }}</span>
+                                        <span> {{ $t('cmodal.or_drag_them_here') }}</span>
                                     </div>
-                                    <p class="text-2xs text-slate-400">PDF, PNG, JPG (الحد الأقصى 10 ميجابايت)</p>
+                                    <p class="text-2xs text-slate-400">{{ $t('cmodal.pdf_png_jpg_maximum_10_mb') }}</p>
                                 </div>
                             </div>
 
@@ -494,7 +497,7 @@ const saveCustomer = async () => {
                                         type="button"
                                         @click="removeAttachment(idx)"
                                         class="text-rose-500 hover:text-rose-700 p-1"
-                                        title="حذف الملف"
+                                        :title="$t('cmodal.delete_file')"
                                     >
                                         <TrashIcon class="w-3.5 h-3.5" />
                                     </button>
@@ -506,15 +509,15 @@ const saveCustomer = async () => {
                     <!-- LEFT COLUMN: Contact Details & Address -->
                     <div class="space-y-5">
                         <div class="space-y-4">
-                            <h3 class="text-sm font-bold text-slate-800">بيانات الاتصال</h3>
+                            <h3 class="text-sm font-bold text-slate-800">{{ $t('cmodal.contact_details') }}</h3>
 
                             <!-- Contact Name (Shown for commercial clients as seen in screenshots) -->
                             <div v-if="form.customer_type === 'commercial'">
-                                <label class="block text-xs font-bold text-slate-700 mb-1">اسم جهة الاتصال</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.contact_name') }}</label>
                                 <input
                                     v-model="form.contact_name"
                                     type="text"
-                                    placeholder="اسم الشخص المسؤول أو المفوض للتواصل..."
+                                    :placeholder="$t('cmodal.name_of_the_responsible_or_autho')"
                                     class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                 />
                             </div>
@@ -527,7 +530,7 @@ const saveCustomer = async () => {
                                         v-model="showPhoneSection"
                                         class="rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
                                     />
-                                    <span class="text-xs font-semibold text-slate-700">الهاتف</span>
+                                    <span class="text-xs font-semibold text-slate-700">{{ $t('cmodal.phone') }}</span>
                                 </label>
 
                                 <label class="inline-flex items-center gap-2 cursor-pointer">
@@ -536,7 +539,7 @@ const saveCustomer = async () => {
                                         v-model="showEmailSection"
                                         class="rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
                                     />
-                                    <span class="text-xs font-semibold text-slate-700">بريد إلكتروني</span>
+                                    <span class="text-xs font-semibold text-slate-700">{{ $t('cmodal.email') }}</span>
                                 </label>
 
                                 <label class="inline-flex items-center gap-2 cursor-pointer">
@@ -545,14 +548,14 @@ const saveCustomer = async () => {
                                         v-model="showAddressSection"
                                         class="rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
                                     />
-                                    <span class="text-xs font-semibold text-slate-700">عنوان</span>
+                                    <span class="text-xs font-semibold text-slate-700">{{ $t('cmodal.address') }}</span>
                                 </label>
                             </div>
 
                             <!-- Phone & Mobile Row -->
                             <div v-if="showPhoneSection" class="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-150">
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">الهاتف</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.phone') }}</label>
                                     <input
                                         v-model="form.phone"
                                         type="text"
@@ -561,7 +564,7 @@ const saveCustomer = async () => {
                                     />
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">الجوال</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.mobile') }}</label>
                                     <input
                                         v-model="form.mobile"
                                         type="text"
@@ -573,7 +576,7 @@ const saveCustomer = async () => {
 
                             <!-- Email Field -->
                             <div v-if="showEmailSection" class="animate-in fade-in duration-150">
-                                <label class="block text-xs font-bold text-slate-700 mb-1">بريد إلكتروني</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.email') }}</label>
                                 <input
                                     v-model="form.email"
                                     type="email"
@@ -584,11 +587,11 @@ const saveCustomer = async () => {
 
                             <!-- Address Sub-fields (National Address Format) -->
                             <div v-if="showAddressSection" class="space-y-4 animate-in fade-in duration-150">
-                                <p v-if="form.tax_number" class="text-3xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">العميل مسجل ضريبياً: رقم المبنى والشارع والحي والمدينة والرمز البريدي مطلوبة لإصدار الفاتورة الضريبية (كما في العنوان الوطني - سبل).</p>
+                                <p v-if="form.tax_number" class="text-3xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">{{ $t('cmodal.the_customer_is_tax_registered_b') }}</p>
                                 <!-- National address: building number, street, additional number -->
                                 <div class="grid grid-cols-3 gap-3">
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-700 mb-1">رقم المبنى</label>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.building_number') }}</label>
                                         <input
                                             v-model="form.building_number"
                                             type="text"
@@ -601,18 +604,18 @@ const saveCustomer = async () => {
                                         <p v-if="formErrors.building_number" class="text-3xs text-rose-600 mt-1">{{ formErrors.building_number[0] }}</p>
                                     </div>
                                     <div class="col-span-2">
-                                        <label class="block text-xs font-bold text-slate-700 mb-1">اسم الشارع</label>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.street_name') }}</label>
                                         <input
                                             v-model="form.street_name"
                                             type="text"
-                                            placeholder="مثال: ××××"
+                                            :placeholder="$t('cmodal.e_g_3')"
                                             class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                         />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">الرقم الإضافي</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.additional_number') }}</label>
                                     <input
                                         v-model="form.additional_details"
                                         type="text"
@@ -627,20 +630,20 @@ const saveCustomer = async () => {
                                 <!-- District & City -->
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-700 mb-1">حي</label>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.district') }}</label>
                                         <input
                                             v-model="form.district"
                                             type="text"
-                                            placeholder="مثال: ××××"
+                                            :placeholder="$t('cmodal.e_g_3')"
                                             class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                         />
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-700 mb-1">مدينة</label>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.city') }}</label>
                                         <input
                                             v-model="form.city"
                                             type="text"
-                                            placeholder="مثال: ××××"
+                                            :placeholder="$t('cmodal.e_g_3')"
                                             class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                         />
                                     </div>
@@ -649,21 +652,21 @@ const saveCustomer = async () => {
                                 <!-- Postal Code & Province / Governorate -->
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-700 mb-1">رمز بريدي</label>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.postal_code') }}</label>
                                         <input
                                             v-model="form.postal_code"
                                             type="text"
-                                            placeholder="مثال: ×××××"
+                                            :placeholder="$t('cmodal.e_g_4')"
                                             class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 font-mono transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                         />
                                         <p v-if="formErrors.postal_code" class="text-3xs text-rose-600 mt-1">{{ formErrors.postal_code[0] }}</p>
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-700 mb-1">محافظة</label>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.province') }}</label>
                                         <input
                                             v-model="form.province"
                                             type="text"
-                                            placeholder="مثال: ××××"
+                                            :placeholder="$t('cmodal.e_g_3')"
                                             class="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                         />
                                     </div>
@@ -671,12 +674,12 @@ const saveCustomer = async () => {
 
                                 <!-- Country Dropdown Selector -->
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">دولة</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('cmodal.country') }}</label>
                                     <select
                                         v-model="form.country"
                                         class="w-full text-sm rounded-lg border border-slate-200 py-2 bg-white transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                     >
-                                        <option value="">اختر</option>
+                                        <option value="">{{ $t('cmodal.choose') }}</option>
                                         <option v-for="c in countries" :key="c" :value="c">{{ c }}</option>
                                     </select>
                                 </div>
@@ -688,14 +691,14 @@ const saveCustomer = async () => {
                 <!-- BOTTOM SECTION: Additional Contacts -->
                 <div class="pt-6 border-t border-slate-100 space-y-4">
                     <div class="flex items-center justify-between">
-                        <h3 class="text-sm font-bold text-slate-800">جهات اتصال إضافية</h3>
+                        <h3 class="text-sm font-bold text-slate-800">{{ $t('cmodal.additional_contacts') }}</h3>
                         <button
                             type="button"
                             @click="addContact"
                             class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-colors"
                         >
                             <PlusIcon class="w-4 h-4 stroke-2" />
-                            <span>إضافة جهة اتصال جديدة</span>
+                            <span>{{ $t('cmodal.add_a_new_contact') }}</span>
                         </button>
                     </div>
 
@@ -707,16 +710,16 @@ const saveCustomer = async () => {
                             class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 grid grid-cols-1 sm:grid-cols-4 gap-3 items-center"
                         >
                             <div>
-                                <label class="block text-2xs font-semibold text-slate-500 mb-1">الاسم</label>
+                                <label class="block text-2xs font-semibold text-slate-500 mb-1">{{ $t('cmodal.name') }}</label>
                                 <input
                                     v-model="ct.name"
                                     type="text"
-                                    placeholder="اسم المسؤول"
+                                    :placeholder="$t('cmodal.contact_person_name')"
                                     class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white"
                                 />
                             </div>
                             <div>
-                                <label class="block text-2xs font-semibold text-slate-500 mb-1">الهاتف / الجوال</label>
+                                <label class="block text-2xs font-semibold text-slate-500 mb-1">{{ $t('cmodal.phone_mobile') }}</label>
                                 <input
                                     v-model="ct.phone"
                                     type="text"
@@ -725,7 +728,7 @@ const saveCustomer = async () => {
                                 />
                             </div>
                             <div>
-                                <label class="block text-2xs font-semibold text-slate-500 mb-1">البريد الإلكتروني</label>
+                                <label class="block text-2xs font-semibold text-slate-500 mb-1">{{ $t('cmodal.email_2') }}</label>
                                 <input
                                     v-model="ct.email"
                                     type="email"
@@ -735,11 +738,11 @@ const saveCustomer = async () => {
                             </div>
                             <div class="flex items-end gap-2">
                                 <div class="flex-1">
-                                    <label class="block text-2xs font-semibold text-slate-500 mb-1">الدور / المنصب</label>
+                                    <label class="block text-2xs font-semibold text-slate-500 mb-1">{{ $t('cmodal.role_position') }}</label>
                                     <input
                                         v-model="ct.role"
                                         type="text"
-                                        placeholder="مدير المشتريات / محاسب"
+                                        :placeholder="$t('cmodal.purchasing_manager_accountant')"
                                         class="w-full text-xs rounded-lg border border-slate-200 px-2.5 py-1.5 bg-white"
                                     />
                                 </div>
@@ -747,7 +750,7 @@ const saveCustomer = async () => {
                                     type="button"
                                     @click="removeContact(idx)"
                                     class="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
-                                    title="حذف"
+                                    :title="$t('cmodal.delete')"
                                 >
                                     <TrashIcon class="w-4 h-4" />
                                 </button>
@@ -770,14 +773,14 @@ const saveCustomer = async () => {
                     :disabled="isSubmitting"
                     class="px-7 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-sm transition-colors disabled:opacity-50"
                 >
-                    {{ isSubmitting ? 'جاري الحفظ...' : 'حفظ' }}
+                    {{ isSubmitting ? $t('cmodal.saving') : $t('cmodal.save') }}
                 </button>
                 <button
                     type="button"
                     @click="emit('close')"
                     class="px-6 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 text-sm font-medium transition-colors"
                 >
-                    إلغاء
+                    {{ $t('cmodal.cancel') }}
                 </button>
             </div>
         </div>

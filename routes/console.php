@@ -20,6 +20,9 @@ Schedule::command('erp:subscriptions')->dailyAt('01:00')->withoutOverlapping()->
 // Support tickets: flag missed SLA deadlines.
 Schedule::command('erp:support-sla')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
 
+// Cash forecast: keep each Monday's 13-week forecast to measure its accuracy later.
+Schedule::command('erp:cash-snapshot')->weeklyOn(1, '05:10')->withoutOverlapping()->onOneServer();
+
 // Accounting automation (requires the scheduler: `* * * * * php artisan schedule:run`).
 Schedule::command('erp:accounting-schedules recurring')->dailyAt('01:10')->withoutOverlapping()->onOneServer();
 Schedule::command('erp:accounting-schedules depreciation')->monthlyOn(1, '02:10')->withoutOverlapping()->onOneServer();

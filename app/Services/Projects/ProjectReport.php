@@ -25,7 +25,7 @@ class ProjectReport
         $cc = $project->cost_center_id;
         $ledger = fn (array $roles) => (float) JournalEntryLine::where('cost_center_id', $cc)
             ->whereIn('account_id', array_map(fn ($r) => $this->accounts->id($r), $roles))
-            ->whereHas('journalEntry', fn ($q) => $q->where('status', 'posted'))
+            ->whereHas('journalEntry', fn ($q) => $q->whereIn('status', ['posted', 'reversed']))
             ->selectRaw('COALESCE(SUM(debit - credit), 0) as v')->value('v');
 
         $revenue = -$ledger(['contract_revenue']);

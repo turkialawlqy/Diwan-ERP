@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PaymentRequest;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Services\Accounting\ChequeService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
+use App\Services\Finance\PaymentRequestService;
 use App\Services\Purchases\SupplierPaymentAllocator;
 use App\Services\Tax\WithholdingTax;
 use App\Services\TenantManager;
@@ -65,9 +67,16 @@ class SupplierPaymentController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        $prefill = null;
+        if ($request->filled('payment_request')) {
+            $paymentRequest = PaymentRequest::where('status', 'approved')->where('kind', 'supplier_payment')->find($request->integer('payment_request'));
+            $prefill = $paymentRequest ? app(PaymentRequestService::class)->prefill($paymentRequest) : null;
+        }
+
         return Inertia::render('Purchases/Payments/Form', [
+            'prefill' => $prefill,
             'whtRates' => collect(WithholdingTax::categories())->pluck('rate', 'key'),
             'suppliers' => Supplier::where('status', 'active')->orderBy('name')->limit(500)->get(['id', 'name', 'current_balance', 'is_non_resident', 'wht_category']),
             'unpaidInvoices' => PurchaseInvoice::where('remaining_amount', '>', 0)->with('supplier:id,name')
@@ -95,7 +104,10 @@ class SupplierPaymentController extends Controller
             'allocations' => 'nullable|array|max:200',
             'allocations.*.purchase_invoice_id' => 'required|tenant_exists:purchase_invoices,id',
             'allocations.*.amount' => 'required|numeric|min:0',
+            'payment_request_id' => 'nullable|tenant_exists:payment_requests,id',
         ] + ExchangeRates::rules());
+        $requests = app(PaymentRequestService::class);
+        $requestId = $validated['payment_request_id'] ?? null;
 
         // Withholding tax: a non-resident supplier's payment is cut by his category's rate (or the rate typed here).
         $supplier = Supplier::findOrFail($validated['supplier_id']);
@@ -109,7 +121,10 @@ class SupplierPaymentController extends Controller
         }
         $whtAmount = round((float) $validated['amount'] * $whtRate / 100, 2);
 
-        app(ApprovalGate::class)->check('supplier_payment', ApprovalGate::keyFor(['s' => (int) $validated['supplier_id'], 'a' => round((float) $validated['amount'], 2), 'd' => $validated['payment_date'], 'i' => (int) ($validated['purchase_invoice_id'] ?? 0), 'm' => $validated['payment_method']]), (float) $validated['amount'], 'سند صرف لمورد '.$supplier->name);
+        // A payment made for an approved payment request needs no second approval: the request's approval is it.
+        if (! $requests->covering($requestId, 'supplier_payment', (float) $validated['amount'], (int) $validated['supplier_id'])) {
+            app(ApprovalGate::class)->check('supplier_payment', ApprovalGate::keyFor(['s' => (int) $validated['supplier_id'], 'a' => round((float) $validated['amount'], 2), 'd' => $validated['payment_date'], 'i' => (int) ($validated['purchase_invoice_id'] ?? 0), 'm' => $validated['payment_method']]), (float) $validated['amount'], 'سند صرف لمورد '.$supplier->name);
+        }
 
         $allocations = empty($validated['purchase_invoice_id']) ? ($validated['allocations'] ?? null) : null;
         if ($allocations !== null && round(array_sum(array_column($allocations, 'amount')), 2) > (float) $validated['amount'] + 0.005) {
@@ -130,7 +145,7 @@ class SupplierPaymentController extends Controller
             abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
         }
 
-        DB::transaction(function () use ($validated, $companyId, $allocations, $autoAllocate, $whtRate, $whtAmount, $whtCategory) {
+        DB::transaction(function () use ($validated, $companyId, $allocations, $autoAllocate, $whtRate, $whtAmount, $whtCategory, $requests, $requestId) {
             $paymentNumber = $this->nextNumber('supplier_payment', $validated['payment_date']);
 
             $payment = SupplierPayment::create([
@@ -193,6 +208,9 @@ class SupplierPaymentController extends Controller
             }
 
             app(DocumentPoster::class)->supplierPayment($payment);
+            if ($paid = $requests->covering($requestId, 'supplier_payment', (float) $validated['amount'], (int) $validated['supplier_id'])) {
+                $requests->markPaid($paid, $payment);
+            }
             if ($payment->payment_method === 'cheque') {
                 app(ChequeService::class)->track([
                     'direction' => 'outgoing', 'cheque_number' => $payment->reference_number ?: $payment->payment_number, 'bank_account_id' => $payment->bank_account_id,

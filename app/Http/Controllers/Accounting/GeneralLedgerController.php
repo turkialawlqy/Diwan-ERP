@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\CostCenter;
 use App\Services\Accounting\AccountingReports;
+use App\Services\Accounting\SourceDocument;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -39,6 +40,15 @@ class GeneralLedgerController extends Controller
             isset($filters['party_id']) ? (int) $filters['party_id'] : null,
             $filters['cost_center_id'] ?? null,
         ) : null;
+
+        if ($ledger) {
+            $sources = app(SourceDocument::class);
+            $ledger['lines']->getCollection()->transform(function ($line) use ($sources) {
+                $line->source = $sources->describe($line->source_type, $line->source_id);
+
+                return $line;
+            });
+        }
 
         return Inertia::render('Accounting/Ledger/Index', [
             'accounts' => $accounts,

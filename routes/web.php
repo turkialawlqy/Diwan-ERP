@@ -36,6 +36,7 @@ use App\Http\Controllers\FeatureRequestController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\Finance\BankAccountController;
 use App\Http\Controllers\Finance\ExpenseController;
+use App\Http\Controllers\Finance\PaymentRequestController;
 use App\Http\Controllers\Finance\RevenueController;
 use App\Http\Controllers\Finance\TransferController;
 use App\Http\Controllers\FreeformTemplateController;
@@ -565,6 +566,11 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/subcontracts/{subcontract}/advance', [PR\ProjectCostController::class, 'subcontractAdvance'])->name('subcontracts.advance');
         Route::post('/subcontracts/{subcontract}/certify', [PR\ProjectCostController::class, 'certify'])->name('subcontracts.certify');
         Route::post('/subcontracts/{subcontract}/release-retention', [PR\ProjectCostController::class, 'releaseSubcontractRetention'])->name('subcontracts.release-retention');
+        Route::get('/allocations', [PR\AllocationController::class, 'index'])->name('allocations.index');
+        Route::get('/allocations/create', [PR\AllocationController::class, 'create'])->name('allocations.create');
+        Route::post('/allocations', [PR\AllocationController::class, 'store'])->name('allocations.store');
+        Route::get('/allocations/{run}', [PR\AllocationController::class, 'show'])->name('allocations.show');
+        Route::delete('/allocations/{run}', [PR\AllocationController::class, 'destroy'])->name('allocations.destroy');
         Route::get('/{project}', [PR\ProjectController::class, 'show'])->name('show');
         Route::put('/{project}', [PR\ProjectController::class, 'update'])->name('update');
         Route::put('/{project}/boq', [PR\ProjectController::class, 'updateBoq'])->name('boq.update');
@@ -623,6 +629,17 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     // 8. Finance Module
     Route::prefix('finance')->name('finance.')->group(function () {
         // Expenses
+        Route::get('/payment-requests', [PaymentRequestController::class, 'index'])->name('payment-requests.index');
+        Route::get('/payment-requests/create', [PaymentRequestController::class, 'create'])->name('payment-requests.create');
+        Route::post('/payment-requests', [PaymentRequestController::class, 'store'])->name('payment-requests.store');
+        Route::get('/payment-requests/{paymentRequest}', [PaymentRequestController::class, 'show'])->name('payment-requests.show');
+        Route::get('/payment-requests/{paymentRequest}/edit', [PaymentRequestController::class, 'edit'])->name('payment-requests.edit');
+        Route::put('/payment-requests/{paymentRequest}', [PaymentRequestController::class, 'update'])->name('payment-requests.update');
+        Route::post('/payment-requests/{paymentRequest}/submit', [PaymentRequestController::class, 'submit'])->name('payment-requests.submit');
+        Route::post('/payment-requests/{paymentRequest}/approve', [PaymentRequestController::class, 'approve'])->name('payment-requests.approve');
+        Route::post('/payment-requests/{paymentRequest}/reject', [PaymentRequestController::class, 'reject'])->name('payment-requests.reject');
+        Route::post('/payment-requests/{paymentRequest}/cancel', [PaymentRequestController::class, 'cancel'])->name('payment-requests.cancel');
+        Route::delete('/payment-requests/{paymentRequest}', [PaymentRequestController::class, 'destroy'])->name('payment-requests.destroy');
         Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses.index');
         Route::get('/expenses/create', [ExpenseController::class, 'create'])->name('expenses.create');
         Route::post('/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
@@ -741,6 +758,11 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
 
         // General Ledger
         Route::get('/ledger', [GeneralLedgerController::class, 'index'])->name('ledger.index');
+
+        // Control reports (exceptions, sub-ledger reconciliation, party balances, cash movement, dormant accounts)
+        Route::get('/controls', [A\ControlReportsController::class, 'index'])->name('controls.index');
+        Route::post('/controls/forecast-snapshot', [A\ControlReportsController::class, 'forecastSnapshot'])->name('controls.forecast-snapshot');
+        Route::get('/controls/{report}', [A\ControlReportsController::class, 'show'])->name('controls.show')->where('report', 'controls-exceptions|party-reconciliation|customer-balances|supplier-balances|cash-movement|dormant-accounts|unusual-expenses|budget-dimensions|forecast-vs-actual|closing-checklist|approval-flow');
 
         // Trial Balance
         Route::get('/trial-balance', [TrialBalanceController::class, 'index'])->name('trial-balance.index');

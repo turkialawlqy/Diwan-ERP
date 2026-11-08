@@ -26,7 +26,7 @@ class FinancialReportController extends Controller
     public function incomeStatement(Request $request): Response
     {
         [$from, $to, $filters] = $this->range($request);
-        $v = $request->validate(['cost_center_id' => 'nullable|tenant_exists:cost_centers,id', 'compare' => 'nullable|in:previous,year']);
+        $v = $request->validate(['cost_center_id' => 'nullable|tenant_exists:cost_centers,id', 'compare' => 'nullable|in:previous,year,budget']);
         $costCenterId = $v['cost_center_id'] ?? null;
         $compare = $v['compare'] ?? null;
 
@@ -69,13 +69,15 @@ class FinancialReportController extends Controller
         $validated = $request->validate([
             'kind' => 'nullable|in:receivables,payables',
             'as_of' => 'nullable|date',
+            'buckets' => ['nullable', 'regex:/^\d{1,4}(,\d{1,4}){0,5}$/'],
         ]);
         $kind = $validated['kind'] ?? 'receivables';
         $asOf = Carbon::parse($validated['as_of'] ?? now()->toDateString());
+        $report = $this->reports->aging($kind, $asOf, isset($validated['buckets']) ? explode(',', $validated['buckets']) : [30, 60, 90]);
 
         return Inertia::render('Accounting/Reports/Aging', [
-            'report' => $this->reports->aging($kind, $asOf),
-            'filters' => ['kind' => $kind, 'as_of' => $asOf->toDateString()],
+            'report' => $report,
+            'filters' => ['kind' => $kind, 'as_of' => $asOf->toDateString(), 'buckets' => implode(',', $report['buckets'])],
         ]);
     }
 

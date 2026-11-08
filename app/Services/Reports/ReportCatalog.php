@@ -2,15 +2,22 @@
 
 namespace App\Services\Reports;
 
+use App\Models\Account;
+use App\Models\Budget;
 use App\Models\CustomerPayment;
 use App\Models\Expense;
+use App\Models\FiscalYear;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
+use App\Models\ProjectAllocationRun;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
+use App\Services\Accounting\AccountingControls;
 use App\Services\Accounting\AccountingReports;
+use App\Services\Accounting\ClosingChecklist;
+use App\Services\Accounting\SourceDocument;
 use App\Services\Purchases\SupplierStatement;
 use App\Services\Tax\WithholdingReport;
 use Illuminate\Http\Request;
@@ -36,6 +43,21 @@ class ReportCatalog
         'purchases-analysis' => 'reports.purchases.export',
         'supplier-statement' => 'purchases.suppliers.export',
         'withholding' => 'accounting.vat_return.export',
+        'ledger' => 'accounting.ledger.export',
+        // Control reports (AccountingControls).
+        'controls-exceptions' => 'accounting.controls.export',
+        'party-reconciliation' => 'accounting.controls.export',
+        'customer-balances' => 'accounting.controls.export',
+        'supplier-balances' => 'accounting.controls.export',
+        'cash-movement' => 'accounting.controls.export',
+        'dormant-accounts' => 'accounting.controls.export',
+        'unusual-expenses' => 'accounting.controls.export',
+        'budget-dimensions' => 'accounting.controls.export',
+        'forecast-vs-actual' => 'accounting.controls.export',
+        'closing-checklist' => 'accounting.controls.export',
+        'approval-flow' => 'accounting.controls.export',
+        'project-allocation' => 'projects.allocations.export',
+        'cash-forecast' => 'accounting.controls.export',
         // Transaction lists (one row per document / journal line), for hand-over and analysis in Excel.
         'tx-sales-invoices' => 'sales.invoices.export',
         'tx-purchase-invoices' => 'purchases.invoices.export',
@@ -60,11 +82,25 @@ class ReportCatalog
             'cash-flow' => $this->cashFlow($request),
             'trial-balance' => $this->trialBalance($request),
             'aging' => $this->aging($request),
+            'cash-forecast' => $this->cashForecast($request),
+            'unusual-expenses' => $this->controlUnusual($request),
+            'budget-dimensions' => $this->controlBudgetDimensions($request),
+            'forecast-vs-actual' => $this->controlForecastVsActual(),
+            'closing-checklist' => $this->controlClosingChecklist($request),
+            'approval-flow' => $this->controlApprovalFlow($request),
+            'project-allocation' => $this->projectAllocation($request),
             'vat-return' => $this->vatReturn($request),
             'sales-analysis' => $this->analysis($request, 'sales'),
             'purchases-analysis' => $this->analysis($request, 'purchases'),
             'supplier-statement' => $this->supplierStatement($request),
             'withholding' => $this->withholding($request),
+            'ledger' => $this->ledger($request),
+            'controls-exceptions' => $this->controlExceptions(),
+            'party-reconciliation' => $this->controlReconciliation(),
+            'customer-balances' => $this->controlBalances($request, 'customer'),
+            'supplier-balances' => $this->controlBalances($request, 'supplier'),
+            'cash-movement' => $this->controlCash($request),
+            'dormant-accounts' => $this->controlDormant($request),
             'tx-sales-invoices' => $this->documents($request, 'فواتير المبيعات', Invoice::class, 'invoice_date', 'customer', 'invoice_number', ['subtotal', 'tax_amount', 'total', 'paid_amount', 'remaining_amount']),
             'tx-purchase-invoices' => $this->documents($request, 'فواتير المشتريات', PurchaseInvoice::class, 'invoice_date', 'supplier', 'invoice_number', ['subtotal', 'tax_amount', 'total', 'paid_amount', 'remaining_amount']),
             'tx-customer-payments' => $this->documents($request, 'سندات القبض', CustomerPayment::class, 'payment_date', 'customer', 'payment_number', ['amount']),
@@ -88,7 +124,7 @@ class ReportCatalog
     {
         [$from, $to] = $this->range($request);
         $costCenterId = $request->validate(['cost_center_id' => 'nullable|tenant_exists:cost_centers,id'])['cost_center_id'] ?? null;
-        if (($mode = $request->input('compare')) && in_array($mode, ReportComparison::MODES, true)) {
+        if (($mode = $request->input('compare')) && in_array($mode, ReportComparison::INCOME_MODES, true)) {
             $c = app(ReportComparison::class)->incomeStatement($from, $to, $mode, $costCenterId);
 
             return $this->comparisonTable('قائمة الدخل', $this->period($from, $to).' — مقارنة بـ'.$c['label'], $c['rows'], 'الفترة الحالية', $c['label']);
@@ -142,6 +178,15 @@ class ReportCatalog
         $section('حقوق الملكية', $r['equity'], 'إجمالي حقوق الملكية', $r['total_equity']);
         $rows[] = ['code' => '', 'name' => 'إجمالي الالتزامات وحقوق الملكية', 'amount' => $r['total_liabilities_equity']];
         $bold[] = count($rows) - 1;
+        $l = $r['liquidity'];
+        $rows[] = ['code' => '', 'name' => 'منها: الأصول المتداولة / غير المتداولة', 'amount' => null];
+        $bold[] = count($rows) - 1;
+        foreach ([['الأصول المتداولة', $l['assets']['current']], ['الأصول غير المتداولة', $l['assets']['non_current']], ['الخصوم المتداولة', $l['liabilities']['current']], ['الخصوم غير المتداولة', $l['liabilities']['non_current']]] as [$name, $amount]) {
+            $rows[] = ['code' => '', 'name' => $name, 'amount' => $amount];
+        }
+        if ($l['current_ratio'] !== null) {
+            $rows[] = ['code' => '', 'name' => 'نسبة التداول (أصول متداولة ÷ خصوم متداولة)', 'amount' => $l['current_ratio']];
+        }
 
         return $this->table('الميزانية العمومية', 'كما في '.$asOf->toDateString(), [['code', 'الرمز'], ['name', 'الحساب'], ['amount', 'المبلغ', 'money']], $rows, $bold);
     }
@@ -186,16 +231,38 @@ class ReportCatalog
 
     protected function aging(Request $request): array
     {
-        $v = $request->validate(['kind' => 'nullable|in:receivables,payables', 'as_of' => 'nullable|date']);
+        $v = $request->validate(['kind' => 'nullable|in:receivables,payables', 'as_of' => 'nullable|date', 'buckets' => ['nullable', 'regex:/^\d{1,4}(,\d{1,4}){0,5}$/']]);
         $kind = $v['kind'] ?? 'receivables';
         $asOf = Carbon::parse($v['as_of'] ?? now()->toDateString());
-        $r = $this->reports->aging($kind, $asOf);
+        $r = $this->reports->aging($kind, $asOf, isset($v['buckets']) ? explode(',', $v['buckets']) : [30, 60, 90]);
 
-        $rows = collect($r['rows'])->map(fn ($row) => collect($row)->only(['name', 'current', 'd30', 'd60', 'd90', 'd90plus', 'total'])->all())->all();
-        $rows[] = ['name' => 'الإجمالي'] + $r['totals'];
+        $keys = array_merge(array_column($r['columns'], 0), ['total'], $r['past'] ? ['collected_after'] : []);
+        $rows = collect($r['rows'])->map(fn ($row) => collect($row)->only(array_merge(['name'], $keys))->all())->all();
+        $rows[] = ['name' => 'الإجمالي'] + collect($r['totals'])->only($keys)->all();
 
-        return $this->table($kind === 'payables' ? 'أعمار الدائنين' : 'أعمار المدينين', 'كما في '.$asOf->toDateString(), [
-            ['name', $kind === 'payables' ? 'المورد' : 'العميل'], ['current', 'جارٍ', 'money'], ['d30', '1–30', 'money'], ['d60', '31–60', 'money'], ['d90', '61–90', 'money'], ['d90plus', 'أكثر من 90', 'money'], ['total', 'الإجمالي', 'money'],
+        $columns = [['name', $kind === 'payables' ? 'المورد' : 'العميل']];
+        foreach ($r['columns'] as [$key, $label]) {
+            $columns[] = [$key, $label, 'money'];
+        }
+        $columns[] = ['total', 'الإجمالي', 'money'];
+        if ($r['past']) {
+            $columns[] = ['collected_after', 'حُصِّل بعد التاريخ', 'money'];
+        }
+
+        return $this->table($kind === 'payables' ? 'أعمار الدائنين' : 'أعمار المدينين', 'كما في '.$asOf->toDateString(), $columns, $rows, [count($rows) - 1]);
+    }
+
+    protected function cashForecast(Request $request): array
+    {
+        $v = $request->validate(['collect_delay_days' => 'nullable|integer|min:0|max:365', 'collect_pct' => 'nullable|numeric|min:0|max:100', 'pay_delay_days' => 'nullable|integer|min:0|max:365']);
+        $f = app(Insights::class)->cashForecast(13, null, $v);
+        $sc = $f['scenario'];
+        $rows = array_map(fn ($w) => $w + ['period' => $w['start'].' → '.$w['end']], $f['weeks']);
+        $rows[] = ['period' => 'الرصيد الافتتاحي: '.number_format($f['opening'], 2, '.', ''), 'balance' => $f['closing']];
+
+        return $this->table('التدفق النقدي المتوقع (13 أسبوعًا)', 'سيناريو: تأخير التحصيل '.$sc['collect_delay_days'].' يوم، نسبة التحصيل '.$sc['collect_pct'].'%، تأجيل السداد '.$sc['pay_delay_days'].' يوم', [
+            ['period', 'الأسبوع'], ['receivables', 'تحصيل فواتير', 'money'], ['recurring', 'فواتير دورية', 'money'], ['cheques_in', 'شيكات واردة', 'money'],
+            ['payables', 'موردون', 'money'], ['cheques_out', 'شيكات صادرة', 'money'], ['payroll', 'رواتب', 'money'], ['net', 'الصافي', 'money'], ['balance', 'الرصيد', 'money'],
         ], $rows, [count($rows) - 1]);
     }
 
@@ -332,6 +399,189 @@ class ReportCatalog
             ['description', 'البيان'], ['debit', 'مدين', 'money'], ['credit', 'دائن', 'money']], $rows, [count($rows) - 1]);
     }
 
+    protected function controlExceptions(): array
+    {
+        $rows = [];
+        $bold = [];
+        $total = 0;
+        foreach (app(AccountingControls::class)->exceptions() as $section) {
+            $rows[] = ['reference' => $section['label'].' ('.count($section['rows']).')', 'date' => '', 'description' => '', 'age' => null, 'who' => '', 'detail' => ''];
+            $bold[] = count($rows) - 1;
+            foreach ($section['rows'] as $row) {
+                $rows[] = $row;
+            }
+            $total += count($section['rows']);
+        }
+
+        return $this->table('الاستثناءات المحاسبية وجودة البيانات', "{$total} بند يحتاج مراجعة", [
+            ['reference', 'القيد / البند'], ['date', 'التاريخ'], ['description', 'البيان'], ['age', 'العمر (يوم)', 'number'], ['who', 'المنشئ'], ['detail', 'ملاحظة'],
+        ], $rows, $bold);
+    }
+
+    protected function controlReconciliation(): array
+    {
+        $r = app(AccountingControls::class)->partyReconciliation();
+        $rows = [];
+        $bold = [];
+        foreach ($r['control'] as $c) {
+            $rows[] = ['name' => 'حساب التحكم: '.$c['label'], 'a' => $c['control'], 'b' => $c['tagged'], 'c' => $c['untagged'], 'd' => $c['stored'], 'e' => $c['difference']];
+            $bold[] = count($rows) - 1;
+        }
+        foreach ($r['parties'] as $p) {
+            $rows[] = ['name' => ($p['kind'] === 'customer' ? 'عميل: ' : 'مورد: ').$p['name'], 'a' => $p['ledger'], 'b' => null, 'c' => null, 'd' => $p['stored'], 'e' => $p['difference']];
+        }
+
+        return $this->table('مطابقة الأستاذ المساعد مع حسابات التحكم', count($r['parties']).' طرف بفرق بين الرصيد المخزّن والدفتر', [
+            ['name', 'البند'], ['a', 'رصيد الدفتر', 'money'], ['b', 'منه منسوب لأطراف', 'money'], ['c', 'بلا طرف', 'money'], ['d', 'الرصيد المخزّن', 'money'], ['e', 'الفرق (المخزّن − الدفتر)', 'money'],
+        ], $rows, $bold);
+    }
+
+    protected function controlBalances(Request $request, string $kind): array
+    {
+        [$from, $to] = $this->range($request);
+        $data = app(AccountingControls::class)->partyBalances($kind, $from, $to);
+        $customers = $kind === 'customer';
+        $rows = array_map(fn ($r) => ['name' => $r['name'], 'opening' => $r['opening'], 'debit' => $r['debit'], 'credit' => $r['credit'], 'closing' => $r['closing'],
+            'limit' => $r['limit'], 'over' => $r['over_limit'] ? 'تجاوز' : '', 'unapplied' => $r['unapplied']], $data);
+        $sum = fn ($k) => round(array_sum(array_column($data, $k)), 2);
+        $rows[] = ['name' => 'الإجمالي', 'opening' => $sum('opening'), 'debit' => $sum('debit'), 'credit' => $sum('credit'), 'closing' => $sum('closing'), 'limit' => null, 'over' => '', 'unapplied' => $sum('unapplied')];
+
+        $columns = [['name', $customers ? 'العميل' : 'المورد'], ['opening', 'أول المدة', 'money'], ['debit', 'مدين', 'money'], ['credit', 'دائن', 'money'], ['closing', 'آخر المدة', 'money']];
+        if ($customers) {
+            array_push($columns, ['limit', 'حد الائتمان', 'money'], ['over', 'تجاوز الحد']);
+        }
+        $columns[] = ['unapplied', $customers ? 'سندات قبض غير مطبقة' : 'سندات صرف غير مطبقة', 'money'];
+
+        return $this->table($customers ? 'أرصدة العملاء' : 'أرصدة الموردين', $this->period($from, $to), $columns, $rows, [count($rows) - 1]);
+    }
+
+    protected function controlCash(Request $request): array
+    {
+        [$from, $to] = $this->range($request);
+        $d = app(AccountingControls::class)->cashMovement($from, $to);
+        $rows = array_map(fn ($a) => ['name' => $a['name'], 'type' => $a['type'], 'opening' => $a['opening'], 'in' => $a['in'], 'out' => $a['out'], 'closing' => $a['closing']], $d['accounts']);
+        $rows[] = ['name' => 'الإجمالي', 'type' => '', 'opening' => round(array_sum(array_column($d['accounts'], 'opening')), 2), 'in' => round(array_sum(array_column($d['accounts'], 'in')), 2),
+            'out' => round(array_sum(array_column($d['accounts'], 'out')), 2), 'closing' => round(array_sum(array_column($d['accounts'], 'closing')), 2)];
+        $bold = [count($rows) - 1];
+        $rows[] = ['name' => 'حركات بنكية غير مسوّاة (حسب العمر)', 'type' => 'عدد الحركات', 'opening' => null, 'in' => null, 'out' => null, 'closing' => 'صافي'];
+        $bold[] = count($rows) - 1;
+        foreach ($d['unreconciled'] as $u) {
+            $rows[] = ['name' => $u['label'], 'type' => $u['count'], 'opening' => null, 'in' => null, 'out' => null, 'closing' => $u['net']];
+        }
+
+        return $this->table('حركة الصناديق والبنوك', $this->period($from, $to), [
+            ['name', 'الحساب'], ['type', 'النوع'], ['opening', 'أول المدة', 'money'], ['in', 'وارد', 'money'], ['out', 'صادر', 'money'], ['closing', 'آخر المدة', 'money'],
+        ], $rows, $bold);
+    }
+
+    protected function controlDormant(Request $request): array
+    {
+        $days = max(1, min(3650, (int) ($request->input('days') ?: 180)));
+        $data = app(AccountingControls::class)->dormantAccounts($days);
+
+        return $this->table('الحسابات دون حركة', "لا حركة مرحّلة منذ {$days} يومًا — ".count($data).' حساب', [
+            ['code', 'الرمز'], ['name', 'الحساب'], ['last', 'آخر حركة'], ['days', 'منذ (يوم)', 'number'], ['balance', 'الرصيد', 'money'],
+        ], $data);
+    }
+
+    protected function controlBudgetDimensions(Request $request): array
+    {
+        $v = $request->validate(['dimension' => 'nullable|in:cost_center,project,branch', 'budget_id' => 'nullable|tenant_exists:budgets,id']);
+        [$from, $to] = $this->range($request);
+        $dimension = $v['dimension'] ?? 'cost_center';
+        $budget = isset($v['budget_id']) ? Budget::find($v['budget_id']) : (Budget::where('status', 'approved')->orderByDesc('id')->first() ?? Budget::orderByDesc('id')->first());
+        $label = ['cost_center' => 'مركز التكلفة', 'project' => 'المشروع', 'branch' => 'الفرع'][$dimension];
+        $rows = $budget ? app(AccountingControls::class)->budgetByDimension($budget, $dimension, (int) $from->format('Ym'), (int) $to->format('Ym')) : [];
+
+        return $this->table('الموازنة حسب '.$label, ($budget ? $budget->name : 'لا موازنة').' — من '.$from->format('Y-m').' إلى '.$to->format('Y-m'), [
+            ['dimension', $label], ['account', 'الحساب'], ['planned', 'المخطط', 'money'], ['actual', 'الفعلي', 'money'], ['variance', 'الانحراف', 'money'], ['pct', 'نسبة التحقق %', 'number'],
+        ], $rows);
+    }
+
+    protected function controlForecastVsActual(): array
+    {
+        $r = app(CashForecastSnapshots::class)->compare();
+        $rows = $r['rows'];
+        $rows[] = ['snapshot' => 'متوسط الدقة', 'week' => '', 'forecast' => null, 'actual' => null, 'deviation' => null, 'accuracy' => $r['accuracy']];
+
+        return $this->table('التدفق النقدي: المتوقع مقابل الفعلي', 'صافي الأسبوع المتوقع في لقطة التوقع مقابل الحركة النقدية الفعلية — '.($r['accuracy'] === null ? 'لا لقطات مكتملة بعد' : 'متوسط الدقة '.$r['accuracy'].'%'), [
+            ['snapshot', 'تاريخ اللقطة'], ['week', 'الأسبوع'], ['forecast', 'المتوقع (صافي)', 'money'], ['actual', 'الفعلي (صافي)', 'money'], ['deviation', 'الانحراف', 'money'], ['accuracy', 'الدقة %', 'number'],
+        ], $rows, [count($rows) - 1]);
+    }
+
+    protected function controlClosingChecklist(Request $request): array
+    {
+        $request->validate(['fiscal_year_id' => 'nullable|tenant_exists:fiscal_years,id']);
+        $year = $request->filled('fiscal_year_id') ? FiscalYear::find($request->integer('fiscal_year_id'))
+            : (FiscalYear::whereDate('start_date', '<=', now())->whereDate('end_date', '>=', now())->first() ?? FiscalYear::orderByDesc('start_date')->first());
+        $items = $year ? app(ClosingChecklist::class)->forYear($year) : [];
+        $label = ['ok' => 'مكتمل', 'warn' => 'يحتاج مراجعة', 'fail' => 'يمنع الإقفال السليم'];
+        $open = collect($items)->where('status', '!=', 'ok')->count();
+        $rows = array_map(fn ($i) => ['item' => $i['label'], 'status' => $label[$i['status']], 'count' => $i['count'], 'detail' => $i['detail']], $items);
+
+        return $this->table('قائمة تحقق إقفال الفترة', $year ? $year->name.' — '.($open ? $open.' بند يحتاج معالجة' : 'كل البنود مكتملة') : 'لا سنة مالية', [
+            ['item', 'البند'], ['status', 'الحالة'], ['count', 'العدد', 'number'], ['detail', 'ما المطلوب'],
+        ], $rows);
+    }
+
+    protected function projectAllocation(Request $request): array
+    {
+        $request->validate(['run_id' => 'required|tenant_exists:project_allocation_runs,id']);
+        $run = ProjectAllocationRun::with('lines.project:id,code,name')->findOrFail($request->integer('run_id'));
+        $basis = ['revenue' => 'الإيراد', 'direct_cost' => 'التكلفة المباشرة', 'hours' => 'الساعات'][$run->basis];
+        $rows = $run->lines->map(fn ($l) => ['project' => $l->project->code.' - '.$l->project->name, 'basis' => (float) $l->basis_value, 'pct' => (float) $l->share_pct, 'amount' => (float) $l->amount])->all();
+        $rows[] = ['project' => 'الإجمالي', 'basis' => round(array_sum(array_column($rows, 'basis')), 2), 'pct' => 100.0, 'amount' => round(array_sum(array_column($rows, 'amount')), 2)];
+
+        return $this->table('توزيع التكاليف غير المباشرة '.$run->number, 'المفتاح: '.$basis.' — من '.$run->period_from->toDateString().' إلى '.$run->period_to->toDateString().($run->status === 'reversed' ? ' (معكوس)' : ''), [
+            ['project', 'المشروع'], ['basis', 'قيمة المفتاح', 'money'], ['pct', 'النسبة %', 'number'], ['amount', 'المحمَّل', 'money'],
+        ], $rows, [count($rows) - 1]);
+    }
+
+    protected function controlApprovalFlow(Request $request): array
+    {
+        $group = $request->input('group') === 'approver' ? 'approver' : 'type';
+        $days = max(1, min(365, (int) ($request->input('overdue_days') ?: 7)));
+        $rows = app(AccountingControls::class)->approvalFlow($group, $days);
+
+        return $this->table('تدفق طلبات الموافقة', 'طلبات الاعتماد المرفوعة من نقطة الاعتماد (سندات الصرف والمصروفات والإشعارات والقيود والرواتب...) — المتأخر: معلّق أكثر من '.$days.' يومًا', [
+            ['group', $group === 'approver' ? 'المعتمِد' : 'نوع المستند'], ['pending', 'معلّق', 'number'], ['pending_amount', 'مبالغ معلّقة', 'money'], ['overdue', 'متأخر', 'number'], ['oldest', 'أقدم معلّق (يوم)', 'number'],
+            ['approved', 'موافق عليه', 'number'], ['rejected', 'مرفوض', 'number'], ['used', 'مستعمل', 'number'], ['avg_hours', 'متوسط زمن القرار (ساعة)', 'number'],
+        ], $rows);
+    }
+
+    protected function controlUnusual(Request $request): array
+    {
+        $months = max(3, min(36, (int) ($request->input('months') ?: 12)));
+        $k = max(0.5, min(6.0, (float) ($request->input('k') ?: 2)));
+        $min = max(0.0, (float) $request->input('min_amount', 0));
+        $data = app(AccountingControls::class)->unusualExpenses($months, $k, $min);
+
+        return $this->table('المصروفات غير المعتادة', 'شهر '.now()->format('Y-m')." مقابل متوسط آخر {$months} شهرًا + {$k}×الانحراف المعياري — ".count($data).' حساب للمراجعة', [
+            ['code', 'الرمز'], ['name', 'الحساب'], ['month', 'الشهر'], ['amount', 'مصروف الشهر', 'money'], ['mean', 'المتوسط', 'money'], ['std', 'الانحراف', 'money'], ['threshold', 'الحد المتوقع', 'money'], ['excess', 'الزيادة عن المتوسط', 'money'],
+        ], $data);
+    }
+
+    /** One account's ledger with its running balance, the entry and the document each line came from. */
+    protected function ledger(Request $request): array
+    {
+        $request->validate(['account_id' => 'required|tenant_exists:accounts,id', 'cost_center_id' => 'nullable|tenant_exists:cost_centers,id']);
+        [$from, $to] = $this->range($request);
+        $account = Account::findOrFail($request->integer('account_id'));
+        $ledger = $this->reports->ledger($account, $from, $to, 20000, null, null, $request->integer('cost_center_id') ?: null);
+        $sources = app(SourceDocument::class);
+
+        $rows = [['date' => '', 'entry' => 'رصيد أول المدة', 'description' => '', 'source' => '', 'debit' => null, 'credit' => null, 'balance' => $ledger['opening_balance']]];
+        foreach ($ledger['lines']->items() as $l) {
+            $rows[] = ['date' => $l->date, 'entry' => $l->entry_number, 'description' => trim(($l->description ?: $l->entry_description).($l->reference ? ' · '.$l->reference : '')),
+                'source' => $sources->describe($l->source_type, $l->source_id)['label'] ?? '', 'debit' => $l->debit ?: null, 'credit' => $l->credit ?: null, 'balance' => $l->balance];
+        }
+        $rows[] = ['date' => '', 'entry' => 'الإجمالي', 'description' => '', 'source' => '', 'debit' => $ledger['period_debit'], 'credit' => $ledger['period_credit'], 'balance' => $ledger['closing_balance']];
+
+        return $this->table('دفتر الأستاذ: '.$account->code.' - '.$account->name_ar, $this->period($from, $to), [
+            ['date', 'التاريخ'], ['entry', 'القيد'], ['description', 'البيان'], ['source', 'المستند المصدر'], ['debit', 'مدين', 'money'], ['credit', 'دائن', 'money'], ['balance', 'الرصيد', 'money'],
+        ], $rows, [0, count($rows) - 1]);
+    }
+
     protected function period(Carbon $from, Carbon $to): string
     {
         return 'من '.$from->toDateString().' إلى '.$to->toDateString();
@@ -342,7 +592,7 @@ class ReportCatalog
     {
         return [
             'title' => $title,
-            'subtitle' => $subtitle,
+            'subtitle' => $subtitle.' — أُنشئ '.now()->format('Y-m-d H:i'),
             'columns' => array_map(fn ($c) => ['key' => $c[0], 'label' => $c[1], 'type' => $c[2] ?? 'text'], $columns),
             'rows' => array_values($rows),
             'bold' => $bold,

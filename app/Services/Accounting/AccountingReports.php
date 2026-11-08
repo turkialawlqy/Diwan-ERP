@@ -365,10 +365,13 @@ class AccountingReports
         $totalLiabilities = $sections['liability']['total'];
         $totalEquity = round($sections['equity']['total'] + $unclosedProfit, 2);
 
+        $split = $this->liquiditySplit($sections);
+
         return [
             'assets' => $sections['asset'],
             'liabilities' => $sections['liability'],
             'equity' => $sections['equity'],
+            'liquidity' => $split,
             'unclosed_profit' => $unclosedProfit,
             'total_assets' => round($totalAssets, 2),
             'total_liabilities' => round($totalLiabilities, 2),
@@ -545,8 +548,11 @@ class AccountingReports
      * invoices (opening balances) is shown as over 90 days, a credit balance
      * (advance) as current; lines without a party form their own row.
      */
-    public function aging(string $kind, Carbon $asOf): array
+    public function aging(string $kind, Carbon $asOf, array $buckets = [30, 60, 90]): array
     {
+        $limits = collect($buckets)->map(fn ($b) => (int) $b)->filter(fn ($b) => $b > 0)->unique()->sort()->values()->take(6)->all() ?: [30, 60, 90];
+        $keys = array_merge(['current'], array_map(fn ($b) => 'd'.$b, $limits), ['d'.end($limits).'plus']);
+        $lastKey = end($keys);
         $payables = $kind === 'payables';
         [$role, $partyType, $docTable, $partyColumn, $partyModel] = $payables
             ? ['payables', 'supplier', 'purchase_invoices', 'supplier_id', Supplier::class]
@@ -566,8 +572,22 @@ class AccountingReports
             ->get();
 
         $names = $partyModel::whereIn('id', $balances->where('party_type', $partyType)->pluck('party_id')->filter())->pluck('name', 'id');
-        $empty = ['current' => 0.0, 'd30' => 0.0, 'd60' => 0.0, 'd90' => 0.0, 'd90plus' => 0.0];
+        $empty = array_fill_keys($keys, 0.0);
         $rows = collect();
+        $past = $asOf->copy()->startOfDay()->lt(today());
+        $allocTable = $payables ? 'supplier_payment_allocations' : 'payment_allocations';
+        $allocPayment = $payables ? 'supplier_payment_id' : 'customer_payment_id';
+        $allocDoc = $payables ? 'purchase_invoice_id' : 'invoice_id';
+        $payTable = $payables ? 'supplier_payments' : 'customer_payments';
+        // For an earlier date: what was settled after it, against the documents that existed then.
+        $collected = $past ? DB::table($allocTable.' as a')
+            ->join($payTable.' as p', 'p.id', '=', 'a.'.$allocPayment)
+            ->join($docTable.' as d', 'd.id', '=', 'a.'.$allocDoc)
+            ->where('a.company_id', $this->companyId())
+            ->where('d.invoice_date', '<=', $asOf->toDateString().' 23:59:59')
+            ->where('p.payment_date', '>', $asOf->toDateString().' 23:59:59')
+            ->where('p.status', '!=', 'cancelled')
+            ->groupBy('d.'.$partyColumn)->selectRaw('d.'.$partyColumn.' as party_id, SUM(a.amount) as amount')->pluck('amount', 'party_id') : collect();
 
         foreach ($balances as $b) {
             $balance = round($sign * (float) $b->balance, 2);
@@ -578,11 +598,20 @@ class AccountingReports
             $isParty = $b->party_type === $partyType && $b->party_id;
 
             if ($balance < 0 || ! $isParty) {
-                $buckets[$balance < 0 ? 'current' : 'd90plus'] = $balance;
+                $buckets[$balance < 0 ? 'current' : $lastKey] = $balance;
             } else {
                 $left = $balance;
-                $bucketOf = fn (int $days) => match (true) {
-                    $days <= 0 => 'current', $days <= 30 => 'd30', $days <= 60 => 'd60', $days <= 90 => 'd90', default => 'd90plus'
+                $bucketOf = function (int $days) use ($limits, $lastKey) {
+                    if ($days <= 0) {
+                        return 'current';
+                    }
+                    foreach ($limits as $limit) {
+                        if ($days <= $limit) {
+                            return 'd'.$limit;
+                        }
+                    }
+
+                    return $lastKey;
                 };
                 if ($asOf->copy()->startOfDay()->gte(today())) {
                     // Up to today: the documents that are really still open (what payments and credit notes left of them),
@@ -599,7 +628,7 @@ class AccountingReports
                         $explained += $amount;
                     }
                     $rest = round($balance - $explained, 2);
-                    $buckets[$rest >= 0 ? 'd90plus' : 'current'] += $rest;
+                    $buckets[$rest >= 0 ? $lastKey : 'current'] += $rest;
                     $left = 0.0;
                 } else {
                     // An earlier date: the balance then, spread over the most recent invoices (older ones taken as paid first).
@@ -616,23 +645,31 @@ class AccountingReports
                         $left = round($left - $open, 2);
                     }
                 }
-                $buckets['d90plus'] += max(0, $left);
+                $buckets[$lastKey] += max(0, $left);
             }
 
             $rows->push(array_merge(
                 ['id' => $isParty ? (int) $b->party_id : null, 'name' => $isParty ? ($names[$b->party_id] ?? '#'.$b->party_id) : 'قيود بدون تحديد طرف'],
                 array_map(fn ($v) => round($v, 2), $buckets),
-                ['total' => $balance],
+                ['total' => $balance, 'collected_after' => $isParty ? round((float) ($collected[$b->party_id] ?? 0), 2) : 0.0],
             ));
         }
 
         $rows = $rows->sortByDesc('total')->values();
         $totals = [];
-        foreach (['current', 'd30', 'd60', 'd90', 'd90plus', 'total'] as $key) {
+        foreach (array_merge($keys, ['total', 'collected_after']) as $key) {
             $totals[$key] = round($rows->sum($key), 2);
         }
 
-        return ['rows' => $rows, 'totals' => $totals];
+        $columns = [['current', 'غير مستحق']];
+        $prev = 0;
+        foreach ($limits as $limit) {
+            $columns[] = ['d'.$limit, ($prev + 1).'-'.$limit.' يوم'];
+            $prev = $limit;
+        }
+        $columns[] = [$lastKey, 'أكثر من '.$prev.' يوم'];
+
+        return ['rows' => $rows, 'totals' => $totals, 'buckets' => $limits, 'columns' => $columns, 'past' => $past];
     }
 
     /** Zero-rated supplies that are exports (ZATCA exemption codes). */
@@ -905,6 +942,44 @@ class AccountingReports
     /**
      * Group accounts of the given types with their signed amounts.
      */
+    /**
+     * Current vs non-current assets and liabilities, read from the group an account sits under in the chart
+     * (the standard chart has «الأصول المتداولة» 11 / «غير المتداولة» 12 and «الخصوم المتداولة» 21 / «غير المتداولة» 22).
+     * Accounts outside those groups (a customised chart) are listed as unclassified rather than guessed.
+     *
+     * @return array{assets: array, liabilities: array, current_ratio: ?float}
+     */
+    protected function liquiditySplit(array $sections): array
+    {
+        $accounts = $this->accounts()->keyBy('id');
+        $groupOf = function ($id) use ($accounts) {
+            $account = $accounts->get($id);
+            // Walk up to the second level: the group directly under the root («11», «12», «21», «22»).
+            while ($account && $account->parent_id && $accounts->get($account->parent_id)?->parent_id) {
+                $account = $accounts->get($account->parent_id);
+            }
+            $code = (string) ($account?->code ?? '');
+
+            return match (true) {
+                in_array($code, ['11', '21'], true) => 'current',
+                in_array($code, ['12', '22'], true) => 'non_current',
+                default => 'unclassified',
+            };
+        };
+
+        $out = [];
+        foreach (['asset' => 'assets', 'liability' => 'liabilities'] as $type => $key) {
+            $totals = ['current' => 0.0, 'non_current' => 0.0, 'unclassified' => 0.0];
+            foreach ($sections[$type]['rows'] as $row) {
+                $totals[$groupOf($row['id'])] += $row['amount'];
+            }
+            $out[$key] = array_map(fn ($v) => round($v, 2), $totals);
+        }
+        $out['current_ratio'] = $out['liabilities']['current'] > 0.004 ? round($out['assets']['current'] / $out['liabilities']['current'], 2) : null;
+
+        return $out;
+    }
+
     protected function sections(array $types, array $totals): array
     {
         $accounts = $this->accounts()->whereIn('type', $types);

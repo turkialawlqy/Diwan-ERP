@@ -1,7 +1,8 @@
 <script setup>
 import RowActions from '@/Components/UI/RowActions.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
-import { ref } from 'vue';
+import DatePicker from '@/Components/UI/DatePicker.vue';
+import { ref, reactive } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import {
@@ -18,6 +19,8 @@ const props = defineProps({
     entries: Object,
     stats: Object,
     filters: Object,
+    creators: { type: Array, default: () => [] },
+    sourceTypes: { type: Array, default: () => [] },
 });
 
 const statusBadge = {
@@ -29,11 +32,24 @@ const typeLabels = { manual: 'يدوي', system: 'آلي', opening: 'افتتا�
 
 const isFilterOpen = ref(false);
 const search = ref(props.filters?.search || '');
+const f = reactive({
+    status: props.filters?.status || '',
+    entry_type: props.filters?.entry_type || '',
+    from: props.filters?.from || '',
+    to: props.filters?.to || '',
+    created_by: props.filters?.created_by || '',
+    source: props.filters?.source || '',
+});
+const filtered = () => !!(search.value || Object.values(f).some(Boolean));
 
 const handleSearch = () => {
-    router.get(route('accounting.journals.index'), {
-        search: search.value || undefined,
-    }, { preserveState: true, replace: true });
+    const query = Object.fromEntries(Object.entries({ search: search.value, ...f }).filter(([, v]) => v !== '' && v !== null));
+    router.get(route('accounting.journals.index'), query, { preserveState: true, replace: true });
+};
+const resetFilters = () => {
+    search.value = '';
+    Object.keys(f).forEach((k) => { f[k] = ''; });
+    handleSearch();
 };
 
 const formatCurrency = (val) => {
@@ -64,7 +80,7 @@ const formatCurrency = (val) => {
                         @click.stop="isFilterOpen = !isFilterOpen"
                         :class="[
                             'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm transition-all duration-150 shadow-xs border',
-                            isFilterOpen || search
+                            isFilterOpen || filtered()
                                 ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
                                 : 'bg-slate-100/90 border-slate-200 text-slate-700 hover:bg-slate-200/80'
                         ]"
@@ -108,16 +124,29 @@ const formatCurrency = (val) => {
                             <button 
                                 @click="handleSearch"
                                 class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
+                                data-journal-filter-apply
                             >
                                 تطبيق التصفية
                             </button>
                             <button 
-                                @click="search = ''; handleSearch()"
+                                @click="resetFilters"
                                 class="px-4 py-2.5 text-xs font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
                             >
                                 إعادة ضبط
                             </button>
                         </div>
+                    </div>
+                    <div class="grid grid-cols-2 lg:grid-cols-6 gap-3 text-xs" data-journal-filters>
+                        <label><span class="block font-semibold text-slate-600 mb-1">{{ $t('journals.status') }}</span>
+                            <select v-model="f.status" class="w-full rounded-xl border-slate-200 text-xs ps-3 pe-8"><option value="">{{ $t('journals.all') }}</option><option v-for="(v, k) in statusBadge" :key="k" :value="k">{{ v[0] }}</option></select></label>
+                        <label><span class="block font-semibold text-slate-600 mb-1">{{ $t('journals.type') }}</span>
+                            <select v-model="f.entry_type" class="w-full rounded-xl border-slate-200 text-xs ps-3 pe-8"><option value="">{{ $t('journals.all') }}</option><option v-for="(v, k) in typeLabels" :key="k" :value="k">{{ v }}</option></select></label>
+                        <label><span class="block font-semibold text-slate-600 mb-1">{{ $t('journals.creator') }}</span>
+                            <select v-model="f.created_by" class="w-full rounded-xl border-slate-200 text-xs ps-3 pe-8"><option value="">{{ $t('journals.all') }}</option><option v-for="u in creators" :key="u.id" :value="u.id">{{ u.name }}</option></select></label>
+                        <label><span class="block font-semibold text-slate-600 mb-1">{{ $t('journals.source') }}</span>
+                            <select v-model="f.source" class="w-full rounded-xl border-slate-200 text-xs ps-3 pe-8"><option value="">{{ $t('journals.all') }}</option><option value="none">{{ $t('journals.manual_no_doc') }}</option><option v-for="t in sourceTypes" :key="t.value" :value="t.value">{{ t.label }}</option></select></label>
+                        <label><span class="block font-semibold text-slate-600 mb-1">{{ $t('journals.from') }}</span><DatePicker v-model="f.from" class="w-full rounded-xl border-slate-200 text-xs" /></label>
+                        <label><span class="block font-semibold text-slate-600 mb-1">{{ $t('journals.to') }}</span><DatePicker v-model="f.to" class="w-full rounded-xl border-slate-200 text-xs" /></label>
                     </div>
                 </div>
             </transition>
@@ -138,6 +167,10 @@ const formatCurrency = (val) => {
                 </div>
             </div>
 
+            <div v-if="stats?.by_type && Object.keys(stats.by_type).length" class="flex flex-wrap gap-2 text-xs" data-journal-types>
+                <span v-for="(n, k) in stats.by_type" :key="k" class="px-3 py-1 rounded-full bg-white border border-slate-200 text-slate-600">{{ typeLabels[k] || k }} <b class="font-mono text-slate-800">{{ n }}</b></span>
+            </div>
+
             <!-- Journal Entries Table -->
             <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
                 <div class="overflow-x-auto">
@@ -148,6 +181,7 @@ const formatCurrency = (val) => {
                                 <th class="py-4 px-6 text-start">التاريخ</th>
                                 <th class="py-4 px-6 text-start">بيان القيد العام</th>
                                 <th class="py-4 px-6 text-start">المرجع</th>
+                                <th class="py-4 px-6 text-start">{{ $t('journals.source') }}</th>
                                 <th class="py-4 px-6 text-end">إجمالي المدين</th>
                                 <th class="py-4 px-6 text-end">إجمالي الدائن</th>
                                 <th class="py-4 px-6 text-center">الحالة</th>
@@ -167,6 +201,10 @@ const formatCurrency = (val) => {
                                 </td>
                                 <td class="py-4 px-6 font-mono text-xs text-slate-500">
                                     {{ entry.reference || '-' }}
+                                </td>
+                                <td class="py-4 px-6 text-xs">
+                                    <a v-if="entry.source?.url" :href="entry.source.url" class="text-emerald-700 hover:underline" data-source-link>{{ entry.source.label }}</a>
+                                    <span v-else class="text-slate-500">{{ entry.source?.label || $t('journals.manual') }}</span>
                                 </td>
                                 <td class="py-4 px-6 font-mono font-bold text-slate-900 text-end">
                                     {{ formatCurrency(entry.total_debit) }} ﷼
@@ -192,7 +230,7 @@ const formatCurrency = (val) => {
                                 </td>
                             </tr>
                             <tr v-if="!entries.data || entries.data.length === 0">
-                                <td colspan="8" class="py-12 text-center text-slate-400">
+                                <td colspan="9" class="py-12 text-center text-slate-400">
                                     لا توجد قيود يومية مسجلة.
                                 </td>
                             </tr>

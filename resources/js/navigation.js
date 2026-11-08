@@ -83,6 +83,7 @@ export default [
         children: [
             { label: 'nav.projects_list', route: 'projects.index', path: '/projects' },
             { label: 'nav.guarantees', route: 'projects.guarantees.index', path: '/projects/guarantees' },
+            { label: 'nav.project_allocations', route: 'projects.allocations.index', path: '/projects/allocations' },
         ],
     },
     { key: 'portal_users', label: 'nav.portal_users', icon: UsersIcon, route: 'portal.users.index', path: '/portal-users' },
@@ -188,6 +189,7 @@ export default [
     {
         key: 'finance', label: 'nav.finance', icon: BanknotesIcon, color: 'indigo',
         children: [
+            { label: 'nav.payment_requests', route: 'finance.payment-requests.index', path: '/finance/payment-requests' },
             { label: 'nav.expenses', route: 'finance.expenses.index', path: '/finance/expenses' },
             { label: 'nav.revenues', route: 'finance.revenues.index', path: '/finance/revenues' },
             { label: 'nav.treasury_banks', route: 'finance.banks.index', path: '/finance/banks' },
@@ -201,6 +203,7 @@ export default [
             { label: 'nav.journal_entries', route: 'accounting.journals.index', path: '/accounting/journals' },
             { label: 'nav.general_ledger', route: 'accounting.ledger.index', path: '/accounting/ledger' },
             { label: 'nav.trial_balance', route: 'accounting.trial-balance.index', path: '/accounting/trial-balance' },
+            { label: 'nav.accounting_controls', route: 'accounting.controls.index', path: '/accounting/controls' },
             { label: 'nav.recurring_journals', route: 'accounting.recurring.index', path: '/accounting/recurring' },
             { label: 'nav.cost_centers', route: 'accounting.cost-centers.index', path: '/accounting/cost-centers' },
             { label: 'nav.fixed_assets', route: 'accounting.fixed-assets.index', path: '/accounting/fixed-assets' },

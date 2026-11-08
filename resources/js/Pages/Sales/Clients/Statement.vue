@@ -1,7 +1,8 @@
 <script setup>
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
-import { computed } from 'vue';
+import DatePicker from '@/Components/UI/DatePicker.vue';
+import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import {
@@ -20,7 +21,15 @@ const props = defineProps({
     transactions: Array,
     openingBalance: Number,
     closingBalance: Number,
+    openInvoices: { type: Array, default: () => [] },
+    filters: { type: Object, default: () => ({}) },
 });
+
+// Period filter and the "open invoices only" view.
+const range = ref({ start_date: props.filters.start_date || '', end_date: props.filters.end_date || '' });
+const openOnly = ref(false);
+const applyRange = () => router.get(route('sales.clients.statement', props.client.id), Object.fromEntries(Object.entries(range.value).filter(([, v]) => v)), { preserveState: true });
+const openTotal = computed(() => props.openInvoices.reduce((sum, i) => sum + Number(i.remaining_amount || 0), 0));
 
 const totalDebits = computed(() => {
     return (props.transactions || []).reduce((sum, tx) => sum + (Number(tx.debit) || 0), 0);
@@ -92,6 +101,24 @@ const printStatement = () => {
                     </button>
 </template>
 </PageHeader>
+
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-wrap items-end gap-3 text-xs print:hidden" data-statement-filters>
+                <label><span class="block font-bold text-slate-600 mb-1">{{ $t('repgap.from') }}</span><DatePicker v-model="range.start_date" class="rounded-xl border-slate-200 text-xs" /></label>
+                <label><span class="block font-bold text-slate-600 mb-1">{{ $t('repgap.to') }}</span><DatePicker v-model="range.end_date" class="rounded-xl border-slate-200 text-xs" /></label>
+                <button type="button" @click="applyRange" class="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-statement-apply>{{ $t('repgap.apply') }}</button>
+                <label class="flex items-center gap-2 font-bold text-slate-700 ms-auto"><input v-model="openOnly" type="checkbox" class="rounded border-slate-300" data-open-only /> {{ $t('repgap.open_only') }}</label>
+            </div>
+
+            <div v-if="openOnly" class="bg-white border border-slate-200 rounded-2xl overflow-hidden text-xs" data-open-invoices>
+                <table class="w-full">
+                    <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-4 py-2">{{ $t('repgap.invoice') }}</th><th class="px-4 py-2">{{ $t('repgap.date') }}</th><th class="px-4 py-2">{{ $t('repgap.due') }}</th><th class="px-4 py-2 text-end">{{ $t('repgap.total') }}</th><th class="px-4 py-2 text-end">{{ $t('repgap.remaining') }}</th></tr></thead>
+                    <tbody>
+                        <tr v-for="i in openInvoices" :key="i.id" class="border-t border-slate-100"><td class="px-4 py-2 font-mono"><Link :href="route('sales.invoices.show', i.id)" class="text-indigo-600 hover:underline">{{ i.invoice_number }}</Link></td><td class="px-4 py-2 text-center font-mono">{{ formatDate(i.invoice_date) }}</td><td class="px-4 py-2 text-center font-mono">{{ i.due_date ? formatDate(i.due_date) : '-' }}</td><td class="px-4 py-2 text-end font-mono">{{ formatCurrency(i.total) }}<span v-if="i.currency_code" class="text-slate-400"> {{ i.currency_code }}</span></td><td class="px-4 py-2 text-end font-mono font-bold text-rose-600">{{ formatCurrency(i.remaining_amount) }}</td></tr>
+                        <tr v-if="!openInvoices.length"><td colspan="5" class="py-8 text-center text-slate-400">{{ $t('repgap.no_open') }}</td></tr>
+                    </tbody>
+                    <tfoot v-if="openInvoices.length"><tr class="bg-slate-50 font-black"><td colspan="4" class="px-4 py-2">{{ $t('repgap.remaining_total') }}</td><td class="px-4 py-2 text-end font-mono">{{ formatCurrency(openTotal) }}</td></tr></tfoot>
+                </table>
+            </div>
 
             <!-- KPI Mini Summary Bar (Hidden on Print) -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 print:hidden">

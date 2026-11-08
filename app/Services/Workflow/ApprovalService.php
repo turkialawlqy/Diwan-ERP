@@ -29,6 +29,7 @@ class ApprovalService
         'loan' => 'hr.loans.approve',
         'settlement' => 'hr.settlements.approve',
         'progress_billing' => 'projects.billings.approve',
+        'payment_request' => 'finance.payment_requests.approve',
     ];
 
     public const DOCUMENT_TYPES = [
@@ -45,6 +46,7 @@ class ApprovalService
         'loan' => 'سلف الموظفين',
         'settlement' => 'مخالصات نهاية الخدمة',
         'progress_billing' => 'مستخلصات المشاريع',
+        'payment_request' => 'طلبات الصرف',
     ];
 
     public function requiresApproval(string $documentType, float $amount): bool
