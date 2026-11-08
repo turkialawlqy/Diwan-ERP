@@ -8,9 +8,11 @@ use App\Models\Currency;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\SalesOrder;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\Accounting\AccountingSetupService;
+use App\Services\Purchases\PurchaseCycleService;
 use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,6 +20,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 /**
@@ -129,6 +132,25 @@ class UserBranchesTest extends TestCase
         $this->post(route('context.branch'), ['branch_id' => 'all'])->assertSessionHasNoErrors();
         $this->get(route('sales.invoices.index'))->assertInertia(fn (AssertableInertia $page) => $page->has('invoices.data', 4));
         $this->assertSame([$this->riyadh->id, $this->jeddah->id], Invoice::pluck('branch_id')->unique()->sort()->values()->all());
+    }
+
+    public function test_a_user_moves_a_document_only_between_their_branches(): void
+    {
+        $supplier = Supplier::create(['name' => 'مورد', 'status' => 'active']);
+        $payload = ['supplier_id' => $supplier->id, 'order_date' => '2026-06-15', 'items' => [['item_name' => 'صنف', 'quantity' => 1, 'unit_price' => 100]]];
+        $order = app(PurchaseCycleService::class)->createOrder($payload + ['branch_id' => $this->riyadh->id], $payload['items']);
+
+        $clerk = $this->clerk([$this->riyadh, $this->jeddah]);
+        app(PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
+        $clerk->givePermissionTo('purchases.orders.edit');
+        $this->actingAs($clerk->fresh());
+        $this->post(route('context.branch'), ['branch_id' => 'all'])->assertSessionHasNoErrors();
+
+        $this->put(route('purchases.orders.update', $order->id), $payload + ['branch_id' => $this->jeddah->id])->assertSessionHasNoErrors();
+        $this->assertSame($this->jeddah->id, $order->fresh()->branch_id);
+
+        $this->put(route('purchases.orders.update', $order->id), $payload + ['branch_id' => $this->dammam->id])->assertSessionHasErrors('branch_id');
+        $this->assertSame($this->jeddah->id, $order->fresh()->branch_id);
     }
 
     public function test_nothing_is_created_while_all_branches_are_shown(): void
