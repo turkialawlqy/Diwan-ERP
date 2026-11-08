@@ -13,6 +13,7 @@ use App\Models\Supplier;
 use App\Services\ActiveBranch;
 use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +34,9 @@ class AccountingReports
 
     /** @var array<int, array<int>> every branch id of a company, per company (memo) */
     protected array $companyBranchIds = [];
+
+    /** @var array<string, array>|null every account's totals per range, while sharing() runs */
+    protected ?array $sharedTotals = null;
 
     /**
      * Branches the reports cover: the one chosen in the top bar (or all the
@@ -80,6 +84,10 @@ class AccountingReports
             return $totals;
         }
 
+        if ($this->sharedTotals !== null) {
+            return $this->sharedRange($from, $to, $accountIds, $costCenterId);
+        }
+
         $add = function ($rows) use (&$totals) {
             foreach ($rows as $row) {
                 $totals[$row->account_id]['debit'] = ($totals[$row->account_id]['debit'] ?? 0) + (float) $row->debit;
@@ -124,6 +132,70 @@ class AccountingReports
         return $totals;
     }
 
+    /**
+     * Within $work the ledger is read once per range, for every account, and a request for
+     * some accounts is answered from that reading: for read-only work that adds up several
+     * groups of accounts over the same dates (the zakat base). Nothing posted inside is seen.
+     */
+    public function sharing(callable $work): mixed
+    {
+        if ($this->sharedTotals !== null) {
+            return $work();
+        }
+
+        $this->sharedTotals = [];
+        try {
+            return $work();
+        } finally {
+            $this->sharedTotals = null;
+        }
+    }
+
+    /** Add totals of the form totalsBetween() returns, account by account. */
+    public function sumTotals(array $first, array $second): array
+    {
+        foreach ($second as $accountId => $row) {
+            $first[$accountId]['debit'] = ($first[$accountId]['debit'] ?? 0) + (float) ($row['debit'] ?? 0);
+            $first[$accountId]['credit'] = ($first[$accountId]['credit'] ?? 0) + (float) ($row['credit'] ?? 0);
+        }
+
+        return $first;
+    }
+
+    protected function sharedRange(?Carbon $from, Carbon $to, ?array $accountIds, ?int $costCenterId): array
+    {
+        $key = implode('|', [$from?->toDateString(), $to->toDateString(), $costCenterId]);
+
+        if (! isset($this->sharedTotals[$key])) {
+            $shared = $this->sharedTotals;
+            $this->sharedTotals = null; // this reading goes to the ledger
+            try {
+                $shared[$key] = $this->totalsBetween($from, $to, null, $costCenterId);
+            } finally {
+                $this->sharedTotals = $shared;
+            }
+        }
+
+        // No account list (or an empty one) means every account, as in the queries below.
+        return $accountIds ? array_intersect_key($this->sharedTotals[$key], array_flip($accountIds)) : $this->sharedTotals[$key];
+    }
+
+    /**
+     * Lines of an entry carry the entry's date (they are written together when it is posted), so the
+     * period also bounds the entries: the (company, branch, date, status) index then stops at the
+     * period instead of reading every entry of the ledger, however many years it holds.
+     */
+    protected function withinPeriod(QueryBuilder $query, ?Carbon $from, Carbon $to): QueryBuilder
+    {
+        $end = $to->toDateString().' 23:59:59';
+
+        return $query
+            ->where('e.company_id', $this->companyId())
+            ->when($from, fn ($q) => $q->where('l.date', '>=', $from->toDateString())->where('e.date', '>=', $from->toDateString()))
+            ->where('l.date', '<=', $end)
+            ->where('e.date', '<=', $end);
+    }
+
     protected function closingTotals(?Carbon $from, Carbon $to, ?array $accountIds = null, ?int $costCenterId = null): Collection
     {
         $closingIds = DB::table('journal_entries')->where('company_id', $this->companyId())->where('entry_type', 'closing')->pluck('id');
@@ -153,8 +225,7 @@ class AccountingReports
             ->where('l.company_id', $this->companyId())
             ->whereIn('e.status', self::STATUSES)
             ->when($this->branchIds(), fn ($q, $ids) => $q->whereIn('e.branch_id', $ids))
-            ->when($from, fn ($q) => $q->where('l.date', '>=', $from->toDateString()))
-            ->where('l.date', '<=', $to->toDateString().' 23:59:59')
+            ->tap(fn ($q) => $this->withinPeriod($q, $from, $to))
             ->when($accountIds, fn ($q) => $q->whereIn('l.account_id', $accountIds))
             ->when($costCenterId, fn ($q) => $q->where('l.cost_center_id', $costCenterId))
             ->groupBy('l.account_id')
@@ -406,7 +477,7 @@ class AccountingReports
             ->where('l.company_id', $this->companyId())
             ->whereIn('e.status', self::STATUSES)
             ->when($this->branchIds(), fn ($q, $ids) => $q->whereIn('e.branch_id', $ids))
-            ->whereBetween('l.date', $range)
+            ->tap(fn ($q) => $this->withinPeriod($q, $from, $to))
             ->groupBy('l.journal_entry_id')
             ->havingRaw("SUM(CASE WHEN {$isCash} THEN 1 ELSE 0 END) > 0", $cash)
             ->havingRaw("SUM(CASE WHEN {$isCash} THEN 0 ELSE 1 END) > 0", $cash)
@@ -478,7 +549,7 @@ class AccountingReports
             ->where('l.company_id', $this->companyId())
             ->whereIn('e.status', self::STATUSES)
             ->when($this->branchIds(), fn ($q, $ids) => $q->whereIn('e.branch_id', $ids))
-            ->whereBetween('l.date', [$from->toDateString(), $to->toDateString().' 23:59:59'])
+            ->tap(fn ($q) => $this->withinPeriod($q, $from, $to))
             ->where(fn ($q) => $q->whereNull('e.entry_type')->orWhereNotIn('e.entry_type', ['opening', 'closing']))
             ->when($closingIds->isNotEmpty(), fn ($q) => $q->where(fn ($q) => $q->whereNull('e.reversal_of_id')->orWhereNotIn('e.reversal_of_id', $closingIds)))
             ->groupBy('l.account_id')
@@ -589,70 +660,76 @@ class AccountingReports
             ->where('p.status', '!=', 'cancelled')
             ->groupBy('d.'.$partyColumn)->selectRaw('d.'.$partyColumn.' as party_id, SUM(a.amount) as amount')->pluck('amount', 'party_id') : collect();
 
-        foreach ($balances as $b) {
-            $balance = round($sign * (float) $b->balance, 2);
-            if (abs($balance) < 0.005) {
-                continue;
+        $bucketOf = function (int $days) use ($limits, $lastKey) {
+            if ($days <= 0) {
+                return 'current';
             }
-            $buckets = $empty;
-            $isParty = $b->party_type === $partyType && $b->party_id;
-
-            if ($balance < 0 || ! $isParty) {
-                $buckets[$balance < 0 ? 'current' : $lastKey] = $balance;
-            } else {
-                $left = $balance;
-                $bucketOf = function (int $days) use ($limits, $lastKey) {
-                    if ($days <= 0) {
-                        return 'current';
-                    }
-                    foreach ($limits as $limit) {
-                        if ($days <= $limit) {
-                            return 'd'.$limit;
-                        }
-                    }
-
-                    return $lastKey;
-                };
-                if ($asOf->copy()->startOfDay()->gte(today())) {
-                    // Up to today: the documents that are really still open (what payments and credit notes left of them),
-                    // oldest due first. What the ledger holds beyond them (opening balances, debit notes, manual entries)
-                    // is old debt; an unapplied receipt or advance is a credit.
-                    $open = DB::table($docTable)->where('company_id', $this->companyId())->where($partyColumn, $b->party_id)->where('remaining_amount', '>', 0.004)
-                        ->where('invoice_date', '<=', $asOf->toDateString().' 23:59:59')->orderBy('due_date')->orderBy('invoice_date')->orderBy('id')
-                        ->get(['remaining_amount', 'exchange_rate', 'invoice_date', 'due_date']);
-                    $explained = 0.0;
-                    foreach ($open as $doc) {
-                        $amount = round((float) $doc->remaining_amount * (float) ($doc->exchange_rate ?: 1), 2);
-                        $days = (int) Carbon::parse($doc->due_date ?: $doc->invoice_date)->startOfDay()->diffInDays($asOf->copy()->startOfDay(), false);
-                        $buckets[$bucketOf($days)] += $amount;
-                        $explained += $amount;
-                    }
-                    $rest = round($balance - $explained, 2);
-                    $buckets[$rest >= 0 ? $lastKey : 'current'] += $rest;
-                    $left = 0.0;
-                } else {
-                    // An earlier date: the balance then, spread over the most recent invoices (older ones taken as paid first).
-                    $documents = DB::table($docTable)->where('company_id', $this->companyId())->where($partyColumn, $b->party_id)
-                        ->where('invoice_date', '<=', $asOf->toDateString().' 23:59:59')
-                        ->orderByDesc('invoice_date')->orderByDesc('id')->get(['total', 'exchange_rate', 'invoice_date', 'due_date']);
-                    foreach ($documents as $doc) {
-                        if ($left <= 0.004) {
-                            break;
-                        }
-                        $open = min($left, round((float) $doc->total * (float) ($doc->exchange_rate ?: 1), 2));
-                        $days = (int) Carbon::parse($doc->due_date ?: $doc->invoice_date)->startOfDay()->diffInDays($asOf->copy()->startOfDay(), false);
-                        $buckets[$bucketOf($days)] += $open;
-                        $left = round($left - $open, 2);
-                    }
+            foreach ($limits as $limit) {
+                if ($days <= $limit) {
+                    return 'd'.$limit;
                 }
-                $buckets[$lastKey] += max(0, $left);
             }
 
-            $rows->push(array_merge(
-                ['id' => $isParty ? (int) $b->party_id : null, 'name' => $isParty ? ($names[$b->party_id] ?? '#'.$b->party_id) : 'قيود بدون تحديد طرف'],
-                array_map(fn ($v) => round($v, 2), $buckets),
-                ['total' => $balance, 'collected_after' => $isParty ? round((float) ($collected[$b->party_id] ?? 0), 2) : 0.0],
-            ));
+            return $lastKey;
+        };
+        $asOfDay = $asOf->copy()->startOfDay();
+        $daysSince = [];
+        $daysOverdue = function (object $doc) use (&$daysSince, $asOfDay): int {
+            $date = (string) ($doc->due_date ?: $doc->invoice_date);
+
+            return $daysSince[$date] ??= (int) Carbon::parse($date)->startOfDay()->diffInDays($asOfDay, false);
+        };
+
+        // Parties are handled in batches, each with one query for its documents: the query count stays
+        // flat as customers grow, and only one batch's documents are held in memory at a time.
+        foreach ($balances->chunk(500) as $batch) {
+            $documents = $this->agingDocuments($batch, $sign, $partyType, $docTable, $partyColumn, $asOf, $past);
+
+            foreach ($batch as $b) {
+                $balance = round($sign * (float) $b->balance, 2);
+                if (abs($balance) < 0.005) {
+                    continue;
+                }
+                $buckets = $empty;
+                $isParty = $b->party_type === $partyType && $b->party_id;
+
+                if ($balance < 0 || ! $isParty) {
+                    $buckets[$balance < 0 ? 'current' : $lastKey] = $balance;
+                } else {
+                    $left = $balance;
+                    if (! $past) {
+                        // Up to today: the documents that are really still open (what payments and credit notes left of them),
+                        // oldest due first. What the ledger holds beyond them (opening balances, debit notes, manual entries)
+                        // is old debt; an unapplied receipt or advance is a credit.
+                        $explained = 0.0;
+                        foreach ($documents[$b->party_id] ?? [] as $doc) {
+                            $amount = round((float) $doc->remaining_amount * (float) ($doc->exchange_rate ?: 1), 2);
+                            $buckets[$bucketOf($daysOverdue($doc))] += $amount;
+                            $explained += $amount;
+                        }
+                        $rest = round($balance - $explained, 2);
+                        $buckets[$rest >= 0 ? $lastKey : 'current'] += $rest;
+                        $left = 0.0;
+                    } else {
+                        // An earlier date: the balance then, spread over the most recent invoices (older ones taken as paid first).
+                        foreach ($documents[$b->party_id] ?? [] as $doc) {
+                            if ($left <= 0.004) {
+                                break;
+                            }
+                            $open = min($left, round((float) $doc->total * (float) ($doc->exchange_rate ?: 1), 2));
+                            $buckets[$bucketOf($daysOverdue($doc))] += $open;
+                            $left = round($left - $open, 2);
+                        }
+                    }
+                    $buckets[$lastKey] += max(0, $left);
+                }
+
+                $rows->push(array_merge(
+                    ['id' => $isParty ? (int) $b->party_id : null, 'name' => $isParty ? ($names[$b->party_id] ?? '#'.$b->party_id) : 'قيود بدون تحديد طرف'],
+                    array_map(fn ($v) => round($v, 2), $buckets),
+                    ['total' => $balance, 'collected_after' => $isParty ? round((float) ($collected[$b->party_id] ?? 0), 2) : 0.0],
+                ));
+            }
         }
 
         $rows = $rows->sortByDesc('total')->values();
@@ -670,6 +747,30 @@ class AccountingReports
         $columns[] = [$lastKey, 'أكثر من '.$prev.' يوم'];
 
         return ['rows' => $rows, 'totals' => $totals, 'buckets' => $limits, 'columns' => $columns, 'past' => $past];
+    }
+
+    /**
+     * The documents one batch of aging balances are spread over, by party: up to today those
+     * still open (oldest due first); for an earlier date all of them (most recent first).
+     * Only parties owing a balance need them.
+     */
+    protected function agingDocuments(Collection $balances, int $sign, string $partyType, string $docTable, string $partyColumn, Carbon $asOf, bool $past): Collection
+    {
+        $parties = $balances
+            ->filter(fn ($b) => $b->party_type === $partyType && $b->party_id && round($sign * (float) $b->balance, 2) >= 0.005)
+            ->pluck('party_id')->all();
+        if (! $parties) {
+            return collect();
+        }
+
+        $query = DB::table($docTable)->where('company_id', $this->companyId())->whereIn($partyColumn, $parties)
+            ->where('invoice_date', '<=', $asOf->toDateString().' 23:59:59');
+
+        $query = $past
+            ? $query->orderByDesc('invoice_date')->orderByDesc('id')->select($partyColumn, 'total', 'exchange_rate', 'invoice_date', 'due_date')
+            : $query->where('remaining_amount', '>', 0.004)->orderBy('due_date')->orderBy('invoice_date')->orderBy('id')->select($partyColumn, 'remaining_amount', 'exchange_rate', 'invoice_date', 'due_date');
+
+        return $query->get()->groupBy($partyColumn);
     }
 
     /** Zero-rated supplies that are exports (ZATCA exemption codes). */
