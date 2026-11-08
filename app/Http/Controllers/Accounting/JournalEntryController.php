@@ -16,6 +16,7 @@ use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\PartyAccounts;
 use App\Services\Accounting\PostingService;
 use App\Services\Accounting\SourceDocument;
+use App\Services\TenantManager;
 use App\Services\Workflow\ApprovalGate;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -120,6 +121,7 @@ class JournalEntryController extends Controller
             'lines.*.party_type' => 'nullable|in:customer,supplier,bank',
             'lines.*.party_id' => 'nullable|integer',
         ]);
+        $this->guardPartiesBelongToCompany($validated['lines']);
         $this->guardControlAccounts($validated['lines'], $request);
 
         $status = ($validated['save_as'] ?? 'posted') === 'draft' ? JournalEntry::STATUS_DRAFT : JournalEntry::STATUS_POSTED;
@@ -167,7 +169,7 @@ class JournalEntryController extends Controller
         foreach (['customer' => Customer::class, 'supplier' => Supplier::class, 'bank' => BankAccount::class] as $type => $model) {
             $ids = $entry->lines->where('party_type', $type)->pluck('party_id')->filter()->unique();
             if ($ids->isNotEmpty()) {
-                $names[$type] = $model::withoutGlobalScopes()->whereIn('id', $ids)->pluck('name', 'id');
+                $names[$type] = $model::withoutGlobalScopes()->where('company_id', $entry->company_id)->whereIn('id', $ids)->pluck('name', 'id');
             }
         }
 
@@ -257,6 +259,22 @@ class JournalEntryController extends Controller
      * Receivable / payable lines must name their customer / supplier, and
      * inventory / GRNI are only adjusted manually with a dedicated permission.
      */
+    /** A line's customer / supplier / bank must be one of this company's (the id comes from the browser). */
+    protected function guardPartiesBelongToCompany(array $lines): void
+    {
+        $companyId = app(TenantManager::class)->getTenantId();
+        $models = ['customer' => Customer::class, 'supplier' => Supplier::class, 'bank' => BankAccount::class];
+        foreach ($lines as $i => $line) {
+            if (empty($line['party_id'])) {
+                continue;
+            }
+            $model = $models[$line['party_type'] ?? ''] ?? null;
+            if (! $model || ! $model::withoutGlobalScopes()->where('company_id', $companyId)->whereKey($line['party_id'])->exists()) {
+                throw ValidationException::withMessages(["lines.{$i}.party_id" => 'الطرف المحدد في السطر غير موجود في منشأتك.']);
+            }
+        }
+    }
+
     protected function guardControlAccounts(array $lines, Request $request): void
     {
         $parties = collect($this->partyAccounts())->mapWithKeys(fn ($type, $id) => [(int) $id => $type])->reject(fn ($type) => $type === 'bank');
