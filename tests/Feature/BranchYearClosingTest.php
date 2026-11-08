@@ -13,6 +13,7 @@ use App\Services\Accounting\YearEndClosing;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class BranchYearClosingTest extends TestCase
@@ -49,6 +50,32 @@ class BranchYearClosingTest extends TestCase
     protected function sale(Branch $branch, float $amount, string $status = 'posted'): void
     {
         app(PostingService::class)->post(['date' => '2026-03-05', 'description' => 'بيع', 'branch_id' => $branch->id, 'status' => $status, 'lines' => [['role' => 'default_cash', 'debit' => $amount], ['role' => 'sales_revenue', 'credit' => $amount]]]);
+    }
+
+    /** The live closing entries in a form that compares across closings: branch, total and each account's amounts. */
+    protected function postedClosings(): array
+    {
+        return JournalEntry::withoutGlobalScopes()->where('entry_type', 'closing')->where('status', 'posted')->with('lines')->orderBy('branch_id')->get()
+            ->map(fn ($entry) => [
+                'branch' => $entry->branch_id,
+                'total' => (float) $entry->total_debit,
+                'lines' => $entry->lines->sortBy('account_id')->map(fn ($line) => [$line->account_id, (float) $line->debit, (float) $line->credit])->values()->all(),
+            ])->all();
+    }
+
+    protected function assertProfitAndLossIsZero(): void
+    {
+        $balances = DB::table('journal_entry_lines as l')
+            ->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
+            ->join('accounts as a', 'a.id', '=', 'l.account_id')
+            ->whereIn('e.status', [JournalEntry::STATUS_POSTED, JournalEntry::STATUS_REVERSED])
+            ->whereIn('a.type', ['revenue', 'expense'])
+            ->groupBy('l.account_id')
+            ->selectRaw('l.account_id, SUM(l.debit) - SUM(l.credit) as net')
+            ->pluck('net', 'account_id')->map(fn ($net) => round((float) $net, 2))->all();
+
+        $this->assertCount(2, $balances, 'Sales revenue and the general expense both have postings.');
+        $this->assertSame(array_fill_keys(array_keys($balances), 0.0), $balances);
     }
 
     public function test_each_branch_gets_its_own_closing_entry(): void
@@ -91,6 +118,38 @@ class BranchYearClosingTest extends TestCase
 
         $this->assertSame(2, JournalEntry::withoutGlobalScopes()->where('entry_type', 'closing')->where('status', 'reversed')->count());
         $this->assertFalse($year->fresh()->isClosed());
+    }
+
+    public function test_closing_again_after_reopening_repeats_the_first_closing_and_zeroes_the_accounts(): void
+    {
+        app(PostingService::class)->post(['date' => '2026-03-05', 'description' => 'مصروف', 'branch_id' => $this->a->id, 'lines' => [['role' => 'general_expense', 'debit' => 300], ['role' => 'default_cash', 'credit' => 300]]]);
+        $service = app(YearEndClosing::class);
+        $year = FiscalYear::firstOrFail();
+
+        $service->close($year);
+        $first = $this->postedClosings();
+        $this->assertSame([1000.0, 400.0], array_column($first, 'total'));
+        $this->assertProfitAndLossIsZero();
+
+        $service->reopen($year->fresh());
+        $service->close($year->fresh());
+
+        $this->assertSame($first, $this->postedClosings());
+        $this->assertProfitAndLossIsZero();
+    }
+
+    public function test_the_close_page_shows_the_same_result_after_reopening(): void
+    {
+        $service = app(YearEndClosing::class);
+        $year = FiscalYear::firstOrFail();
+        $net = fn () => array_column($service->branchStatus($year->fresh()), 'net', 'branch_id');
+        $result = [$this->a->id => 1000.0, $this->b->id => 400.0];
+        $this->assertSame($result, $net());
+
+        $service->close($year);
+        $service->reopen($year->fresh());
+
+        $this->assertSame($result, $net());
     }
 
     public function test_a_closed_branch_refuses_posting_while_other_branches_still_post(): void
