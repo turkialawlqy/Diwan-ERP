@@ -54,12 +54,24 @@ class GymCheckinService
         $package = CustomerPackage::withoutGlobalScope('branch')->where('customer_id', $customer->id)->where('status', 'active')->get()
             ->first(fn ($p) => ! $p->bookable_service_id && ($p->covers(null, today()) || ($p->remaining() > 0 && (! $p->expires_at || $p->expires_at->gte(today())))));
         if ($package) {
-            DB::transaction(function () use ($package, $customer, $code, $method, $by) {
+            $used = DB::transaction(function () use ($package, $customer, $code, $method, $by) {
+                // The package row is locked first: two scans of the same card at once wait here in turn (instead of
+                // deadlocking on the check-in row's key to it), and the second one sees the visit the first took.
+                CustomerPackage::withoutGlobalScope('branch')->whereKey($package->id)->lockForUpdate()->first();
+                $taken = MemberCheckin::withoutGlobalScope('branch')->where('customer_id', $customer->id)->where('allowed', true)->whereNotNull('customer_package_id')
+                    ->whereDate('checked_in_at', today())->latest('id')->first();
+                if ($taken) {
+                    $this->log($customer->id, $taken->subscription_id, $taken->customer_package_id, $code, $method, true, 'دخول ثانٍ اليوم (لا يُخصم)', $by);
+
+                    return $taken->customer_package_id;
+                }
                 $this->log($customer->id, null, $package->id, $code, $method, true, null, $by); // first: refuses in «all branches» before a visit is used
                 $this->packages->useForCheckin($package, 'دخول النادي');
+
+                return $package->id;
             });
 
-            return $this->result(true, null, $customer, null, $package->fresh());
+            return $this->result(true, null, $customer, null, CustomerPackage::withoutGlobalScope('branch')->find($used));
         }
 
         $reason = $this->denial($subs);
