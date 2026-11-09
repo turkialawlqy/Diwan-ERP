@@ -187,6 +187,7 @@ class YearEndClosing
             'entry_type' => 'closing',
             'source' => $year,
             'branch_id' => $branchId,
+            'no_branch' => $branchId === null, // entries of no branch close in no branch, whatever the top bar shows
             'lines' => $lines,
         ]);
     }
