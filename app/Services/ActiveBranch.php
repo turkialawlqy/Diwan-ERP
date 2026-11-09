@@ -19,6 +19,11 @@ use Illuminate\Support\Collection;
  *
  * Outside a web session (console, queue, API tokens) there is no choice to
  * follow: the user's default branch applies, and jobs are not restricted.
+ *
+ * A platform admin inside a company (support and training mode) is not one of
+ * its users and starts with no choice: what they see stays unrestricted and
+ * what they save goes to the main branch (see forWrite). A branch they choose
+ * in the top bar then applies as it does for the company's owner.
  */
 class ActiveBranch
 {
@@ -29,11 +34,41 @@ class ActiveBranch
     /** @var array<string, Collection> memo of the user's branches, per user and company */
     protected array $memo = [];
 
+    /**
+     * The user the chosen branch applies to. A platform admin inside a company
+     * counts only once they have chosen one: until then nothing is narrowed.
+     */
     public function user(): ?User
     {
-        $user = auth()->user();
+        $user = $this->actor();
 
-        return $user instanceof User && $user->company_id ? $user : null;
+        return $user && ($user->company_id || $this->supportChoice() !== null) ? $user : null;
+    }
+
+    /**
+     * Whoever is working in the current company: one of its users, or a
+     * platform admin inside it (support and training mode).
+     */
+    protected function actor(): ?User
+    {
+        $user = auth()->user();
+        if (! $user instanceof User) {
+            return null;
+        }
+        if ($user->company_id) {
+            return $user;
+        }
+        $tenants = app(TenantManager::class);
+
+        return $user->isSuperAdmin() && $tenants->hasTenant() && $tenants->isImpersonating() ? $user : null;
+    }
+
+    /** The branch a platform admin inside a company has chosen, if it is still one they can work in. */
+    protected function supportChoice(): ?int
+    {
+        $stored = $this->stored();
+
+        return is_numeric($stored) && $this->branches()->contains('id', (int) $stored) ? (int) $stored : null;
     }
 
     /**
@@ -43,13 +78,14 @@ class ActiveBranch
      */
     public function branches(): Collection
     {
-        $user = $this->user();
+        $user = $this->actor();
         if (! $user) {
             return collect();
         }
 
         // Permissions can change within a request (all-branches access): part of the key.
-        $key = $user->id.'|'.$user->company_id.'|'.(int) $user->hasAllBranches();
+        // A platform admin has no company of their own: the one they are inside decides.
+        $key = $user->id.'|'.($user->company_id ?: app(TenantManager::class)->getTenantId()).'|'.(int) $user->hasAllBranches();
         if (! isset($this->memo[$key])) {
             $allowed = $user->allowedBranchIds();
             $this->memo[$key] = Branch::where('is_active', true)
@@ -84,7 +120,13 @@ class ActiveBranch
 
     public function isAll(): bool
     {
-        return $this->stored() === self::ALL && $this->canViewAll();
+        $user = $this->actor();
+        if (! $user || ! $this->canViewAll()) {
+            return false;
+        }
+
+        // A platform admin starts on all branches; only a branch they choose leaves it.
+        return $user->company_id ? $this->stored() === self::ALL : $this->supportChoice() === null;
     }
 
     /**
@@ -166,13 +208,24 @@ class ActiveBranch
     public function forWrite(): ?int
     {
         if (! $this->user()) {
-            return null;
+            return $this->supportBranchId();
         }
         if ($this->isAll()) {
             throw new BranchRequiredException;
         }
 
         return $this->id();
+    }
+
+    /**
+     * Where a platform admin inside a company saves: with no branch of their own
+     * and no choice in the top bar, the main branch, where an owner who chose
+     * nothing starts too. Null for anyone else without a company of their own:
+     * jobs and console commands have no branch to follow.
+     */
+    protected function supportBranchId(): ?int
+    {
+        return $this->branches()->first()?->id;
     }
 
     /**

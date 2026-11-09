@@ -124,6 +124,7 @@ class TenantManager
     {
         Session::put('impersonate_company_id', $company->id);
         Session::put('impersonate_original_admin_id', $superAdmin->id);
+        Session::forget(ActiveBranch::SESSION_KEY); // every visit starts on all branches
 
         $this->currentCompany = $company;
         $this->isImpersonating = true;
@@ -139,6 +140,7 @@ class TenantManager
 
         Session::forget('impersonate_company_id');
         Session::forget('impersonate_original_admin_id');
+        Session::forget(ActiveBranch::SESSION_KEY);
 
         $this->isImpersonating = false;
         $this->originalSuperAdmin = null;

@@ -313,7 +313,7 @@ class AccountingControls
         $names = match ($dimension) {
             'cost_center' => CostCenter::pluck('name_ar', 'id'),
             'project' => Project::pluck('name', 'id'),
-            default => Branch::pluck('name', 'id'),
+            default => Branch::get(['id', 'name_ar', 'name_en'])->pluck('name', 'id'),
         };
         $accounts = Account::whereIn('id', BudgetLine::where('budget_id', $budget->id)->whereNotNull($column)->pluck('account_id'))->get(['id', 'code', 'name_ar', 'type'])->keyBy('id');
         $from = Carbon::createFromFormat('Ym', (string) $fromPeriod)->startOfMonth();

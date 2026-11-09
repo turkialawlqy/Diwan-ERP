@@ -86,7 +86,7 @@ class HandleInertiaRequests extends Middleware
                 'trial_ends_at' => $user ? $currentTenant->trial_ends_at?->format('Y-m-d') : null,
             ] : null,
             // Top bar: the branch being worked in (all = viewing every allowed branch) and the fiscal year.
-            'branchSwitcher' => fn () => $currentTenant && $user && $user->company_id ? app(ActiveBranch::class)->switcher() : null,
+            'branchSwitcher' => fn () => $currentTenant && $user && ($user->company_id || ($user->isSuperAdmin() && $tenantManager->isImpersonating())) ? app(ActiveBranch::class)->switcher() : null,
             'fiscalSwitcher' => fn () => $currentTenant && $user && $user->company_id ? app(ActiveFiscalYear::class)->switcher() : null,
             // Tax rules of the active branch (its country): default rate, allowed rates, currency.
             'tax' => fn () => $currentTenant && $user ? TaxProfile::current()->toArray() : null,
