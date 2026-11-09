@@ -422,6 +422,8 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
             ->name('order.process')
             ->middleware('throttle:pos-orders');
         Route::get('/history', [PosController::class, 'history'])->name('history');
+        Route::get('/open-sessions', [PosController::class, 'managedSessions'])->name('open-sessions.index');
+        Route::post('/open-sessions/{session}/close', [PosController::class, 'closeManagedSession'])->whereNumber('session')->name('open-sessions.close');
         Route::get('/products/search', [PosController::class, 'productSearch'])->name('products.search');
         Route::get('/registers', [PosRegisterController::class, 'index'])->name('registers.index');
         Route::get('/registers/create', [PosRegisterController::class, 'create'])->name('registers.create');

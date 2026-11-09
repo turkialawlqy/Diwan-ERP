@@ -28,6 +28,7 @@
         "pos_session": "Cashier Session",
         "pos_registers": "Cashier Devices",
         "pos_history": "Sales History",
+        "pos_open_sessions": "Open Shifts",
         "inventory": "Inventory",
         "products": "Products & Costs",
         "categories": "Categories",
@@ -1245,5 +1246,26 @@
         "s_ot_h": "A share of the basic hourly wage added to the hourly wage (Art. 107: 50%)",
         "s_ded": "Maximum deduction",
         "s_ded_h": "Of the wage for advances and penalties (Art. 92: 50%)"
+    },
+    "pos_open": {
+        "title": "Open Shifts",
+        "subtitle": "Open shifts in all the branches you may work in. Close one a cashier left behind to free its device.",
+        "cashier": "Cashier",
+        "register": "Device",
+        "branch": "Branch",
+        "opened_at": "Opened at",
+        "opening_cash": "Opening float",
+        "expected_cash": "Expected cash",
+        "close": "Close",
+        "close_title": "Close shift",
+        "counted": "Actual cash in the drawer",
+        "balanced": "Matches the expected cash",
+        "shortage": "Shortage: {amount}",
+        "overage": "Overage: {amount}",
+        "deposit": "Deposit to account",
+        "deposit_hint": "Leave empty to keep the cash in the device's cash box.",
+        "deposit_none": "No deposit",
+        "notes": "Notes",
+        "confirm": "Confirm closing the shift"
     }
 }

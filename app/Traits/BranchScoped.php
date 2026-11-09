@@ -49,6 +49,21 @@ trait BranchScoped
     }
 
     /**
+     * Every branch $user may work in, not only the one chosen in the top bar (with rows
+     * without a branch, like the global scope). For screens that look across branches.
+     */
+    public function scopeInBranchesOf(Builder $query, User $user): void
+    {
+        $query->withoutGlobalScope('branch');
+
+        $allowed = $user->allowedBranchIds();
+        if ($allowed !== null) {
+            $column = $query->getModel()->qualifyColumn('branch_id');
+            $query->where(fn ($q) => $q->whereIn($column, $allowed)->orWhereNull($column));
+        }
+    }
+
+    /**
      * The signed-in user whose branch applies, or null outside a user request.
      */
     protected static function scopedUser(): ?User
