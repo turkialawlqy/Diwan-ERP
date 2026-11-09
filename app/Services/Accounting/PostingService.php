@@ -174,6 +174,11 @@ class PostingService
             }
             $period = $this->calendar->assertOpen($entry->date, $entry->company_id);
 
+            // As in post(): a branch closed for the year takes no more postings in that year, drafts included.
+            if ($entry->branch_id && FiscalYearClosing::withoutGlobalScopes()->where('company_id', $entry->company_id)->where('fiscal_year_id', $period->fiscal_year_id)->where('branch_id', $entry->branch_id)->exists()) {
+                throw new AccountingException('هذا الفرع أُقفل لهذه السنة المالية؛ لا يمكن الترحيل عليه بتاريخ '.$entry->date->toDateString().'.');
+            }
+
             $entry->update([
                 'status' => JournalEntry::STATUS_POSTED,
                 'fiscal_period_id' => $period->id,

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\FiscalYear;
+use App\Models\FiscalYearClosing;
 use App\Models\JournalEntry;
 use App\Services\Accounting\AccountingException;
 use App\Services\Accounting\AccountingSetupService;
@@ -46,9 +47,9 @@ class BranchYearClosingTest extends TestCase
         parent::tearDown();
     }
 
-    protected function sale(Branch $branch, float $amount, string $status = 'posted'): void
+    protected function sale(Branch $branch, float $amount, string $status = 'posted', string $date = '2026-03-05'): JournalEntry
     {
-        app(PostingService::class)->post(['date' => '2026-03-05', 'description' => 'بيع', 'branch_id' => $branch->id, 'status' => $status, 'lines' => [['role' => 'default_cash', 'debit' => $amount], ['role' => 'sales_revenue', 'credit' => $amount]]]);
+        return app(PostingService::class)->post(['date' => $date, 'description' => 'بيع', 'branch_id' => $branch->id, 'status' => $status, 'lines' => [['role' => 'default_cash', 'debit' => $amount], ['role' => 'sales_revenue', 'credit' => $amount]]]);
     }
 
     public function test_each_branch_gets_its_own_closing_entry(): void
@@ -105,6 +106,43 @@ class BranchYearClosingTest extends TestCase
         // Jeddah is still open.
         $this->sale($this->b, 20);
         $this->assertSame(1, JournalEntry::withoutGlobalScopes()->where('branch_id', $this->b->id)->where('description', 'بيع')->where('status', 'posted')->where('entry_type', '!=', 'closing')->where('total_debit', 20)->count());
+    }
+
+    public function test_a_draft_on_a_closed_branch_cannot_be_posted_while_other_branches_and_years_still_can(): void
+    {
+        $openBranch = $this->sale($this->b, 50, 'draft'); // keeps Jeddah out of the closing
+        $year = FiscalYear::firstOrFail();
+        app(YearEndClosing::class)->close($year, 'passed');
+        $this->assertFalse($year->fresh()->isClosed());
+
+        // Riyadh is closed for the year: a draft can still be saved there, but not posted.
+        $draft = $this->sale($this->a, 10, 'draft');
+        $posting = app(PostingService::class);
+        $this->assertThrows(
+            fn () => $posting->postDraft($draft),
+            AccountingException::class,
+            'هذا الفرع أُقفل لهذه السنة المالية؛ لا يمكن الترحيل عليه بتاريخ 2026-03-05.',
+        );
+        $this->assertSame(JournalEntry::STATUS_DRAFT, $draft->fresh()->status);
+
+        $this->assertSame(JournalEntry::STATUS_POSTED, $posting->postDraft($openBranch)->status);
+        $nextYear = $this->sale($this->a, 10, 'draft', '2027-01-05'); // the closing covers 2026 only
+        $this->assertSame(JournalEntry::STATUS_POSTED, $posting->postDraft($nextYear)->status);
+    }
+
+    public function test_a_draft_without_a_branch_is_not_stopped_by_the_closing_row_of_branchless_entries(): void
+    {
+        // Riyadh's entries lose their branch, so they close under a row of their own with an empty branch.
+        JournalEntry::withoutGlobalScopes()->where('branch_id', $this->a->id)->update(['branch_id' => null]);
+        $this->sale($this->b, 50, 'draft');
+        $year = FiscalYear::firstOrFail();
+        app(YearEndClosing::class)->close($year, 'passed');
+        $this->assertTrue(FiscalYearClosing::where('fiscal_year_id', $year->id)->whereNull('branch_id')->exists());
+
+        $draft = $this->sale($this->a, 10, 'draft');
+        JournalEntry::withoutGlobalScopes()->whereKey($draft->id)->update(['branch_id' => null]);
+
+        $this->assertSame(JournalEntry::STATUS_POSTED, app(PostingService::class)->postDraft($draft->fresh())->status);
     }
 
     public function test_close_page_lists_branch_readiness(): void
