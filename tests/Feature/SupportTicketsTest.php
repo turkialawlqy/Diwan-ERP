@@ -9,8 +9,11 @@ use App\Models\Ticket;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Support\SlaService;
 use App\Services\TenantManager;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
@@ -240,6 +243,37 @@ class SupportTicketsTest extends TestCase
         $this->sla()->reply($t->fresh(), null, 'هذه الصورة', 'customer'); // back after 6 hours
         $this->assertSame('2026-06-15 20:00:00', $t->fresh()->resolution_due_at->format('Y-m-d H:i:s'));
         $this->assertSame(2, $agent->fresh()->notifications()->count()); // told about the customer's reply
+    }
+
+    public function test_a_priority_change_keeps_the_time_waited_for_the_customer(): void
+    {
+        $t = $this->open(); // normal: resolve within 48 hours, by 2026-06-17 10:00
+        $this->sla()->reply($t->fresh(), auth()->user(), 'نحتاج تفاصيل أكثر', 'public'); // waits for the customer
+        Carbon::setTestNow('2026-06-17 10:00:00');
+        $this->sla()->reply($t->fresh(), null, 'هذه التفاصيل', 'customer'); // back after 48 hours
+        $this->assertSame('2026-06-19 10:00:00', $t->fresh()->resolution_due_at->format('Y-m-d H:i:s'));
+        $this->assertSame(48 * 3600, $t->fresh()->sla_paused_seconds);
+
+        $this->patch(route('support.tickets.update', $t->id), ['priority' => 'high'])->assertSessionHasNoErrors(); // 8 hours
+
+        $this->assertSame('2026-06-17 18:00:00', $t->fresh()->resolution_due_at->format('Y-m-d H:i:s')); // the opening + 8 hours + the 48 waited
+        $this->assertSame(0, $this->sla()->checkBreaches());
+    }
+
+    public function test_the_migration_keeps_the_time_open_tickets_already_waited(): void
+    {
+        if (DB::getDriverName() !== 'sqlite') {
+            $this->markTestSkipped('Drops a column inside the test transaction, and MySQL commits on DDL.');
+        }
+        $waited = $this->open(); // normal: resolve by 2026-06-17 10:00
+        DB::table('tickets')->where('id', $waited->id)->update(['resolution_due_at' => '2026-06-17 16:00:00']); // 6 hours moved by the old resume
+        $plain = $this->open();
+        Schema::table('tickets', fn (Blueprint $table) => $table->dropColumn('sla_paused_seconds'));
+
+        (require database_path('migrations/2026_11_15_000002_add_sla_paused_seconds_to_tickets.php'))->up();
+
+        $this->assertSame(6 * 3600, (int) DB::table('tickets')->where('id', $waited->id)->value('sla_paused_seconds'));
+        $this->assertSame(0, (int) DB::table('tickets')->where('id', $plain->id)->value('sla_paused_seconds'));
     }
 
     public function test_a_ticket_is_assigned_only_to_someone_who_works_tickets(): void
