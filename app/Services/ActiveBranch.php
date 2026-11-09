@@ -19,6 +19,10 @@ use Illuminate\Support\Collection;
  *
  * Outside a web session (console, queue, API tokens) there is no choice to
  * follow: the user's default branch applies, and jobs are not restricted.
+ *
+ * A platform admin inside a company (support and training mode) is not one of
+ * its users: what they see stays unrestricted, and only what they save needs
+ * a branch (see forWrite).
  */
 class ActiveBranch
 {
@@ -166,13 +170,30 @@ class ActiveBranch
     public function forWrite(): ?int
     {
         if (! $this->user()) {
-            return null;
+            return $this->supportBranchId();
         }
         if ($this->isAll()) {
             throw new BranchRequiredException;
         }
 
         return $this->id();
+    }
+
+    /**
+     * Where a platform admin inside a company saves: with no branch of their own
+     * and no choice in the top bar, the main branch, where an owner who chose
+     * nothing starts too. Null for anyone else without a company of their own:
+     * jobs and console commands have no branch to follow.
+     */
+    protected function supportBranchId(): ?int
+    {
+        $user = auth()->user();
+        $tenants = app(TenantManager::class);
+        if (! $user instanceof User || ! $user->isSuperAdmin() || ! $tenants->hasTenant() || ! $tenants->isImpersonating()) {
+            return null;
+        }
+
+        return Branch::where('is_active', true)->orderByDesc('is_main')->orderBy('id')->value('id');
     }
 
     /**

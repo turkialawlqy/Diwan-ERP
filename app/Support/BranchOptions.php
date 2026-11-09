@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Branch;
 use App\Models\User;
 use App\Services\ActiveBranch;
 use App\Services\Tax\TaxProfile;
@@ -18,11 +19,11 @@ class BranchOptions
      */
     public static function forUser(?User $user = null): array
     {
-        $active = app(ActiveBranch::class);
         // Creating needs a specific branch: with "all branches" shown, ask for one.
-        $id = $active->forWrite();
+        $id = app(ActiveBranch::class)->forWrite();
 
-        $branch = $active->branches()->firstWhere('id', $id);
+        // Not from ActiveBranch::branches(): a platform admin inside a company has no list of their own.
+        $branch = $id ? Branch::find($id) : null;
         if (! $branch) {
             return ['branches' => [], 'defaultBranchId' => $id];
         }
