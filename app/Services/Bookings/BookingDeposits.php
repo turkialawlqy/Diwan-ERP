@@ -15,8 +15,8 @@ use Illuminate\Validation\ValidationException;
 /**
  * The money taken when a booking is made. It is a receipt like any other (cash/bank in, the
  * customer in credit), so the books show it the day it is received. Done → it settles the
- * invoice; cancelled / no-show → it stays as the customer's credit or is forfeited as income,
- * as set in «إعدادات الحجوزات».
+ * invoice; cancelled / no-show → it stays as the customer's credit or is forfeited as income.
+ * BookingService decides which: a cancellation before the free-cancellation window never forfeits.
  */
 class BookingDeposits
 {
@@ -61,13 +61,13 @@ class BookingDeposits
     }
 
     /** Cancelled or no-show: keep it as the customer's credit (refund or use later), or take it as income. */
-    public function release(Booking $booking): void
+    public function release(Booking $booking, bool $forfeit): void
     {
         $payment = $this->held($booking);
         if (! $payment) {
             return;
         }
-        if (app(BookingSettings::class)->all()['deposit_on_cancel'] !== 'forfeit') {
+        if (! $forfeit) {
             $booking->forceFill(['deposit_status' => 'credited'])->save();
 
             return;
