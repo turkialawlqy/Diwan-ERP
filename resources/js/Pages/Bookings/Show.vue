@@ -7,7 +7,7 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import Dialog from '@/Components/UI/Dialog.vue';
 import { money } from '@/utils/format';
 
-const props = defineProps({ booking: Object, coveringPackages: Array, net: Number, statuses: Object });
+const props = defineProps({ booking: Object, coveringPackages: Array, net: Number, statuses: Object, depositOnCancel: Object });
 const b = computed(() => props.booking);
 const open = computed(() => ['pending', 'confirmed'].includes(b.value.status));
 const when = (v) => String(v).replace('T', ' ').slice(0, 16);
@@ -15,7 +15,7 @@ const post = (name, data = {}) => router.post(route(name, b.value.id), data, { p
 const tone = { pending: 'bg-amber-50 text-amber-700 border-amber-200', confirmed: 'bg-sky-50 text-sky-700 border-sky-200', completed: 'bg-emerald-50 text-emerald-700 border-emerald-200', cancelled: 'bg-rose-50 text-rose-700 border-rose-200', no_show: 'bg-slate-100 text-slate-600 border-slate-200' };
 
 const cancelling = ref(false);
-const cancel = useForm({ reason: '' });
+const cancel = useForm({ reason: '', deposit: props.depositOnCancel?.default ?? null });
 const doCancel = () => cancel.post(route('bookings.cancel', b.value.id), { preserveScroll: true, onSuccess: () => (cancelling.value = false) });
 
 const completing = ref(false);
@@ -74,6 +74,13 @@ const doComplete = () => done.transform((d) => ({ ...d, customer_package_id: d.u
         </Dialog>
         <Dialog :show="cancelling" title="إلغاء الحجز" @close="cancelling = false">
             <input v-model="cancel.reason" placeholder="سبب الإلغاء (اختياري)" class="w-full rounded-xl border-slate-200 text-xs" data-cancel-reason />
+            <div v-if="depositOnCancel" class="mt-3 space-y-1.5 text-xs" data-cancel-deposit>
+                <p class="font-bold text-slate-600">{{ $t('bookings.deposit_received') }} {{ money(b.deposit_amount) }}</p>
+                <label class="flex items-center gap-2"><input v-model="cancel.deposit" type="radio" value="credit" data-deposit-credit /> {{ $t('bookings.deposit_credit') }}</label>
+                <label class="flex items-center gap-2"><input v-model="cancel.deposit" type="radio" value="forfeit" data-deposit-forfeit /> {{ $t('bookings.deposit_forfeit') }}</label>
+                <p class="text-slate-400">{{ depositOnCancel.late ? $t('bookings.deposit_late') : $t('bookings.deposit_early') }}</p>
+                <p v-if="cancel.errors.deposit" class="text-rose-600 font-bold">{{ cancel.errors.deposit }}</p>
+            </div>
             <template #footer><button type="button" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold" @click="cancelling = false">رجوع</button><button type="button" :disabled="cancel.processing" class="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold" @click="doCancel" data-confirm-cancel>تأكيد الإلغاء</button></template>
         </Dialog>
     </AppLayout>

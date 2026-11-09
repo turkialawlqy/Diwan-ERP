@@ -43,6 +43,7 @@ const details = computed(() => [
 
 const canPickBranch = computed(() => (branches.value?.items.length || 0) > 1);
 const canPickYear = computed(() => (years.value?.items.length || 0) > 1);
+const supportMode = computed(() => !!page.props.impersonation?.is_impersonating);
 
 // The popover's choices: nothing changes until «تطبيق التغيير».
 const branchChoice = ref(null);
@@ -149,6 +150,7 @@ const apply = async () => {
                             <option v-for="b in branches.items" :key="b.id" :value="b.id">{{ branchLabel(b) }}</option>
                         </select>
                         <p v-else class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 truncate" data-context-branch-fixed>{{ activeBranch?.name }}</p>
+                        <p v-if="supportMode && canPickBranch && branchChoice === 'all'" class="text-[11px] text-amber-700 mt-1" data-context-support-hint>{{ $t('ctx.support_saves_to_main') }}</p>
                     </div>
 
                     <div v-if="years?.items.length">
