@@ -207,13 +207,14 @@ class StockService
     public function adjustTo(int $productId, int $warehouseId, float $countedQuantity, array $context = [], ?float $snapshot = null): float
     {
         return DB::transaction(function () use ($productId, $warehouseId, $countedQuantity, $context, $snapshot) {
+            // The product first, as receive() and issue() do: the opposite order is a deadlock with them.
+            $product = $this->lockProduct($productId);
             $current = (float) $this->lockStock($productId, $warehouseId)->quantity;
             // With the quantity the system showed when it was counted, only the counted difference is applied:
             // sales and receipts made since then are kept, not overwritten by the count.
             $difference = round($countedQuantity - ($snapshot ?? $current), 4);
 
             if ($difference > 0) {
-                $product = Product::findOrFail($productId);
                 $this->receive(array_merge($context, [
                     'product_id' => $productId, 'warehouse_id' => $warehouseId, 'quantity' => $difference,
                     'unit_cost' => (float) $product->average_cost, 'keep_average' => true,
@@ -307,11 +308,8 @@ class StockService
             throw ValidationException::withMessages(['items' => "الصنف «{$product->name_ar}» يتطلب رقم تشغيلة (Batch)."]);
         }
 
-        $batch = ProductBatch::firstOrCreate(
-            ['product_id' => $product->id, 'warehouse_id' => $data['warehouse_id'], 'batch_number' => $number],
-            ['expiry_date' => $data['expiry_date'] ?? null, 'manufacture_date' => $data['manufacture_date'] ?? null, 'quantity' => 0],
-        );
-        $batch = ProductBatch::whereKey($batch->id)->lockForUpdate()->first();
+        $batch = $this->lockRow(ProductBatch::class, ['product_id' => $product->id, 'warehouse_id' => $data['warehouse_id'], 'batch_number' => $number],
+            ['expiry_date' => $data['expiry_date'] ?? null, 'manufacture_date' => $data['manufacture_date'] ?? null, 'quantity' => 0]);
         $batch->quantity = (float) $batch->quantity + $quantity;
         if (! empty($data['expiry_date']) && ! $batch->expiry_date) {
             $batch->expiry_date = $data['expiry_date'];
@@ -460,12 +458,25 @@ class StockService
 
     protected function lockStock(int $productId, int $warehouseId): InventoryStock
     {
-        $stock = InventoryStock::firstOrCreate(
-            ['product_id' => $productId, 'warehouse_id' => $warehouseId],
-            ['quantity' => 0],
-        );
+        return $this->lockRow(InventoryStock::class, ['product_id' => $productId, 'warehouse_id' => $warehouseId], ['quantity' => 0]);
+    }
 
-        return InventoryStock::whereKey($stock->id)->lockForUpdate()->first();
+    /**
+     * The row for $key, under lock, created if it is the first. A document that read anything earlier has an older
+     * snapshot and cannot see a row another one committed since, so the row is added with INSERT IGNORE (a plain
+     * insert would fail on the unique key). Only then is it read under lock: a locking read of a row that does not
+     * exist yet takes a gap lock, and two first receipts of different products would deadlock on it.
+     *
+     * @param  class-string<Model>  $model
+     */
+    protected function lockRow(string $model, array $key, array $values): Model
+    {
+        if (! $model::where($key)->exists()) {
+            $now = now();
+            $model::insertOrIgnore($key + $values + ['company_id' => $this->tenantManager->getTenantId(), 'created_at' => $now, 'updated_at' => $now]);
+        }
+
+        return $model::where($key)->lockForUpdate()->firstOrFail();
     }
 
     protected function sourceType(array $data): ?string
