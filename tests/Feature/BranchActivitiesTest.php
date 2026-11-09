@@ -47,7 +47,7 @@ class BranchActivitiesTest extends TestCase
 
     protected Customer $customer;
 
-    protected const PERMS = ['clinic.patients.view', 'clinic.patients.create', 'workshop.vehicles.view', 'workshop.vehicles.create', 'work_orders.orders.view', 'work_orders.orders.create',
+    protected const PERMS = ['clinic.patients.view', 'clinic.patients.create', 'clinic.visits.view', 'workshop.vehicles.view', 'workshop.vehicles.create', 'work_orders.orders.view', 'work_orders.orders.create',
         'bookings.bookings.view', 'bookings.bookings.create', 'bookings.services.view', 'bookings.resources.view', 'real_estate.leases.view', 'real_estate.properties.view', 'real_estate.units.view', 'sales.clients.view'];
 
     protected function setUp(): void
@@ -304,6 +304,22 @@ class BranchActivitiesTest extends TestCase
         $this->asStaff([$this->general]);
         $this->post(route('clinic.patients.store'), ['customer_id' => $customer->id])->assertSessionHasErrors('customer_id'); // a message, not a 500
         $this->assertSame(1, PatientFile::count());
+    }
+
+    public function test_bookings_waiting_for_a_visit_record_are_offered_only_to_who_can_record_one(): void
+    {
+        $service = BookableService::create(['name' => 'كشف', 'duration_minutes' => 30, 'price' => 10, 'tax_rate' => 0, 'branch_id' => $this->clinic->id]);
+        $resource = BookingResource::create(['name' => 'عيادة 1', 'type' => 'room', 'branch_id' => $this->clinic->id]);
+        Booking::create(['number' => 'BKG-1', 'customer_id' => $this->customer->id, 'bookable_service_id' => $service->id, 'booking_resource_id' => $resource->id, 'starts_at' => '2026-06-10 10:00', 'ends_at' => '2026-06-10 10:30', 'status' => 'completed', 'price' => 10, 'branch_id' => $this->clinic->id]);
+        $patient = PatientFile::create(['customer_id' => $this->customer->id, 'file_number' => 'PF-1', 'branch_id' => $this->clinic->id]);
+
+        $user = $this->asStaff([$this->clinic]);
+        $this->get(route('clinic.patients.show', $patient->id))->assertOk()->assertInertia(fn ($p) => $p->has('unrecorded', 0));
+
+        app(PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
+        $user->givePermissionTo('clinic.visits.create');
+        $this->actingAs($user->fresh());
+        $this->get(route('clinic.patients.show', $patient->id))->assertOk()->assertInertia(fn ($p) => $p->has('unrecorded', 1));
     }
 
     public function test_search_leaves_out_systems_the_branch_does_not_run(): void
