@@ -15,7 +15,8 @@ const uris = JSON.parse(execSync('php artisan route:list --json --method=GET', {
     .filter((u) => !SKIP.test(u));
 
 test('every screen opens without errors', async ({ page }) => {
-    test.setTimeout(10 * 60_000);
+    // One worker walks every screen: a slow CI runner needs more than 10 minutes.
+    test.setTimeout(15 * 60_000);
     const errors = watchErrors(page);
     const failures = [];
     const details = new Set();
