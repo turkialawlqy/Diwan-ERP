@@ -13,13 +13,17 @@ use App\Models\FiscalYear;
 use App\Models\GoodsReceipt;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
+use App\Models\JournalEntryLine;
 use App\Models\Product;
 use App\Models\Project;
+use App\Models\ProjectCost;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
 use App\Models\Quotation;
 use App\Models\SalesOrder;
+use App\Models\Subcontract;
+use App\Models\SubcontractCertificate;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Models\User;
@@ -31,6 +35,7 @@ use App\Services\Accounting\PostingService;
 use App\Services\Accounting\YearEndClosing;
 use App\Services\ActiveBranch;
 use App\Services\Inventory\StockService;
+use App\Services\Saas\PlanGuard;
 use App\Services\TenantManager;
 use App\Support\BranchScopeSwitch;
 use Illuminate\Database\Eloquent\Model;
@@ -42,9 +47,10 @@ use Tests\TestCase;
 
 /**
  * A platform admin inside a company (support and training mode) has no branch
- * of their own and no choice in the top bar: what they save goes to the
- * company's main branch instead of to no branch at all, while the rules for
- * the company's own staff stay as they are.
+ * of their own. Until they choose one in the top bar, what they see covers
+ * every branch and what they save goes to the company's main branch instead of
+ * to no branch at all; a branch they choose applies as it does for the owner.
+ * The rules for the company's own staff stay as they are.
  */
 class SupportModeBranchTest extends TestCase
 {
@@ -67,6 +73,8 @@ class SupportModeBranchTest extends TestCase
     protected Supplier $supplier;
 
     protected Product $product;
+
+    protected ?User $admin = null;
 
     protected function setUp(): void
     {
@@ -94,24 +102,34 @@ class SupportModeBranchTest extends TestCase
     }
 
     /** The real way in: a signed-in platform admin, a confirmed password and a reason. */
-    protected function enterCompany(): void
+    protected function enterCompany(?Company $company = null): void
     {
-        $this->actingAs(User::factory()->create(['is_super_admin' => true, 'company_id' => null, 'status' => 'active']));
+        $this->actingAs($this->admin ??= User::factory()->create(['is_super_admin' => true, 'company_id' => null, 'status' => 'active']));
         session(['auth.password_confirmed_at' => now()->timestamp]);
-        $this->post(route('super-admin.impersonate.enter', $this->company), ['reason' => 'دعم فني للعميل'])->assertRedirect(route('dashboard'));
+        $this->post(route('super-admin.impersonate.enter', $company ?? $this->company), ['reason' => 'دعم فني للعميل'])->assertRedirect(route('dashboard'));
+    }
+
+    protected function assertInBranch(Branch $branch, ?Model $document): void
+    {
+        $this->assertNotNull($document);
+        $this->assertSame($branch->id, $document->branch_id, class_basename($document).' was not saved in '.$branch->name_ar.'.');
     }
 
     protected function assertInMainBranch(?Model $document): void
     {
-        $this->assertNotNull($document);
-        $this->assertSame($this->main->id, $document->branch_id, class_basename($document).' was not saved in the main branch.');
+        $this->assertInBranch($this->main, $document);
+    }
+
+    protected function assertEntryInBranch(Branch $branch, Model $source): void
+    {
+        $entry = JournalEntry::withoutGlobalScopes()->where('source_type', $source->getMorphClass())->where('source_id', $source->getKey())->latest('id')->first();
+        $this->assertNotNull($entry, 'No journal entry was posted for '.class_basename($source).'.');
+        $this->assertSame($branch->id, $entry->branch_id, 'The entry of '.class_basename($source).' was not posted in '.$branch->name_ar.'.');
     }
 
     protected function assertEntryInMainBranch(Model $source): void
     {
-        $entry = JournalEntry::withoutGlobalScopes()->where('source_type', $source->getMorphClass())->where('source_id', $source->getKey())->latest('id')->first();
-        $this->assertNotNull($entry, 'No journal entry was posted for '.class_basename($source).'.');
-        $this->assertSame($this->main->id, $entry->branch_id, 'The entry of '.class_basename($source).' was not posted in the main branch.');
+        $this->assertEntryInBranch($this->main, $source);
     }
 
     protected function line(float $quantity = 2, float $price = 50): array
@@ -427,5 +445,319 @@ class SupportModeBranchTest extends TestCase
         $this->post(route('context.branch'), ['branch_id' => $this->other->id])->assertSessionHasNoErrors();
         $this->post(route('accounting.journals.store'), $this->journal('2026-03-10'))->assertSessionHasNoErrors();
         $this->assertSame($before + 1, JournalEntry::withoutGlobalScopes()->count());
+    }
+
+    // ------------------------------------------------------------ the branch switcher
+
+    protected function chooseBranch(int|string $branch): void
+    {
+        $this->post(route('context.update'), ['branch_id' => $branch])->assertSessionHasNoErrors();
+    }
+
+    /** Ordered and received in whichever branch applies now: 100 sits in GRNI until it is billed. */
+    protected function receivedOrder(): GoodsReceipt
+    {
+        $this->post(route('purchases.orders.store'), ['supplier_id' => $this->supplier->id, 'warehouse_id' => $this->warehouse->id, 'order_date' => self::DATE, 'submit' => true, 'items' => [$this->line()]])->assertSessionHasNoErrors();
+        $order = PurchaseOrder::withoutGlobalScope('branch')->latest('id')->first();
+        $this->post(route('purchases.orders.receive', $order), ['receipt_date' => self::DATE, 'lines' => [['purchase_order_item_id' => $order->items()->first()->id, 'quantity' => 2]]])->assertSessionHasNoErrors();
+
+        return GoodsReceipt::withoutGlobalScope('branch')->latest('id')->first();
+    }
+
+    protected function billReceipt(GoodsReceipt $receipt): PurchaseInvoice
+    {
+        $this->post(route('purchases.invoices.store-from-receipts'), [
+            'supplier_id' => $this->supplier->id, 'supplier_invoice_number' => 'SUP-1', 'invoice_date' => self::DATE, 'payment_method' => 'credit', 'payment_status' => 'unpaid',
+            'lines' => [['goods_receipt_item_id' => $receipt->items()->first()->id, 'quantity' => 2, 'unit_price' => 50]],
+        ])->assertSessionHasNoErrors();
+
+        return PurchaseInvoice::withoutGlobalScope('branch')->latest('id')->first();
+    }
+
+    /** Goods received and not yet billed, as the ledger of one branch shows it. */
+    protected function grniBalance(Branch $branch): float
+    {
+        $entries = JournalEntry::withoutGlobalScopes()->where('branch_id', $branch->id)->pluck('id');
+        $lines = JournalEntryLine::whereIn('journal_entry_id', $entries)->where('account_id', app(AccountMap::class)->id('grni'));
+
+        return (float) $lines->sum('credit') - (float) $lines->sum('debit');
+    }
+
+    /** What the admin sees now: the branches covered, the quotations list and the trial balance. */
+    protected function assertSees(?array $branches, int $quotations, float $debit): void
+    {
+        $this->get(route('sales.quotations.index'))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->has('quotations.data', $quotations));
+        $this->assertSame($branches, app(ActiveBranch::class)->scopeIds());
+        $this->assertSame($debit, $this->trialBalanceDebit());
+    }
+
+    protected function anotherCompany(): array
+    {
+        $company = Company::factory()->create(['currency' => 'SAR', 'country_code' => 'SA']);
+
+        return app(TenantManager::class)->runAs($company, function () use ($company) {
+            app(AccountingSetupService::class)->provision($company);
+
+            return [$company, Branch::create(['name_ar' => 'مكة', 'code' => 'MKK', 'is_main' => true, 'is_active' => true])];
+        });
+    }
+
+    public function test_the_switcher_is_offered_inside_a_company_and_starts_on_all_branches(): void
+    {
+        $this->enterCompany();
+
+        $this->get(route('dashboard'))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->has('branchSwitcher.items', 2)
+            ->where('branchSwitcher.items.0.id', $this->main->id)
+            ->where('branchSwitcher.items.1.id', $this->other->id)
+            ->where('branchSwitcher.active', ActiveBranch::ALL)
+            ->where('branchSwitcher.can_all', true));
+    }
+
+    public function test_the_platform_console_has_no_switcher(): void
+    {
+        $this->enterCompany();
+        $this->post(route('super-admin.impersonate.leave'))->assertRedirect(route('super-admin.dashboard'));
+
+        $this->get(route('super-admin.dashboard'))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('branchSwitcher', null));
+    }
+
+    /** Both companies exist before the first page: nothing but the company can tell their branches apart. */
+    public function test_another_company_shows_its_own_branches(): void
+    {
+        [$second, $branch] = $this->anotherCompany();
+
+        $this->enterCompany();
+        $this->get(route('dashboard'))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->has('branchSwitcher.items', 2));
+        $this->post(route('super-admin.impersonate.leave'))->assertRedirect(route('super-admin.dashboard'));
+
+        $this->enterCompany($second);
+        $this->get(route('dashboard'))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->has('branchSwitcher.items', 1)
+            ->where('branchSwitcher.items.0.id', $branch->id)
+            ->where('branchSwitcher.active', $branch->id)
+            ->where('branchSwitcher.can_all', false));
+    }
+
+    public function test_a_branch_of_another_company_cannot_be_chosen(): void
+    {
+        [, $foreign] = $this->anotherCompany();
+        $this->enterCompany();
+
+        $this->post(route('context.update'), ['branch_id' => $foreign->id])->assertSessionHasErrors('context');
+        $this->assertFalse(session()->has(ActiveBranch::SESSION_KEY));
+
+        // Nor does one that reached the session some other way count.
+        session([ActiveBranch::SESSION_KEY => $foreign->id]);
+        $this->post(route('sales.quotations.store'), $this->quotation())->assertSessionHasNoErrors();
+        $this->assertInMainBranch(Quotation::latest('id')->first());
+        $this->assertNull(app(ActiveBranch::class)->scopeIds());
+    }
+
+    public function test_a_bill_from_a_receipt_in_the_chosen_branch_stays_in_that_branch(): void
+    {
+        $this->enterCompany();
+        $this->chooseBranch($this->other->id);
+
+        $receipt = $this->receivedOrder();
+        $this->assertInBranch($this->other, $receipt->purchaseOrder);
+        $this->assertInBranch($this->other, $receipt);
+        $this->assertEntryInBranch($this->other, $receipt);
+        $this->assertSame(100.0, $this->grniBalance($this->other));
+
+        $bill = $this->billReceipt($receipt);
+
+        $this->assertInBranch($this->other, $bill);
+        $this->assertEntryInBranch($this->other, $bill);
+        $this->assertSame(0.0, $this->grniBalance($this->other));
+        $this->assertSame(0.0, $this->grniBalance($this->main));
+    }
+
+    /** The known limit of saving with nothing chosen: the bill does not follow the receipt. */
+    public function test_with_all_branches_shown_a_bill_still_goes_to_the_main_branch(): void
+    {
+        $this->enterCompany();
+        $this->chooseBranch($this->other->id);
+        $receipt = $this->receivedOrder();
+        $this->chooseBranch(ActiveBranch::ALL);
+
+        $this->assertInMainBranch($this->billReceipt($receipt));
+
+        $this->assertSame(100.0, $this->grniBalance($this->other));
+        $this->assertSame(-100.0, $this->grniBalance($this->main));
+    }
+
+    public function test_an_order_converted_from_a_request_follows_the_chosen_branch(): void
+    {
+        $this->enterCompany();
+        $this->chooseBranch($this->other->id);
+        $this->post(route('purchases.requests.store'), ['request_date' => self::DATE, 'items' => [['item_name' => 'صنف', 'quantity' => 1]]])->assertSessionHasNoErrors();
+        $request = PurchaseRequest::withoutGlobalScope('branch')->latest('id')->first();
+        $this->assertInBranch($this->other, $request);
+        $request->update(['status' => 'approved']);
+
+        $this->post(route('purchases.requests.convert', $request), ['supplier_id' => $this->supplier->id, 'warehouse_id' => $this->warehouse->id])->assertSessionHasNoErrors();
+
+        $this->assertInBranch($this->other, PurchaseOrder::withoutGlobalScope('branch')->latest('id')->first());
+    }
+
+    /** Project costs and subcontract certificates carry no branch: their entries follow the one chosen. */
+    public function test_project_costs_and_subcontracts_post_in_the_chosen_branch(): void
+    {
+        $this->enterCompany();
+        $this->chooseBranch($this->other->id);
+        $this->post(route('projects.store'), ['customer_id' => $this->customer->id, 'name' => 'مشروع', 'boq' => []])->assertSessionHasNoErrors();
+        $project = Project::withoutGlobalScope('branch')->latest('id')->first();
+        $this->assertInBranch($this->other, $project);
+
+        $this->post(route('projects.costs.store', $project), ['date' => self::DATE, 'category' => 'other', 'description' => 'تكلفة', 'amount' => 100, 'paid_from' => 'accrued'])->assertSessionHasNoErrors();
+        $this->assertEntryInBranch($this->other, ProjectCost::latest('id')->first());
+
+        $this->post(route('projects.subcontracts.store', $project), ['supplier_id' => $this->supplier->id, 'scope' => 'أعمال', 'contract_value' => 1000])->assertSessionHasNoErrors();
+        $this->post(route('projects.subcontracts.certify', Subcontract::latest('id')->first()), ['date' => self::DATE, 'cumulative_value' => 500])->assertSessionHasNoErrors();
+        $this->assertEntryInBranch($this->other, SubcontractCertificate::latest('id')->first());
+    }
+
+    public function test_going_back_to_all_branches_saves_in_the_main_branch_again(): void
+    {
+        $this->enterCompany();
+
+        $this->chooseBranch($this->other->id);
+        $this->post(route('sales.quotations.store'), $this->quotation())->assertSessionHasNoErrors();
+        $this->assertInBranch($this->other, Quotation::withoutGlobalScope('branch')->latest('id')->first());
+
+        $this->chooseBranch(ActiveBranch::ALL);
+        $this->post(route('sales.quotations.store'), $this->quotation())->assertSessionHasNoErrors();
+        $this->assertInMainBranch(Quotation::withoutGlobalScope('branch')->latest('id')->first());
+    }
+
+    public function test_a_chosen_branch_that_was_deactivated_no_longer_applies(): void
+    {
+        $this->enterCompany();
+        $this->chooseBranch($this->other->id);
+        $this->other->update(['is_active' => false]);
+
+        $this->post(route('sales.quotations.store'), $this->quotation())->assertSessionHasNoErrors();
+
+        $this->assertInMainBranch(Quotation::withoutGlobalScope('branch')->latest('id')->first());
+        $this->assertNull(app(ActiveBranch::class)->scopeIds());
+    }
+
+    public function test_lists_and_reports_cover_every_branch_until_one_is_chosen(): void
+    {
+        $this->enterCompany();
+        $this->post(route('sales.quotations.store'), $this->quotation())->assertSessionHasNoErrors();
+        $this->post(route('finance.expenses.store'), $this->expense(500))->assertSessionHasNoErrors();
+        $this->chooseBranch($this->other->id);
+        $this->post(route('sales.quotations.store'), $this->quotation())->assertSessionHasNoErrors();
+        $this->post(route('finance.expenses.store'), $this->expense(200))->assertSessionHasNoErrors();
+
+        // A new visit: nothing chosen, with documents in both branches.
+        $this->post(route('super-admin.impersonate.leave'))->assertRedirect(route('super-admin.dashboard'));
+        $this->enterCompany();
+        $this->assertSees(null, 2, 700.0);
+
+        $this->chooseBranch($this->other->id);
+        $this->assertSees([$this->other->id], 1, 200.0);
+
+        $this->chooseBranch($this->main->id);
+        $this->assertSees([$this->main->id], 1, 500.0);
+
+        $this->chooseBranch(ActiveBranch::ALL);
+        $this->assertSees(null, 2, 700.0);
+    }
+
+    public function test_forms_and_tax_follow_the_chosen_branch(): void
+    {
+        $this->other->update(['country_code' => 'AE', 'currency' => 'AED', 'tax_number' => '100123456700003']);
+        $this->enterCompany();
+
+        $this->get(route('sales.quotations.create'))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('tax.country', 'SA')
+            ->where('tax.rate', 15)
+            ->where('defaultBranchId', $this->main->id));
+
+        $this->chooseBranch($this->other->id);
+
+        $this->get(route('sales.quotations.create'))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('tax.country', 'AE')
+            ->where('tax.rate', 5)
+            ->where('defaultBranchId', $this->other->id)
+            ->where('branches.0.id', $this->other->id)
+            ->where('branches.0.tax.rate', 5));
+    }
+
+    public function test_optional_modules_follow_only_a_chosen_branch(): void
+    {
+        $this->other->update(['modules' => []]);
+        $this->enterCompany();
+        $guard = app(PlanGuard::class);
+        $this->assertTrue($guard->branchAllows('clinic'));
+
+        $this->chooseBranch($this->other->id);
+        $this->assertFalse($guard->branchAllows('clinic'));
+
+        $this->chooseBranch(ActiveBranch::ALL);
+        $this->assertTrue($guard->branchAllows('clinic'));
+    }
+
+    public function test_every_visit_starts_on_all_branches(): void
+    {
+        $this->enterCompany();
+        $this->chooseBranch($this->other->id);
+        $this->post(route('super-admin.impersonate.leave'))->assertRedirect(route('super-admin.dashboard'));
+        $this->assertFalse(session()->has(ActiveBranch::SESSION_KEY));
+
+        $this->enterCompany();
+        $this->chooseBranch($this->other->id);
+
+        // The visit runs out instead of being ended.
+        session(['impersonate_expires_at' => now()->subMinute()->timestamp]);
+        $this->get(route('dashboard'));
+        $this->assertFalse(session()->has('impersonate_company_id'));
+        $this->assertFalse(session()->has(ActiveBranch::SESSION_KEY));
+
+        session([ActiveBranch::SESSION_KEY => $this->other->id]);
+        $this->enterCompany();
+        $this->get(route('dashboard'))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('branchSwitcher.active', ActiveBranch::ALL));
+    }
+
+    // ------------------------------------------------------------ the switcher for the company's own staff
+
+    public function test_a_limited_user_keeps_their_own_branch_and_cannot_choose_another(): void
+    {
+        $clerk = $this->userWithRole($this->company, 'sales');
+        $clerk->forceFill(['branch_id' => $this->other->id])->save();
+        $clerk->branches()->sync([$this->other->id]);
+        $this->actingAs($clerk->fresh());
+
+        $this->get(route('sales.quotations.create'))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page
+            ->has('branchSwitcher.items', 1)
+            ->where('branchSwitcher.items.0.id', $this->other->id)
+            ->where('branchSwitcher.active', $this->other->id)
+            ->where('branchSwitcher.can_all', false)
+            ->where('defaultBranchId', $this->other->id));
+
+        $this->post(route('context.update'), ['branch_id' => $this->main->id])->assertSessionHasErrors('context');
+        $this->post(route('context.update'), ['branch_id' => ActiveBranch::ALL])->assertSessionHasErrors('context');
+        $this->assertSame([$this->other->id], app(ActiveBranch::class)->scopeIds());
+
+        $this->post(route('sales.quotations.store'), $this->quotation())->assertSessionHasNoErrors();
+        $this->assertInBranch($this->other, Quotation::withoutGlobalScope('branch')->latest('id')->first());
+
+        $this->post(route('sales.quotations.store'), ['branch_id' => $this->main->id] + $this->quotation())->assertSessionHasErrors(['branch_id' => self::REFUSED]);
+        $this->assertSame(1, Quotation::withoutGlobalScope('branch')->count());
+    }
+
+    public function test_the_owner_starts_on_a_branch_and_must_choose_one_before_saving(): void
+    {
+        $this->actingAs($this->userWithRole($this->company));
+
+        $this->get(route('dashboard'))->assertOk()->assertInertia(fn (AssertableInertia $page) => $page->where('branchSwitcher.active', $this->main->id));
+
+        $this->chooseBranch(ActiveBranch::ALL);
+        $this->post(route('sales.quotations.store'), $this->quotation())->assertSessionHas('error');
+
+        $this->assertSame(0, Quotation::withoutGlobalScope('branch')->count());
     }
 }

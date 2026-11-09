@@ -65,7 +65,7 @@ trait BranchScoped
         }
         $user = auth()->user();
 
-        // A platform admin counts too: ActiveBranch leaves their lists unrestricted, but what they save needs a branch.
+        // A platform admin counts too: ActiveBranch leaves their lists unrestricted until they choose a branch, and what they save needs one.
         return $user instanceof User && ($user->company_id || $user->isSuperAdmin()) ? $user : null;
     }
 
