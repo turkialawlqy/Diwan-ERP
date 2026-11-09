@@ -11,8 +11,9 @@ use Throwable;
 
 /**
  * Passwordless sign-in for portal users: a 6-digit code by e-mail, stored only as a keyed hash,
- * valid for 10 minutes, one use, at most 5 wrong tries, and rate limited per e-mail and IP.
- * Sending never reveals whether the e-mail belongs to a portal user.
+ * valid for 10 minutes, one use, at most 5 wrong tries, rate limited per e-mail and IP, and at
+ * most 15 failed tries per e-mail a day. Neither sending nor the limits reveal whether the e-mail
+ * belongs to a portal user.
  */
 class PortalLoginService
 {
@@ -26,6 +27,12 @@ class PortalLoginService
     public const SEND_PER_IP = 20;
 
     /**
+     * Failed tries an e-mail may make in a day (three codes' worth) before codes stop for it until the next
+     * day. Without it each new code brings five new tries: about 2,160 guesses a day on one account.
+     */
+    public const FAILED_TRIES_PER_DAY = 15;
+
+    /**
      * @return bool false when rate limited (the caller shows a «try later» message; it says nothing about the e-mail)
      */
     public function send(int $companyId, string $email, ?string $ip): bool
@@ -35,7 +42,8 @@ class PortalLoginService
         $ipKey = 'portal-code-ip:'.($ip ?? 'unknown');
 
         // Counted before the lookup, so unknown and known e-mails behave exactly the same.
-        if (RateLimiter::tooManyAttempts($emailKey, self::SEND_PER_EMAIL) || RateLimiter::tooManyAttempts($ipKey, self::SEND_PER_IP)) {
+        if (RateLimiter::tooManyAttempts($emailKey, self::SEND_PER_EMAIL) || RateLimiter::tooManyAttempts($ipKey, self::SEND_PER_IP)
+            || RateLimiter::tooManyAttempts($this->failedKey($companyId, $email), self::FAILED_TRIES_PER_DAY)) {
             return false;
         }
         RateLimiter::hit($emailKey, self::TTL_MINUTES * 60);
@@ -62,6 +70,23 @@ class PortalLoginService
     /** Check a code; on success the code is used up and the user is returned. */
     public function verify(int $companyId, string $email, string $code): ?PortalUser
     {
+        $failed = $this->failedKey($companyId, Str::lower(trim($email)));
+        if (RateLimiter::tooManyAttempts($failed, self::FAILED_TRIES_PER_DAY)) {
+            return null; // too many failed tries today: even the right code waits for tomorrow
+        }
+        $user = $this->check($companyId, $email, $code);
+        if (! $user) {
+            RateLimiter::hit($failed, 86400); // known e-mail or not, a failed try counts the same
+
+            return null;
+        }
+        RateLimiter::clear($failed);
+
+        return $user;
+    }
+
+    protected function check(int $companyId, string $email, string $code): ?PortalUser
+    {
         $user = PortalUser::where('company_id', $companyId)->where('email', Str::lower(trim($email)))->where('status', 'active')->first();
         if (! $user) {
             return null;
@@ -87,6 +112,11 @@ class PortalLoginService
         $user->forceFill(['last_login_at' => now()])->save();
 
         return $user;
+    }
+
+    protected function failedKey(int $companyId, string $email): string
+    {
+        return "portal-code-failed:{$companyId}:{$email}";
     }
 
     protected function hash(PortalUser $user, string $code): string
