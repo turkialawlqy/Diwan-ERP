@@ -59,7 +59,7 @@ class GymCheckinService
                 // deadlocking on the check-in row's key to it), and the second one sees the visit the first took.
                 CustomerPackage::withoutGlobalScope('branch')->whereKey($package->id)->lockForUpdate()->first();
                 $taken = MemberCheckin::withoutGlobalScope('branch')->where('customer_id', $customer->id)->where('allowed', true)->whereNotNull('customer_package_id')
-                    ->whereDate('checked_in_at', today())->latest('id')->first();
+                    ->onDay(today())->latest('id')->first();
                 if ($taken) {
                     $this->log($customer->id, $taken->subscription_id, $taken->customer_package_id, $code, $method, true, 'دخول ثانٍ اليوم (لا يُخصم)', $by);
 
