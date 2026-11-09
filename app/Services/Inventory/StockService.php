@@ -176,6 +176,16 @@ class StockService
     public function transfer(int $productId, int $fromWarehouseId, int $toWarehouseId, float $quantity, array $context = []): float
     {
         return DB::transaction(function () use ($productId, $fromWarehouseId, $toWarehouseId, $quantity, $context) {
+            // No batch chosen: it leaves by earliest expiry like any issue, and each batch arrives under its own number.
+            if (empty($context['batch_id']) && $this->lockProduct($productId)->tracking === 'batch') {
+                $cost = 0.0;
+                foreach ($this->splitByBatch($productId, $fromWarehouseId, $quantity) as [$batch, $part]) {
+                    $cost += $this->transfer($productId, $fromWarehouseId, $toWarehouseId, $part, ['batch_id' => $batch->id] + $context);
+                }
+
+                return round($cost, 2);
+            }
+
             $batch = ! empty($context['batch_id']) ? ProductBatch::find($context['batch_id']) : null;
 
             $cost = $this->issue(array_merge($context, [
@@ -215,7 +225,7 @@ class StockService
             $difference = round($countedQuantity - ($snapshot ?? $current), 4);
 
             if ($difference > 0) {
-                $this->receive(array_merge($context, [
+                $this->receive(array_merge($context, $this->surplusBatch($product, $warehouseId, $context), [
                     'product_id' => $productId, 'warehouse_id' => $warehouseId, 'quantity' => $difference,
                     'unit_cost' => (float) $product->average_cost, 'keep_average' => true,
                 ]));
@@ -231,6 +241,23 @@ class StockService
 
             return 0.0;
         });
+    }
+
+    /**
+     * A count does not say which batch a surplus belongs to. It joins the batch that leaves first (earliest
+     * expiry), so its shelf life is never overstated; with no batch in the warehouse yet, a batch named after the count.
+     */
+    protected function surplusBatch(Product $product, int $warehouseId, array $context): array
+    {
+        if ($product->tracking !== 'batch' || ! empty($context['batch_id']) || ! empty($context['batch_number'])) {
+            return [];
+        }
+        $batch = ProductBatch::where('product_id', $product->id)->where('warehouse_id', $warehouseId)
+            ->orderByRaw('CASE WHEN quantity > 0 THEN 0 ELSE 1 END')
+            ->orderByRaw('CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END')->orderBy('expiry_date')->orderBy('id')
+            ->first();
+
+        return $batch ? ['batch_id' => $batch->id] : ['batch_number' => 'COUNT-'.($context['reference'] ?? now()->format('Ymd'))];
     }
 
     /**
@@ -317,6 +344,33 @@ class StockService
         $batch->save();
 
         return $batch->id;
+    }
+
+    /**
+     * Which batches a quantity leaves from when none is chosen (earliest expiry first): [[batch, quantity], ...].
+     * For callers that have to carry each batch to another warehouse.
+     *
+     * @return list<array{0:ProductBatch,1:float}>
+     */
+    protected function splitByBatch(int $productId, int $warehouseId, float $quantity): array
+    {
+        $product = $this->lockProduct($productId);
+        $parts = [];
+        $remaining = round($quantity, 4);
+        foreach (ProductBatch::where('product_id', $productId)->where('warehouse_id', $warehouseId)->where('quantity', '>', 0)
+            ->orderByRaw('CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END')->orderBy('expiry_date')->orderBy('id')->lockForUpdate()->get() as $batch) {
+            if ($remaining <= 0) {
+                break;
+            }
+            $take = min($remaining, (float) $batch->quantity);
+            $parts[] = [$batch, $take];
+            $remaining = round($remaining - $take, 4);
+        }
+        if ($remaining > 0) {
+            throw ValidationException::withMessages(['items' => "كميات التشغيلات المتاحة من «{$product->name_ar}» غير كافية."]);
+        }
+
+        return $parts;
     }
 
     protected function allocateBatches(Product $product, array $data, float $quantity): array
