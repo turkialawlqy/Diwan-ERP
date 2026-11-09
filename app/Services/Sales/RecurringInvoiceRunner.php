@@ -4,10 +4,12 @@ namespace App\Services\Sales;
 
 use App\Models\Company;
 use App\Models\Customer;
+use App\Models\CustomerSubscription;
 use App\Models\RecurringInvoice;
 use App\Models\RecurringInvoiceRun;
 use App\Services\Accounting\FiscalCalendar;
 use App\Services\Documents\DocumentSharing;
+use App\Services\Subscriptions\SubscriptionService;
 use App\Services\TenantManager;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -49,9 +51,24 @@ class RecurringInvoiceRunner
     {
         $today ??= now();
         $count = 0;
+        $subscription = CustomerSubscription::withoutGlobalScope('branch')->where('recurring_invoice_id', $template->id)->first();
 
         while ($template->status === 'active' && $template->next_run_date->lte($today) && ! $template->isFinished()) {
             $period = $template->next_run_date->copy();
+
+            // A subscription's renewal follows the subscription: one set to end ends here instead of being billed
+            // another period, and a plan change waiting for the renewal applies first, whether or not the
+            // subscriptions run (erp:subscriptions) came before this one tonight.
+            try {
+                if ($subscription && ! $this->renews($subscription, $template)) {
+                    break;
+                }
+            } catch (Throwable $e) {
+                $template->update(['last_error' => mb_substr($e->getMessage(), 0, 1000)]);
+                report($e);
+
+                return $count;
+            }
 
             try {
                 $invoice = DB::transaction(function () use ($template, $period) {
@@ -104,5 +121,17 @@ class RecurringInvoiceRunner
         }
 
         return $count;
+    }
+
+    /** Bring the template's subscription to this renewal; false when it ended there (or is no longer live). */
+    protected function renews(CustomerSubscription $subscription, RecurringInvoice $template): bool
+    {
+        $subscription->refresh()->setRelation('recurring', $template);
+        if (! $subscription->isLive()) {
+            return false;
+        }
+        app(SubscriptionService::class)->atRenewal($subscription);
+
+        return $template->status === 'active';
     }
 }

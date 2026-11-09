@@ -96,7 +96,8 @@ class PostingService
             $totalDebit = round(array_sum(array_column($lines, 'debit')), 2);
             $source = $data['source'] ?? null;
             $noBranch = ! empty($data['no_branch']) && ! isset($data['branch_id']);
-            $branchId = $noBranch ? null : ($data['branch_id'] ?? $this->branchOf($source));
+            // The entry's branch: given, else its source document's, else the one chosen in the top bar.
+            $branchId = $noBranch ? null : ($data['branch_id'] ?? $this->branchOf($source) ?? app(ActiveBranch::class)->forWrite());
 
             // A branch closed for the year (its closing entry exists) takes no more postings in that year,
             // even while the year itself and its periods are still open for the other branches.
@@ -108,8 +109,7 @@ class PostingService
 
             $attributes = [
                 'company_id' => $companyId,
-                // The entry's branch: given, else its source document's, else the one chosen in the top bar.
-                'branch_id' => $noBranch ? null : ($branchId ?? app(ActiveBranch::class)->forWrite()),
+                'branch_id' => $branchId,
                 'entry_number' => $this->numbers->next('journal_entry', $date, $companyId),
                 'date' => $date->toDateString(),
                 'reference' => $data['reference'] ?? null,
