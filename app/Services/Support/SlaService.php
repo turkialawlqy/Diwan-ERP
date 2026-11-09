@@ -11,6 +11,7 @@ use App\Notifications\ErpAlert;
 use App\Notifications\PortalTicketReply;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\TenantManager;
+use App\Support\NightlyRun;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
@@ -88,7 +89,7 @@ class SlaService
             }
 
             if ($type === 'public') {
-                $this->tellCustomer($ticket);
+                DB::afterCommit(fn () => $this->tellCustomer($ticket)); // the mail goes once the reply is saved
             }
 
             return $message;
@@ -148,7 +149,10 @@ class SlaService
         $ticket->save();
     }
 
-    /** A new priority moves the deadlines that are still running (counted from the ticket's creation). */
+    /**
+     * A new priority moves the deadlines that are still running: counted from the ticket's creation, plus
+     * the time it already waited for the customer (a wait still running is added when the customer answers).
+     */
     public function setPriority(Ticket $ticket, string $priority): void
     {
         if ($priority === $ticket->priority) {
@@ -160,7 +164,7 @@ class SlaService
             $ticket->first_response_due_at = $ticket->created_at->copy()->addMinutes($sla['first_response_minutes']);
         }
         if ($ticket->isActive()) {
-            $ticket->resolution_due_at = $ticket->created_at->copy()->addMinutes($sla['resolution_minutes']);
+            $ticket->resolution_due_at = $ticket->created_at->copy()->addMinutes($sla['resolution_minutes'])->addSeconds((int) $ticket->sla_paused_seconds);
         }
         $ticket->save();
     }
@@ -174,11 +178,12 @@ class SlaService
     {
         $now ??= now();
         $flagged = 0;
+        $failures = []; // a ticket that fails is reported and the run goes on
 
         Ticket::whereIn('status', ['open', 'pending'])->where(function ($q) use ($now) {
             $q->where(fn ($w) => $w->whereNull('first_response_at')->where('response_breached', false)->where('first_response_due_at', '<', $now))
                 ->orWhere(fn ($w) => $w->where('status', 'open')->where('resolution_breached', false)->where('resolution_due_at', '<', $now)); // waiting for the customer: clock stopped
-        })->with(['customer:id,name', 'assignee:id'])->lazyById(200)->each(function (Ticket $t) use ($now, &$flagged) {
+        })->with(['customer:id,name', 'assignee:id'])->lazyById(200)->each(NightlyRun::step(function (Ticket $t) use ($now, &$flagged) {
             $kinds = [];
             if (! $t->first_response_at && ! $t->response_breached && $t->first_response_due_at && $t->first_response_due_at->lt($now)) {
                 $t->response_breached = true;
@@ -197,7 +202,7 @@ class SlaService
             $title = 'تجاوز مهلة '.implode(' و', $kinds).': '.$t->number;
             $body = $t->subject.($t->customer ? ' — '.$t->customer->name : '');
             $this->alertTeam($t, 'ticket_sla_breach', $title, $body, 'danger');
-        });
+        }, $failures));
 
         return $flagged;
     }
@@ -211,8 +216,12 @@ class SlaService
     /** Back with the team: the deadline moves on by the time it waited. */
     protected function resume(Ticket $ticket): void
     {
-        if ($ticket->sla_paused_at && $ticket->resolution_due_at && ! $ticket->resolution_breached) {
-            $ticket->resolution_due_at = $ticket->resolution_due_at->copy()->addSeconds((int) $ticket->sla_paused_at->diffInSeconds(now()));
+        if ($ticket->sla_paused_at) {
+            $waited = (int) $ticket->sla_paused_at->diffInSeconds(now());
+            $ticket->sla_paused_seconds = (int) $ticket->sla_paused_seconds + $waited; // kept for a later change of priority
+            if ($ticket->resolution_due_at && ! $ticket->resolution_breached) {
+                $ticket->resolution_due_at = $ticket->resolution_due_at->copy()->addSeconds($waited);
+            }
         }
         $ticket->sla_paused_at = null;
     }

@@ -80,7 +80,8 @@ trait BranchScoped
         }
         $user = auth()->user();
 
-        return $user instanceof User && $user->company_id ? $user : null;
+        // A platform admin counts too: ActiveBranch leaves their lists unrestricted until they choose a branch, and what they save needs one.
+        return $user instanceof User && ($user->company_id || $user->isSuperAdmin()) ? $user : null;
     }
 
     /**

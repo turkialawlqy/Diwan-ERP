@@ -13,6 +13,7 @@ use App\Notifications\ErpAlert;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\RecurringInvoiceRunner;
+use App\Support\NightlyRun;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -279,9 +280,10 @@ class SubscriptionService
     public function nightly(?Carbon $today = null): array
     {
         $today = ($today ?? now())->copy()->startOfDay();
-        $done = ['trial_ended' => 0, 'plan_changed' => 0, 'ended' => 0, 'past_due' => 0, 'recovered' => 0, 'reminders' => 0];
+        $done = ['trial_ended' => 0, 'plan_changed' => 0, 'ended' => 0, 'past_due' => 0, 'recovered' => 0, 'reminders' => 0, 'failed' => 0];
 
-        CustomerSubscription::with(['recurring', 'plan', 'customer:id,name'])->whereIn('status', ['trial', 'active', 'past_due'])->lazyById(200)->each(function ($s) use ($today, &$done) {
+        // Each subscription on its own: one that fails is reported and counted, the others still run.
+        CustomerSubscription::with(['recurring', 'plan', 'customer:id,name'])->whereIn('status', ['trial', 'active', 'past_due'])->lazyById(200)->each(NightlyRun::step(function ($s) use ($today, &$done) {
             $renews = $s->recurring?->next_run_date;
 
             if ($s->status === 'trial' && $s->trial_ends_at && $s->trial_ends_at->lte($today)) {
@@ -289,25 +291,46 @@ class SubscriptionService
                 $done['trial_ended']++;
             }
 
-            // The first renewal after a trial is the first paid period, not an «end» (unless cancelled).
-            $firstPaid = $s->recurring && (int) $s->recurring->generated_count === 0 && ! $s->cancel_at_period_end;
-            if ($renews && $renews->lte($today) && ! $firstPaid) {
-                if ($s->cancel_at_period_end || ! $s->auto_renew) {
-                    $this->end($s, $s->cancel_at_period_end ? 'cancelled' : 'expired', $s->cancel_reason);
+            if ($renews && $renews->lte($today)) {
+                $change = $this->atRenewal($s);
+                if ($change === 'ended') {
                     $done['ended']++;
 
                     return;
                 }
-                if ($this->applyPending($s)) {
+                if ($change === 'plan_changed') {
                     $done['plan_changed']++;
                 }
             }
 
             $done['past_due'] += $this->syncPastDue($s, $today, $done);
             $done['reminders'] += $this->remind($s->fresh(['recurring', 'plan', 'customer:id,name']), $today);
-        });
+        }, $done));
 
         return $done;
+    }
+
+    /**
+     * A renewal is due: a subscription set to end there ends, and a plan change waiting for it applies.
+     * The nightly run does it, and so does the invoice run when it reaches the renewal first, so the
+     * order of the two commands does not matter. The first renewal after a trial is the first paid
+     * period, not an «end» (unless cancelled).
+     *
+     * @return string|null «ended», «plan_changed», or null when it renews as it is
+     */
+    public function atRenewal(CustomerSubscription $s): ?string
+    {
+        $firstPaid = $s->recurring && (int) $s->recurring->generated_count === 0 && ! $s->cancel_at_period_end;
+        if ($firstPaid) {
+            return null;
+        }
+        if ($s->cancel_at_period_end || ! $s->auto_renew) {
+            $this->end($s, $s->cancel_at_period_end ? 'cancelled' : 'expired', $s->cancel_reason);
+
+            return 'ended';
+        }
+
+        return $this->applyPending($s) ? 'plan_changed' : null;
     }
 
     // ------------------------------------------------------------------

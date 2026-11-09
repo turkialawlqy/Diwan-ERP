@@ -6,6 +6,7 @@ use App\Http\Controllers\FileController;
 use App\Models\Company;
 use App\Models\Contract;
 use App\Models\Customer;
+use App\Models\CustomerPackage;
 use App\Models\CustomerSubscription;
 use App\Models\CustomerVehicle;
 use App\Models\Invoice;
@@ -181,6 +182,28 @@ class SectorModulesTest extends TestCase
         Carbon::setTestNow('2026-06-17 09:00:00');
         $this->assertFalse($gym->scan('C-00001')['allowed']); // nothing left
         $this->assertSame(2, $pack->usages()->count());
+    }
+
+    public function test_a_scan_that_loses_the_race_for_the_package_uses_no_second_visit(): void
+    {
+        $template = VisitPackage::create(['name' => '12 حصة', 'visits' => 10, 'price' => 0, 'tax_rate' => 0, 'is_active' => true]);
+        $pack = app(PackageService::class)->sell($template, $this->customer->id);
+
+        // Another reception screen finishes the same card's check-in after this scan has looked and before it locks the package.
+        $finished = false;
+        CustomerPackage::retrieved(function (CustomerPackage $p) use (&$finished) {
+            if (! $finished) {
+                $finished = true;
+                MemberCheckin::create(['customer_id' => $p->customer_id, 'customer_package_id' => $p->id, 'code_entered' => 'C-00001', 'method' => 'scan', 'allowed' => true, 'checked_in_at' => now()]);
+                CustomerPackage::whereKey($p->id)->increment('visits_used');
+            }
+        });
+
+        $this->assertTrue(app(GymCheckinService::class)->scan('C-00001')['allowed']);
+
+        $this->assertTrue($finished);
+        $this->assertSame(1, (int) $pack->fresh()->visits_used);
+        $this->assertDatabaseHas('member_checkins', ['customer_id' => $this->customer->id, 'reason' => 'دخول ثانٍ اليوم (لا يُخصم)']);
     }
 
     public function test_the_checkin_endpoint_answers_json_and_respects_the_permission(): void

@@ -243,6 +243,14 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('payment-webhook', fn (Request $request) => Limit::perMinute(60)->by($request->ip()));
 
+        // Customer portal writes (tickets, replies, ratings, bookings, acceptances, change requests), per portal
+        // account: one account, taken over or abusive, cannot flood the team with tickets and their alerts.
+        RateLimiter::for('portal-writes', function (Request $request) {
+            $key = 'portal:'.($request->user('portal')?->id ?? $request->ip());
+
+            return [Limit::perMinute(10)->by($key), Limit::perHour(60)->by($key.':hour')];
+        });
+
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(120)->by($request->user()?->id ?? $request->ip());
         });

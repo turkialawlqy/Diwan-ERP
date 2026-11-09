@@ -19,7 +19,7 @@ class Ticket extends Model
         'rating', 'rating_comment', 'subscription_id', 'invoice_id', 'project_id', 'equipment_id', 'created_by', 'portal_user_id'];
 
     protected $casts = ['sla_paused_at' => 'datetime', 'first_response_due_at' => 'datetime', 'resolution_due_at' => 'datetime', 'first_response_at' => 'datetime', 'resolved_at' => 'datetime', 'closed_at' => 'datetime',
-        'response_breached' => 'boolean', 'resolution_breached' => 'boolean'];
+        'response_breached' => 'boolean', 'resolution_breached' => 'boolean', 'sla_paused_seconds' => 'integer'];
 
     public const STATUSES = ['open' => 'مفتوحة', 'pending' => 'بانتظار العميل', 'resolved' => 'محلولة', 'closed' => 'مغلقة'];
 

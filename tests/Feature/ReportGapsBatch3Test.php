@@ -6,6 +6,7 @@ use App\Models\Account;
 use App\Models\ApprovalRequest;
 use App\Models\AssetCategory;
 use App\Models\BankAccount;
+use App\Models\Branch;
 use App\Models\Budget;
 use App\Models\BudgetLine;
 use App\Models\CashForecastSnapshot;
@@ -220,6 +221,11 @@ class ReportGapsBatch3Test extends TestCase
 
         $this->get(route('accounting.budgets.show', [$budget->id, 'dimension' => 'cost_center', 'dimension_id' => $cc->id]))->assertOk()
             ->assertInertia(fn ($p) => $p->component('Accounting/Budgets/Show')->where('scope.dimension', 'cost_center')->where('rows', fn ($rows) => collect($rows)->firstWhere('id', $expense->id)['planned'][202606] == 90));
+
+        // The branch list reads the columns the table has: a missing one answers 500 on MySQL and a blank name on SQLite.
+        $branch = Branch::create(['company_id' => $this->company->id, 'name_ar' => 'فرع الموازنة', 'code' => 'BR-BUD', 'is_active' => true]);
+        $this->get(route('accounting.budgets.show', $budget->id))->assertOk()
+            ->assertInertia(fn ($p) => $p->where('dimensionOptions.branch', fn ($options) => collect($options)->firstWhere('id', $branch->id)['label'] === 'فرع الموازنة'));
     }
 
     public function test_budget_dimensions_report_compares_planned_with_the_ledger_per_dimension(): void
@@ -240,6 +246,29 @@ class ReportGapsBatch3Test extends TestCase
         $this->get(route('accounting.controls.show', ['report' => 'budget-dimensions', 'dimension' => 'cost_center', 'start_date' => '2026-01-01', 'end_date' => '2026-12-31']))->assertOk()
             ->assertInertia(fn ($p) => $p->where('table.rows.0.variance', 60)->where('filters.dimension', 'cost_center'));
         $this->get(route('reports.export', ['report' => 'budget-dimensions', 'format' => 'xlsx', 'dimension' => 'cost_center', 'start_date' => '2026-01-01', 'end_date' => '2026-12-31']))->assertOk();
+    }
+
+    public function test_budget_dimensions_report_names_each_branch_in_the_active_language(): void
+    {
+        $map = app(AccountMap::class);
+        $expense = Account::create(['code' => '59204', 'name_ar' => 'صيانة', 'type' => 'expense', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true, 'is_system' => false]);
+        $branch = Branch::create(['company_id' => $this->company->id, 'name_ar' => 'فرع جدة', 'name_en' => 'Jeddah', 'code' => 'BR-JED', 'is_active' => true]);
+        $budget = $this->budget();
+        BudgetLine::create(['budget_id' => $budget->id, 'account_id' => $expense->id, 'period' => 202606, 'amount' => 200, 'branch_id' => $branch->id]);
+        app(PostingService::class)->post(['date' => '2026-06-08', 'description' => 'صيانة', 'entry_type' => 'manual', 'reference' => 'T2', 'branch_id' => $branch->id, 'lines' => [
+            ['account_id' => $expense->id, 'debit' => 260], ['account_id' => $map->id('default_cash'), 'credit' => 260],
+        ]]);
+
+        // "name" is an accessor on Branch, not a column: asking the database for it answers 500 on MySQL and on SQLite alike.
+        $rows = app(AccountingControls::class)->budgetByDimension($budget, 'branch', 202601, 202612);
+        $this->assertCount(1, $rows);
+        $this->assertEquals(['فرع جدة', 200.0, 260.0, 60.0, 130.0], [$rows[0]['dimension'], $rows[0]['planned'], $rows[0]['actual'], $rows[0]['variance'], $rows[0]['pct']]);
+
+        $this->get(route('accounting.controls.show', ['report' => 'budget-dimensions', 'dimension' => 'branch', 'start_date' => '2026-01-01', 'end_date' => '2026-12-31']))->assertOk()
+            ->assertInertia(fn ($p) => $p->where('table.rows.0.dimension', 'فرع جدة')->where('filters.dimension', 'branch'));
+
+        app()->setLocale('en');
+        $this->assertSame('Jeddah', app(AccountingControls::class)->budgetByDimension($budget, 'branch', 202601, 202612)[0]['dimension']);
     }
 
     public function test_cash_forecast_snapshot_is_compared_with_the_cash_that_really_moved(): void
