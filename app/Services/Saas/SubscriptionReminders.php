@@ -5,12 +5,12 @@ namespace App\Services\Saas;
 use App\Models\Company;
 use App\Models\User;
 use App\Notifications\ErpAlert;
-use Illuminate\Support\Facades\Cache;
+use App\Support\SendOnce;
 
 /**
  * Emails the company owners before the trial or subscription ends (7, 3
  * and 0 days), during the grace period and once it has expired. Each step
- * is sent once per end date.
+ * reaches each owner once per end date.
  */
 class SubscriptionReminders
 {
@@ -42,16 +42,15 @@ class SubscriptionReminders
             return 0;
         }
 
-        $key = "subscription-reminder:{$company->id}:{$step}:{$ends->toDateString()}";
-        if (! Cache::add($key, true, now()->addDays(60))) {
-            return 0; // already sent
-        }
-
+        $sent = 0;
         $owners = User::where('company_id', $company->id)->where('status', 'active')->get()->filter(fn (User $u) => $u->isCompanyOwner());
         foreach ($owners as $owner) {
-            $owner->notify(new ErpAlert('subscription_'.$step, $title, $body, route('billing.index', [], false), $level));
+            $key = "subscription-reminder:{$company->id}:{$step}:{$ends->toDateString()}:{$owner->id}";
+            if (SendOnce::attempt($key, now()->addDays(60), fn () => $owner->notify(new ErpAlert('subscription_'.$step, $title, $body, route('billing.index', [], false), $level)))) {
+                $sent++;
+            }
         }
 
-        return $owners->count();
+        return $sent;
     }
 }
