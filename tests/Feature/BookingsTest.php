@@ -27,8 +27,10 @@ use App\Services\Bookings\PackageService;
 use App\Services\Documents\TemplateData;
 use App\Services\TenantManager;
 use App\Support\BranchScopeSwitch;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -354,6 +356,72 @@ class BookingsTest extends TestCase
         $this->assertEquals(-30.0, (float) $this->customer->fresh()->current_balance); // the forfeited 20 is income now
         $other = Account::find(app(AccountMap::class)->id('other_revenue'));
         $this->assertEquals(20.0, abs(round((float) $other->balance, 2)));
+    }
+
+    public function test_a_cancellation_before_the_free_window_never_forfeits_the_deposit(): void
+    {
+        $this->company->setSetting('bookings_deposit_on_cancel', 'forfeit', 'bookings', 'string');
+
+        // The portal only cancels before the window, so its cancellations always keep the deposit.
+        $portal = $this->book('2026-06-17 10:00', ['deposit_amount' => 30]);
+        app(BookingService::class)->cancel($portal->fresh(), 'تغيّر موعدي', true);
+        $this->assertSame('credited', $portal->fresh()->deposit_status);
+
+        $staff = $this->book('2026-06-17 13:00', ['deposit_amount' => 20]);
+        app(BookingService::class)->cancel($staff->fresh(), 'ظرف');
+        $this->assertSame('credited', $staff->fresh()->deposit_status);
+        $this->assertEquals(-50.0, (float) $this->customer->fresh()->current_balance); // both still the customer's
+    }
+
+    public function test_a_late_cancellation_forfeits_when_set_unless_staff_decide_otherwise(): void
+    {
+        $this->company->setSetting('bookings_deposit_on_cancel', 'forfeit', 'bookings', 'string');
+        // Now is 2026-06-15 08:00: today's bookings are inside the 24-hour free-cancellation window.
+        $late = $this->book('2026-06-15 10:00', ['deposit_amount' => 20]);
+        app(BookingService::class)->cancel($late->fresh(), 'تأخر');
+        $this->assertSame('forfeited', $late->fresh()->deposit_status);
+
+        $kept = $this->book('2026-06-15 14:00', ['deposit_amount' => 25]);
+        app(BookingService::class)->cancel($kept->fresh(), 'ظرف من المنشأة', false, 'credit');
+        $this->assertSame('credited', $kept->fresh()->deposit_status);
+
+        $chosen = $this->book('2026-06-18 10:00', ['deposit_amount' => 15]);
+        app(BookingService::class)->cancel($chosen->fresh(), null, false, 'forfeit');
+        $this->assertSame('forfeited', $chosen->fresh()->deposit_status);
+        $this->assertEqualsWithDelta((float) JournalEntryLine::sum('debit'), (float) JournalEntryLine::sum('credit'), 0.001);
+    }
+
+    public function test_the_confirmation_mail_waits_until_the_booking_is_saved(): void
+    {
+        Notification::fake();
+        try {
+            DB::transaction(function () {
+                $this->book('2026-06-16 10:00');
+                throw new \RuntimeException('rolled back after the booking');
+            });
+        } catch (\RuntimeException) {
+        }
+        Notification::assertNothingSent(); // a booking that was never saved is never confirmed
+
+        $this->book('2026-06-16 10:00');
+        Notification::assertSentOnDemand(BookingMessage::class);
+        $this->assertInstanceOf(ShouldQueue::class, new BookingMessage('تأكيد', []));
+    }
+
+    public function test_the_cancel_dialog_offers_the_deposit_choice_with_its_default(): void
+    {
+        $this->company->setSetting('bookings_deposit_on_cancel', 'forfeit', 'bookings', 'string');
+        $late = $this->book('2026-06-15 10:00', ['deposit_amount' => 20]);
+        $early = $this->book('2026-06-18 10:00', ['deposit_amount' => 20]);
+        $plain = $this->book('2026-06-18 13:00');
+
+        $this->get(route('bookings.show', $late->id))->assertInertia(fn ($p) => $p->where('depositOnCancel.late', true)->where('depositOnCancel.default', 'forfeit'));
+        $this->get(route('bookings.show', $early->id))->assertInertia(fn ($p) => $p->where('depositOnCancel.late', false)->where('depositOnCancel.default', 'credit'));
+        $this->get(route('bookings.show', $plain->id))->assertInertia(fn ($p) => $p->where('depositOnCancel', null));
+
+        $this->post(route('bookings.cancel', $late->id), ['reason' => 'ظرف', 'deposit' => 'credit'])->assertSessionHasNoErrors();
+        $this->assertSame('credited', $late->fresh()->deposit_status);
+        $this->post(route('bookings.cancel', $early->id), ['deposit' => 'keep'])->assertSessionHasErrors('deposit');
     }
 
     public function test_a_shared_resource_is_one_calendar_for_every_branch(): void

@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Notifications\ErpAlert;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Workflow\ApprovalService;
+use App\Support\NightlyRun;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -188,14 +189,14 @@ class ContractService
     public function nightly(?Carbon $today = null): array
     {
         $today = ($today ?? now())->copy()->startOfDay();
-        $done = ['activated' => 0, 'renewed' => 0, 'expired' => 0, 'reminders' => 0];
+        $done = ['activated' => 0, 'renewed' => 0, 'expired' => 0, 'reminders' => 0, 'failed' => 0];
 
-        Contract::where('status', 'approved')->whereDate('start_date', '<=', $today)->lazyById(200)->each(function (Contract $c) use (&$done) {
+        Contract::where('status', 'approved')->whereDate('start_date', '<=', $today)->lazyById(200)->each(NightlyRun::step(function (Contract $c) use (&$done) {
             $this->activate($c);
             $done['activated']++;
-        });
+        }, $done));
 
-        Contract::where('status', 'active')->whereNotNull('end_date')->whereDate('end_date', '<', $today)->lazyById(200)->each(function (Contract $c) use (&$done) {
+        Contract::where('status', 'active')->whereNotNull('end_date')->whereDate('end_date', '<', $today)->lazyById(200)->each(NightlyRun::step(function (Contract $c) use (&$done) {
             if (Contract::where('parent_contract_id', $c->id)->whereNotIn('status', ['rejected', 'terminated'])->exists()) {
                 $c->update(['status' => 'renewed']); // renewed ahead of time: the new contract takes over
 
@@ -210,9 +211,9 @@ class ContractService
                 $this->notify($c, 'contract_expired', 'انتهى العقد '.$c->number, "انتهى العقد {$c->number} ({$c->title}) في ".$c->end_date->toDateString().'.', 'warning');
                 $done['expired']++;
             }
-        });
+        }, $done));
 
-        Contract::with('customer:id,name', 'supplier:id,name')->where('status', 'active')->whereNotNull('end_date')->each(function (Contract $c) use ($today, &$done) {
+        Contract::with('customer:id,name', 'supplier:id,name')->where('status', 'active')->whereNotNull('end_date')->each(NightlyRun::step(function (Contract $c) use ($today, &$done) {
             $days = (int) $today->diffInDays($c->end_date, false);
             $steps = array_unique([(int) $c->renewal_notice_days, 7, 0]);
             $key = $c->end_date->toDateString().':d'.$days;
@@ -222,9 +223,9 @@ class ContractService
                 $c->update(['reminder_state' => $key]);
                 $done['reminders']++;
             }
-        });
+        }, $done));
 
-        ContractObligation::with('contract:id,number,title,status')->where('status', 'pending')->whereHas('contract', fn ($q) => $q->whereIn('status', ['active', 'approved']))->each(function (ContractObligation $o) use ($today, &$done) {
+        ContractObligation::with('contract:id,number,title,status')->where('status', 'pending')->whereHas('contract', fn ($q) => $q->whereIn('status', ['active', 'approved']))->each(NightlyRun::step(function (ContractObligation $o) use ($today, &$done) {
             $days = (int) $today->diffInDays($o->due_date, false);
             $step = $days < 0 ? 'late' : ($days === 0 ? 'd0' : ($days <= 3 ? 'd3' : null));
             if ($step && $o->reminder_state !== $step) {
@@ -233,7 +234,7 @@ class ContractService
                 $o->update(['reminder_state' => $step]);
                 $done['reminders']++;
             }
-        });
+        }, $done));
 
         return $done;
     }
