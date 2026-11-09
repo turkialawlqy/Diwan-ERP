@@ -105,12 +105,15 @@ class BookingService
                 app(BookingDeposits::class)->receive($booking, $deposit, $data['deposit_method'] ?? 'cash', isset($data['deposit_bank_account_id']) ? (int) $data['deposit_bank_account_id'] : null);
             }
 
-            if ($source === 'portal') {
-                $this->alertStaff($booking, 'booking_new', 'حجز جديد من البوابة', "{$booking->number} — {$customer->name} — {$service->name} ".$start->format('Y-m-d H:i'), 'info');
-            }
-            if ($confirmed) {
-                $this->tellCustomer($booking, 'تأكيد حجزك '.$booking->number);
-            }
+            // Once the booking is saved: never while the resource row is locked, nor for a booking that rolled back.
+            DB::afterCommit(function () use ($booking, $source, $confirmed, $customer, $service, $start) {
+                if ($source === 'portal') {
+                    $this->alertStaff($booking, 'booking_new', 'حجز جديد من البوابة', "{$booking->number} — {$customer->name} — {$service->name} ".$start->format('Y-m-d H:i'), 'info');
+                }
+                if ($confirmed) {
+                    $this->tellCustomer($booking, 'تأكيد حجزك '.$booking->number);
+                }
+            });
 
             return $booking;
         });
@@ -135,7 +138,7 @@ class BookingService
             }
 
             $booking->update(['booking_resource_id' => $resource->id, 'starts_at' => $start, 'ends_at' => $start->copy()->addMinutes($service->duration_minutes), 'reminder_state' => null]);
-            $this->tellCustomer($booking, 'تم تعديل موعد حجزك '.$booking->number);
+            DB::afterCommit(fn () => $this->tellCustomer($booking, 'تم تعديل موعد حجزك '.$booking->number));
 
             return $booking;
         });
@@ -152,21 +155,24 @@ class BookingService
         return $booking;
     }
 
-    /** Staff cancel any open booking; a portal customer only before the service's free-cancellation window closes. */
-    public function cancel(Booking $booking, ?string $reason = null, bool $byCustomer = false): Booking
+    /**
+     * Staff cancel any open booking; a portal customer only before the service's free-cancellation window closes.
+     * The deposit stays the customer's credit, unless the cancellation is late (inside that window) and
+     * «إعدادات الحجوزات» forfeit deposits; staff may decide it themselves ($deposit: credit | forfeit).
+     */
+    public function cancel(Booking $booking, ?string $reason = null, bool $byCustomer = false, ?string $deposit = null): Booking
     {
         $this->assertOpen($booking);
-        if ($byCustomer) {
-            $limit = $booking->starts_at->copy()->subHours((int) $booking->service->free_cancel_hours);
-            if (BookingClock::now($booking->branch_id)->gt($limit)) {
-                throw ValidationException::withMessages(['status' => "لا يمكن إلغاء الحجز قبل أقل من {$booking->service->free_cancel_hours} ساعة من موعده، تواصل معنا."]);
-            }
+        $late = $this->isLateCancel($booking);
+        if ($byCustomer && $late) {
+            throw ValidationException::withMessages(['status' => "لا يمكن إلغاء الحجز قبل أقل من {$booking->service->free_cancel_hours} ساعة من موعده، تواصل معنا."]);
         }
-        DB::transaction(function () use (&$booking, $reason) {
+        $forfeit = (! $byCustomer && $deposit !== null) ? $deposit === 'forfeit' : ($late && $this->forfeitsDeposits());
+        DB::transaction(function () use (&$booking, $reason, $forfeit) {
             $booking = Booking::whereKey($booking->id)->lockForUpdate()->firstOrFail();
             $this->assertOpen($booking); // not completed meanwhile
             $booking->update(['status' => 'cancelled', 'cancel_reason' => $reason, 'cancelled_at' => now()]);
-            app(BookingDeposits::class)->release($booking);
+            app(BookingDeposits::class)->release($booking, $forfeit);
         });
         $this->tellCustomer($booking, 'تم إلغاء حجزك '.$booking->number, $reason ? ["السبب: {$reason}"] : []);
         if ($byCustomer) {
@@ -183,10 +189,24 @@ class BookingService
             $booking = Booking::whereKey($booking->id)->lockForUpdate()->firstOrFail();
             $this->assertOpen($booking);
             $booking->update(['status' => 'no_show']);
-            app(BookingDeposits::class)->release($booking);
+            app(BookingDeposits::class)->release($booking, $this->forfeitsDeposits());
         });
 
         return $booking;
+    }
+
+    /** Is it now too late to cancel for free (inside the service's free-cancellation window, by the branch's clock)? */
+    public function isLateCancel(Booking $booking): bool
+    {
+        $limit = $booking->starts_at->copy()->subHours((int) $booking->service->free_cancel_hours);
+
+        return BookingClock::now($booking->branch_id)->gt($limit);
+    }
+
+    /** «إعدادات الحجوزات»: a no-show's or a late cancellation's deposit is taken as income. */
+    public function forfeitsDeposits(): bool
+    {
+        return $this->settings->all()['deposit_on_cancel'] === 'forfeit';
     }
 
     /**

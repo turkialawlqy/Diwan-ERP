@@ -121,11 +121,15 @@ class BookingController extends Controller
                 ->map(fn ($p) => ['id' => $p->id, 'number' => $p->number, 'name' => $p->name, 'remaining' => $p->remaining()])->values()
             : collect();
 
+        // A held deposit: what cancelling now would do with it by default (staff may choose otherwise).
+        $late = $booking->isOpen() && $booking->deposit_status === 'held' ? $this->bookings->isLateCancel($booking) : null;
+
         return Inertia::render('Bookings/Show', [
             'booking' => $booking,
             'coveringPackages' => $covering,
             'net' => round((float) $booking->price - (float) $booking->member_discount, 2),
             'statuses' => Booking::STATUSES,
+            'depositOnCancel' => $late === null ? null : ['late' => $late, 'default' => $late && $this->bookings->forfeitsDeposits() ? 'forfeit' : 'credit'],
         ]);
     }
 
@@ -146,8 +150,8 @@ class BookingController extends Controller
 
     public function cancel(Request $request, Booking $booking)
     {
-        $data = $request->validate(['reason' => 'nullable|string|max:255']);
-        $this->bookings->cancel($booking, $data['reason'] ?? null);
+        $data = $request->validate(['reason' => 'nullable|string|max:255', 'deposit' => 'nullable|in:credit,forfeit']);
+        $this->bookings->cancel($booking, $data['reason'] ?? null, false, $data['deposit'] ?? null);
 
         return back()->with('success', 'تم إلغاء الحجز');
     }

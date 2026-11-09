@@ -2,12 +2,21 @@
 
 namespace App\Notifications;
 
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-/** Tells a customer's contact that a portal account was opened for him. */
-class PortalInvitation extends Notification
+/** Tells a customer's contact that a portal account was opened for him; sent by the queue once the account is saved. */
+class PortalInvitation extends Notification implements ShouldQueue
 {
+    use Queueable;
+
+    public function __construct()
+    {
+        $this->afterCommit();
+    }
+
     public function via(object $notifiable): array
     {
         return ['mail'];
