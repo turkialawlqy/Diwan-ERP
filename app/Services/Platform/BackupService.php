@@ -381,7 +381,9 @@ class BackupService
 
     protected function rowCounts(): array
     {
-        return collect(Schema::getTableListing(schemaQualified: false))
+        // Without a schema, MySQL lists every database this user can see, and a
+        // table that exists only in another one would fail the whole backup.
+        return collect(Schema::getTableListing(Schema::getCurrentSchemaListing(), schemaQualified: false))
             ->reject(fn ($t) => str_starts_with($t, 'sqlite_'))
             ->mapWithKeys(fn ($t) => [$t => DB::table($t)->count()])
             ->sortKeys()
