@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Manufacturing;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\QcPlan;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -30,7 +31,7 @@ class QcPlanController extends Controller
     {
         return Inertia::render('Manufacturing/Quality/Plans/Form', [
             'plan' => $plan,
-            'products' => Product::where('is_active', true)->orderBy('name_ar')->get(['id', 'name_ar', 'sku']),
+            'products' => PickerOptions::from(Product::where('is_active', true)->orderBy('name_ar'), ['id', 'name_ar', 'sku'], [$plan->product_id]),
         ]);
     }
 

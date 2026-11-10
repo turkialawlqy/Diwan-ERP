@@ -35,7 +35,8 @@ class LookupController extends Controller
         $q = $this->term($request);
 
         $results = Customer::query()
-            ->where('status', 'active')
+            // Inactive customers too only for the journal entry form, which has always listed them.
+            ->when(! ($request->boolean('any_status') && $this->mayUse($request, ['accounting.journals.create'])), fn ($query) => $query->where('status', 'active'))
             ->when($q !== '', fn ($query) => $query->where(fn ($w) => $w
                 ->where('name', 'like', "%{$q}%")
                 ->orWhere('company_name', 'like', "%{$q}%")
@@ -53,8 +54,15 @@ class LookupController extends Controller
     {
         $q = $this->term($request);
 
+        $columns = ['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'purchase_price', 'tax_rate', 'unit_id', 'category_id', 'description'];
+        // Average cost only for those who build bills of materials: their form shows it.
+        if ($request->boolean('cost') && $this->mayUse($request, ['manufacturing.boms.create', 'manufacturing.boms.edit'])) {
+            $columns[] = 'average_cost';
+        }
+
         $results = Product::query()
             ->where('is_active', true)
+            ->when($request->boolean('stockable'), fn ($query) => $query->where('type', '!=', 'service'))
             ->when($q !== '', fn ($query) => $query->where(fn ($w) => $w
                 ->where('name_ar', 'like', "%{$q}%")
                 ->orWhere('name_en', 'like', "%{$q}%")
@@ -62,7 +70,7 @@ class LookupController extends Controller
                 ->orWhere('barcode', $q)))
             ->orderBy('name_ar')
             ->limit(self::LIMIT)
-            ->get(['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'purchase_price', 'tax_rate', 'unit_id', 'category_id', 'description']);
+            ->get($columns);
 
         return response()->json(['data' => $results]);
     }
@@ -72,6 +80,7 @@ class LookupController extends Controller
         $q = $this->term($request);
 
         $results = Supplier::query()
+            ->when($request->boolean('active'), fn ($query) => $query->where('status', 'active'))
             ->when($q !== '', fn ($query) => $query->where(fn ($w) => $w
                 ->where('name', 'like', "%{$q}%")
                 ->orWhere('company_name', 'like', "%{$q}%")
@@ -143,6 +152,14 @@ class LookupController extends Controller
             isset($validated['customer_id']) ? Customer::find($validated['customer_id']) : null,
             (float) ($validated['quantity'] ?? 1),
         ));
+    }
+
+    /** The company owner, or a holder of one of the permissions. */
+    protected function mayUse(Request $request, array $permissions): bool
+    {
+        $user = $request->user();
+
+        return $user && ($user->isCompanyOwner() || collect($permissions)->contains(fn ($permission) => $user->can($permission)));
     }
 
     protected function term(Request $request): string

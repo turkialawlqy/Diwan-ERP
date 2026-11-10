@@ -1,7 +1,7 @@
 <script setup>
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
-import { computed } from 'vue';
+import { computed, reactive } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -17,9 +17,12 @@ const form = useForm({
     items: b.items?.length ? b.items.map((i) => ({ component_id: i.component_id, quantity: i.quantity, scrap_percent: i.scrap_percent })) : [{ component_id: '', quantity: 1, scrap_percent: 0 }],
 });
 useUnsavedGuard(form);
+const productSearch = { route: 'lookup.products', params: { stockable: 1, cost: 1 } };
+// Average cost of the components: from the page's first records, and of each one found by search as it is picked.
+const costs = reactive(Object.fromEntries(props.products.map((p) => [p.id, Number(p.average_cost) || 0])));
+const rememberCost = (p) => { if (p?.id && p.average_cost !== undefined) costs[p.id] = Number(p.average_cost) || 0; };
 const cost = computed(() => {
-    const byId = Object.fromEntries(props.products.map((p) => [p.id, Number(p.average_cost) || 0]));
-    const sum = form.items.reduce((a, i) => a + (Number(i.quantity) || 0) * (1 + (Number(i.scrap_percent) || 0) / 100) * (byId[i.component_id] || 0), 0);
+    const sum = form.items.reduce((a, i) => a + (Number(i.quantity) || 0) * (1 + (Number(i.scrap_percent) || 0) / 100) * (costs[i.component_id] || 0), 0);
     return (sum * (1 + (Number(form.scrap_percent) || 0) / 100)) / (Number(form.output_quantity) || 1);
 });
 const submit = () => (editing ? form.put(route('manufacturing.boms.update', b.id)) : form.post(route('manufacturing.boms.store')));
@@ -32,7 +35,7 @@ const input = 'w-full text-xs rounded-xl border-slate-200 focus:border-indigo-60
         <PageHeader :title="editing ? 'تعديل قائمة مواد' : 'قائمة مواد جديدة'" :crumbs="[{ label: 'التصنيع' }, { label: 'قوائم المواد', href: route('manufacturing.boms.index') }, { label: editing ? 'تعديل' : 'جديدة' }]" />
         <form @submit.prevent="submit" class="space-y-5">
             <div class="bg-white border border-slate-200/80 rounded-2xl p-6 grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                <Field label="المنتج النهائي *" :error="form.errors.product_id"><SelectCreate v-model="form.product_id" :options="products" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" placeholder="— اختر —" required /></Field>
+                <Field label="المنتج النهائي *" :error="form.errors.product_id"><SelectCreate v-model="form.product_id" :options="products" :search="productSearch" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" placeholder="— اختر —" required /></Field>
                 <Field label="اسم القائمة *" :error="form.errors.name"><input v-model="form.name" :class="input" required /></Field>
                 <Field label="الرمز"><input v-model="form.code" :class="input" class="font-mono" /></Field>
                 <Field label="الإصدار *"><input v-model="form.version" :class="input" class="font-mono" /></Field>
@@ -49,7 +52,7 @@ const input = 'w-full text-xs rounded-xl border-slate-200 focus:border-indigo-60
                         <thead class="text-slate-500"><tr><th class="text-start p-2">المكوّن</th><th class="text-start p-2 w-36">الكمية لكل دفعة</th><th class="text-start p-2 w-32">هالك %</th><th class="w-10"></th></tr></thead>
                         <tbody>
                             <tr v-for="(it, i) in form.items" :key="i" class="border-t border-slate-100">
-                                <td class="p-2"><SelectCreate v-model="it.component_id" :options="products" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" placeholder="— اختر —" required /></td>
+                                <td class="p-2"><SelectCreate v-model="it.component_id" :options="products" :search="productSearch" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" placeholder="— اختر —" required @picked="rememberCost" /></td>
                                 <td class="p-2"><input v-model.number="it.quantity" type="text" inputmode="decimal" data-num step="0.0001" :class="input" /></td>
                                 <td class="p-2"><input v-model.number="it.scrap_percent" type="text" inputmode="decimal" data-num step="0.01" :class="input" /></td>
                                 <td class="p-2"><button type="button" :disabled="form.items.length <= 1" @click="form.items.splice(i, 1)" class="p-1 text-slate-400 hover:text-rose-600 disabled:opacity-20"><TrashIcon class="w-4 h-4" /></button></td>

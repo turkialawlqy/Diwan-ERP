@@ -6,8 +6,10 @@ use App\Models\BackupRun;
 use App\Models\Company;
 use App\Models\User;
 use App\Services\Platform\BackupService;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 use ZipArchive;
@@ -45,7 +47,26 @@ class BackupTest extends TestCase
 
         $verify = app(BackupService::class)->verify();
         $this->assertSame('ok', $verify->status, (string) $verify->error);
-        $this->assertSame(\DB::getDriverName() === 'sqlite' ? 'sqlite-open' : 'dump-structure', $verify->details['method']);
+        $this->assertSame(DB::getDriverName() === 'sqlite' ? 'sqlite-open' : 'dump-structure', $verify->details['method']);
+    }
+
+    public function test_backup_covers_only_its_own_database_on_a_shared_server(): void
+    {
+        $this->createTableOutsideTheCurrentDatabase('only_in_another_database');
+
+        $run = app(BackupService::class)->create();
+
+        $this->assertSame('ok', $run->status, (string) $run->error);
+        $zip = new ZipArchive;
+        $zip->open(Storage::disk('backups')->path($run->file));
+        $zip->setPassword('test-secret');
+        $tables = json_decode($zip->getFromName('manifest.json'), true)['tables'];
+        $zip->close();
+        $this->assertArrayHasKey('companies', $tables);
+        $this->assertArrayNotHasKey('only_in_another_database', $tables);
+
+        $verify = app(BackupService::class)->verify();
+        $this->assertSame('ok', $verify->status, (string) $verify->error);
     }
 
     public function test_verify_fails_loudly_with_the_wrong_password(): void
@@ -87,5 +108,33 @@ class BackupTest extends TestCase
         $admin->forceFill(['is_super_admin' => true])->save();
         $this->actingAs($admin)->get(route('super-admin.backups'))->assertOk()
             ->assertInertia(fn ($page) => $page->component('SuperAdmin/Backups')->has('runs', 2)->where('config.encrypted', true));
+    }
+
+    /**
+     * A table the connection can see outside its own database: in a sibling
+     * database on MySQL, in the temp schema on SQLite (a transaction cannot
+     * DETACH an attached file; the test's rollback removes a temp table).
+     */
+    private function createTableOutsideTheCurrentDatabase(string $table): void
+    {
+        if (DB::getDriverName() === 'sqlite') {
+            DB::statement("CREATE TEMP TABLE {$table} (id INTEGER)");
+
+            return;
+        }
+
+        // Its own connection: DDL would implicitly commit the test's transaction.
+        config(['database.connections.backup_sibling' => config('database.connections.'.DB::getDefaultConnection())]);
+        $connection = DB::connection('backup_sibling');
+        $sibling = DB::getDatabaseName().'_backup_sibling';
+
+        try {
+            $connection->statement("CREATE DATABASE IF NOT EXISTS `{$sibling}`");
+        } catch (QueryException) {
+            $this->markTestSkipped('This database user cannot create a second database, so it cannot see one either.');
+        }
+
+        $this->beforeApplicationDestroyed(fn () => $connection->statement("DROP DATABASE IF EXISTS `{$sibling}`"));
+        $connection->statement("CREATE TABLE IF NOT EXISTS `{$sibling}`.`{$table}` (id INT)");
     }
 }

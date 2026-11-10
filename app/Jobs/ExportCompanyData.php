@@ -56,8 +56,9 @@ class ExportCompanyData implements ShouldQueue
             $zip = new ZipArchive;
             $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
 
-            foreach (Schema::getTableListing() as $table) {
-                $table = str_contains($table, '.') ? substr($table, strrpos($table, '.') + 1) : $table;
+            // Without a schema, MySQL lists every database this user can see,
+            // repeating the export of a table once for each database holding it.
+            foreach (Schema::getTableListing(Schema::getCurrentSchemaListing(), schemaQualified: false) as $table) {
                 if (in_array($table, self::SKIP_TABLES, true) || ! Schema::hasColumn($table, 'company_id')) {
                     continue;
                 }

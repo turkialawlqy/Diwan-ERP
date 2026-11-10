@@ -28,7 +28,7 @@ const submitTransfer = () => transferForm.post(route('inventory.operations.trans
             <form @submit.prevent="submitTransfer" class="form-grid text-xs">
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1">اختر المنتج *</label>
-                                <SelectCreate v-model="transferForm.product_id" :options="products" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" :allow-empty="false" required />
+                                <SelectCreate v-model="transferForm.product_id" :options="products" search="lookup.products" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" :allow-empty="false" required />
                                 <p v-if="transferForm.errors.product_id" class="text-[11px] text-rose-600 mt-1">{{ transferForm.errors.product_id }}</p>
                             </div>
             
