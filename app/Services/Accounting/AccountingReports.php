@@ -10,6 +10,7 @@ use App\Models\Company;
 use App\Models\Customer;
 use App\Models\JournalEntry;
 use App\Models\Supplier;
+use App\Models\TaxSettlement;
 use App\Services\ActiveBranch;
 use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
@@ -858,6 +859,11 @@ class AccountingReports
         $ledgerOutput = ($ledger[$this->map->find('vat_output')]['credit'] ?? 0) - ($ledger[$this->map->find('vat_output')]['debit'] ?? 0);
         $ledgerInput = ($ledger[$this->map->find('vat_input')]['debit'] ?? 0) - ($ledger[$this->map->find('vat_input')]['credit'] ?? 0);
 
+        // The settlement empties these accounts at the end of the period: its entry is not tax of the period.
+        $settled = $this->settlementTotals($range);
+        $ledgerOutput -= ($settled[$this->map->find('vat_output')]['credit'] ?? 0) - ($settled[$this->map->find('vat_output')]['debit'] ?? 0);
+        $ledgerInput -= ($settled[$this->map->find('vat_input')]['debit'] ?? 0) - ($settled[$this->map->find('vat_input')]['credit'] ?? 0);
+
         return [
             'boxes' => [
                 $row(1, 'المبيعات الخاضعة للنسبة الأساسية'),
@@ -876,6 +882,20 @@ class AccountingReports
             'ledger_input_vat' => round($ledgerInput, 2),
             'ledger_matches' => abs($ledgerOutput - $outputVat) < 0.05 && abs($ledgerInput - $inputVat) < 0.05,
         ];
+    }
+
+    /** Lines of the VAT settlements (and their cancellations) inside the range, per account, as totalsBetween() reads them. */
+    protected function settlementTotals(array $range): array
+    {
+        return DB::table('journal_entry_lines as l')->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
+            ->where('l.company_id', $this->companyId())
+            ->where('e.source_type', (new TaxSettlement)->getMorphClass())
+            ->whereIn('e.status', self::STATUSES)
+            ->when($this->branchIds(), fn ($q, $ids) => $q->whereIn('e.branch_id', $ids))
+            ->whereBetween('l.date', $range)
+            ->groupBy('l.account_id')
+            ->selectRaw('l.account_id, SUM(l.debit) as debit, SUM(l.credit) as credit')
+            ->get()->mapWithKeys(fn ($r) => [$r->account_id => ['debit' => (float) $r->debit, 'credit' => (float) $r->credit]])->all();
     }
 
     /**

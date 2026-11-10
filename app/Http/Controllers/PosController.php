@@ -12,6 +12,7 @@ use App\Models\PosOrder;
 use App\Models\PosRegister;
 use App\Models\PosSession;
 use App\Models\Product;
+use App\Models\User;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\PostingService;
 use App\Services\Inventory\DocumentStock;
@@ -144,11 +145,12 @@ class PosController extends Controller
         $companyId = $company->id;
 
         DB::transaction(function () use ($validated, $companyId) {
-            // One open shift per register: the register row is locked so two cashiers cannot both open it.
-            PosRegister::whereKey($validated['pos_register_id'])->lockForUpdate()->first();
-            if (PosSession::where('pos_register_id', $validated['pos_register_id'])->where('status', 'opened')->exists()) {
-                throw ValidationException::withMessages(['pos_register_id' => 'لهذا الصندوق وردية مفتوحة بالفعل؛ أغلقها أولًا.']);
-            }
+            // One open shift per cashier and per register. The cashier's row comes first: locking the register alone
+            // would let one cashier open two registers at once. Always in this order, so two requests cannot deadlock.
+            User::whereKey(auth()->id())->lockForUpdate()->value('id');
+            PosRegister::withoutGlobalScope('branch')->whereKey($validated['pos_register_id'])->lockForUpdate()->value('id');
+            $this->refuseSecondShift((int) $validated['pos_register_id']);
+
             $session = PosSession::create([
                 'company_id' => $companyId,
                 'user_id' => auth()->id(),
@@ -167,6 +169,22 @@ class PosController extends Controller
         });
 
         return redirect()->route('pos.index')->with('success', 'تم فتح جلسة نقاط البيع بنجاح');
+    }
+
+    /** A shift may be in another branch than the one on screen, so the branch scope must not hide it. */
+    protected function refuseSecondShift(int $registerId): void
+    {
+        $open = fn () => PosSession::withoutGlobalScope('branch')->where('status', 'opened');
+
+        if ($mine = $open()->where('user_id', auth()->id())->first()) {
+            $register = PosRegister::withoutGlobalScope('branch')->with('branch')->find($mine->pos_register_id);
+            $place = $register?->branch ? "«{$register->name}» ({$register->branch->name})" : "«{$register?->name}»";
+            throw ValidationException::withMessages(['pos_register_id' => "لديك وردية مفتوحة على {$place}؛ أغلقها أولًا."]);
+        }
+
+        if ($open()->where('pos_register_id', $registerId)->exists()) {
+            throw ValidationException::withMessages(['pos_register_id' => 'لهذا الصندوق وردية مفتوحة بالفعل؛ أغلقها أولًا.']);
+        }
     }
 
     /**

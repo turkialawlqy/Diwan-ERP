@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\ProductBatch;
+use App\Models\StockMovement;
 use App\Models\StockTransfer;
+use App\Models\StockTransferItem;
 use App\Models\Warehouse;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\PostingService;
@@ -129,6 +131,7 @@ class StockTransferController extends Controller
             }
             $receivedValue = 0.0;
             $sentValue = 0.0;
+            $left = $this->batchesSent($transfer);
 
             foreach ($transfer->items as $item) {
                 $sent = (float) $item->quantity;
@@ -136,20 +139,22 @@ class StockTransferController extends Controller
                 $sentValue += $sent * (float) $item->unit_cost;
 
                 if ($received > 0) {
-                    $batch = $item->batch_id ? ProductBatch::find($item->batch_id) : null;
-                    $stock->receive([
-                        'product_id' => $item->product_id,
-                        'warehouse_id' => $transfer->to_warehouse_id,
-                        'quantity' => $received,
-                        'unit_cost' => (float) $item->unit_cost,
-                        'keep_average' => true,
-                        'type' => 'transfer_in',
-                        'date' => now(),
-                        'source' => $transfer,
-                        'reference' => $transfer->transfer_number,
-                        'batch_number' => $batch?->batch_number,
-                        'expiry_date' => $batch?->expiry_date?->toDateString(),
-                    ]);
+                    foreach ($this->arrivals($item, $received, $left) as [$batchId, $quantity]) {
+                        $batch = $batchId ? ProductBatch::find($batchId) : null;
+                        $stock->receive([
+                            'product_id' => $item->product_id,
+                            'warehouse_id' => $transfer->to_warehouse_id,
+                            'quantity' => $quantity,
+                            'unit_cost' => (float) $item->unit_cost,
+                            'keep_average' => true,
+                            'type' => 'transfer_in',
+                            'date' => now(),
+                            'source' => $transfer,
+                            'reference' => $transfer->transfer_number,
+                            'batch_number' => $batch?->batch_number,
+                            'expiry_date' => $batch?->expiry_date?->toDateString(),
+                        ]);
+                    }
                     $receivedValue += $received * (float) $item->unit_cost;
                 }
 
@@ -177,13 +182,51 @@ class StockTransferController extends Controller
         return back()->with('success', 'تم استلام التحويل وإضافته للمستودع');
     }
 
-    public function cancel(StockTransfer $transfer)
+    /** What left under each batch when no batch was chosen on the line: product => [[batch, quantity], ...], in the order they left. */
+    protected function batchesSent(StockTransfer $transfer): array
     {
-        if ($transfer->status !== 'draft') {
-            throw ValidationException::withMessages(['transfer' => 'لا يمكن إلغاء تحويل تم إرساله.']);
+        $movements = StockMovement::where('source_type', $transfer->getMorphClass())->where('source_id', $transfer->id)
+            ->where('type', 'transfer_out')->whereNotNull('batch_id')->orderBy('id')->get();
+
+        return $movements->groupBy('product_id')->map(fn ($moves) => $moves->map(fn ($m) => [$m->batch_id, abs((float) $m->quantity)])->all())->all();
+    }
+
+    /**
+     * The batches a received quantity arrives under: the line's own, or, for a line sent without one, those
+     * that left with it (a partial receipt takes them in the order they left; what is short is the rest).
+     *
+     * @return list<array{0:?int,1:float}>
+     */
+    protected function arrivals(StockTransferItem $item, float $received, array &$left): array
+    {
+        if ($item->batch_id || empty($left[$item->product_id])) {
+            return [[$item->batch_id, $received]];
         }
 
-        $transfer->update(['status' => 'cancelled']);
+        $parts = [];
+        foreach ($left[$item->product_id] as $i => [$batchId, $available]) {
+            $take = min($received, $available);
+            if ($take > 0) {
+                $parts[] = [$batchId, $take];
+                $left[$item->product_id][$i][1] = round($available - $take, 4);
+                $received = round($received - $take, 4);
+            }
+        }
+
+        return $received > 0 ? [...$parts, [null, $received]] : $parts; // left with no batch (negative stock): refused, never dropped
+    }
+
+    public function cancel(StockTransfer $transfer)
+    {
+        DB::transaction(function () use ($transfer) {
+            // Locked and read again: a transfer sent a moment ago has goods on the road and cannot be cancelled.
+            $transfer = StockTransfer::whereKey($transfer->id)->lockForUpdate()->firstOrFail();
+            if ($transfer->status !== 'draft') {
+                throw ValidationException::withMessages(['transfer' => 'لا يمكن إلغاء تحويل تم إرساله.']);
+            }
+
+            $transfer->update(['status' => 'cancelled']);
+        });
 
         return back()->with('success', 'تم إلغاء التحويل');
     }

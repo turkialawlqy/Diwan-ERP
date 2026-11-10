@@ -13,6 +13,7 @@ use App\Services\ActiveBranch;
 use App\Services\Documents\DocumentNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -78,7 +79,7 @@ class PatientController extends Controller
 
     public function storeVisit(Request $request, PatientFile $patient)
     {
-        $data = $this->visitData($request);
+        $data = $this->visitData($request, $patient);
         $visit = $patient->visits()->create($data + ['attachments' => $this->files($request), 'created_by' => $request->user()->id]);
 
         return back()->with('success', 'سُجّلت الزيارة'.($visit->next_visit_date ? ' وموعد المراجعة '.$visit->next_visit_date->toDateString() : ''));
@@ -87,7 +88,7 @@ class PatientController extends Controller
     public function updateVisit(Request $request, PatientVisit $visit)
     {
         $keep = $visit->attachments ?? [];
-        $visit->update($this->visitData($request) + ['attachments' => array_merge($keep, $this->files($request))]);
+        $visit->update($this->visitData($request, $visit->patient) + ['attachments' => array_merge($keep, $this->files($request))]);
 
         return back()->with('success', 'عُدّلت الزيارة');
     }
@@ -100,13 +101,15 @@ class PatientController extends Controller
         ]);
     }
 
-    protected function visitData(Request $request): array
+    protected function visitData(Request $request, PatientFile $patient): array
     {
         return $request->validate([
-            'visit_date' => 'required|date', 'doctor_id' => 'nullable|tenant_exists:employees,id', 'booking_id' => 'nullable|tenant_exists:bookings,id',
+            'visit_date' => 'required|date', 'doctor_id' => 'nullable|tenant_exists:employees,id',
+            // The booking must be this patient's own, in this company.
+            'booking_id' => ['nullable', Rule::exists('bookings', 'id')->where('company_id', $patient->company_id)->where('customer_id', $patient->customer_id)],
             'complaint' => 'nullable|string|max:3000', 'diagnosis' => 'nullable|string|max:3000', 'treatment' => 'nullable|string|max:3000', 'prescription' => 'nullable|string|max:3000',
             'next_visit_date' => 'nullable|date', 'files' => 'nullable|array|max:10', 'files.*' => 'file|max:10240|mimes:jpg,jpeg,png,webp,pdf',
-        ], [], ['visit_date' => 'تاريخ الزيارة']);
+        ], [], ['visit_date' => 'تاريخ الزيارة', 'booking_id' => 'الحجز']);
     }
 
     /** @return list<array{name:string,path:string}> */

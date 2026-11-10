@@ -176,6 +176,16 @@ class StockService
     public function transfer(int $productId, int $fromWarehouseId, int $toWarehouseId, float $quantity, array $context = []): float
     {
         return DB::transaction(function () use ($productId, $fromWarehouseId, $toWarehouseId, $quantity, $context) {
+            // No batch chosen: it leaves by earliest expiry like any issue, and each batch arrives under its own number.
+            if (empty($context['batch_id']) && $this->lockProduct($productId)->tracking === 'batch') {
+                $cost = 0.0;
+                foreach ($this->splitByBatch($productId, $fromWarehouseId, $quantity) as [$batch, $part]) {
+                    $cost += $this->transfer($productId, $fromWarehouseId, $toWarehouseId, $part, ['batch_id' => $batch->id] + $context);
+                }
+
+                return round($cost, 2);
+            }
+
             $batch = ! empty($context['batch_id']) ? ProductBatch::find($context['batch_id']) : null;
 
             $cost = $this->issue(array_merge($context, [
@@ -207,14 +217,15 @@ class StockService
     public function adjustTo(int $productId, int $warehouseId, float $countedQuantity, array $context = [], ?float $snapshot = null): float
     {
         return DB::transaction(function () use ($productId, $warehouseId, $countedQuantity, $context, $snapshot) {
+            // The product first, as receive() and issue() do: the opposite order is a deadlock with them.
+            $product = $this->lockProduct($productId);
             $current = (float) $this->lockStock($productId, $warehouseId)->quantity;
             // With the quantity the system showed when it was counted, only the counted difference is applied:
             // sales and receipts made since then are kept, not overwritten by the count.
             $difference = round($countedQuantity - ($snapshot ?? $current), 4);
 
             if ($difference > 0) {
-                $product = Product::findOrFail($productId);
-                $this->receive(array_merge($context, [
+                $this->receive(array_merge($context, $this->surplusBatch($product, $warehouseId, $context), [
                     'product_id' => $productId, 'warehouse_id' => $warehouseId, 'quantity' => $difference,
                     'unit_cost' => (float) $product->average_cost, 'keep_average' => true,
                 ]));
@@ -230,6 +241,23 @@ class StockService
 
             return 0.0;
         });
+    }
+
+    /**
+     * A count does not say which batch a surplus belongs to. It joins the batch that leaves first (earliest
+     * expiry), so its shelf life is never overstated; with no batch in the warehouse yet, a batch named after the count.
+     */
+    protected function surplusBatch(Product $product, int $warehouseId, array $context): array
+    {
+        if ($product->tracking !== 'batch' || ! empty($context['batch_id']) || ! empty($context['batch_number'])) {
+            return [];
+        }
+        $batch = ProductBatch::where('product_id', $product->id)->where('warehouse_id', $warehouseId)
+            ->orderByRaw('CASE WHEN quantity > 0 THEN 0 ELSE 1 END')
+            ->orderByRaw('CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END')->orderBy('expiry_date')->orderBy('id')
+            ->first();
+
+        return $batch ? ['batch_id' => $batch->id] : ['batch_number' => 'COUNT-'.($context['reference'] ?? now()->format('Ymd'))];
     }
 
     /**
@@ -307,11 +335,8 @@ class StockService
             throw ValidationException::withMessages(['items' => "الصنف «{$product->name_ar}» يتطلب رقم تشغيلة (Batch)."]);
         }
 
-        $batch = ProductBatch::firstOrCreate(
-            ['product_id' => $product->id, 'warehouse_id' => $data['warehouse_id'], 'batch_number' => $number],
-            ['expiry_date' => $data['expiry_date'] ?? null, 'manufacture_date' => $data['manufacture_date'] ?? null, 'quantity' => 0],
-        );
-        $batch = ProductBatch::whereKey($batch->id)->lockForUpdate()->first();
+        $batch = $this->lockRow(ProductBatch::class, ['product_id' => $product->id, 'warehouse_id' => $data['warehouse_id'], 'batch_number' => $number],
+            ['expiry_date' => $data['expiry_date'] ?? null, 'manufacture_date' => $data['manufacture_date'] ?? null, 'quantity' => 0]);
         $batch->quantity = (float) $batch->quantity + $quantity;
         if (! empty($data['expiry_date']) && ! $batch->expiry_date) {
             $batch->expiry_date = $data['expiry_date'];
@@ -319,6 +344,33 @@ class StockService
         $batch->save();
 
         return $batch->id;
+    }
+
+    /**
+     * Which batches a quantity leaves from when none is chosen (earliest expiry first): [[batch, quantity], ...].
+     * For callers that have to carry each batch to another warehouse.
+     *
+     * @return list<array{0:ProductBatch,1:float}>
+     */
+    protected function splitByBatch(int $productId, int $warehouseId, float $quantity): array
+    {
+        $product = $this->lockProduct($productId);
+        $parts = [];
+        $remaining = round($quantity, 4);
+        foreach (ProductBatch::where('product_id', $productId)->where('warehouse_id', $warehouseId)->where('quantity', '>', 0)
+            ->orderByRaw('CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END')->orderBy('expiry_date')->orderBy('id')->lockForUpdate()->get() as $batch) {
+            if ($remaining <= 0) {
+                break;
+            }
+            $take = min($remaining, (float) $batch->quantity);
+            $parts[] = [$batch, $take];
+            $remaining = round($remaining - $take, 4);
+        }
+        if ($remaining > 0) {
+            throw ValidationException::withMessages(['items' => "كميات التشغيلات المتاحة من «{$product->name_ar}» غير كافية."]);
+        }
+
+        return $parts;
     }
 
     protected function allocateBatches(Product $product, array $data, float $quantity): array
@@ -460,12 +512,25 @@ class StockService
 
     protected function lockStock(int $productId, int $warehouseId): InventoryStock
     {
-        $stock = InventoryStock::firstOrCreate(
-            ['product_id' => $productId, 'warehouse_id' => $warehouseId],
-            ['quantity' => 0],
-        );
+        return $this->lockRow(InventoryStock::class, ['product_id' => $productId, 'warehouse_id' => $warehouseId], ['quantity' => 0]);
+    }
 
-        return InventoryStock::whereKey($stock->id)->lockForUpdate()->first();
+    /**
+     * The row for $key, under lock, created if it is the first. A document that read anything earlier has an older
+     * snapshot and cannot see a row another one committed since, so the row is added with INSERT IGNORE (a plain
+     * insert would fail on the unique key). Only then is it read under lock: a locking read of a row that does not
+     * exist yet takes a gap lock, and two first receipts of different products would deadlock on it.
+     *
+     * @param  class-string<Model>  $model
+     */
+    protected function lockRow(string $model, array $key, array $values): Model
+    {
+        if (! $model::where($key)->exists()) {
+            $now = now();
+            $model::insertOrIgnore($key + $values + ['company_id' => $this->tenantManager->getTenantId(), 'created_at' => $now, 'updated_at' => $now]);
+        }
+
+        return $model::where($key)->lockForUpdate()->firstOrFail();
     }
 
     protected function sourceType(array $data): ?string

@@ -125,9 +125,6 @@ class DocumentCancellation
             }
             if ($note->sales_order_id && ($order = SalesOrder::find($note->sales_order_id))) {
                 app(SalesCycleService::class)->refreshOrderStatus($order);
-                if ((float) $order->items()->sum('delivered_quantity') <= 0 && $order->fresh()->status === 'partially_delivered') {
-                    $order->update(['status' => 'confirmed']);
-                }
             }
 
             $this->finish($note, $reason, 'إلغاء إذن التسليم '.$note->delivery_number, 'cancelled');
@@ -163,9 +160,6 @@ class DocumentCancellation
             }
             if ($receipt->purchase_order_id && ($order = PurchaseOrder::find($receipt->purchase_order_id))) {
                 app(PurchaseCycleService::class)->refreshOrderStatus($order);
-                if ((float) $order->items()->sum('received_quantity') <= 0 && $order->fresh()->status === 'partially_received') {
-                    $order->update(['status' => 'approved']);
-                }
             }
 
             $this->finish($receipt, $reason, 'إلغاء إذن الاستلام '.$receipt->receipt_number, 'cancelled');
