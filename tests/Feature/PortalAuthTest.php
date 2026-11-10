@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\PortalUser;
 use App\Notifications\PortalLoginCode;
 use App\Services\Accounting\AccountingSetupService;
+use App\Services\Portal\PortalLoginService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
@@ -125,6 +126,23 @@ class PortalAuthTest extends TestCase
         }
         $this->post($this->url('customer-portal.send-code'), ['email' => 'sara@example.test'])->assertSessionHasErrors('email');
         Notification::assertSentToTimes($this->user, PortalLoginCode::class, 3);
+    }
+
+    public function test_failed_tries_are_capped_per_email_for_the_day(): void
+    {
+        $code = $this->requestCode();
+        $wrong = $code === '000000' ? '111111' : '000000';
+        for ($i = 0; $i < PortalLoginService::FAILED_TRIES_PER_DAY; $i++) { // five on the code, then on a dead one
+            $this->post($this->url('customer-portal.verify.check'), ['code' => $wrong])->assertSessionHasErrors('code');
+        }
+
+        $this->travel(11)->minutes(); // past the per-e-mail sending window: still no new code today
+        $this->post($this->url('customer-portal.send-code'), ['email' => 'sara@example.test'])->assertSessionHasErrors('email');
+
+        $this->travel(1)->days();
+        $code = $this->requestCode();
+        $this->post($this->url('customer-portal.verify.check'), ['code' => $code])->assertSessionHasNoErrors();
+        $this->assertAuthenticatedAs($this->user->fresh(), 'portal');
     }
 
     public function test_a_disabled_user_gets_no_code_and_loses_a_live_session(): void

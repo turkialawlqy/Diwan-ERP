@@ -255,7 +255,7 @@ class BranchActivitiesTest extends TestCase
         $this->assertContains('real_estate', $this->shop->fresh()->modules);
         $this->assertSame(['workshop', 'work_orders', 'real_estate'], array_values(array_intersect($this->shop->fresh()->modules, ['workshop', 'work_orders', 'real_estate'])));
         $this->assertSame($this->shop->id, WorkType::withoutGlobalScopes()->where('name', 'صيانة سباكة')->value('branch_id'));
-        $this->assertNull(ContractTemplate::withoutGlobalScopes()->where('name', 'عقد إيجار وحدة سكنية')->value('branch_id') ?? null); // company-wide
+        $this->assertTrue(ContractTemplate::withoutGlobalScopes()->where('name', 'عقد إيجار وحدة سكنية')->exists()); // contract templates are company-wide: they have no branch
 
         // the clinic branch's user does not see the shop's work types
         $this->asStaff([$this->clinic]);
