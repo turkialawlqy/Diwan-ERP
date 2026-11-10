@@ -28,7 +28,7 @@ const input = 'w-full text-xs rounded-xl border-slate-200 focus:border-indigo-60
         <PageHeader title="أمر إنتاج جديد" :crumbs="[{ label: 'التصنيع' }, { label: 'أوامر الإنتاج', href: route('manufacturing.orders.index') }, { label: 'جديد' }]" />
         <form @submit.prevent="submit" class="bg-white border border-slate-200/80 rounded-2xl p-6 space-y-5">
             <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                <Field label="المنتج *" :error="form.errors.product_id"><SelectCreate v-model="form.product_id" :options="products" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" placeholder="— اختر —" required /></Field>
+                <Field label="المنتج *" :error="form.errors.product_id"><SelectCreate v-model="form.product_id" :options="products" :search="{ route: 'lookup.products', params: { stockable: 1 } }" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" placeholder="— اختر —" required /></Field>
                 <Field label="الكمية *" :error="form.errors.quantity"><input v-model.number="form.quantity" type="text" inputmode="decimal" data-num step="0.0001" :class="input" required /></Field>
                 <Field label="قائمة المواد" :error="form.errors.bom_id"><select v-model="form.bom_id" :class="input"><option value="">— الافتراضية —</option><option v-for="b in productBoms" :key="b.id" :value="b.id">{{ b.name }} (إصدار {{ b.version }})</option></select></Field>
                 <Field label="مسار التشغيل"><select v-model="form.routing_id" :class="input"><option value="">— من القائمة —</option><option v-for="r in routings" :key="r.id" :value="r.id">{{ r.code }} — {{ r.name }}</option></select></Field>

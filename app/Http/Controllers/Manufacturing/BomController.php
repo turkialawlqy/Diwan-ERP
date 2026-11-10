@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductionOrder;
 use App\Models\Routing;
 use App\Models\SubcontractOrder;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -50,7 +51,7 @@ class BomController extends Controller
     {
         return Inertia::render('Manufacturing/Boms/Form', [
             'bom' => $bom,
-            'products' => Product::where('is_active', true)->where('type', '!=', 'service')->orderBy('name_ar')->get(['id', 'name_ar', 'sku', 'average_cost']),
+            'products' => PickerOptions::from(Product::where('is_active', true)->where('type', '!=', 'service')->orderBy('name_ar'), ['id', 'name_ar', 'sku', 'average_cost'], [$bom->product_id, ...$bom->items->pluck('component_id')->all()]),
             'routings' => Routing::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),
         ]);
     }

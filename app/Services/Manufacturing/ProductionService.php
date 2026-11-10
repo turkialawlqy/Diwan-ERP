@@ -124,31 +124,36 @@ class ProductionService
 
     public function release(ProductionOrder $order): ProductionOrder
     {
-        $this->assertStatus($order, ['draft'], 'الإفراج يكون لأمر في حالة مسودة.');
-        if (! $order->materials()->exists() && ! $order->operations()->exists()) {
-            throw ValidationException::withMessages(['order' => 'أمر الإنتاج بلا مواد ولا عمليات. اختر قائمة مواد أو مسار تشغيل.']);
-        }
-        $order->update(['status' => 'released']);
+        return DB::transaction(function () use ($order) {
+            $this->lock($order);
+            $this->assertStatus($order, ['draft'], 'الإفراج يكون لأمر في حالة مسودة.');
+            if (! $order->materials()->exists() && ! $order->operations()->exists()) {
+                throw ValidationException::withMessages(['order' => 'أمر الإنتاج بلا مواد ولا عمليات. اختر قائمة مواد أو مسار تشغيل.']);
+            }
+            $order->update(['status' => 'released']);
 
-        return $order;
+            return $order;
+        });
     }
 
     public function cancel(ProductionOrder $order): ProductionOrder
     {
-        $this->assertStatus($order, ['draft', 'released'], 'لا يمكن إلغاء أمر بدأ تنفيذه.');
-        if ($order->materials()->where('issued_quantity', '>', 0)->exists() || $order->timeLogs()->exists() || $order->receipts()->exists()) {
-            throw ValidationException::withMessages(['order' => 'للأمر حركات مسجلة فلا يُلغى. أغلقه بدلاً من ذلك.']);
-        }
-        $order->update(['status' => 'cancelled']);
+        return DB::transaction(function () use ($order) {
+            $this->lock($order);
+            $this->assertStatus($order, ['draft', 'released'], 'لا يمكن إلغاء أمر بدأ تنفيذه.');
+            if ($order->materials()->where('issued_quantity', '>', 0)->exists() || $order->timeLogs()->exists() || $order->receipts()->exists()) {
+                throw ValidationException::withMessages(['order' => 'للأمر حركات مسجلة فلا يُلغى. أغلقه بدلاً من ذلك.']);
+            }
+            $order->update(['status' => 'cancelled']);
 
-        return $order;
+            return $order;
+        });
     }
 
     // ------------------------------------------------------------------ materials
 
     public function issueMaterial(ProductionOrder $order, ProductionOrderMaterial $material, float $quantity, ?string $date = null): float
     {
-        $this->assertStatus($order, ['released', 'in_progress'], 'صرف المواد لأمر مُفرَج عنه أو قيد التنفيذ فقط.');
         $quantity = round($quantity, 4);
         if ($quantity <= 0) {
             throw ValidationException::withMessages(['quantity' => 'الكمية يجب أن تكون أكبر من صفر.']);
@@ -156,7 +161,9 @@ class ProductionService
         $date = Carbon::parse($date ?? now());
 
         return DB::transaction(function () use ($order, $material, $quantity, $date) {
-            $order->refresh();
+            $this->lock($order);
+            $this->assertStatus($order, ['released', 'in_progress'], 'صرف المواد لأمر مُفرَج عنه أو قيد التنفيذ فقط.');
+            $this->lock($material);
             $cost = round($this->stock->issue([
                 'product_id' => $material->product_id,
                 'warehouse_id' => $order->warehouse_id,
@@ -179,28 +186,33 @@ class ProductionService
     /** Issue whatever is still planned and not yet issued. */
     public function issueRemaining(ProductionOrder $order, ?string $date = null): float
     {
-        $total = 0.0;
-        foreach ($order->materials()->get() as $material) {
-            $left = round((float) $material->planned_quantity - $material->netIssued(), 4);
-            if ($left > 0) {
-                $total += $this->issueMaterial($order, $material, $left, $date);
+        return DB::transaction(function () use ($order, $date) {
+            // Locked before reading what is left: a second click then finds nothing left to issue.
+            $this->lock($order);
+            $total = 0.0;
+            foreach ($order->materials()->get() as $material) {
+                $left = round((float) $material->planned_quantity - $material->netIssued(), 4);
+                if ($left > 0) {
+                    $total += $this->issueMaterial($order, $material, $left, $date);
+                }
             }
-        }
 
-        return $total;
+            return $total;
+        });
     }
 
     public function returnMaterial(ProductionOrder $order, ProductionOrderMaterial $material, float $quantity, ?string $date = null): float
     {
-        $this->assertStatus($order, ['released', 'in_progress'], 'إرجاع المواد لأمر مُفرَج عنه أو قيد التنفيذ فقط.');
         $quantity = round($quantity, 4);
-        if ($quantity <= 0 || $quantity > round($material->netIssued(), 4)) {
-            throw ValidationException::withMessages(['quantity' => 'كمية الإرجاع أكبر من المصروف.']);
-        }
         $date = Carbon::parse($date ?? now());
 
         return DB::transaction(function () use ($order, $material, $quantity, $date) {
-            $order->refresh();
+            $this->lock($order);
+            $this->assertStatus($order, ['released', 'in_progress'], 'إرجاع المواد لأمر مُفرَج عنه أو قيد التنفيذ فقط.');
+            $this->lock($material);
+            if ($quantity <= 0 || $quantity > round($material->netIssued(), 4)) {
+                throw ValidationException::withMessages(['quantity' => 'كمية الإرجاع أكبر من المصروف.']);
+            }
             $unit = (float) $material->cost / max(0.0001, $material->netIssued());
             $cost = round($unit * $quantity, 2);
             $this->stock->receive([
@@ -220,7 +232,6 @@ class ProductionService
     /** @param array{work_center_id:int, minutes:float, operation_id?:?int, employee_id?:?int, quantity?:float, date?:?string, notes?:?string} $data */
     public function logTime(ProductionOrder $order, array $data): ProductionTimeLog
     {
-        $this->assertStatus($order, ['released', 'in_progress'], 'تسجيل الوقت لأمر مُفرَج عنه أو قيد التنفيذ فقط.');
         $minutes = round((float) $data['minutes'], 2);
         if ($minutes <= 0) {
             throw ValidationException::withMessages(['minutes' => 'الدقائق يجب أن تكون أكبر من صفر.']);
@@ -229,7 +240,8 @@ class ProductionService
         $date = Carbon::parse($data['date'] ?? now());
 
         return DB::transaction(function () use ($order, $data, $minutes, $center, $date) {
-            $order->refresh();
+            $this->lock($order);
+            $this->assertStatus($order, ['released', 'in_progress'], 'تسجيل الوقت لأمر مُفرَج عنه أو قيد التنفيذ فقط.');
             $hours = $minutes / 60;
             $labour = round($hours * (float) $center->labour_rate_per_hour, 2);
             $overhead = round($hours * (float) $center->overhead_rate_per_hour, 2);
@@ -242,7 +254,7 @@ class ProductionService
 
             $order->update(['labour_cost' => (float) $order->labour_cost + $labour, 'overhead_cost' => (float) $order->overhead_cost + $overhead]);
 
-            if (! empty($data['operation_id']) && ($op = ProductionOrderOperation::where('production_order_id', $order->id)->find($data['operation_id']))) {
+            if (! empty($data['operation_id']) && ($op = ProductionOrderOperation::where('production_order_id', $order->id)->whereKey($data['operation_id'])->lockForUpdate()->first())) {
                 $done = (float) $op->completed_quantity + (float) ($data['quantity'] ?? 0);
                 $op->update([
                     'actual_minutes' => (float) $op->actual_minutes + $minutes, 'completed_quantity' => $done,
@@ -272,7 +284,6 @@ class ProductionService
     /** @param array{quantity:float, scrap_quantity?:float, scrap_abnormal?:bool, date?:?string, batch_number?:?string, notes?:?string} $data */
     public function receive(ProductionOrder $order, array $data): ProductionReceipt
     {
-        $this->assertStatus($order, ['released', 'in_progress', 'completed'], 'استلام المنتج لأمر مُفرَج عنه أو قيد التنفيذ.');
         $good = round((float) $data['quantity'], 4);
         $scrap = round((float) ($data['scrap_quantity'] ?? 0), 4);
         if ($good <= 0 && $scrap <= 0) {
@@ -281,7 +292,8 @@ class ProductionService
         $date = Carbon::parse($data['date'] ?? now());
 
         return DB::transaction(function () use ($order, $data, $good, $scrap, $date) {
-            $order->refresh();
+            $this->lock($order);
+            $this->assertStatus($order, ['released', 'in_progress', 'completed'], 'استلام المنتج لأمر مُفرَج عنه أو قيد التنفيذ.');
             $receipt = $order->receipts()->create([
                 'date' => $date->toDateString(), 'quantity' => $good, 'scrap_quantity' => $scrap,
                 'scrap_abnormal' => (bool) ($data['scrap_abnormal'] ?? false), 'status' => 'posted',
@@ -313,7 +325,7 @@ class ProductionService
      */
     public function postReceipt(ProductionReceipt $receipt, float $good, float $scrap, bool $abnormal): ProductionReceipt
     {
-        $order = $receipt->order()->firstOrFail();
+        $order = $this->lock($receipt->order()->firstOrFail());
         $date = Carbon::parse($receipt->date);
         $wip = max(0.0, $order->wipBalance());
         $remaining = max($order->remainingQuantity(), $good + ($abnormal ? $scrap : 0));
@@ -366,14 +378,14 @@ class ProductionService
     /** Close the order; the cost still in WIP becomes a production variance. */
     public function close(ProductionOrder $order, ?string $date = null): ProductionOrder
     {
-        $this->assertStatus($order, ['in_progress', 'completed'], 'يُغلق الأمر بعد بدء تنفيذه.');
-        if ($order->receipts()->where('status', 'pending_qc')->exists()) {
-            throw ValidationException::withMessages(['order' => 'توجد استلامات بانتظار فحص الجودة.']);
-        }
         $date = Carbon::parse($date ?? now());
 
         return DB::transaction(function () use ($order, $date) {
-            $order->refresh();
+            $this->lock($order);
+            $this->assertStatus($order, ['in_progress', 'completed'], 'يُغلق الأمر بعد بدء تنفيذه.');
+            if ($order->receipts()->where('status', 'pending_qc')->exists()) {
+                throw ValidationException::withMessages(['order' => 'توجد استلامات بانتظار فحص الجودة.']);
+            }
             $left = round($order->wipBalance(), 2);
             if ($left != 0.0) {
                 $this->post($order, $date, "إقفال أمر إنتاج {$order->order_number} (فروقات)", $left > 0
@@ -387,6 +399,21 @@ class ProductionService
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /**
+     * Must be the first thing a change does: two operators on one order go one after the other, and each decides on
+     * the row as the other left it. The values come from the locking read, which sees what was committed while it
+     * waited (refresh() may not, inside a transaction that already read something), onto the caller's own instance.
+     *
+     * @template T of ProductionOrder|ProductionOrderMaterial
+     *
+     * @param  T  $row
+     * @return T
+     */
+    protected function lock(ProductionOrder|ProductionOrderMaterial $row): ProductionOrder|ProductionOrderMaterial
+    {
+        return $row->setRawAttributes($row->newQueryWithoutScopes()->whereKey($row->getKey())->lockForUpdate()->firstOrFail()->getAttributes(), true);
+    }
 
     protected function started(ProductionOrder $order, Carbon $date): void
     {

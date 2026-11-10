@@ -3,12 +3,13 @@ import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import { computed, ref } from 'vue';
+import axios from 'axios';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { today } from '@/utils/format';
 
-const props = defineProps({ suppliers: Array, unpaidInvoices: Array, whtRates: { type: Object, default: () => ({}) }, prefill: { type: Object, default: null } });
+const props = defineProps({ suppliers: Array, whtRates: { type: Object, default: () => ({}) }, prefill: { type: Object, default: null } });
 
 const form = useForm({
     supplier_id: props.suppliers?.[0]?.id || '',
@@ -55,10 +56,23 @@ const distribute = () => {
     form.auto_allocate = false;
 };
 
+// The chosen supplier's open invoices come from the server: the list of every supplier's would be megabytes.
+let invoicesRequest = 0;
+const loadOpenInvoices = async () => {
+    const current = ++invoicesRequest;
+    filteredInvoices.value = [];
+    if (!form.supplier_id) return;
+    try {
+        const { data } = await axios.get(route('purchases.payments.open-invoices'), { params: { supplier_id: form.supplier_id } });
+        if (current === invoicesRequest) filteredInvoices.value = data.data;
+    } catch (e) {
+        if (current === invoicesRequest) filteredInvoices.value = [];
+    }
+};
 const onSupplierChange = () => {
-    filteredInvoices.value = props.unpaidInvoices.filter((i) => i.supplier_id === form.supplier_id);
     form.purchase_invoice_id = '';
     alloc.value = {};
+    loadOpenInvoices();
 };
 onSupplierChange();
 

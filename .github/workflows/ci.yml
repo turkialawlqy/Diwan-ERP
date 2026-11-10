@@ -97,6 +97,10 @@ jobs:
           php-version: '8.3'
           extensions: mbstring, intl, pdo_sqlite, zip, gd, bcmath, openssl
           coverage: none
+          # setup-php turns the tracing JIT on. `php -S` runs with it (CLI jobs don't: opcache.enable_cli
+          # is off), segfaults under it during exports, and the server is gone for the rest of the run.
+          # No deployment of the app uses the JIT, so this also keeps CI closer to production.
+          ini-values: opcache.jit=disable
       - uses: actions/setup-node@v4
         with:
           node-version: '20'

@@ -131,6 +131,9 @@ class LeaveService
             if ($request->status !== 'pending') {
                 throw ValidationException::withMessages(['leave' => 'الطلب ليس قيد الانتظار.']);
             }
+            // The balance is the employee's: two approvals for one employee go one after the other. Locked before
+            // any plain read, so that the balance below is read after the other approval has been committed.
+            Employee::whereKey($request->employee_id)->lockForUpdate()->first();
             EmployeeFinanceService::assertNotOwnRequest($request->employee);
             // Leave inside a month whose payroll is already approved would change pay that was settled.
             if ($approve) {
@@ -142,13 +145,27 @@ class LeaveService
             }
             // Another request may have used the balance since this one was filed.
             if ($approve && $request->type?->deducts_balance) {
-                $available = $this->balance($request->employee, Carbon::parse($request->start_date))['balance'];
+                $available = $this->availableFor($request);
                 if ((float) $request->days > $available + 0.001) {
                     throw ValidationException::withMessages(['leave' => "رصيد الإجازات السنوية لا يكفي لهذا الطلب (المتاح {$available} يوم)."]);
                 }
             }
             $request->update(['status' => $approve ? 'approved' : 'rejected', 'decision_note' => $note, 'approved_by' => auth()->id(), 'approved_at' => now()]);
         });
+    }
+
+    /**
+     * Days this request can take: the balance on its first day, or on the first day of a leave already approved
+     * after it, whichever is lower. That later leave was approved counting on days this one would now use.
+     */
+    protected function availableFor(LeaveRequest $request): float
+    {
+        $start = Carbon::parse($request->start_date);
+        $later = LeaveRequest::where('employee_id', $request->employee_id)->where('status', 'approved')
+            ->whereHas('type', fn ($q) => $q->where('deducts_balance', true))
+            ->whereDate('start_date', '>', $start)->pluck('start_date');
+
+        return collect([$start, ...$later])->map(fn ($day) => $this->balance($request->employee, Carbon::parse($day))['balance'])->min();
     }
 
     /**
