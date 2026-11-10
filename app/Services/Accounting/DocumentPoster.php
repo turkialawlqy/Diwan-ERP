@@ -328,7 +328,7 @@ class DocumentPoster
     /**
      * Transfer between cash boxes / banks.   Dr destination   Cr source
      */
-    public function transfer(BankAccount $from, BankAccount $to, float $amount, $date, string $reference, string $description, ?float $fees = null): JournalEntry
+    public function transfer(BankAccount $from, BankAccount $to, float $amount, $date, string $reference, string $description, ?float $fees = null, ?int $branchId = null): JournalEntry
     {
         $lines = [
             ['account_id' => $this->boxAccount($to), 'debit' => $amount, 'description' => "تحويل وارد من {$from->name}"],
@@ -340,6 +340,7 @@ class DocumentPoster
         }
 
         return $this->posting->post([
+            'branch_id' => $branchId,
             'date' => $date,
             'reference' => $reference,
             'description' => $description,

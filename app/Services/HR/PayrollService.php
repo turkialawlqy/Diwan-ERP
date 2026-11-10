@@ -149,16 +149,7 @@ class PayrollService
 
             // Loans repaid and adjustments consumed.
             foreach ($payroll->items->where('loan_deduction', '>', 0) as $item) {
-                $remaining = (float) $item->loan_deduction;
-                foreach (EmployeeLoan::where('employee_id', $item->employee_id)->where('status', 'active')->orderBy('date')->lockForUpdate()->get() as $loan) {
-                    $take = min($remaining, (float) $loan->amount - (float) $loan->repaid);
-                    if ($take <= 0) {
-                        continue;
-                    }
-                    $repaid = round((float) $loan->repaid + $take, 2);
-                    $loan->update(['repaid' => $repaid, 'status' => $repaid >= (float) $loan->amount - 0.005 ? 'settled' : 'active']);
-                    $remaining = round($remaining - $take, 2);
-                }
+                $this->repayLoans($payroll, $item);
             }
             EmployeeAdjustment::where('year', $payroll->year)->where('month', $payroll->month)->whereNull('payroll_id')->update(['payroll_id' => $payroll->id]);
 
@@ -174,6 +165,37 @@ class PayrollService
 
             $payroll->update(['status' => 'approved', 'approved_by' => auth()->id(), 'approved_at' => now()]);
         });
+    }
+
+    /**
+     * The month's deduction goes to the loans it was calculated from: each due loan up to its instalment, oldest
+     * first. Anything left (an instalment changed after the payroll was calculated) still comes off the employee's
+     * loans, so they keep agreeing with the ledger. What each loan received is kept for unapprove().
+     */
+    protected function repayLoans(Payroll $payroll, PayrollItem $item): void
+    {
+        $periodEnd = Carbon::create($payroll->year, $payroll->month, 1)->endOfMonth();
+        $loans = EmployeeLoan::where('employee_id', $item->employee_id)->where('status', 'active')->orderBy('date')->orderBy('id')->lockForUpdate()->get();
+        $due = $loans->filter(fn ($loan) => $loan->first_deduction_month?->lte($periodEnd));
+        $remaining = (float) $item->loan_deduction;
+        $repayments = [];
+
+        foreach ([[$due, true], [$due->concat($loans->diff($due)), false]] as [$pool, $instalmentOnly]) {
+            foreach ($pool as $loan) {
+                $open = (float) $loan->amount - (float) $loan->repaid - ($repayments[$loan->id] ?? 0);
+                $take = round(min($remaining, $open, $instalmentOnly ? (float) $loan->monthly_installment : $open), 2);
+                if ($take > 0) {
+                    $repayments[$loan->id] = round(($repayments[$loan->id] ?? 0) + $take, 2);
+                    $remaining = round($remaining - $take, 2);
+                }
+            }
+        }
+
+        foreach ($loans->whereIn('id', array_keys($repayments)) as $loan) {
+            $repaid = round((float) $loan->repaid + $repayments[$loan->id], 2);
+            $loan->update(['repaid' => $repaid, 'status' => $repaid >= (float) $loan->amount - 0.005 ? 'settled' : 'active']);
+        }
+        $item->update(['breakdown' => array_merge($item->breakdown ?? [], ['loan_repayments' => $repayments])]);
     }
 
     /**
@@ -198,8 +220,17 @@ class PayrollService
 
             $this->posting->reverseSource($payroll, 'إلغاء اعتماد مسير '.$payroll->payroll_number);
 
-            // Instalments come back off the most recent loans first, mirroring approve().
             foreach ($payroll->items->where('loan_deduction', '>', 0) as $item) {
+                $repayments = $item->breakdown['loan_repayments'] ?? null;
+                if ($repayments !== null) {
+                    foreach (EmployeeLoan::whereIn('id', array_keys($repayments))->lockForUpdate()->get() as $loan) {
+                        $loan->update(['repaid' => max(0, round((float) $loan->repaid - (float) $repayments[$loan->id], 2)), 'status' => 'active']);
+                    }
+
+                    continue;
+                }
+
+                // Approved before repayments were recorded per loan: back off the most recent loans first.
                 $remaining = (float) $item->loan_deduction;
                 foreach (EmployeeLoan::where('employee_id', $item->employee_id)->whereIn('status', ['active', 'settled'])->where('repaid', '>', 0)
                     ->orderByDesc('date')->orderByDesc('id')->lockForUpdate()->get() as $loan) {

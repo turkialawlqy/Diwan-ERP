@@ -28,6 +28,7 @@ use App\Notifications\ErpAlert;
 use App\Services\Equipment\MaintenanceTracker;
 use App\Services\TenantManager;
 use App\Services\Zatca\EInvoiceManager;
+use App\Support\SendOnce;
 
 /**
  * Daily digest of what needs attention in a company, sent to the users who
@@ -35,15 +36,22 @@ use App\Services\Zatca\EInvoiceManager;
  */
 class AlertService
 {
+    /**
+     * Each alert reaches each user once a day however many times this runs: a repeated run, by
+     * hand or after a failure, sends only what has not gone out yet.
+     */
     public function run(Company $company): int
     {
         $sent = 0;
+        $today = now()->toDateString();
         foreach ($this->collect() as $alert) {
             $users = User::where('company_id', $company->id)->where('status', 'active')->get()
                 ->filter(fn (User $u) => $u->can($alert['permission']));
             foreach ($users as $user) {
-                $user->notify(new ErpAlert($alert['kind'], $alert['title'], $alert['body'], $alert['url'], $alert['level']));
-                $sent++;
+                $key = "erp-alert:{$company->id}:{$today}:{$alert['kind']}:{$user->id}";
+                if (SendOnce::attempt($key, now()->addDays(2), fn () => $user->notify(new ErpAlert($alert['kind'], $alert['title'], $alert['body'], $alert['url'], $alert['level'])))) {
+                    $sent++;
+                }
             }
         }
 

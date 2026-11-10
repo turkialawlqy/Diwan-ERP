@@ -51,37 +51,48 @@ class RecurringJournalRunner
 
     protected function runTemplate(RecurringJournal $template, Carbon $today, int &$count): void
     {
-        while ($template->is_active && $template->next_run_date->lte($today)) {
-            DB::transaction(function () use ($template) {
-                $entry = $this->posting->post([
-                    'date' => $template->next_run_date,
-                    'description' => $template->description,
-                    'entry_type' => 'recurring',
-                    'source' => $template,
-                    'created_by' => $template->created_by,
-                    'lines' => $template->lines,
-                ]);
-                // Accruals are undone the next day, when the real document is booked.
-                if ($template->auto_reverse) {
-                    $this->posting->reverse($entry, $template->next_run_date->copy()->addDay(), 'عكس تلقائي - '.$template->description);
-                }
-
-                $next = match ($template->frequency) {
-                    'quarterly' => $template->next_run_date->copy()->addMonthsNoOverflow(3),
-                    'yearly' => $template->next_run_date->copy()->addYear(),
-                    default => $template->next_run_date->copy()->addMonthNoOverflow(),
-                };
-
-                $template->next_run_date = $next;
-                $template->last_run_at = now();
-                $template->last_error = null;
-                $template->last_error_at = null;
-                if ($template->end_date && $next->gt($template->end_date)) {
-                    $template->is_active = false;
-                }
-                $template->save();
-            });
+        while ($this->postNextPeriod($template, $today)) {
             $count++;
         }
+    }
+
+    /**
+     * Each period is claimed under the template's lock, in the same transaction as its entry: a second run
+     * (a retry, a second server) waits here, finds the date already moved on and posts nothing.
+     */
+    protected function postNextPeriod(RecurringJournal $template, Carbon $today): bool
+    {
+        return DB::transaction(function () use ($template, $today) {
+            $template = RecurringJournal::withoutGlobalScopes()->whereKey($template->id)->lockForUpdate()->first();
+            if (! $template || ! $template->is_active || $template->next_run_date->gt($today)) {
+                return false;
+            }
+
+            $entry = $this->posting->post([
+                'date' => $template->next_run_date,
+                'description' => $template->description,
+                'entry_type' => 'recurring',
+                'source' => $template,
+                'created_by' => $template->created_by,
+                'lines' => $template->lines,
+            ]);
+            // Accruals are undone the next day, when the real document is booked.
+            if ($template->auto_reverse) {
+                $this->posting->reverse($entry, $template->next_run_date->copy()->addDay(), 'عكس تلقائي - '.$template->description);
+            }
+
+            $next = $template->nextAfter($template->next_run_date);
+
+            $template->next_run_date = $next;
+            $template->last_run_at = now();
+            $template->last_error = null;
+            $template->last_error_at = null;
+            if ($template->end_date && $next->gt($template->end_date)) {
+                $template->is_active = false;
+            }
+            $template->save();
+
+            return true;
+        });
     }
 }

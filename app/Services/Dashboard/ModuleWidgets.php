@@ -87,8 +87,8 @@ class ModuleWidgets
                 ['مراجعات هذا الأسبوع', PatientVisit::whereBetween('next_visit_date', [$today(), now()->addDays(7)->toDateString()])->count(), 'clinic.patients.index'],
             ]],
             'gym' => ['title' => 'النوادي', 'permission' => ['gym.attendance.view', 'gym.checkin.use'], 'link' => 'gym.checkin', 'metrics' => fn () => [
-                ['حضور اليوم', MemberCheckin::where('allowed', true)->whereDate('checked_in_at', $today())->count(), 'gym.attendance', 'good'],
-                ['مرفوض اليوم', MemberCheckin::where('allowed', false)->whereDate('checked_in_at', $today())->count(), 'gym.attendance', 'danger'],
+                ['حضور اليوم', MemberCheckin::where('allowed', true)->onDay($today())->count(), 'gym.attendance', 'good'],
+                ['مرفوض اليوم', MemberCheckin::where('allowed', false)->onDay($today())->count(), 'gym.attendance', 'danger'],
             ]],
             'workshop' => ['title' => 'الورش', 'permission' => 'workshop.vehicles.view', 'link' => 'workshop.vehicles.index', 'metrics' => fn () => [
                 ['مركبات', CustomerVehicle::count(), 'workshop.vehicles.index'],

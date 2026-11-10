@@ -58,6 +58,7 @@ export default [
         children: [
             { label: 'nav.pos_session', route: 'pos.index', path: '/pos', exact: true },
             { label: 'nav.pos_history', route: 'pos.history', path: '/pos/history' },
+            { label: 'nav.pos_open_sessions', route: 'pos.open-sessions.index', path: '/pos/open-sessions' },
             { label: 'nav.pos_registers', route: 'pos.registers.index', path: '/pos/registers' },
         ],
     },

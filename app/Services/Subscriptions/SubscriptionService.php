@@ -14,7 +14,9 @@ use App\Services\Documents\DocumentNumberService;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\RecurringInvoiceRunner;
 use App\Support\NightlyRun;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -283,29 +285,36 @@ class SubscriptionService
         $done = ['trial_ended' => 0, 'plan_changed' => 0, 'ended' => 0, 'past_due' => 0, 'recovered' => 0, 'reminders' => 0, 'failed' => 0];
 
         // Each subscription on its own: one that fails is reported and counted, the others still run.
-        CustomerSubscription::with(['recurring', 'plan', 'customer:id,name'])->whereIn('status', ['trial', 'active', 'past_due'])->lazyById(200)->each(NightlyRun::step(function ($s) use ($today, &$done) {
-            $renews = $s->recurring?->next_run_date;
+        // Each batch reads its invoices at once: the queries follow the batches, not the subscriptions.
+        // 150 stays under MySQL's limit of 200 IN values: past it the plan comes from index statistics and scans the company's invoices.
+        CustomerSubscription::with(['recurring', 'plan', 'customer:id,name'])->whereIn('status', ['trial', 'active', 'past_due'])->chunkById(150, function ($batch) use ($today, &$done) {
+            $invoices = $this->invoicesOfBatch($batch);
 
-            if ($s->status === 'trial' && $s->trial_ends_at && $s->trial_ends_at->lte($today)) {
-                $s->update(['status' => 'active']);
-                $done['trial_ended']++;
-            }
+            $batch->each(NightlyRun::step(function ($s) use ($today, &$done, $invoices) {
+                $renews = $s->recurring?->next_run_date;
 
-            if ($renews && $renews->lte($today)) {
-                $change = $this->atRenewal($s);
-                if ($change === 'ended') {
-                    $done['ended']++;
-
-                    return;
+                if ($s->status === 'trial' && $s->trial_ends_at && $s->trial_ends_at->lte($today)) {
+                    $s->update(['status' => 'active']);
+                    $done['trial_ended']++;
                 }
-                if ($change === 'plan_changed') {
-                    $done['plan_changed']++;
-                }
-            }
 
-            $done['past_due'] += $this->syncPastDue($s, $today, $done);
-            $done['reminders'] += $this->remind($s->fresh(['recurring', 'plan', 'customer:id,name']), $today);
-        }, $done));
+                if ($renews && $renews->lte($today)) {
+                    $change = $this->atRenewal($s);
+                    if ($change === 'ended') {
+                        $done['ended']++;
+
+                        return;
+                    }
+                    if ($change === 'plan_changed') {
+                        $done['plan_changed']++;
+                        $s->load('plan'); // the renewal reminder names the new plan
+                    }
+                }
+
+                $done['past_due'] += $this->syncPastDue($s, $today, $done, $invoices[$s->id] ?? collect());
+                $done['reminders'] += $this->remind($s, $today);
+            }, $done));
+        });
 
         return $done;
     }
@@ -367,10 +376,39 @@ class SubscriptionService
         return $subscription->trial_ends_at && $subscription->trial_ends_at->gt(today());
     }
 
-    /** Mark / unmark «متعثر»: any invoice of the subscription still unpaid past its due date and the grace days. Returns 1 when newly marked. */
-    protected function syncPastDue(CustomerSubscription $s, Carbon $today, array &$done): int
+    /**
+     * invoices() for a batch of subscriptions in two queries: subscription id => its invoices, newest first.
+     *
+     * @param  Collection<int, CustomerSubscription>  $subscriptions
+     * @return array<int, SupportCollection>
+     */
+    protected function invoicesOfBatch(Collection $subscriptions): array
     {
-        $latest = $this->invoices($s)->filter(fn ($i) => $i->payment_status !== 'paid' && (float) $i->remaining_amount > 0.004 && $i->due_date
+        $runs = RecurringInvoiceRun::whereIn('recurring_invoice_id', $subscriptions->pluck('recurring_invoice_id')->filter()->unique()->all())
+            ->whereNotNull('invoice_id')->get(['recurring_invoice_id', 'invoice_id']);
+        $invoices = Invoice::where(fn ($q) => $q->whereIn('id', $runs->pluck('invoice_id')->unique()->all())->orWhereIn('customer_subscription_id', $subscriptions->modelKeys()))
+            ->latest('invoice_date')->latest('id')->get(['id', 'invoice_number', 'invoice_date', 'due_date', 'total', 'paid_amount', 'remaining_amount', 'payment_status', 'customer_subscription_id']);
+
+        $byTemplate = $subscriptions->groupBy('recurring_invoice_id');
+        $templatesOf = $runs->groupBy('invoice_id')->map(fn ($r) => $r->pluck('recurring_invoice_id'));
+        $mine = array_fill_keys($subscriptions->modelKeys(), null);
+        foreach ($invoices as $invoice) {
+            $owners = collect($templatesOf[$invoice->id] ?? [])->flatMap(fn ($template) => $byTemplate[$template] ?? [])->pluck('id');
+            if (array_key_exists((int) $invoice->customer_subscription_id, $mine)) {
+                $owners->push((int) $invoice->customer_subscription_id);
+            }
+            foreach ($owners->unique() as $id) {
+                $mine[$id] = ($mine[$id] ?? collect())->push($invoice);
+            }
+        }
+
+        return array_filter($mine);
+    }
+
+    /** Mark / unmark «متعثر»: any invoice of the subscription still unpaid past its due date and the grace days. Returns 1 when newly marked. */
+    protected function syncPastDue(CustomerSubscription $s, Carbon $today, array &$done, SupportCollection $invoices): int
+    {
+        $latest = $invoices->filter(fn ($i) => $i->payment_status !== 'paid' && (float) $i->remaining_amount > 0.004 && $i->due_date
             && $i->due_date->copy()->addDays(self::GRACE_DAYS)->lt($today))->sortBy('due_date')->first(); // the oldest one still owed
         $overdue = (bool) $latest;
 

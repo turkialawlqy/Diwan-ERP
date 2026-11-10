@@ -38,7 +38,7 @@ class GymCheckinService
 
         // Already let in today: in again without using another visit.
         $today = MemberCheckin::withoutGlobalScope('branch')->where('customer_id', $customer->id)->where('allowed', true)->whereNotNull('customer_package_id')
-            ->whereDate('checked_in_at', today())->latest('id')->first(); // a visit already taken from a package today
+            ->onDay(today())->latest('id')->first(); // a visit already taken from a package today
         if (! $live && $today) {
             $this->log($customer->id, $today->subscription_id, $today->customer_package_id, $code, $method, true, 'دخول ثانٍ اليوم (لا يُخصم)', $by);
 
@@ -59,7 +59,7 @@ class GymCheckinService
                 // deadlocking on the check-in row's key to it), and the second one sees the visit the first took.
                 CustomerPackage::withoutGlobalScope('branch')->whereKey($package->id)->lockForUpdate()->first();
                 $taken = MemberCheckin::withoutGlobalScope('branch')->where('customer_id', $customer->id)->where('allowed', true)->whereNotNull('customer_package_id')
-                    ->whereDate('checked_in_at', today())->latest('id')->first();
+                    ->onDay(today())->latest('id')->first();
                 if ($taken) {
                     $this->log($customer->id, $taken->subscription_id, $taken->customer_package_id, $code, $method, true, 'دخول ثانٍ اليوم (لا يُخصم)', $by);
 
@@ -83,7 +83,7 @@ class GymCheckinService
     /** Check-ins of a day with the counts. */
     public function day(string $date): array
     {
-        $rows = MemberCheckin::with('customer:id,name,code')->whereDate('checked_in_at', $date)->orderByDesc('checked_in_at')->get();
+        $rows = MemberCheckin::with('customer:id,name,code')->onDay($date)->orderByDesc('checked_in_at')->get();
 
         return [
             'allowed' => $rows->where('allowed', true)->count(), 'denied' => $rows->where('allowed', false)->count(), 'unique' => $rows->where('allowed', true)->pluck('customer_id')->unique()->count(),
