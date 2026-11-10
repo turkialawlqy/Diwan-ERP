@@ -45,7 +45,9 @@ export default defineConfig({
         },
     ],
     webServer: {
-        command: `php artisan serve --host=127.0.0.1 --port=${PORT}`,
+        // Playwright discards the server's stdout, so a crash would pass in silence: say how it ended
+        // on stderr, which shows as [WebServer] in the run (139 = segfault, 137 = killed).
+        command: `php artisan serve --host=127.0.0.1 --port=${PORT} || echo "php artisan serve exited with status $?" >&2`,
         url: `http://127.0.0.1:${PORT}/up`,
         reuseExistingServer: false,
         timeout: 60_000,

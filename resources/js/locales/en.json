@@ -28,6 +28,7 @@
         "pos_session": "Cashier Session",
         "pos_registers": "Cashier Devices",
         "pos_history": "Sales History",
+        "pos_open_sessions": "Open Shifts",
         "inventory": "Inventory",
         "products": "Products & Costs",
         "categories": "Categories",
@@ -1253,5 +1254,7 @@
         "s_ot_h": "A share of the basic hourly wage added to the hourly wage (Art. 107: 50%)",
         "s_ded": "Maximum deduction",
         "s_ded_h": "Of the wage for advances and penalties (Art. 92: 50%)"
+    },
+
     }
 }

@@ -66,7 +66,7 @@ const unitsList = ref([...(props.units || [])]);
 // Tax rules of the chosen branch (its country): default rate of new lines.
 const selectedBranchId = ref(props.invoice?.branch_id || props.defaultBranchId || props.branches?.[0]?.id || '');
 const branchTax = computed(() => props.branches?.find((b) => Number(b.id) === Number(selectedBranchId.value))?.tax);
-const lineRate = () => Number(branchTax.value?.rate ?? lineRate());
+const lineRate = () => Number(branchTax.value?.rate ?? props.defaultTaxRate ?? taxRate());
 
 const form = useForm({
     supplier_id: suppliersList.value[0]?.id || '',

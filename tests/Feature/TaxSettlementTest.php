@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Company;
 use App\Models\TaxSettlement;
+use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\PostingService;
@@ -70,6 +71,23 @@ class TaxSettlementTest extends TestCase
         $service->cancel($settlement);
         $this->assertSame(0, TaxSettlement::count());
         $this->assertSame('110.00', $service->settleVat(Carbon::parse('2026-01-01'), Carbon::parse('2026-03-31'))->net_amount);
+    }
+
+    public function test_the_vat_return_still_compares_with_the_ledger_after_the_settlement(): void
+    {
+        [$from, $to] = [Carbon::parse('2026-03-01'), Carbon::parse('2026-03-31')];
+        $reports = app(AccountingReports::class);
+        $before = $reports->vatReturn($from, $to);
+
+        $settlement = app(TaxSettlementService::class)->settleVat($from, $to);
+        $after = $reports->vatReturn($from, $to);
+
+        $this->assertSame($before['ledger_output_vat'], $after['ledger_output_vat'], 'The settlement entry is not tax of the period.');
+        $this->assertSame($before['ledger_input_vat'], $after['ledger_input_vat']);
+        $this->assertSame($before['ledger_matches'], $after['ledger_matches']);
+
+        app(TaxSettlementService::class)->cancel($settlement);
+        $this->assertSame($before['ledger_output_vat'], $reports->vatReturn($from, $to)['ledger_output_vat']);
     }
 
     public function test_the_vat_return_page_offers_the_settle_button(): void

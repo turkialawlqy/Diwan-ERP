@@ -17,8 +17,6 @@ import { timeZone } from '@/utils/format';
 
 const props = defineProps({
     stocks: Object,
-    products: Array,
-    warehouses: Array,
     stats: Object,
 });
 

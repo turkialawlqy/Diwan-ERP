@@ -9,6 +9,7 @@ use App\Models\SubcontractOrder;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Services\Manufacturing\SubcontractService;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -27,8 +28,8 @@ class SubcontractController extends Controller
     public function create(): Response
     {
         return Inertia::render('Manufacturing/Subcontracts/Create', [
-            'suppliers' => Supplier::where('status', 'active')->orderBy('name')->get(['id', 'name']),
-            'products' => Product::where('is_active', true)->where('type', '!=', 'service')->orderBy('name_ar')->get(['id', 'name_ar', 'sku']),
+            'suppliers' => PickerOptions::from(Supplier::where('status', 'active')->orderBy('name'), ['id', 'name']),
+            'products' => PickerOptions::from(Product::where('is_active', true)->where('type', '!=', 'service')->orderBy('name_ar'), ['id', 'name_ar', 'sku']),
             'boms' => Bom::where('is_active', true)->get(['id', 'product_id', 'name', 'version', 'is_default']),
             'warehouses' => Warehouse::where('is_active', true)->orderByDesc('is_main')->get(['id', 'name_ar']),
         ]);

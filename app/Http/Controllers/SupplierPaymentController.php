@@ -46,11 +46,6 @@ class SupplierPaymentController extends Controller
             ->paginate($this->perPage($request))
             ->withQueryString();
 
-        $suppliers = Supplier::where('status', 'active')->orderBy('name')->limit(500)->get(['id', 'name', 'current_balance']);
-        $unpaidInvoices = PurchaseInvoice::where('remaining_amount', '>', 0)
-            ->with('supplier:id,name')
-            ->get(['id', 'supplier_id', 'invoice_number', 'total', 'remaining_amount', 'currency_code']);
-
         $stats = [
             'total_payments_count' => SupplierPayment::where('status', '!=', 'cancelled')->count(),
             'total_paid_amount' => SupplierPayment::where('status', '!=', 'cancelled')->sum('amount'),
@@ -58,8 +53,6 @@ class SupplierPaymentController extends Controller
 
         return Inertia::render('Purchases/Payments/Index', [
             'payments' => $payments,
-            'suppliers' => $suppliers,
-            'unpaidInvoices' => $unpaidInvoices,
             'stats' => $stats,
             'filters' => [
                 'search' => $search,
@@ -79,9 +72,16 @@ class SupplierPaymentController extends Controller
             'prefill' => $prefill,
             'whtRates' => collect(WithholdingTax::categories())->pluck('rate', 'key'),
             'suppliers' => Supplier::where('status', 'active')->orderBy('name')->limit(500)->get(['id', 'name', 'current_balance', 'is_non_resident', 'wht_category']),
-            'unpaidInvoices' => PurchaseInvoice::where('remaining_amount', '>', 0)->with('supplier:id,name')
-                ->get(['id', 'supplier_id', 'invoice_number', 'total', 'remaining_amount', 'currency_code']),
         ]);
+    }
+
+    /** The open invoices of one supplier, for the voucher's choice of invoice and its allocation table. */
+    public function openInvoices(Request $request)
+    {
+        $request->validate(['supplier_id' => 'required|tenant_exists:suppliers,id']);
+
+        return response()->json(['data' => PurchaseInvoice::where('supplier_id', $request->integer('supplier_id'))->where('remaining_amount', '>', 0)
+            ->get(['id', 'supplier_id', 'invoice_number', 'total', 'remaining_amount', 'currency_code'])]);
     }
 
     /**

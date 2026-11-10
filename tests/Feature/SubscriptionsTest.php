@@ -14,6 +14,7 @@ use App\Services\Subscriptions\SubscriptionService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /** Customer subscriptions: plans, billing through the recurring-invoice template, and the lifecycle. */
@@ -292,6 +293,29 @@ class SubscriptionsTest extends TestCase
         $invoice->forceFill(['payment_status' => 'paid', 'paid_amount' => $invoice->total, 'remaining_amount' => 0])->save();
         $this->assertSame(1, $this->service()->nightly()['recovered']);
         $this->assertSame('active', $sub->fresh()->status);
+    }
+
+    public function test_the_nightly_run_reads_invoices_a_batch_at_a_time_and_each_stays_with_its_own_subscription(): void
+    {
+        $plan = $this->plan();
+        $late = $this->subscribe($plan);
+        $paid = $this->subscribe($plan, ['customer_id' => Customer::create(['name' => 'عميل مسدد', 'customer_type' => 'commercial', 'status' => 'active'])->id]);
+        $others = collect(range(1, 4))->map(fn ($i) => $this->subscribe($plan, ['customer_id' => Customer::create(['name' => 'عميل '.$i, 'customer_type' => 'commercial', 'status' => 'active'])->id]));
+        $others->each(fn ($s) => $this->service()->invoices($s)->each(fn ($i) => Invoice::whereKey($i->id)->update(['paid_amount' => $i->total, 'remaining_amount' => 0, 'payment_status' => 'paid'])));
+        $this->service()->invoices($paid)->each(fn ($i) => Invoice::whereKey($i->id)->update(['paid_amount' => $i->total, 'remaining_amount' => 0, 'payment_status' => 'paid']));
+
+        Carbon::setTestNow('2026-08-15 10:00:00');
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $done = $this->service()->nightly();
+        $log = array_column(DB::getQueryLog(), 'query');
+        DB::disableQueryLog();
+
+        $this->assertCount(1, array_filter($log, fn ($sql) => preg_match('/from ["`]recurring_invoice_runs["`]/', $sql)));
+        $this->assertCount(1, array_filter($log, fn ($sql) => preg_match('/from ["`]invoices["`]/', $sql)));
+        $this->assertSame(1, $done['past_due']);
+        $this->assertSame('past_due', $late->fresh()->status);
+        $this->assertSame('active', $paid->fresh()->status);
     }
 
     public function test_renewal_reminders_go_out_once_per_step(): void

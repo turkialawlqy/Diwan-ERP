@@ -145,9 +145,38 @@ class AccountMap
      */
     public function all(?int $companyId = null): array
     {
+        $companyId ??= $this->tenantManager->getTenantId();
+        $this->preload($companyId);
+
         return collect(array_keys(self::ROLES))
             ->mapWithKeys(fn ($role) => [$role => $this->find($role, $companyId)])
             ->all();
+    }
+
+    /** Reads every role not yet known in two queries, the same answers find() would give one by one. */
+    protected function preload(int $companyId): void
+    {
+        $missing = array_filter(array_keys(self::ROLES), fn ($role) => ! array_key_exists("{$companyId}:{$role}", $this->cache));
+        if (! $missing) {
+            return;
+        }
+
+        $values = CompanySetting::withoutGlobalScopes()
+            ->where('company_id', $companyId)
+            ->whereIn('key', array_map(fn ($role) => "acc_{$role}_id", $missing))
+            ->pluck('value', 'key');
+
+        $accounts = Account::withoutGlobalScopes()
+            ->where('company_id', $companyId)
+            ->where('is_parent', false)
+            ->whereIn('id', $values->filter()->map(fn ($value) => (int) $value)->values()->all())
+            ->pluck('id')
+            ->flip();
+
+        foreach ($missing as $role) {
+            $id = (int) ($values["acc_{$role}_id"] ?? 0);
+            $this->cache["{$companyId}:{$role}"] = $id && isset($accounts[$id]) ? $id : null;
+        }
     }
 
     public function flush(): void

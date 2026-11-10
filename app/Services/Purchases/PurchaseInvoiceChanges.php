@@ -2,6 +2,8 @@
 
 namespace App\Services\Purchases;
 
+use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\PurchaseInvoice;
 use App\Models\StockMovement;
 use App\Models\Supplier;
@@ -81,6 +83,7 @@ class PurchaseInvoiceChanges
                 $first = $moves->first();
                 $this->stock->issue([
                     'product_id' => $first->product_id, 'warehouse_id' => $first->warehouse_id, 'batch_id' => $first->batch_id, 'quantity' => $net,
+                    'serials' => $this->serialsStillHeld($invoice, $first->product_id, $first->warehouse_id, $net),
                     'type' => 'purchase_cancel', 'date' => $date, 'source' => $invoice, 'reference' => $invoice->invoice_number,
                 ]);
             });
@@ -90,6 +93,21 @@ class PurchaseInvoiceChanges
         }
         SupplierPayment::where('purchase_invoice_id', $invoice->id)->delete();
         $invoice->items()->delete();
+    }
+
+    /** @return list<string> the serial numbers this bill brought in, when all of them are still in the warehouse */
+    protected function serialsStillHeld(PurchaseInvoice $invoice, int $productId, int $warehouseId, float $quantity): array
+    {
+        if (Product::whereKey($productId)->value('tracking') !== 'serial') {
+            return [];
+        }
+        $serials = ProductSerial::where('product_id', $productId)->where('warehouse_id', $warehouseId)->where('status', 'in_stock')
+            ->where('last_source_type', $invoice->getMorphClass())->where('last_source_id', $invoice->id)->pluck('serial_number')->all();
+        if (count($serials) !== (int) round($quantity)) {
+            throw ValidationException::withMessages(['invoice' => 'خرجت بعض الأرقام التسلسلية لهذه الفاتورة من المستودع؛ صحّحها بمرتجع مشتريات.']);
+        }
+
+        return $serials;
     }
 
     public function delete(PurchaseInvoice $invoice): void

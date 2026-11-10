@@ -25,7 +25,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
                 <Link v-if="$can('bookings.bookings.create')" :href="route('bookings.create', { customer: patient.customer_id })" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">حجز موعد</Link></template>
         </PageHeader>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs">
-            <div class="space-y-4">
+            <div class="space-y-4" :class="{ 'lg:col-span-3': !visits && !$can('clinic.visits.create') }">
                 <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-1.5" data-patient-card>
                     <p><span class="text-slate-500">الجوال:</span> <span class="font-mono" dir="ltr">{{ patient.customer?.phone || '—' }}</span></p>
                     <p><span class="text-slate-500">الميلاد:</span> {{ d(patient.birth_date) }} · {{ patient.gender === 'male' ? 'ذكر' : patient.gender === 'female' ? 'أنثى' : '—' }} · <b class="font-mono">{{ patient.blood_type || '—' }}</b></p>
@@ -39,7 +39,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
                     <button v-for="b in unrecorded" :key="b.id" type="button" class="block py-0.5 text-amber-900 underline" @click="form.booking_id = b.id; form.visit_date = String(b.starts_at).slice(0, 10)">{{ String(b.starts_at).slice(0, 10) }} {{ b.service?.name }}</button></div>
             </div>
 
-            <div class="lg:col-span-2 space-y-4">
+            <div v-if="visits || $can('clinic.visits.create')" class="lg:col-span-2 space-y-4">
                 <form v-if="$can('clinic.visits.create')" @submit.prevent="save" class="bg-white border border-slate-200 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-3" data-visit-form>
                     <h2 class="font-bold md:col-span-2">زيارة جديدة</h2>
                     <Field label="التاريخ *" :error="form.errors.visit_date"><DatePicker v-model="form.visit_date" /></Field>
@@ -53,7 +53,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
                     <div class="md:col-span-2"><button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-save-visit>حفظ الزيارة</button></div>
                 </form>
 
-                <div class="space-y-3" data-visits>
+                <div v-if="visits" class="space-y-3" data-visits>
                     <div v-for="v in visits" :key="v.id" class="bg-white border border-slate-200 rounded-2xl p-5 space-y-1" :data-visit="d(v.visit_date)">
                         <p class="font-bold"><span class="font-mono">{{ d(v.visit_date) }}</span><span v-if="v.doctor" class="font-normal text-slate-500"> — د. {{ v.doctor.name }}</span></p>
                         <p v-if="v.complaint"><b>الشكوى:</b> {{ v.complaint }}</p><p v-if="v.diagnosis"><b>التشخيص:</b> {{ v.diagnosis }}</p><p v-if="v.treatment"><b>العلاج:</b> {{ v.treatment }}</p><p v-if="v.prescription"><b>الوصفة:</b> {{ v.prescription }}</p>

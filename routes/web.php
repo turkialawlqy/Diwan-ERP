@@ -422,6 +422,8 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
             ->name('order.process')
             ->middleware('throttle:pos-orders');
         Route::get('/history', [PosController::class, 'history'])->name('history');
+        Route::get('/open-sessions', [PosController::class, 'managedSessions'])->name('open-sessions.index');
+        Route::post('/open-sessions/{session}/close', [PosController::class, 'closeManagedSession'])->whereNumber('session')->name('open-sessions.close');
         Route::get('/products/search', [PosController::class, 'productSearch'])->name('products.search');
         Route::get('/registers', [PosRegisterController::class, 'index'])->name('registers.index');
         Route::get('/registers/create', [PosRegisterController::class, 'create'])->name('registers.create');
@@ -551,6 +553,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         // Supplier Payments
         Route::get('/payments', [SupplierPaymentController::class, 'index'])->name('payments.index');
         Route::get('/payments/create', [SupplierPaymentController::class, 'create'])->name('payments.create');
+        Route::get('/payments/open-invoices', [SupplierPaymentController::class, 'openInvoices'])->name('payments.open-invoices');
         Route::post('/payments', [SupplierPaymentController::class, 'store'])->name('payments.store');
         Route::post('/payments/{payment}/cancel', [DocumentCancellationController::class, 'supplierPayment'])->name('payments.cancel');
     });

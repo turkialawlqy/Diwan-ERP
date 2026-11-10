@@ -13,6 +13,7 @@ use App\Services\ActiveBranch;
 use App\Services\Documents\DocumentNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -63,22 +64,32 @@ class PatientController extends Controller
         return redirect()->route('clinic.patients.show', $patient->id)->with('success', 'تم حفظ ملف المريض');
     }
 
-    public function show(PatientFile $patient): Response
+    public function show(Request $request, PatientFile $patient): Response
     {
-        $patient->load(['customer:id,name,phone,email', 'visits.doctor:id,name']);
+        // Visits are never loaded onto $patient: its toArray() would carry them past the permission check below.
+        $patient->load('customer:id,name,phone,email');
+        $user = $request->user();
 
-        return Inertia::render('Clinic/Patients/Show', [
+        $props = [
             'patient' => $patient->toArray(),
-            'visits' => $patient->visits->map(fn ($v) => $v->toArray() + ['files' => collect($v->attachments ?? [])->map(fn ($a) => ['name' => $a['name'], 'url' => route('files.show', ['token' => Crypt::encryptString($a['path'])], false)])->values()]),
             'doctors' => Employee::orderBy('name')->limit(300)->get(['id', 'name']),
             'bookings' => Booking::with('service:id,name')->where('customer_id', $patient->customer_id)->whereIn('status', ['pending', 'confirmed'])->where('starts_at', '>=', now())->orderBy('starts_at')->limit(5)->get(['id', 'number', 'bookable_service_id', 'starts_at']),
-            'unrecorded' => Booking::with('service:id,name')->where('customer_id', $patient->customer_id)->where('status', 'completed')->whereNotIn('id', PatientVisit::whereNotNull('booking_id')->pluck('booking_id'))->latest('starts_at')->limit(5)->get(['id', 'number', 'bookable_service_id', 'starts_at']),
-        ]);
+            // Completed bookings still waiting for a visit record: a prompt for whoever records visits.
+            'unrecorded' => $user->can('clinic.visits.create')
+                ? Booking::with('service:id,name')->where('customer_id', $patient->customer_id)->where('status', 'completed')->whereNotIn('id', PatientVisit::whereNotNull('booking_id')->pluck('booking_id'))->latest('starts_at')->limit(5)->get(['id', 'number', 'bookable_service_id', 'starts_at'])
+                : [],
+        ];
+
+        if ($user->can('clinic.visits.view')) {
+            $props['visits'] = $patient->visits()->with('doctor:id,name')->get()->map(fn ($v) => $v->toArray() + ['files' => collect($v->attachments ?? [])->map(fn ($a) => ['name' => $a['name'], 'url' => route('files.show', ['token' => Crypt::encryptString($a['path'])], false)])->values()]);
+        }
+
+        return Inertia::render('Clinic/Patients/Show', $props);
     }
 
     public function storeVisit(Request $request, PatientFile $patient)
     {
-        $data = $this->visitData($request);
+        $data = $this->visitData($request, $patient);
         $visit = $patient->visits()->create($data + ['attachments' => $this->files($request), 'created_by' => $request->user()->id]);
 
         return back()->with('success', 'سُجّلت الزيارة'.($visit->next_visit_date ? ' وموعد المراجعة '.$visit->next_visit_date->toDateString() : ''));
@@ -87,7 +98,7 @@ class PatientController extends Controller
     public function updateVisit(Request $request, PatientVisit $visit)
     {
         $keep = $visit->attachments ?? [];
-        $visit->update($this->visitData($request) + ['attachments' => array_merge($keep, $this->files($request))]);
+        $visit->update($this->visitData($request, $visit->patient) + ['attachments' => array_merge($keep, $this->files($request))]);
 
         return back()->with('success', 'عُدّلت الزيارة');
     }
@@ -100,13 +111,15 @@ class PatientController extends Controller
         ]);
     }
 
-    protected function visitData(Request $request): array
+    protected function visitData(Request $request, PatientFile $patient): array
     {
         return $request->validate([
-            'visit_date' => 'required|date', 'doctor_id' => 'nullable|tenant_exists:employees,id', 'booking_id' => 'nullable|tenant_exists:bookings,id',
+            'visit_date' => 'required|date', 'doctor_id' => 'nullable|tenant_exists:employees,id',
+            // The booking must be this patient's own, in this company.
+            'booking_id' => ['nullable', Rule::exists('bookings', 'id')->where('company_id', $patient->company_id)->where('customer_id', $patient->customer_id)],
             'complaint' => 'nullable|string|max:3000', 'diagnosis' => 'nullable|string|max:3000', 'treatment' => 'nullable|string|max:3000', 'prescription' => 'nullable|string|max:3000',
             'next_visit_date' => 'nullable|date', 'files' => 'nullable|array|max:10', 'files.*' => 'file|max:10240|mimes:jpg,jpeg,png,webp,pdf',
-        ], [], ['visit_date' => 'تاريخ الزيارة']);
+        ], [], ['visit_date' => 'تاريخ الزيارة', 'booking_id' => 'الحجز']);
     }
 
     /** @return list<array{name:string,path:string}> */

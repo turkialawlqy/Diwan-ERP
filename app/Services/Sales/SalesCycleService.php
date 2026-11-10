@@ -281,6 +281,8 @@ class SalesCycleService
             $invoiced >= $ordered - 0.00005 => 'invoiced',
             $delivered >= $ordered - 0.00005 => 'delivered',
             $delivered > 0 => 'partially_delivered',
+            // Its delivery notes were cancelled: open again.
+            in_array($order->status, ['delivered', 'partially_delivered'], true) => 'confirmed',
             default => $order->status,
         };
 

@@ -149,6 +149,11 @@ class PeriodEndService
      */
     public function zakatPreview(FiscalYear $year, array $options = []): array
     {
+        return $this->reports->sharing(fn () => $this->computeZakat($year, $options));
+    }
+
+    protected function computeZakat(FiscalYear $year, array $options): array
+    {
         $from = Carbon::parse($year->start_date)->startOfDay();
         $to = Carbon::parse($year->end_date)->endOfDay();
 
@@ -161,7 +166,8 @@ class PeriodEndService
         $zakatExpense = $this->credit($this->reports->totalsBetween($from, $to, array_filter([$this->map->find('zakat_expense')]), null, true)) * -1;
         $adjustedProfit = round((float) $income['net_profit'] + $zakatExpense, 2);
 
-        $cumulative = $this->reports->totalsBetween(null, $to);
+        // Every line up to the year's end is what lay before the year plus the year itself, both read above.
+        $cumulative = $this->reports->sumTotals($this->reports->totalsBetween(null, $from->copy()->subDay()), $this->reports->totalsBetween($from, $to));
         $liabilityIds = $this->siblings(['end_of_service_provision', 'long_term_loans']);
         $longTerm = $this->credit(array_intersect_key($cumulative, array_flip($liabilityIds)));
         $assetIds = $this->siblings(['fixed_assets', 'accumulated_depreciation']);
