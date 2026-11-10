@@ -54,7 +54,27 @@ trait BranchScoped
     }
 
     /**
+     * @throws ValidationException when the user may not work in the model's branch
+     */
+    protected static function assertUsableBranch(User $user, $model): void
+    {
+        if (! $user->canUseBranch($model->branch_id ? (int) $model->branch_id : null)) {
+            throw ValidationException::withMessages(['branch_id' => 'لا تملك صلاحية العمل على هذا الفرع.']);
+        }
+    }
 
+    /**
+     * Every branch $user may work in, not only the one chosen in the top bar (with rows
+     * without a branch, like the global scope). For screens that look across branches.
+     */
+    public function scopeInBranchesOf(Builder $query, User $user): void
+    {
+        $query->withoutGlobalScope('branch');
+
+        $allowed = $user->allowedBranchIds();
+        if ($allowed !== null) {
+            $column = $query->getModel()->qualifyColumn('branch_id');
+            $query->where(fn ($q) => $q->whereIn($column, $allowed)->orWhereNull($column));
         }
     }
 
