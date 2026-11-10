@@ -64,17 +64,27 @@ class PatientController extends Controller
         return redirect()->route('clinic.patients.show', $patient->id)->with('success', 'تم حفظ ملف المريض');
     }
 
-    public function show(PatientFile $patient): Response
+    public function show(Request $request, PatientFile $patient): Response
     {
-        $patient->load(['customer:id,name,phone,email', 'visits.doctor:id,name']);
+        // Visits are never loaded onto $patient: its toArray() would carry them past the permission check below.
+        $patient->load('customer:id,name,phone,email');
+        $user = $request->user();
 
-        return Inertia::render('Clinic/Patients/Show', [
+        $props = [
             'patient' => $patient->toArray(),
-            'visits' => $patient->visits->map(fn ($v) => $v->toArray() + ['files' => collect($v->attachments ?? [])->map(fn ($a) => ['name' => $a['name'], 'url' => route('files.show', ['token' => Crypt::encryptString($a['path'])], false)])->values()]),
             'doctors' => Employee::orderBy('name')->limit(300)->get(['id', 'name']),
             'bookings' => Booking::with('service:id,name')->where('customer_id', $patient->customer_id)->whereIn('status', ['pending', 'confirmed'])->where('starts_at', '>=', now())->orderBy('starts_at')->limit(5)->get(['id', 'number', 'bookable_service_id', 'starts_at']),
-            'unrecorded' => Booking::with('service:id,name')->where('customer_id', $patient->customer_id)->where('status', 'completed')->whereNotIn('id', PatientVisit::whereNotNull('booking_id')->pluck('booking_id'))->latest('starts_at')->limit(5)->get(['id', 'number', 'bookable_service_id', 'starts_at']),
-        ]);
+            // Completed bookings still waiting for a visit record: a prompt for whoever records visits.
+            'unrecorded' => $user->can('clinic.visits.create')
+                ? Booking::with('service:id,name')->where('customer_id', $patient->customer_id)->where('status', 'completed')->whereNotIn('id', PatientVisit::whereNotNull('booking_id')->pluck('booking_id'))->latest('starts_at')->limit(5)->get(['id', 'number', 'bookable_service_id', 'starts_at'])
+                : [],
+        ];
+
+        if ($user->can('clinic.visits.view')) {
+            $props['visits'] = $patient->visits()->with('doctor:id,name')->get()->map(fn ($v) => $v->toArray() + ['files' => collect($v->attachments ?? [])->map(fn ($a) => ['name' => $a['name'], 'url' => route('files.show', ['token' => Crypt::encryptString($a['path'])], false)])->values()]);
+        }
+
+        return Inertia::render('Clinic/Patients/Show', $props);
     }
 
     public function storeVisit(Request $request, PatientFile $patient)
