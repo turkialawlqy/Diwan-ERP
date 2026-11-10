@@ -4,10 +4,10 @@ import { Link, router } from '@inertiajs/vue3';
 import Pagination from '@/Components/UI/Pagination.vue';
 import StatusBadge from '@/Components/Documents/StatusBadge.vue';
 import RowActions from '@/Components/UI/RowActions.vue';
-import { money, date, qty } from '@/utils/format';
+import { money, date, dateTime, qty } from '@/utils/format';
 
 /**
- * Paginated document list. columns: [{ key: 'a.b', label, type?: money|date|status|mono|qty }]
+ * Paginated document list. columns: [{ key: 'a.b', label, type?: money|date|datetime|status|mono|qty }]
  * Row actions: link (view), editLink and deleteLink (row => url, or null to hide for that row).
  */
 const props = defineProps({
@@ -31,6 +31,7 @@ const format = (row, col) => {
     const v = value(row, col.key);
     if (col.type === 'money') return money(v);
     if (col.type === 'date') return date(v);
+    if (col.type === 'datetime') return dateTime(v);
     if (col.type === 'qty') return qty(v);
     return v ?? '—';
 };
@@ -56,7 +57,7 @@ const format = (row, col) => {
                 </thead>
                 <tbody>
                     <tr v-for="row in paginator.data" :key="row.id" class="border-t border-slate-100 hover:bg-slate-50/60">
-                        <td v-for="c in columns" :key="c.key" class="px-4 py-2" :class="{ 'text-end font-mono': c.type === 'money', 'font-mono': c.type === 'mono' || c.type === 'date' || c.type === 'qty' }">
+                        <td v-for="c in columns" :key="c.key" class="px-4 py-2" :class="{ 'text-end font-mono': c.type === 'money', 'font-mono': c.type === 'mono' || c.type === 'date' || c.type === 'datetime' || c.type === 'qty' }">
                             <StatusBadge v-if="c.type === 'status'" :status="value(row, c.key)" />
                             <template v-else>{{ format(row, c) }}</template>
                         </td>

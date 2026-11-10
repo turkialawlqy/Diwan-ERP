@@ -28,6 +28,7 @@
         "pos_session": "Cashier Session",
         "pos_registers": "Cashier Devices",
         "pos_history": "Sales History",
+        "pos_open_sessions": "Open Shifts",
         "inventory": "Inventory",
         "products": "Products & Costs",
         "categories": "Categories",
@@ -1254,8 +1255,6 @@
         "s_ded": "Maximum deduction",
         "s_ded_h": "Of the wage for advances and penalties (Art. 92: 50%)"
     },
-    "crm": {
-        "lost_title": "Why was this lead lost?",
-        "lost_reason": "Reason"
+
     }
 }

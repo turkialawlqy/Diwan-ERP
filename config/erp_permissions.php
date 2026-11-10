@@ -881,6 +881,8 @@ return [
         'pos.order.process' => 'pos.terminal.use',
         'pos.session.open' => 'pos.sessions.create',
         'pos.session.close' => 'pos.sessions.edit',
+        'pos.open-sessions.index' => 'pos.sessions.manage',
+        'pos.open-sessions.close' => 'pos.sessions.manage',
         'pos.registers.index' => 'pos.registers.view',
         'pos.registers.create' => 'pos.registers.create',
         'pos.registers.store' => 'pos.registers.create',

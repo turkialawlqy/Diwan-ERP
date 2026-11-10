@@ -21,6 +21,7 @@ use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Services\Zatca\EInvoiceManager;
 use App\Services\Zatca\VatClassifier;
+use App\Support\BranchScopeSwitch;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -249,6 +250,12 @@ class PosController extends Controller
         $warehouseId = $session->register?->warehouse_id;
 
         $order = DB::transaction(function () use ($validated, $session, $company, $warehouseId) {
+            // A manager can close this shift from another screen: under the row lock a sale is either
+            // complete before the close (and counted in its expected cash) or refused.
+            if (PosSession::whereKey($session->id)->lockForUpdate()->value('status') !== 'opened') {
+                throw ValidationException::withMessages(['session_id' => 'جلسة نقطة البيع غير صالحة أو مغلقة.']);
+            }
+
             $subtotal = 0;
             $taxAmount = 0;
             $totalDiscount = (float) ($validated['discount'] ?? 0);
@@ -423,11 +430,7 @@ class PosController extends Controller
      */
     public function closeSession(Request $request, PosSession $session)
     {
-        $validated = $request->validate([
-            'closing_cash' => 'required|numeric|min:0',
-            'deposit_bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
-            'notes' => 'nullable|string',
-        ]);
+        $validated = $this->validateClosing($request);
 
         // Only the session owner (or a POS manager) can close an open session.
         if ($session->status !== 'opened'
@@ -435,25 +438,95 @@ class PosController extends Controller
             abort(403, 'لا يمكنك إغلاق هذه الجلسة.');
         }
 
-        // Cash actually kept in the drawer: cash received (the cash part of split tenders) minus change given.
+        abort_unless($this->closeShift($session, $validated), 403, 'الجلسة أُغلقت بالفعل.');
+
+        return redirect()->route('pos.index')->with('success', 'تم إغلاق جلسة نقطة البيع وتسوية الصندوق بنجاح');
+    }
+
+    /**
+     * The open shifts of every branch the manager may work in, whichever one the top bar shows:
+     * a shift forgotten in another branch is what this screen is for.
+     */
+    public function managedSessions(Request $request)
+    {
+        $user = $request->user();
+
+        // The shifts' orders, registers and accounts are outside the top bar's branch too.
+        return BranchScopeSwitch::off(fn () => Inertia::render('POS/OpenSessions', [
+            'sessions' => PosSession::inBranchesOf($user)->where('status', 'opened')
+                ->with(['user:id,name', 'register:id,name', 'branch:id,name_ar,name_en'])
+                ->orderBy('opened_at')->orderBy('id')
+                ->paginate(25)
+                ->through(fn (PosSession $session) => [
+                    'id' => $session->id,
+                    'branch_id' => $session->branch_id,
+                    'cashier' => $session->user?->name,
+                    'register' => $session->register?->name,
+                    'branch' => $session->branch?->name_ar ?: $session->branch?->name_en,
+                    'opened_at' => $session->opened_at,
+                    'opening_cash' => (float) $session->opening_cash,
+                    'expected_cash' => $this->expectedCash($session),
+                ]),
+            'boxes' => BankAccount::inBranchesOf($user)->where('is_active', true)->orderBy('name')->get(['id', 'name', 'branch_id']),
+        ]));
+    }
+
+    /**
+     * A manager closes someone else's shift from the open-shifts screen, through the terminal's own closing.
+     */
+    public function closeManagedSession(Request $request, int $session)
+    {
+        // Looked up here, not route-bound: binding finds only the branch shown in the top bar.
+        $session = PosSession::inBranchesOf($request->user())->findOrFail($session);
+
+        return $this->closeShift($session, $this->validateClosing($request))
+            ? back()->with('success', 'تم إغلاق الوردية وتسوية الصندوق.')
+            : back()->with('error', 'هذه الوردية أُغلقت بالفعل.');
+    }
+
+    protected function validateClosing(Request $request): array
+    {
+        return $request->validate([
+            'closing_cash' => 'required|numeric|min:0',
+            'deposit_bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'notes' => 'nullable|string',
+        ]);
+    }
+
+    /**
+     * Cash that should be in the drawer: the float, plus cash received (the cash part of split
+     * tenders) minus change given, minus cash handed back for returns of this shift's sales.
+     * Call with the branch scope off: the shift need not be in the branch shown in the top bar.
+     */
+    protected function expectedCash(PosSession $session): float
+    {
         $cashOrdersTotal = $session->orders()->where('status', 'completed')->whereIn('payment_method', ['cash', 'multiple', 'credit'])
             ->get(['payment_method', 'paid_amount', 'change_amount', 'cash_amount'])
             ->sum(fn ($o) => ($o->payment_method === 'cash' ? (float) $o->paid_amount : (float) $o->cash_amount) - (float) $o->change_amount);
 
-        // Cash handed back to customers for returns of this shift's sales leaves the drawer too.
         $cashRefunds = (float) CreditNote::whereIn('invoice_id', $session->orders()->whereNotNull('invoice_id')->pluck('invoice_id'))
             ->where('status', 'refunded')->where('refund_method', 'cash')->where('created_at', '>=', $session->opened_at)->sum('total');
 
-        $expectedCash = round((float) $session->opening_cash + $cashOrdersTotal - $cashRefunds, 2);
-        $closingCash = (float) $validated['closing_cash'];
-        $difference = round($closingCash - $expectedCash, 2);
+        return round((float) $session->opening_cash + $cashOrdersTotal - $cashRefunds, 2);
+    }
 
-        DB::transaction(function () use (&$session, $validated, $closingCash, $expectedCash, $difference) {
+    /**
+     * Count the drawer and close the shift, in the shift's own branch whichever one the top bar shows.
+     * False when it was already closed: the caller decides how to say so.
+     */
+    protected function closeShift(PosSession $session, array $validated): bool
+    {
+        return BranchScopeSwitch::off(fn () => DB::transaction(function () use ($session, $validated) {
             // Locked and checked again: closing twice must not post the shortage / overage twice.
             $session = PosSession::whereKey($session->id)->lockForUpdate()->firstOrFail();
             if ($session->status !== 'opened') {
-                abort(403, 'الجلسة أُغلقت بالفعل.');
+                return false;
             }
+
+            $expectedCash = $this->expectedCash($session);
+            $closingCash = (float) $validated['closing_cash'];
+            $difference = round($closingCash - $expectedCash, 2);
+
             $session->update([
                 'closing_cash' => $closingCash,
                 'expected_cash' => $expectedCash,
@@ -479,12 +552,12 @@ class PosController extends Controller
 
             // Counted cash handed back to the treasury.
             if (! empty($validated['deposit_bank_account_id']) && $closingCash > 0) {
-                $this->moveCash($this->drawer($session, 'deposit_bank_account_id'), BankAccount::findOrFail($validated['deposit_bank_account_id']),
-                    $closingCash, "توريد نقدية وردية #{$session->id}");
+                $this->moveCash($this->drawer($session, 'deposit_bank_account_id'), $this->treasury($session, $validated['deposit_bank_account_id']),
+                    $closingCash, "توريد نقدية وردية #{$session->id}", $session->branch_id);
             }
-        });
 
-        return redirect()->route('pos.index')->with('success', 'تم إغلاق جلسة نقطة البيع وتسوية الصندوق بنجاح');
+            return true;
+        }));
     }
 
     /**
@@ -517,12 +590,23 @@ class PosController extends Controller
         return $box;
     }
 
-    protected function moveCash(BankAccount $from, BankAccount $to, float $amount, string $description): void
+    /** The account counted cash goes to: of the shift's own branch or shared by all, as the terminal offers. */
+    protected function treasury(PosSession $session, int|string $bankAccountId): BankAccount
+    {
+        $account = BankAccount::findOrFail($bankAccountId);
+        if ($session->branch_id && $account->branch_id && (int) $account->branch_id !== (int) $session->branch_id) {
+            throw ValidationException::withMessages(['deposit_bank_account_id' => 'اختر حسابًا من فرع الوردية أو حسابًا غير مرتبط بفرع.']);
+        }
+
+        return $account;
+    }
+
+    protected function moveCash(BankAccount $from, BankAccount $to, float $amount, string $description, ?int $branchId = null): void
     {
         if ((int) $from->id === (int) $to->id) {
             return;
         }
-        app(DocumentPoster::class)->transfer($from, $to, round($amount, 2), now()->toDateString(), $this->nextNumber('transfer', now()->toDateString()), $description);
+        app(DocumentPoster::class)->transfer($from, $to, round($amount, 2), now()->toDateString(), $this->nextNumber('transfer', now()->toDateString()), $description, null, $branchId);
         $from->decrement('current_balance', $amount);
         $to->increment('current_balance', $amount);
     }
