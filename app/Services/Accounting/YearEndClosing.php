@@ -145,6 +145,8 @@ class YearEndClosing
             ->where('e.company_id', $companyId)
             ->whereIn('e.status', [JournalEntry::STATUS_POSTED, JournalEntry::STATUS_REVERSED])
             ->where('e.entry_type', '!=', 'closing')
+            // Reopening a year reverses its closing entry; that reversal is no more part of the year's result than the entry itself.
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('journal_entries as c')->whereColumn('c.id', 'e.reversal_of_id')->where('c.entry_type', 'closing'))
             ->whereIn('a.type', ['revenue', 'expense'])->where('a.is_parent', false)
             ->when($branchId, fn ($q) => $q->where('e.branch_id', $branchId), fn ($q) => $q->whereNull('e.branch_id'))
             ->where('l.date', '>=', $range[0])->where('l.date', '<=', $range[1])

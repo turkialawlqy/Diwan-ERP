@@ -5,9 +5,12 @@ namespace Tests\Feature;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\FiscalYear;
+use App\Models\FiscalYearClosing;
 use App\Models\JournalEntry;
 use App\Services\Accounting\AccountingException;
+use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\AccountingSetupService;
+use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\PostingService;
 use App\Services\Accounting\YearEndClosing;
 use App\Services\TenantManager;
@@ -91,6 +94,104 @@ class BranchYearClosingTest extends TestCase
 
         $this->assertSame(2, JournalEntry::withoutGlobalScopes()->where('entry_type', 'closing')->where('status', 'reversed')->count());
         $this->assertFalse($year->fresh()->isClosed());
+    }
+
+    protected function expense(Branch $branch, float $amount): void
+    {
+        app(PostingService::class)->post(['date' => '2026-03-06', 'description' => 'مصروف', 'branch_id' => $branch->id, 'lines' => [['role' => 'general_expense', 'debit' => $amount], ['role' => 'default_cash', 'credit' => $amount]]]);
+    }
+
+    /** branch id => total of its posted closing entries. */
+    protected function postedClosings(): array
+    {
+        return JournalEntry::withoutGlobalScopes()->where('entry_type', 'closing')->where('status', 'posted')->get()
+            ->groupBy('branch_id')->map(fn ($entries) => (float) $entries->sum('total_debit'))->all();
+    }
+
+    /** By the company's trial balance for the year: revenue and expense accounts end at zero and retained earnings hold $result. */
+    protected function assertLedgerClosedWith(float $result): void
+    {
+        $year = FiscalYear::firstOrFail();
+        $user = auth()->user();
+        auth()->forgetUser(); // a signed-in user's reports follow the branch in the top bar
+        $rows = collect(app(AccountingReports::class)->trialBalance($year->start_date, $year->end_date)['rows'])->where('is_parent', false);
+        $this->actingAs($user);
+
+        foreach ($rows->whereIn('type', ['revenue', 'expense']) as $row) {
+            $this->assertEquals([0, 0], [$row['closing_debit'], $row['closing_credit']], "{$row['code']} {$row['name']}");
+        }
+        $retained = $rows->firstWhere('id', app(AccountMap::class)->id('retained_earnings'));
+        $this->assertEquals([0, $result], [$retained['closing_debit'], $retained['closing_credit']]);
+    }
+
+    public function test_closing_again_after_reopening_closes_the_real_result_once(): void
+    {
+        $this->expense($this->a, 200);
+        $this->expense($this->b, 50);
+        $year = FiscalYear::firstOrFail();
+        $service = app(YearEndClosing::class);
+        $totals = [$this->a->id => 1000.0, $this->b->id => 400.0];
+
+        $service->close($year);
+        $this->assertEquals($totals, $this->postedClosings());
+        $this->assertLedgerClosedWith(1150);
+
+        // Twice over: a third closing must not build on the reversals of the first two either.
+        foreach ([1, 2] as $round) {
+            $service->reopen($year->fresh());
+            $this->assertEquals([800, 350], array_column($service->branchStatus($year->fresh()), 'net'), "reopened, round {$round}");
+
+            $service->close($year->fresh());
+            $this->assertEquals($totals, $this->postedClosings(), "closed again, round {$round}");
+            $this->assertLedgerClosedWith(1150);
+        }
+    }
+
+    public function test_an_entry_posted_after_reopening_is_closed_with_the_year(): void
+    {
+        $year = FiscalYear::firstOrFail();
+        $service = app(YearEndClosing::class);
+        $service->close($year);
+        $service->reopen($year->fresh());
+
+        $this->sale($this->a, 150);
+        $service->close($year->fresh());
+
+        $this->assertEquals([$this->a->id => 1150.0, $this->b->id => 400.0], $this->postedClosings());
+        $this->assertLedgerClosedWith(1550);
+    }
+
+    public function test_an_ordinary_reversal_still_counts_in_the_year_being_closed(): void
+    {
+        $this->sale($this->a, 300);
+        app(PostingService::class)->reverse(JournalEntry::withoutGlobalScopes()->latest('id')->firstOrFail());
+
+        app(YearEndClosing::class)->close(FiscalYear::firstOrFail());
+
+        $this->assertEquals([$this->a->id => 1000.0, $this->b->id => 400.0], $this->postedClosings());
+        $this->assertLedgerClosedWith(1400);
+    }
+
+    public function test_a_year_already_closed_with_a_doubled_entry_is_repaired_by_reopening_and_closing_it(): void
+    {
+        $year = FiscalYear::firstOrFail();
+        $service = app(YearEndClosing::class);
+        $service->close($year);
+        $service->reopen($year->fresh());
+
+        // What closing again used to post: each branch's result twice over.
+        foreach ([[$this->a, 2000], [$this->b, 800]] as [$branch, $amount]) {
+            $entry = app(PostingService::class)->post(['date' => $year->end_date, 'description' => 'قيد إقفال مضاعف', 'entry_type' => 'closing', 'source' => $year, 'branch_id' => $branch->id, 'lines' => [['role' => 'sales_revenue', 'debit' => $amount], ['role' => 'retained_earnings', 'credit' => $amount]]]);
+            FiscalYearClosing::create(['company_id' => $year->company_id, 'fiscal_year_id' => $year->id, 'branch_id' => $branch->id, 'closing_entry_id' => $entry->id]);
+        }
+        $year->refresh()->update(['status' => 'closed']);
+
+        $service->reopen($year->fresh());
+        $this->assertEquals([1000, 400], array_column($service->branchStatus($year->fresh()), 'net'));
+
+        $service->close($year->fresh());
+        $this->assertEquals([$this->a->id => 1000.0, $this->b->id => 400.0], $this->postedClosings());
+        $this->assertLedgerClosedWith(1400);
     }
 
     public function test_a_closed_branch_refuses_posting_while_other_branches_still_post(): void
