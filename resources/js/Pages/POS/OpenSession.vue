@@ -57,6 +57,7 @@ const submit = () => {
                             {{ reg.name }}
                         </option>
                     </select>
+                    <p v-if="form.errors.pos_register_id" class="text-xs text-rose-600 mt-1 text-center">{{ form.errors.pos_register_id }}</p>
                 </div>
 
                 <div>

@@ -15,7 +15,21 @@ defineProps({ board: Array, users: Array, sources: Object, filters: Object, stat
 const open = ref(false);
 const form = useForm({ name: '', company_name: '', phone: '', email: '', source: 'call', expected_value: 0, next_follow_up: '', assigned_to: '', notes: '' });
 const dragging = ref(null);
-const drop = (status) => { if (dragging.value && dragging.value.status !== status) router.post(route('crm.leads.move', dragging.value.id), { status }, { preserveScroll: true }); dragging.value = null; };
+const losing = ref(null);
+const lostForm = useForm({ status: 'lost', lost_reason: '' });
+const drop = (status) => {
+    const lead = dragging.value;
+    dragging.value = null;
+    if (!lead || lead.status === status) return;
+    if (status === 'lost') { // a lost lead needs its reason
+        lostForm.reset();
+        lostForm.clearErrors();
+        losing.value = lead;
+        return;
+    }
+    router.post(route('crm.leads.move', lead.id), { status }, { preserveScroll: true });
+};
+const confirmLost = () => lostForm.post(route('crm.leads.move', losing.value.id), { preserveScroll: true, onSuccess: () => { losing.value = null; } });
 const overdue = (d) => d && new Date(d) <= new Date();
 </script>
 
@@ -54,6 +68,10 @@ const overdue = (d) => d && new Date(d) <= new Date();
                 <Field label="ملاحظات" class="col-span-2"><textarea v-model="form.notes" rows="2" class="w-full rounded-xl border-slate-200 text-xs"></textarea></Field>
             </div>
             <template #footer><button @click="form.post(route('crm.leads.store'))" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('ui.save') }}</button></template>
+        </Dialog>
+        <Dialog :show="!!losing" :title="$t('crm.lost_title')" size="sm" @close="losing = null">
+            <Field :label="$t('crm.lost_reason')" :error="lostForm.errors.lost_reason"><input v-model="lostForm.lost_reason" maxlength="500" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+            <template #footer><button @click="confirmLost" :disabled="lostForm.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('ui.save') }}</button></template>
         </Dialog>
     </AppLayout>
 </template>

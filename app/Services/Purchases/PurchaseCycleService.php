@@ -267,6 +267,8 @@ class PurchaseCycleService
             // Everything received so far was invoiced with it (direct staged invoicing).
             $invoiced > 0 && $received <= $invoiced + self::QTY_TOLERANCE => 'partially_invoiced',
             $received > 0 => 'partially_received',
+            // Its receipts were cancelled: open for receiving again.
+            in_array($order->status, ['received', 'partially_received'], true) => 'approved',
             default => $order->status,
         };
 

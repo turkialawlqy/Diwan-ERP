@@ -1253,5 +1253,9 @@
         "s_ot_h": "A share of the basic hourly wage added to the hourly wage (Art. 107: 50%)",
         "s_ded": "Maximum deduction",
         "s_ded_h": "Of the wage for advances and penalties (Art. 92: 50%)"
+    },
+    "crm": {
+        "lost_title": "Why was this lead lost?",
+        "lost_reason": "Reason"
     }
 }
