@@ -551,6 +551,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         // Supplier Payments
         Route::get('/payments', [SupplierPaymentController::class, 'index'])->name('payments.index');
         Route::get('/payments/create', [SupplierPaymentController::class, 'create'])->name('payments.create');
+        Route::get('/payments/open-invoices', [SupplierPaymentController::class, 'openInvoices'])->name('payments.open-invoices');
         Route::post('/payments', [SupplierPaymentController::class, 'store'])->name('payments.store');
         Route::post('/payments/{payment}/cancel', [DocumentCancellationController::class, 'supplierPayment'])->name('payments.cancel');
     });

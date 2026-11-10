@@ -8,6 +8,7 @@ use App\Models\QcInspection;
 use App\Models\QcPlan;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\Manufacturing\QualityService;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -27,7 +28,7 @@ class QcInspectionController extends Controller
     public function create(): Response
     {
         return Inertia::render('Manufacturing/Quality/Inspections/Create', [
-            'products' => Product::where('is_active', true)->orderBy('name_ar')->get(['id', 'name_ar', 'sku']),
+            'products' => PickerOptions::from(Product::where('is_active', true)->orderBy('name_ar'), ['id', 'name_ar', 'sku']),
             'plans' => QcPlan::where('is_active', true)->get(['id', 'name', 'product_id', 'applies_to']),
         ]);
     }

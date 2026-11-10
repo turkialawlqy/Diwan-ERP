@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductionOrder;
 use App\Models\Routing;
 use App\Models\WorkCenter;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -35,7 +36,7 @@ class RoutingController extends Controller
     {
         return Inertia::render('Manufacturing/Routings/Form', [
             'routing' => $routing,
-            'products' => Product::where('is_active', true)->where('type', '!=', 'service')->orderBy('name_ar')->get(['id', 'name_ar', 'sku']),
+            'products' => PickerOptions::from(Product::where('is_active', true)->where('type', '!=', 'service')->orderBy('name_ar'), ['id', 'name_ar', 'sku'], [$routing->product_id]),
             'workCenters' => WorkCenter::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),
         ]);
     }

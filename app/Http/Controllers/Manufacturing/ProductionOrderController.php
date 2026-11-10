@@ -17,6 +17,7 @@ use App\Models\WorkCenter;
 use App\Services\Manufacturing\ManufacturingReports;
 use App\Services\Manufacturing\ProductionService;
 use App\Services\TenantManager;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -42,7 +43,7 @@ class ProductionOrderController extends Controller
     public function create(Request $request): Response
     {
         return Inertia::render('Manufacturing/Orders/Create', [
-            'products' => Product::where('is_active', true)->where('type', '!=', 'service')->orderBy('name_ar')->get(['id', 'name_ar', 'sku']),
+            'products' => PickerOptions::from(Product::where('is_active', true)->where('type', '!=', 'service')->orderBy('name_ar'), ['id', 'name_ar', 'sku'], [$request->input('product_id')]),
             'boms' => Bom::where('is_active', true)->get(['id', 'product_id', 'name', 'version', 'is_default', 'routing_id']),
             'routings' => Routing::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),
             'warehouses' => Warehouse::where('is_active', true)->orderByDesc('is_main')->get(['id', 'name_ar']),

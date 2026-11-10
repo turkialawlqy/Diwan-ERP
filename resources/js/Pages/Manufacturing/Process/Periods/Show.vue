@@ -54,7 +54,7 @@ const els = [['ti', 'محوّل من مرحلة سابقة'], ['mat', 'مواد 
                 <h2 class="font-black text-slate-800 text-sm mb-3">صرف مواد مباشرة من مستودع المرحلة</h2>
                 <form @submit.prevent="sendIssue" class="space-y-2">
                     <div v-for="(l, i) in issue.lines" :key="i" class="grid grid-cols-[1fr_8rem_2rem] gap-2">
-                        <SelectCreate v-model="l.product_id" :options="products" entity="product" label="name_ar" placeholder="— مادة —" required />
+                        <SelectCreate v-model="l.product_id" :options="products" :search="{ route: 'lookup.products', params: { stockable: 1 } }" entity="product" label="name_ar" placeholder="— مادة —" required />
                         <input v-model.number="l.quantity" type="text" inputmode="decimal" data-num step="0.0001" placeholder="الكمية" :class="input" required />
                         <button type="button" :disabled="issue.lines.length <= 1" @click="issue.lines.splice(i, 1)" class="text-slate-400 hover:text-rose-600 disabled:opacity-20"><TrashIcon class="w-4 h-4" /></button>
                     </div>
