@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\FileController;
 use App\Models\Company;
 use App\Models\Contract;
 use App\Models\Customer;
@@ -32,6 +33,7 @@ use App\Services\WorkOrders\WorkOrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -150,6 +152,32 @@ class SectorModulesTest extends TestCase
         $this->post(route('clinic.visits.store', $patient->id), ['visit_date' => '2026-06-15'])->assertForbidden();
         $this->actingAs($this->userWithRole($this->company, 'accountant'));
         $this->get(route('clinic.patients.index'))->assertForbidden(); // not granted by the migration either
+    }
+
+    public function test_a_clinic_file_needs_the_medical_visits_permission(): void
+    {
+        $patient = PatientFile::create(['customer_id' => $this->customer->id, 'file_number' => 'PF-1']);
+        $this->post(route('clinic.visits.store', $patient->id), ['visit_date' => '2026-06-15', 'files' => [UploadedFile::fake()->image('xray.jpg')]])->assertSessionHasNoErrors();
+        $url = $this->get(route('clinic.patients.show', $patient->id))->viewData('page')['props']['visits'][0]['files'][0]['url'];
+        $this->get($url)->assertOk(); // the owner
+        $missing = route('files.show', ['token' => Crypt::encryptString("companies/{$this->company->id}/clinic/missing.jpg")], false);
+        $other = FileController::storeForTenant(UploadedFile::fake()->create('contract.pdf', 5), 'attachments')['url'];
+
+        $clerk = $this->userWithRole($this->company, 'accountant');
+        $this->actingAs($clerk);
+        $this->get($url)->assertForbidden();
+        $this->get($missing)->assertForbidden(); // whether the file exists stays hidden too
+        $this->get($other)->assertOk(); // other private files still follow the company alone
+
+        app(PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
+        $clerk->givePermissionTo('clinic.patients.view'); // the patient file alone is not the medical record
+        $this->actingAs($clerk->fresh());
+        $this->get($url)->assertForbidden();
+
+        $clerk->givePermissionTo('clinic.visits.view');
+        $this->actingAs($clerk->fresh());
+        $this->get($url)->assertOk();
+        $this->get($missing)->assertNotFound();
     }
 
     // --------------------------------------------------------------------- gym

@@ -13,7 +13,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /**
  * Serves tenant files from the private disk. Files are never exposed on the
  * public web root: each one lives under "companies/{company_id}/..." and is
- * only streamed back to users of that same company.
+ * only streamed back to users of that same company. Clinic attachments are
+ * medical records, so they also need the medical visits permission.
  */
 class FileController extends Controller
 {
@@ -32,6 +33,10 @@ class FileController extends Controller
 
         if (! $tenantId || ! str_starts_with($path, "companies/{$tenantId}/") || str_contains($path, '..')) {
             abort(404);
+        }
+
+        if (str_starts_with($path, "companies/{$tenantId}/clinic/")) {
+            abort_unless(auth()->user()?->can('clinic.visits.view'), 403);
         }
 
         if (! Storage::disk('local')->exists($path)) {

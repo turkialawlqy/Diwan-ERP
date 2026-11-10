@@ -245,6 +245,53 @@ class BranchActivitiesTest extends TestCase
         $this->assertSame($u->id, auth()->id());
     }
 
+    public function test_a_record_cannot_be_moved_to_a_branch_the_user_may_not_use(): void
+    {
+        $vehicle = $this->records($this->clinic)['vehicle'];
+        $this->asStaff([$this->clinic, $this->shop], $this->clinic);
+
+        foreach ([$this->general->id, null] as $target) { // another branch, or none (shared with every branch)
+            try {
+                $vehicle->update(['branch_id' => $target]);
+                $this->fail('a move out of the user\'s branches must be refused');
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('branch_id', $e->errors());
+            }
+            $this->assertSame($this->clinic->id, $vehicle->fresh()->branch_id);
+            $vehicle->refresh();
+        }
+
+        // Editing in place and moving between the user's own branches go through.
+        $vehicle->update(['plate' => 'V-EDITED', 'branch_id' => (string) $this->clinic->id]);
+        $this->assertSame('V-EDITED', $vehicle->fresh()->plate);
+        $vehicle->update(['branch_id' => $this->shop->id]);
+        $this->assertSame($this->shop->id, $vehicle->fresh()->branch_id);
+
+        // The owner works in every branch.
+        $this->actingAs($this->owner);
+        $vehicle->update(['branch_id' => $this->clinic->id]);
+        $this->assertSame($this->clinic->id, $vehicle->fresh()->branch_id);
+    }
+
+    public function test_moving_a_record_is_not_restricted_outside_a_users_own_work(): void
+    {
+        $vehicle = $this->records($this->clinic)['vehicle'];
+        $this->asStaff([$this->clinic]);
+
+        BranchScopeSwitch::off(fn () => $vehicle->update(['branch_id' => $this->shop->id]));
+        $this->assertSame($this->shop->id, $vehicle->fresh()->branch_id);
+
+        $this->app['env'] = 'production'; // running in the console, not a test run: a job or a command
+        $vehicle->update(['branch_id' => $this->general->id]);
+        $this->assertSame($this->general->id, $vehicle->fresh()->branch_id);
+        $this->app['env'] = 'testing';
+
+        $this->app['auth']->forgetGuards(); // nobody signed in
+        $this->assertNull(auth()->user());
+        $vehicle->update(['branch_id' => $this->shop->id]);
+        $this->assertSame($this->shop->id, $vehicle->fresh()->branch_id);
+    }
+
     // ---------------------------------------------------------------- packs
 
     public function test_a_pack_applies_to_one_branch_and_adds_its_modules_there(): void
