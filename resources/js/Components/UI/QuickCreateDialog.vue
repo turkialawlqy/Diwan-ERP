@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import axios from 'axios';
+import { tx } from '@/i18n';
 import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
@@ -40,7 +41,7 @@ onMounted(() => {
 });
 
 const visible = computed(() => fields.filter((f) => !f.show || f.show(form)));
-const optionsOf = (f) => (f.lookup ? (lookups[f.key] || []) : (f.options || []).map((o) => ({ id: o.value, label: o.label })));
+const optionsOf = (f) => (f.lookup ? (lookups[f.key] || []) : (f.options || []).map((o) => ({ id: o.value, label: tx(o.label) })));
 
 const toggleDay = (n) => {
     const i = form.work_days.indexOf(n);
@@ -59,7 +60,7 @@ const submit = async () => {
         emit('created', record);
     } catch (e) {
         const body = e.response?.data;
-        errors.value = body?.errors ? Object.fromEntries(Object.entries(body.errors).map(([k, v]) => [k, v[0]])) : { _: body?.message || 'تعذّر الحفظ، حاول مرة أخرى.' };
+        errors.value = body?.errors ? Object.fromEntries(Object.entries(body.errors).map(([k, v]) => [k, v[0]])) : { _: body?.message || tx('تعذّر الحفظ، حاول مرة أخرى.') };
     } finally {
         saving.value = false;
     }
@@ -69,19 +70,19 @@ const input = 'w-full rounded-xl border-slate-200 text-xs focus:border-indigo-60
 </script>
 
 <template>
-    <Dialog :show="true" :title="config.title" :size="config.size || 'md'" @close="emit('close')">
+    <Dialog :show="true" :title="tx(config.title)" :size="config.size || 'md'" @close="emit('close')">
         <form id="quick-create-form" @submit.prevent="submit" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs" data-quick-create>
             <p v-if="errors._" class="sm:col-span-2 text-rose-600">{{ errors._ }}</p>
             <template v-for="f in visible" :key="f.key">
                 <div :class="f.span === 2 || f.type === 'textarea' || f.type === 'days' ? 'sm:col-span-2' : ''">
                     <label v-if="f.type === 'checkbox'" class="flex items-center gap-2 font-bold text-slate-700 pt-5">
-                        <input type="checkbox" v-model="form[f.key]" class="rounded" /> {{ f.label }}
+                        <input type="checkbox" v-model="form[f.key]" class="rounded" /> {{ tx(f.label) }}
                     </label>
-                    <Field v-else :label="f.label + (f.required ? ' *' : '')" :error="errors[f.key]" :hint="f.hint">
+                    <Field v-else :label="tx(f.label) + (f.required ? ' *' : '')" :error="errors[f.key]" :hint="tx(f.hint)">
                         <div v-if="f.type === 'days'" class="flex flex-wrap gap-3">
-                            <label v-for="[n, l] in dayNames" :key="n" class="flex items-center gap-1"><input type="checkbox" :checked="form.work_days.includes(n)" @change="toggleDay(n)" class="rounded" /> {{ l }}</label>
+                            <label v-for="[n, l] in dayNames" :key="n" class="flex items-center gap-1"><input type="checkbox" :checked="form.work_days.includes(n)" @change="toggleDay(n)" class="rounded" /> {{ tx(l) }}</label>
                         </div>
-                        <SelectCreate v-else-if="f.type === 'select'" v-model="form[f.key]" :options="optionsOf(f)" :entity="f.entity" :placeholder="f.empty || 'اختر...'" :allow-empty="!!f.empty || !f.required" :empty-label="f.empty || '—'" @update:modelValue="config.onChange?.(form, f.key)" @created="(r) => (lookups[f.key] = [...(lookups[f.key] || []), r])" />
+                        <SelectCreate v-else-if="f.type === 'select'" v-model="form[f.key]" :options="optionsOf(f)" :entity="f.entity" :placeholder="tx(f.empty || 'اختر...')" :allow-empty="!!f.empty || !f.required" :empty-label="tx(f.empty) || '—'" @update:modelValue="config.onChange?.(form, f.key)" @created="(r) => (lookups[f.key] = [...(lookups[f.key] || []), r])" />
                         <textarea v-else-if="f.type === 'textarea'" v-model="form[f.key]" rows="2" :class="input"></textarea>
                         <input v-else v-model="form[f.key]" :type="f.type || 'text'" :step="f.step" :required="f.required" :maxlength="f.maxlength" :class="input" />
                     </Field>
@@ -89,8 +90,8 @@ const input = 'w-full rounded-xl border-slate-200 text-xs focus:border-indigo-60
             </template>
         </form>
         <template #footer>
-            <button type="button" @click="emit('close')" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">إلغاء</button>
-            <button type="submit" form="quick-create-form" :disabled="saving" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">{{ saving ? 'جارٍ الحفظ...' : 'حفظ وتحديد' }}</button>
+            <button type="button" @click="emit('close')" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">{{ tx('إلغاء') }}</button>
+            <button type="submit" form="quick-create-form" :disabled="saving" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">{{ saving ? tx('جارٍ الحفظ...') : tx('حفظ وتحديد') }}</button>
         </template>
     </Dialog>
 </template>
