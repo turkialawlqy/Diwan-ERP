@@ -78,3 +78,33 @@ test('converted page bodies follow the language: dashboard, insights and the inv
     await expect(page.getByText('الهوية والبيانات الرسمية للمنشأة').first()).toBeVisible();
     expect(errors).toEqual([]);
 });
+
+test('the quick add and view menus and the shared components follow the language', async ({ page }) => {
+    const errors = watchErrors(page);
+    await signIn(page);
+    await page.goto('/sales/invoices');
+    const header = page.locator('header');
+    await header.locator('[data-user-menu]').click();
+    await page.locator('[data-language-toggle]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+    const arabic = /[؀-ۿ]/;
+    await page.locator('[data-quick-add]').click();
+    const add = page.locator('[data-quick-add-panel]');
+    await expect(add.getByText('Sales invoice')).toBeVisible();
+    expect(await add.innerText()).not.toMatch(arabic);
+    await page.keyboard.press('Escape');
+
+    await page.locator('[data-quick-view]').click();
+    const view = page.locator('[data-quick-view-panel]');
+    await expect(view).toBeVisible();
+    expect(await view.innerText()).not.toMatch(arabic);
+
+    // Back to Arabic for the other specs.
+    await header.locator('[data-user-menu]').click();
+    await page.locator('[data-language-toggle]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+    await page.locator('[data-quick-add]').click();
+    await expect(page.locator('[data-quick-add-panel]').getByText('فاتورة مبيعات')).toBeVisible();
+    expect(errors).toEqual([]);
+});

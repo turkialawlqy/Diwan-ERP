@@ -47,4 +47,36 @@ class ServerMessagesTest extends TestCase
         }
         $this->assertSame([], $missing, "Add to lang/en.json:\n".implode("\n", array_keys($missing)));
     }
+
+    public function test_validation_and_business_rule_messages_never_regress(): void
+    {
+        $en = json_decode(File::get(lang_path('en.json')), true);
+        $missing = 0;
+        $examples = [];
+        foreach (File::allFiles(app_path()) as $file) {
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+            foreach (File::lines($file->getPathname()) as $line) {
+                if (! preg_match('/ValidationException|withMessages|abort\(|Exception\(|withErrors\(|\'(?:message|error)\'\s*=>/', $line)) {
+                    continue;
+                }
+                preg_match_all("/(['\"])((?:\\\\.|(?!\\1).)*)\\1/u", $line, $m);
+                foreach ($m[2] as $text) {
+                    $text = str_replace("\\'", "'", $text);
+                    if (preg_match('/\p{Arabic}/u', $text) && ! str_contains($text, '$') && ! isset($en[$text])) {
+                        $missing++;
+                        $examples[] = $text;
+                    }
+                }
+            }
+        }
+        $baseline = (int) (json_decode(File::get(base_path('tests/fixtures/server-messages-baseline.json')), true)['untranslated'] ?? PHP_INT_MAX);
+        if (getenv('SERVER_MESSAGES_BASELINE') === 'update') {
+            File::put(base_path('tests/fixtures/server-messages-baseline.json'), json_encode(['untranslated' => $missing], JSON_PRETTY_PRINT)."\n");
+            $baseline = $missing;
+        }
+        fwrite(STDERR, "\n[server messages] {$missing} Arabic messages/fragments in validation and rule errors have no English entry (baseline {$baseline}).\n");
+        $this->assertLessThanOrEqual($baseline, $missing, "New Arabic server messages need lang/en.json entries:\n".implode("\n", array_slice($examples, 0, 40)));
+    }
 }
