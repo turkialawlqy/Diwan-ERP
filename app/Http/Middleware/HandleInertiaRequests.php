@@ -13,6 +13,7 @@ use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Support\CurrencyNames;
 use App\Support\ReleaseNotes;
+use App\Support\ServerMessages;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -125,12 +126,20 @@ class HandleInertiaRequests extends Middleware
             // Business time zone: the frontend shows timestamps sent in UTC in it.
             'timezone' => config('app.timezone'),
             'flash' => [
-                'success' => fn () => $request->session()->get('success'),
-                'error' => fn () => $request->session()->get('error'),
-                'warning' => fn () => $request->session()->get('warning'),
-                'info' => fn () => $request->session()->get('info'),
+                'success' => fn () => ServerMessages::translate($request->session()->get('success')),
+                'error' => fn () => ServerMessages::translate($request->session()->get('error')),
+                'warning' => fn () => ServerMessages::translate($request->session()->get('warning')),
+                'info' => fn () => ServerMessages::translate($request->session()->get('info')),
                 'latest_order' => fn () => $request->session()->get('latest_order'),
             ],
         ];
+    }
+
+    /** Validation and business-rule errors are written in Arabic; show them in the interface language. */
+    public function resolveValidationErrors(Request $request)
+    {
+        $errors = parent::resolveValidationErrors($request);
+
+        return (object) ServerMessages::translateAll(json_decode(json_encode($errors), true) ?: []);
     }
 }
