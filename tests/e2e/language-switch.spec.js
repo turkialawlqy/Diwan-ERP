@@ -126,6 +126,14 @@ test('sales list and form pages follow the language', async ({ page }) => {
         ['/sales/recurring', 'Recurring invoices'],
         ['/sales/returns/create', 'Credit note details'],
         ['/sales/quotations/create', 'Quotation details'],
+        ['/sales/orders', 'Sales orders'],
+        ['/sales/quotations', 'Total quotations'],
+        ['/sales/subscriptions', 'Customer subscriptions'],
+        ['/sales/commissions', 'Sales commissions'],
+        ['/sales/promotions', 'Promotions and discounts'],
+        ['/sales/price-lists', 'Price lists'],
+        ['/sales/customer-groups', 'Customer groups'],
+        ['/sales/deliveries', 'Delivery notes'],
     ]) {
         await page.goto(url);
         await expect(page.getByText(text).first()).toBeVisible();

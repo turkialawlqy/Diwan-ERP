@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue';
+import { tx } from '@/i18n';
 import { Link, router } from '@inertiajs/vue3';
 import Pagination from '@/Components/UI/Pagination.vue';
 import StatusBadge from '@/Components/Documents/StatusBadge.vue';
@@ -43,7 +44,7 @@ const format = (row, col) => {
             <input v-model="search" @keyup.enter="apply" :placeholder="$t('shared.search_ph')" class="rounded-xl border-slate-200 text-xs w-64" />
             <select v-if="statuses" v-model="status" @change="apply" class="rounded-xl border-slate-200 text-xs">
                 <option value="">{{ $t('shared.all_statuses') }}</option>
-                <option v-for="s in statuses" :key="s.value" :value="s.value">{{ s.label }}</option>
+                <option v-for="s in statuses" :key="s.value" :value="s.value">{{ tx(s.label) }}</option>
             </select>
             <button @click="apply" class="px-3 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-bold">{{ $t('shared.search') }}</button>
         </div>
@@ -51,7 +52,7 @@ const format = (row, col) => {
             <table class="w-full text-xs">
                 <thead class="bg-slate-50 text-slate-500">
                     <tr>
-                        <th v-for="c in columns" :key="c.key" class="px-4 py-2" :class="c.type === 'money' ? 'text-end' : 'text-start'">{{ c.label }}</th>
+                        <th v-for="c in columns" :key="c.key" class="px-4 py-2" :class="c.type === 'money' ? 'text-end' : 'text-start'">{{ tx(c.label) }}</th>
                         <th class="w-24"></th>
                     </tr>
                 </thead>

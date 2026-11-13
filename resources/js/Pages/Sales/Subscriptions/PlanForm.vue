@@ -28,27 +28,27 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
 
 <template>
     <AppLayout>
-        <Head :title="editing ? 'تعديل خطة' : 'خطة اشتراك جديدة'" />
-        <PageHeader :title="editing ? 'تعديل خطة' : 'خطة اشتراك جديدة'" :crumbs="[{ label: 'المبيعات' }, { label: 'خطط الاشتراكات', href: route('sales.service-plans.index') }, { label: editing ? 'تعديل' : 'جديدة' }]" />
+        <Head :title="editing ? $t('s_plan_form.edit') : $t('s_plan_form.new')" />
+        <PageHeader :title="editing ? $t('s_plan_form.edit') : $t('s_plan_form.new')" :crumbs="[{ label: 'المبيعات' }, { label: 'خطط الاشتراكات', href: route('sales.service-plans.index') }, { label: editing ? 'تعديل' : 'جديدة' }]" />
         <form @submit.prevent="submit" class="bg-white border border-slate-200 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <Field label="اسم الخطة *" :error="form.errors.name" class="md:col-span-2"><input v-model="form.name" required :class="input" /></Field>
-            <Field label="السعر لكل فترة (قبل الضريبة) *" :error="form.errors.price"><input v-model="form.price" required type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
-            <Field label="نسبة الضريبة %" :error="form.errors.tax_rate"><input v-model="form.tax_rate" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
-            <Field label="دورة الفوترة *" :error="form.errors.cycle">
+            <Field :label="$t('s_plan_form.plan_name')" :error="form.errors.name" class="md:col-span-2"><input v-model="form.name" required :class="input" /></Field>
+            <Field :label="$t('s_plan_form.price_per_period_before_tax')" :error="form.errors.price"><input v-model="form.price" required type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
+            <Field :label="$t('s_plan_form.tax_rate')" :error="form.errors.tax_rate"><input v-model="form.tax_rate" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
+            <Field :label="$t('s_plan_form.billing_cycle')" :error="form.errors.cycle">
                 <select v-model="form.cycle" :class="input"><option v-for="(label, key) in cycles" :key="key" :value="key">{{ label }}</option></select>
             </Field>
-            <Field label="كل كم دورة" :error="form.errors.interval" hint="1 = كل دورة، 2 = كل دورتين..."><input v-model="form.interval" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
-            <Field label="أيام التجربة المجانية" :error="form.errors.trial_days" hint="لا تُصدر فاتورة قبل انتهائها"><input v-model="form.trial_days" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
-            <Field label="خصم الأعضاء على الحجوزات %" :error="form.errors.booking_discount_percent" hint="يحصل عليه المشترك على كل حجوزاته (100 = مجانية)"><input v-model="form.booking_discount_percent" type="text" inputmode="decimal" data-num :class="input" class="font-mono" data-booking-discount /></Field>
-            <label class="flex items-center gap-2 text-xs font-bold text-slate-600"><input type="checkbox" v-model="form.is_membership" data-is-membership /> عضوية (تسمح بالدخول في شاشة استقبال النادي)</label>
-            <Field label="صنف الخدمة في الفاتورة (اختياري)" :error="form.errors.product_id" hint="صنف خدمي من المخزون يظهر في سطر الفاتورة.">
-                <SelectCreate v-model="form.product_id" :options="products" entity="product" :label="(p) => p.name_ar" placeholder="بدون صنف" />
+            <Field :label="$t('s_plan_form.every_how_many_cycles')" :error="form.errors.interval" :hint="$t('s_plan_form.1_every_cycle_2_every_two_cycles')"><input v-model="form.interval" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
+            <Field :label="$t('s_plan_form.free_trial_days')" :error="form.errors.trial_days" :hint="$t('s_plan_form.no_invoice_is_issued_before_it_e')"><input v-model="form.trial_days" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
+            <Field :label="$t('s_plan_form.member_discount_on_bookings')" :error="form.errors.booking_discount_percent" :hint="$t('s_plan_form.the_subscriber_gets_it_on_all_th')"><input v-model="form.booking_discount_percent" type="text" inputmode="decimal" data-num :class="input" class="font-mono" data-booking-discount /></Field>
+            <label class="flex items-center gap-2 text-xs font-bold text-slate-600"><input type="checkbox" v-model="form.is_membership" data-is-membership /> {{ $t('s_plan_form.membership_allows_entry_at_the_c') }}</label>
+            <Field :label="$t('s_plan_form.service_item_on_the_invoice_opti')" :error="form.errors.product_id" :hint="$t('s_plan_form.a_service_item_from_inventory_sh')">
+                <SelectCreate v-model="form.product_id" :options="products" entity="product" :label="(p) => p.name_ar" :placeholder="$t('s_plan_form.no_item')" />
             </Field>
-            <Field label="الوصف" :error="form.errors.description" class="md:col-span-2"><input v-model="form.description" maxlength="2000" :class="input" /></Field>
-            <label class="flex items-center gap-2 font-bold text-slate-700"><input type="checkbox" v-model="form.is_active" class="rounded" /> الخطة نشطة (تُباع لاشتراكات جديدة)</label>
+            <Field :label="$t('s_plan_form.description')" :error="form.errors.description" class="md:col-span-2"><input v-model="form.description" maxlength="2000" :class="input" /></Field>
+            <label class="flex items-center gap-2 font-bold text-slate-700"><input type="checkbox" v-model="form.is_active" class="rounded" /> {{ $t('s_plan_form.the_plan_is_active_sold_for_new') }}</label>
             <div class="md:col-span-2 flex gap-2 pt-2 border-t border-slate-100">
-                <button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-save-plan>{{ editing ? 'حفظ' : 'إضافة' }}</button>
-                <Link :href="route('sales.service-plans.index')" class="px-5 py-2 rounded-xl border border-slate-200 font-bold text-slate-600">إلغاء</Link>
+                <button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-save-plan>{{ editing ? $t('s_common.save') : $t('s_common.add') }}</button>
+                <Link :href="route('sales.service-plans.index')" class="px-5 py-2 rounded-xl border border-slate-200 font-bold text-slate-600">{{ $t('s_plan_form.cancel') }}</Link>
             </div>
         </form>
     </AppLayout>

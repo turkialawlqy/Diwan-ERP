@@ -18,8 +18,8 @@ const statuses = [{ value: 'delivered', label: 'مسلّم غير مفوتر' },
 
 <template>
     <AppLayout>
-        <Head title="أذونات التسليم" />
-        <PageHeader year-scoped title="أذونات التسليم" subtitle="البضاعة المسلمة تُصرف من المخزون وتُحمّل تكلفتها عند التسليم" :crumbs="[{ label: 'المبيعات' }, { label: 'أذونات التسليم' }]" />
+        <Head :title="$t('s_deliveries.delivery_notes')" />
+        <PageHeader year-scoped :title="$t('s_deliveries.delivery_notes')" :subtitle="$t('s_deliveries.delivered_goods_are_issued_from')" :crumbs="[{ label: 'المبيعات' }, { label: 'أذونات التسليم' }]" />
         <DocumentTable :paginator="notes" :columns="columns" :filters="filters" :statuses="statuses" search-route="sales.deliveries.index" :link="(r) => route('sales.deliveries.show', r.id)" />
     </AppLayout>
 </template>

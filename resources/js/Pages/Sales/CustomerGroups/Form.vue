@@ -22,19 +22,19 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
 
 <template>
     <AppLayout>
-        <Head :title="editing ? 'تعديل مجموعة عملاء' : 'مجموعة عملاء جديدة'" />
-        <PageHeader :title="editing ? 'تعديل مجموعة عملاء' : 'مجموعة عملاء جديدة'" :crumbs="[{ label: 'المبيعات' }, { label: 'مجموعات العملاء', href: route('sales.customer-groups.index') }, { label: editing ? 'تعديل' : 'جديدة' }]" />
+        <Head :title="editing ? $t('s_group_form.edit') : $t('s_group_form.new')" />
+        <PageHeader :title="editing ? $t('s_group_form.edit') : $t('s_group_form.new')" :crumbs="[{ label: 'المبيعات' }, { label: 'مجموعات العملاء', href: route('sales.customer-groups.index') }, { label: editing ? 'تعديل' : 'جديدة' }]" />
         <form @submit.prevent="submit" class="bg-white border border-slate-200 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <Field label="رمز المجموعة *" :error="form.errors.code"><input v-model="form.code" required maxlength="30" :class="input" class="font-mono" placeholder="CG001" /></Field>
-            <Field label="اسم المجموعة *" :error="form.errors.name"><input v-model="form.name" required :class="input" /></Field>
-            <Field label="الحساب المحاسبي المرتبط" :error="form.errors.account_id" hint="ذمم عملاء هذه المجموعة تُرحَّل إلى هذا الحساب بدل حساب الذمم العام. اتركه فارغًا لاستعمال الحساب العام.">
-                <SelectCreate v-model="form.account_id" :options="accounts" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" placeholder="الذمم العامة" />
+            <Field :label="$t('s_group_form.group_code')" :error="form.errors.code"><input v-model="form.code" required maxlength="30" :class="input" class="font-mono" placeholder="CG001" /></Field>
+            <Field :label="$t('s_group_form.group_name')" :error="form.errors.name"><input v-model="form.name" required :class="input" /></Field>
+            <Field :label="$t('s_group_form.linked_ledger_account')" :error="form.errors.account_id" :hint="$t('s_group_form.receivables_of_this_group_s_cust')">
+                <SelectCreate v-model="form.account_id" :options="accounts" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('s_group_form.general_receivables')" />
             </Field>
-            <label class="flex items-center gap-2 font-bold text-slate-700 pt-6"><input type="checkbox" v-model="form.is_active" class="rounded" /> المجموعة نشطة</label>
-            <Field label="الوصف" :error="form.errors.description" class="md:col-span-2"><input v-model="form.description" maxlength="500" :class="input" /></Field>
+            <label class="flex items-center gap-2 font-bold text-slate-700 pt-6"><input type="checkbox" v-model="form.is_active" class="rounded" /> {{ $t('s_group_form.the_group_is_active') }}</label>
+            <Field :label="$t('s_group_form.description')" :error="form.errors.description" class="md:col-span-2"><input v-model="form.description" maxlength="500" :class="input" /></Field>
             <div class="md:col-span-2 flex gap-2 pt-2 border-t border-slate-100">
-                <button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold">{{ editing ? 'حفظ' : 'إضافة' }}</button>
-                <Link :href="route('sales.customer-groups.index')" class="px-5 py-2 rounded-xl border border-slate-200 font-bold text-slate-600">إلغاء</Link>
+                <button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold">{{ editing ? $t('s_common.save') : $t('s_common.add') }}</button>
+                <Link :href="route('sales.customer-groups.index')" class="px-5 py-2 rounded-xl border border-slate-200 font-bold text-slate-600">{{ $t('s_group_form.cancel') }}</Link>
             </div>
         </form>
     </AppLayout>

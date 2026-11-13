@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import ImportButton from '@/Components/UI/ImportButton.vue';
 import { ref } from 'vue';
@@ -18,6 +19,7 @@ import {
     DocumentDuplicateIcon,
 } from '@heroicons/vue/24/outline';
 import { timeZone } from '@/utils/format';
+const { t } = useI18n();
 
 const props = defineProps({
     quotations: Object,
@@ -39,7 +41,7 @@ const closeMenu = () => {
 };
 
 const convertToInvoice = (quotation) => {
-    if (confirm(`هل ترغب في تحويل عرض السعر ${quotation.quotation_number} إلى فاتورة ضريبية رسمية؟`)) {
+    if (confirm(t('s_quotes.confirm_convert', { number: quotation.quotation_number }))) {
         router.post(route('sales.quotations.convert', quotation.id));
     }
 };
@@ -66,21 +68,21 @@ const formatDateArabic = (dateStr) => {
     }
 };
 const removeQuotation = (q) => {
-    if (confirm(`نقل عرض السعر ${q.quotation_number} إلى سلة المحذوفات؟`)) router.delete(route('sales.quotations.destroy', q.id), { preserveScroll: true });
+    if (confirm(t('s_quotes.confirm_trash', { number: q.quotation_number }))) router.delete(route('sales.quotations.destroy', q.id), { preserveScroll: true });
 };
 </script>
 
 <template>
     <AppLayout>
-        <Head title="عروض الأسعار" />
+        <Head :title="$t('s_quotes.quotations')" />
 
         <div class="space-y-5" @click="closeMenu">
             <!-- Breadcrumbs Ribbon -->
-            <PageHeader year-scoped title="عروض الأسعار" :crumbs="[{ label: 'المبيعات' }, { label: 'عروض الأسعار' }]">
+            <PageHeader year-scoped :title="$t('s_quotes.quotations')" :crumbs="[{ label: 'المبيعات' }, { label: 'عروض الأسعار' }]">
 <template #actions>
 <button 
                         @click="router.reload()" 
-                        title="تحديث البيانات"
+                        :title="$t('s_quotes.refresh_data')"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-xs transition-all"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
@@ -95,7 +97,7 @@ const removeQuotation = (q) => {
                         ]"
                     >
                         <MagnifyingGlassIcon class="w-4 h-4 text-indigo-600" />
-                        <span>البحث والتصفية</span>
+                        <span>{{ $t('s_quotes.search_and_filter') }}</span>
                     </button>
 
 
@@ -105,28 +107,28 @@ const removeQuotation = (q) => {
                         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >
                         <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>إنشاء عرض سعر</span>
+                        <span>{{ $t('s_quotes.create_quotation') }}</span>
                     </Link>
-<ImportButton v-if="$can('sales.quotations.create')" type="quotations" title="استيراد عروض أسعار من Excel" hint="سطر لكل بند؛ الأسطر التي تحمل نفس quotation_ref تكوّن عرضاً واحداً. العميل برمزه (customer_code) أو اسمه. تُنشأ العروض كمسودات." />
+<ImportButton v-if="$can('sales.quotations.create')" type="quotations" :title="$t('s_quotes.import_quotations_from_excel')" :hint="$t('s_quotes.one_row_per_line_rows_with_the_s')" />
 </template>
 </PageHeader>
 
             <!-- Mini Summary Cards -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي عروض الأسعار</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('s_quotes.total_quotations') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-slate-800">{{ stats?.total || 0 }}</p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">العروض المقبولة</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('s_quotes.accepted_quotations') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ stats?.accepted || 0 }}</p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">عروض قيد الانتظار</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('s_quotes.pending_quotations') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-amber-500">{{ stats?.pending || 0 }}</p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي القيمة التقديرية</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('s_quotes.total_estimated_value') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ formatCurrency(stats?.total_value) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
             </div>
@@ -137,10 +139,10 @@ const removeQuotation = (q) => {
                     <table class="w-full text-right border-collapse">
                         <thead>
                             <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <th class="py-4 px-6 text-start">عرض السعر</th>
-                                <th class="py-4 px-6 text-start">الإجمالي</th>
-                                <th class="py-4 px-6 text-start">تاريخ العرض</th>
-                                <th class="py-4 px-6 text-center">الحالة</th>
+                                <th class="py-4 px-6 text-start">{{ $t('s_quotes.quotation') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('s_quotes.total') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('s_quotes.quotation_date') }}</th>
+                                <th class="py-4 px-6 text-center">{{ $t('s_quotes.status') }}</th>
                                 <th class="py-4 px-6 text-center w-12"></th>
                             </tr>
                         </thead>
@@ -156,7 +158,7 @@ const removeQuotation = (q) => {
                                             {{ q.quotation_number }}
                                         </span>
                                         <span class="text-xs text-slate-400 font-medium mt-0.5">
-                                            {{ q.customer?.name || 'عميل' }}
+                                            {{ q.customer?.name || $t('s_common.customer') }}
                                         </span>
                                     </div>
                                 </td>
@@ -177,19 +179,19 @@ const removeQuotation = (q) => {
                                         v-if="q.status === 'converted'"
                                         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200"
                                     >
-                                        تم التحويل لفاتورة
+                                        {{ $t('s_quotes.converted_to_an_invoice') }}
                                     </span>
                                     <span 
                                         v-else-if="q.status === 'accepted'"
                                         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
                                     >
-                                        مقبول
+                                        {{ $t('s_quotes.accepted') }}
                                     </span>
                                     <span 
                                         v-else
                                         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200"
                                     >
-                                        مسودة / قيد المراجعة
+                                        {{ $t('s_quotes.draft_under_review') }}
                                     </span>
                                 </td>
 
@@ -210,7 +212,7 @@ const removeQuotation = (q) => {
                                             class="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 transition-colors text-start text-slate-700 font-bold"
                                         >
                                             <EyeIcon class="w-4 h-4 text-slate-400" />
-                                            <span>عرض العرض والطباعة</span>
+                                            <span>{{ $t('s_quotes.view_and_print_the_quotation') }}</span>
                                         </Link>
 
                                         <button 
@@ -219,7 +221,7 @@ const removeQuotation = (q) => {
                                             class="w-full flex items-center gap-2 px-4 py-2 hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-start font-bold text-indigo-700"
                                         >
                                             <ArrowRightCircleIcon class="w-4 h-4" />
-                                            <span>تحويل إلى فاتورة مبيعات</span>
+                                            <span>{{ $t('s_quotes.convert_to_a_sales_invoice') }}</span>
                                         </button>
                                         <button
                                             v-if="q.status !== 'converted' && $can('sales.quotations.delete')"
@@ -228,7 +230,7 @@ const removeQuotation = (q) => {
                                             data-row-delete
                                         >
                                             <TrashIcon class="w-4 h-4" />
-                                            <span>حذف (إلى سلة المحذوفات)</span>
+                                            <span>{{ $t('s_quotes.delete_to_the_recycle_bin') }}</span>
                                         </button>
                                     </div>
                                 </td>
@@ -238,7 +240,7 @@ const removeQuotation = (q) => {
                                 <td colspan="5" class="py-12 text-center text-slate-400">
                                     <div class="flex flex-col items-center justify-center gap-2">
                                         <DocumentDuplicateIcon class="w-10 h-10 text-slate-300 stroke-1" />
-                                        <p class="font-semibold text-slate-500">لا توجد عروض أسعار مسجلة</p>
+                                        <p class="font-semibold text-slate-500">{{ $t('s_quotes.no_quotations_recorded') }}</p>
                                     </div>
                                 </td>
                             </tr>
@@ -249,8 +251,8 @@ const removeQuotation = (q) => {
                 <!-- Pagination Footer -->
                 <div v-if="quotations.total > 0" class="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-medium">
                     <div class="flex items-center gap-2">
-                        <span>الإجمالي {{ quotations.total || 0 }}.</span>
-                        <span>لكل صفحة:</span>
+                        <span>{{ $t('s_invoices.total_n', { n: quotations.total || 0 }) }}</span>
+                        <span>{{ $t('s_quotes.per_page') }}</span>
                         <select 
                             :value="quotations.per_page"
                             @change="router.get(route('sales.quotations.index'), { per_page: $event.target.value }, { preserveState: true })"
@@ -262,7 +264,7 @@ const removeQuotation = (q) => {
                         </select>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span>الصفحة {{ quotations.current_page }} من {{ quotations.last_page || 1 }}.</span>
+                        <span>{{ $t('s_invoices.page_of', { a: quotations.current_page, b: quotations.last_page || 1 }) }}</span>
                         <div class="flex items-center gap-1">
                             <Link 
                                 v-if="quotations.prev_page_url" 
