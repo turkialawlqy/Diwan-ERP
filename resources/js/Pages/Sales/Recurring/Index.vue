@@ -2,6 +2,7 @@
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import { taxRate } from '@/utils/tax';
 import { computed, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -21,8 +22,9 @@ import { money, today } from '@/utils/format';
 const props = defineProps({ templates: Object, prefill: { type: Object, default: null } });
 const flash = computed(() => usePage().props.flash || {});
 
-const frequencies = { monthly: 'شهري', quarterly: 'ربع سنوي', yearly: 'سنوي' };
-const statuses = { active: ['نشطة', 'bg-emerald-50 text-emerald-700'], paused: ['موقوفة', 'bg-amber-50 text-amber-700'], ended: ['منتهية', 'bg-slate-100 text-slate-500'] };
+const { t: tr } = useI18n();
+const frequencies = computed(() => ({ monthly: tr('s_recurring.f_monthly'), quarterly: tr('s_recurring.f_quarterly'), yearly: tr('s_recurring.f_yearly') }));
+const statuses = computed(() => ({ active: [tr('s_recurring.st_active'), 'bg-emerald-50 text-emerald-700'], paused: [tr('s_recurring.st_paused'), 'bg-amber-50 text-amber-700'], ended: [tr('s_recurring.st_ended'), 'bg-slate-100 text-slate-500'] }));
 
 const open = ref(false);
 const editing = ref(null);
@@ -51,7 +53,7 @@ const save = () => {
 };
 const toggle = (t) => router.post(route('sales.recurring.toggle', t.id), {}, { preserveScroll: true });
 const runNow = (t) => router.post(route('sales.recurring.run', t.id), {}, { preserveScroll: true });
-const remove = (t) => confirm(`حذف «${t.name}»؟ الفواتير الصادرة تبقى كما هي.`) && router.delete(route('sales.recurring.destroy', t.id), { preserveScroll: true });
+const remove = (t) => confirm(tr('s_recurring.confirm_delete', { name: t.name })) && router.delete(route('sales.recurring.destroy', t.id), { preserveScroll: true });
 
 const perIssue = computed(() => form.lines.reduce((s, l) => s + (Number(l.quantity || 0) * Number(l.unit_price || 0) - Number(l.discount || 0)) * (1 + Number(l.tax_rate ?? taxRate()) / 100), 0));
 
@@ -60,10 +62,10 @@ onMounted(() => { if (props.prefill) create(props.prefill); });
 
 <template>
     <AppLayout>
-        <Head title="الفواتير الدورية" />
-        <PageHeader title="الفواتير الدورية" subtitle="عقود الخدمات التي تُفوتر تلقائياً كل شهر أو ربع سنة أو سنة" :crumbs="[{ label: 'المبيعات' }, { label: 'الفواتير الدورية' }]">
+        <Head :title="$t('s_recurring.recurring_invoices')" />
+        <PageHeader :title="$t('s_recurring.recurring_invoices')" :subtitle="$t('s_recurring.service_contracts_invoiced_autom')" :crumbs="[{ label: 'المبيعات' }, { label: 'الفواتير الدورية' }]">
             <template #actions>
-                <button v-if="$can('sales.recurring.create')" @click="create()" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">+ فاتورة دورية</button>
+                <button v-if="$can('sales.recurring.create')" @click="create()" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('s_recurring.recurring_invoice') }}</button>
             </template>
         </PageHeader>
 
@@ -78,21 +80,21 @@ onMounted(() => { if (props.prefill) create(props.prefill); });
                             <h3 class="font-black text-slate-800 text-sm">{{ t.name }}</h3>
                             <span :class="['px-2 py-0.5 rounded-full font-bold', statuses[t.status][1]]">{{ statuses[t.status][0] }}</span>
                         </div>
-                        <p class="text-slate-500 mt-1">{{ t.customer?.name }} · {{ frequencies[t.frequency] }}{{ t.interval > 1 ? ` (كل ${t.interval})` : '' }} · {{ money(t.estimated_total) }} {{ t.currency_code || $cur() }} لكل إصدار</p>
+                        <p class="text-slate-500 mt-1">{{ t.customer?.name }} · {{ frequencies[t.frequency] }}{{ t.interval > 1 ? ` (${$t('s_recurring.every_n', { n: t.interval })})` : '' }} · {{ money(t.estimated_total) }} {{ t.currency_code || $cur() }} {{ $t('s_recurring.per_issue') }}</p>
                         <p class="text-slate-500 mt-1">
-                            صدر {{ t.generated_count }}{{ t.max_count ? ` من ${t.max_count}` : '' }}
-                            <template v-if="t.status !== 'ended'"> · الإصدار التالي: <HijriDate :value="t.next_run_date" inline /></template>
-                            <template v-if="t.auto_send"> · يُرسل تلقائياً إلى {{ t.send_to || t.customer?.email || 'بريد العميل' }}</template>
+                            {{ $t('s_recurring.issued') }} {{ t.generated_count }}{{ t.max_count ? ` ${$t('s_recurring.of')} ${t.max_count}` : '' }}
+                            <template v-if="t.status !== 'ended'"> {{ $t('s_recurring.next_issue') }} <HijriDate :value="t.next_run_date" inline /></template>
+                            <template v-if="t.auto_send"> · {{ $t('s_recurring.auto_sent_to') }} {{ t.send_to || t.customer?.email || $t('s_recurring.customer_email') }}</template>
                         </p>
-                        <p v-if="t.last_error" class="mt-1 text-rose-600 font-bold">آخر محاولة فشلت: {{ t.last_error }}</p>
+                        <p v-if="t.last_error" class="mt-1 text-rose-600 font-bold">{{ $t('s_recurring.last_failed') }}: {{ t.last_error }}</p>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <button v-if="$can('sales.recurring.edit') && t.status === 'active'" @click="runNow(t)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">إصدار المستحق الآن</button>
-                        <Link v-if="t.subscription_id" :href="route('sales.subscriptions.show', t.subscription_id)" class="px-3 py-1.5 rounded-xl border border-indigo-200 text-indigo-700 font-bold" data-owned-by-subscription>تُدار من الاشتراك</Link>
+                        <button v-if="$can('sales.recurring.edit') && t.status === 'active'" @click="runNow(t)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">{{ $t('s_recurring.issue_due_invoices_now') }}</button>
+                        <Link v-if="t.subscription_id" :href="route('sales.subscriptions.show', t.subscription_id)" class="px-3 py-1.5 rounded-xl border border-indigo-200 text-indigo-700 font-bold" data-owned-by-subscription>{{ $t('s_recurring.managed_from_the_subscription') }}</Link>
                         <template v-else>
-                            <button v-if="$can('sales.recurring.edit') && t.status !== 'ended'" @click="toggle(t)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">{{ t.status === 'active' ? 'إيقاف مؤقت' : 'استئناف' }}</button>
-                            <button v-if="$can('sales.recurring.edit')" @click="edit(t)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">تعديل</button>
-                            <button v-if="$can('sales.recurring.delete')" @click="remove(t)" class="px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 font-bold">حذف</button>
+                            <button v-if="$can('sales.recurring.edit') && t.status !== 'ended'" @click="toggle(t)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">{{ t.status === 'active' ? $t('s_recurring.pause') : $t('s_recurring.resume') }}</button>
+                            <button v-if="$can('sales.recurring.edit')" @click="edit(t)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">{{ $t('s_recurring.edit') }}</button>
+                            <button v-if="$can('sales.recurring.delete')" @click="remove(t)" class="px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 font-bold">{{ $t('s_recurring.delete') }}</button>
                         </template>
                     </div>
                 </div>
@@ -103,46 +105,46 @@ onMounted(() => { if (props.prefill) create(props.prefill); });
                 </div>
             </div>
             <div v-if="!templates.data.length" class="bg-white border border-dashed border-slate-300 rounded-2xl p-10 text-center text-slate-400">
-                لا توجد فواتير دورية بعد. يمكنك إنشاؤها هنا أو من زر «فاتورة دورية» في صفحة أي فاتورة.
+                {{ $t('s_recurring.no_recurring_invoices_yet_create') }}
             </div>
             <Pagination :paginator="templates" />
         </div>
 
-        <Dialog :show="open" :title="editing ? 'تعديل فاتورة دورية' : 'فاتورة دورية جديدة'" size="xl" @close="open = false">
+        <Dialog :show="open" :title="editing ? $t('s_recurring.edit_title') : $t('s_recurring.new_title')" size="xl" @close="open = false">
             <div class="space-y-4 text-xs">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <Field label="اسم العقد" :error="form.errors.name" class="md:col-span-2"><input v-model="form.name" placeholder="مثال: صيانة شهرية — مبنى الإدارة" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="العميل" :error="form.errors.customer_id" class="md:col-span-2"><PartyPicker v-model="form.customer_id" :initial="customer" /></Field>
-                    <Field label="التكرار" :error="form.errors.frequency">
+                    <Field :label="$t('s_recurring.contract_name')" :error="form.errors.name" class="md:col-span-2"><input v-model="form.name" :placeholder="$t('s_recurring.example_monthly_maintenance_head')" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('s_recurring.customer')" :error="form.errors.customer_id" class="md:col-span-2"><PartyPicker v-model="form.customer_id" :initial="customer" /></Field>
+                    <Field :label="$t('s_recurring.frequency')" :error="form.errors.frequency">
                         <select v-model="form.frequency" class="w-full rounded-xl border-slate-200 text-xs"><option v-for="(l, k) in frequencies" :key="k" :value="k">{{ l }}</option></select>
                     </Field>
-                    <Field label="كل (عدد الفترات)" :error="form.errors.interval"><input v-model.number="form.interval" type="text" inputmode="decimal" data-num min="1" max="12" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="تاريخ أول إصدار" :error="form.errors.start_date" hint="يتكرر الإصدار في نفس اليوم من الشهر"><DatePicker v-model="form.start_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="مهلة السداد (أيام)" :error="form.errors.due_days" hint="فارغ = شروط العميل"><input v-model.number="form.due_days" type="text" inputmode="decimal" data-num min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="ينتهي في (اختياري)" :error="form.errors.end_date"><DatePicker v-model="form.end_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="أو بعد عدد إصدارات" :error="form.errors.max_count"><input v-model.number="form.max_count" type="text" inputmode="decimal" data-num min="1" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="نوع الفاتورة">
-                        <select v-model="form.invoice_type" class="w-full rounded-xl border-slate-200 text-xs"><option value="standard">ضريبية (منشآت)</option><option value="simplified">مبسطة (أفراد)</option></select>
+                    <Field :label="$t('s_recurring.every_number_of_periods')" :error="form.errors.interval"><input v-model.number="form.interval" type="text" inputmode="decimal" data-num min="1" max="12" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('s_recurring.first_issue_date')" :error="form.errors.start_date" :hint="$t('s_recurring.issued_on_the_same_day_of_each_m')"><DatePicker v-model="form.start_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('s_recurring.payment_term_days')" :error="form.errors.due_days" :hint="$t('s_recurring.empty_customer_terms')"><input v-model.number="form.due_days" type="text" inputmode="decimal" data-num min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('s_recurring.ends_on_optional')" :error="form.errors.end_date"><DatePicker v-model="form.end_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('s_recurring.or_after_a_number_of_issues')" :error="form.errors.max_count"><input v-model.number="form.max_count" type="text" inputmode="decimal" data-num min="1" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('s_recurring.invoice_type')">
+                        <select v-model="form.invoice_type" class="w-full rounded-xl border-slate-200 text-xs"><option value="standard">{{ $t('s_recurring.tax_invoice_businesses') }}</option><option value="simplified">{{ $t('s_recurring.simplified_individuals') }}</option></select>
                     </Field>
                     <div><CurrencyPicker v-model:code="form.currency_code" v-model:rate="form.exchange_rate" :errors="form.errors" /></div>
                 </div>
 
                 <div>
-                    <h4 class="font-black text-slate-700 mb-2">بنود الفاتورة <span class="font-normal text-slate-400">(خدمات فقط)</span></h4>
+                    <h4 class="font-black text-slate-700 mb-2">{{ $t('s_recurring.invoice_lines') }} <span class="font-normal text-slate-400">{{ $t('s_recurring.services_only') }}</span></h4>
                     <LineItemsEditor v-model="form.lines" />
                     <p v-if="form.errors.lines" class="text-rose-600 mt-1">{{ form.errors.lines }}</p>
-                    <p class="mt-2 text-slate-600">الإجمالي لكل إصدار (شامل الضريبة): <b class="font-mono">{{ money(perIssue) }} {{ form.currency_code || $cur() }}</b></p>
+                    <p class="mt-2 text-slate-600">{{ $t('s_recurring.total_per_issue_including_tax') }} <b class="font-mono">{{ money(perIssue) }} {{ form.currency_code || $cur() }}</b></p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <label class="flex items-center gap-2 font-bold text-slate-700"><input v-model="form.auto_send" type="checkbox" class="rounded border-slate-300 text-indigo-600" /> إرسال الفاتورة للعميل بالبريد عند إصدارها</label>
-                    <Field v-if="form.auto_send" label="بريد الإرسال" :error="form.errors.send_to" hint="فارغ = بريد العميل"><input v-model="form.send_to" type="email" dir="ltr" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="ملاحظات تظهر في الفاتورة" class="md:col-span-2"><input v-model="form.notes" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <label class="flex items-center gap-2 font-bold text-slate-700"><input v-model="form.auto_send" type="checkbox" class="rounded border-slate-300 text-indigo-600" /> {{ $t('s_recurring.email_the_invoice_to_the_custome') }}</label>
+                    <Field v-if="form.auto_send" :label="$t('s_recurring.send_to_email')" :error="form.errors.send_to" :hint="$t('s_recurring.empty_customer_email')"><input v-model="form.send_to" type="email" dir="ltr" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('s_recurring.notes_shown_on_the_invoice')" class="md:col-span-2"><input v-model="form.notes" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 </div>
             </div>
             <template #footer>
-                <button type="button" @click="open = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">إلغاء</button>
-                <button type="button" @click="save" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">حفظ</button>
+                <button type="button" @click="open = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('s_recurring.cancel') }}</button>
+                <button type="button" @click="save" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">{{ $t('s_recurring.save') }}</button>
             </template>
         </Dialog>
     </AppLayout>

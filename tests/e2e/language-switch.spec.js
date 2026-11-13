@@ -108,3 +108,33 @@ test('the quick add and view menus and the shared components follow the language
     await expect(page.locator('[data-quick-add-panel]').getByText('فاتورة مبيعات')).toBeVisible();
     expect(errors).toEqual([]);
 });
+
+test('sales list and form pages follow the language', async ({ page }) => {
+    const errors = watchErrors(page);
+    await signIn(page);
+    await page.goto('/sales/invoices');
+    const header = page.locator('header');
+    await header.locator('[data-user-menu]').click();
+    await page.locator('[data-language-toggle]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+    const arabic = /[؀-ۿ]/;
+    for (const [url, text] of [
+        ['/sales/invoices', 'Total invoices'],
+        ['/sales/clients', 'Total customers'],
+        ['/sales/payments', 'Total receipt vouchers'],
+        ['/sales/recurring', 'Recurring invoices'],
+        ['/sales/returns/create', 'Credit note details'],
+        ['/sales/quotations/create', 'Quotation details'],
+    ]) {
+        await page.goto(url);
+        await expect(page.getByText(text).first()).toBeVisible();
+        // The breadcrumb follows the language too.
+        expect(await page.locator('nav[aria-label], nav').first().innerText()).not.toMatch(arabic);
+    }
+
+    await header.locator('[data-user-menu]').click();
+    await page.locator('[data-language-toggle]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+    expect(errors).toEqual([]);
+});

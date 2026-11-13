@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { tx } from '@/i18n';
 import { Link, usePage } from '@inertiajs/vue3';
 import { HomeIcon, ChevronRightIcon } from '@heroicons/vue/24/outline';
 
@@ -26,8 +27,8 @@ const activeYear = computed(() => {
                 <Link :href="route('dashboard')" class="text-slate-400 hover:text-indigo-600"><HomeIcon class="w-4 h-4" /></Link>
                 <template v-for="(crumb, i) in crumbs" :key="i">
                     <ChevronRightIcon class="w-3.5 h-3.5 text-slate-300 mx-1.5 rtl:rotate-180" />
-                    <Link v-if="crumb.href" :href="crumb.href" class="hover:text-indigo-600">{{ crumb.label }}</Link>
-                    <span v-else class="text-slate-600">{{ crumb.label }}</span>
+                    <Link v-if="crumb.href" :href="crumb.href" class="hover:text-indigo-600">{{ tx(crumb.label) }}</Link>
+                    <span v-else class="text-slate-600">{{ tx(crumb.label) }}</span>
                 </template>
             </div>
             <h1 class="text-lg font-black text-slate-800">{{ title }}</h1>

@@ -106,17 +106,17 @@ const submit = () => {
 
 <template>
     <AppLayout>
-        <Head title="إصدار إشعار دائن / مرتجع مبيعات" />
+        <Head :title="$t('s_return_form.issue_a_credit_note_sales_return')" />
 
         <div class="space-y-6 w-full pb-12">
             <!-- Breadcrumbs Header -->
-            <PageHeader title="إصدار إشعار دائن" :crumbs="[{ label: 'المبيعات' }, { label: 'المرتجعات' }, { label: 'إصدار إشعار دائن' }]">
+            <PageHeader :title="$t('s_return_form.issue_credit_note')" :crumbs="[{ label: 'المبيعات' }, { label: 'المرتجعات' }, { label: 'إصدار إشعار دائن' }]">
 <template #actions>
 <Link 
                         :href="route('sales.returns.index')"
                         class="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold transition-colors"
                     >
-                        إلغاء
+                        {{ $t('s_return_form.cancel') }}
                     </Link>
                     <button 
                         @click="submit"
@@ -124,7 +124,7 @@ const submit = () => {
                         class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm shadow-xs hover:shadow-rose-500/20 transition-all disabled:opacity-50"
                     >
                         <CheckIcon class="w-4 h-4 stroke-2" />
-                        <span>اعتماد وإصدار الإشعار</span>
+                        <span>{{ $t('s_return_form.approve_and_issue_the_note') }}</span>
                     </button>
 </template>
 </PageHeader>
@@ -132,9 +132,9 @@ const submit = () => {
             <!-- Form Body -->
             <form @submit.prevent="submit" class="space-y-6">
                 <div v-if="selectedInvoice" class="bg-white border border-slate-200 rounded-2xl p-4">
-                    <label class="flex items-center gap-2 text-xs font-bold mb-3"><input v-model="itemMode" type="checkbox" class="rounded" /> إرجاع أصناف (تعود للمخزون وتُعكس تكلفتها)</label>
+                    <label class="flex items-center gap-2 text-xs font-bold mb-3"><input v-model="itemMode" type="checkbox" class="rounded" /> {{ $t('s_return_form.return_items_back_to_stock_cost') }}</label>
                     <div class="overflow-x-auto" v-if="itemMode"><table class="w-full text-xs">
-                        <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الصنف</th><th class="px-3 py-2">القابل للإرجاع</th><th class="px-3 py-2">صافي سعر الوحدة</th><th class="px-3 py-2 w-32">الكمية المرتجعة</th><th class="px-3 py-2">يعود للمخزون</th></tr></thead>
+                        <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">{{ $t('s_return_form.item') }}</th><th class="px-3 py-2">{{ $t('s_return_form.returnable') }}</th><th class="px-3 py-2">{{ $t('s_return_form.net_unit_price') }}</th><th class="px-3 py-2 w-32">{{ $t('s_return_form.returned_quantity') }}</th><th class="px-3 py-2">{{ $t('s_return_form.back_to_stock') }}</th></tr></thead>
                         <tbody>
                             <tr v-for="i in form.items" :key="i.invoice_item_id" class="border-t border-slate-100">
                                 <td class="px-3 py-2">{{ i.name }}</td>
@@ -145,7 +145,7 @@ const submit = () => {
                             </tr>
                         </tbody>
                     </table></div>
-                    <p v-if="itemMode" class="text-xs mt-2">إجمالي المرتجع شامل الضريبة: <b class="font-mono">{{ formatCurrency(itemsTotal) }}</b></p>
+                    <p v-if="itemMode" class="text-xs mt-2">{{ $t('s_return_form.total_returned_including_tax') }} <b class="font-mono">{{ formatCurrency(itemsTotal) }}</b></p>
                     <p v-if="form.errors.items" class="text-xs text-rose-600 mt-1">{{ form.errors.items }}</p>
                     <p v-if="form.errors.lines" class="text-xs text-rose-600 mt-1">{{ form.errors.lines }}</p>
                 </div>
@@ -154,34 +154,34 @@ const submit = () => {
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-indigo-200/60 pb-3">
                         <div class="flex items-center gap-2">
                             <DocumentTextIcon class="w-5 h-5 text-indigo-600" />
-                            <span class="font-bold text-sm">مرتجع مرتبط بالفاتورة الضريبية:</span>
+                            <span class="font-bold text-sm">{{ $t('s_return_form.return_linked_to_tax_invoice') }}</span>
                             <span class="font-mono font-black text-indigo-700">{{ selectedInvoice.invoice_number }}</span>
                         </div>
-                        <span class="text-indigo-700 font-medium">تاريخ الفاتورة: {{ selectedInvoice.invoice_date }}</span>
+                        <span class="text-indigo-700 font-medium">{{ $t('s_return_form.invoice_date') }}: {{ selectedInvoice.invoice_date }}</span>
                     </div>
 
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-2xs sm:text-xs">
                         <div>
-                            <span class="text-indigo-600/80 block">العميل:</span>
+                            <span class="text-indigo-600/80 block">{{ $t('s_return_form.customer') }}</span>
                             <strong class="text-slate-800">{{ selectedInvoice.customer?.name }}</strong>
                         </div>
                         <div>
-                            <span class="text-indigo-600/80 block">قيمة الفاتورة الأصلية:</span>
+                            <span class="text-indigo-600/80 block">{{ $t('s_return_form.original_invoice_value') }}</span>
                             <strong class="font-mono text-slate-800">{{ formatCurrency(selectedInvoice.total) }} ﷼</strong>
                         </div>
                         <div>
-                            <span class="text-indigo-600/80 block">الضريبة المضمنة:</span>
+                            <span class="text-indigo-600/80 block">{{ $t('s_return_form.included_tax') }}</span>
                             <strong class="font-mono text-slate-800">{{ formatCurrency(selectedInvoice.tax_amount) }} ﷼</strong>
                         </div>
                         <div>
-                            <span class="text-indigo-600/80 block">حالة السداد:</span>
-                            <strong class="text-slate-800">{{ selectedInvoice.payment_status === 'paid' ? 'مدفوعة' : 'غير مدفوعة' }}</strong>
+                            <span class="text-indigo-600/80 block">{{ $t('s_return_form.payment_status') }}</span>
+                            <strong class="text-slate-800">{{ selectedInvoice.payment_status === 'paid' ? $t('s_invoices.paid') : $t('s_invoices.unpaid') }}</strong>
                         </div>
                     </div>
 
                     <!-- Items Preview -->
                     <div v-if="selectedInvoice.items && selectedInvoice.items.length > 0" class="pt-2">
-                        <p class="font-bold text-2xs text-indigo-800 mb-1">بنود الفاتورة الأصلية للرجوع إليها:</p>
+                        <p class="font-bold text-2xs text-indigo-800 mb-1">{{ $t('s_return_form.original_invoice_lines_for_refer') }}</p>
                         <div class="bg-white/90 rounded-xl p-3 border border-indigo-100 divide-y divide-slate-100 max-h-36 overflow-y-auto">
                             <div v-for="it in selectedInvoice.items" :key="it.id" class="py-1.5 flex justify-between items-center text-2xs">
                                 <span>{{ it.item_name }} ({{ Number(it.quantity) }} × {{ formatCurrency(it.unit_price) }} ﷼)</span>
@@ -198,12 +198,12 @@ const submit = () => {
                         <div class="pb-3 border-b border-slate-100">
                             <h3 class="text-sm font-black text-slate-800 flex items-center gap-2">
                                 <ArrowUturnLeftIcon class="w-4 h-4 text-rose-600" />
-                                <span>بيانات الإشعار الدائن</span>
+                                <span>{{ $t('s_return_form.credit_note_details') }}</span>
                             </h3>
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">رقم الإشعار الدائن *</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_return_form.credit_note_number') }}</label>
                             <input 
                                 v-model="form.credit_note_number"
                                 type="text"
@@ -214,7 +214,7 @@ const submit = () => {
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">تاريخ الإشعار الدائن *</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_return_form.credit_note_date') }}</label>
                             <DatePicker 
                                 v-model="form.credit_note_date"
                                 class="w-full font-mono text-xs rounded-xl border-slate-200 focus:border-rose-500 focus:ring-rose-500 py-2.5 bg-slate-50/50"
@@ -224,12 +224,12 @@ const submit = () => {
 
                         <!-- Invoice Picker if not pre-selected -->
                         <div v-if="!selectedInvoice">
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">الفاتورة الأصلية (اختياري)</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_return_form.original_invoice_optional') }}</label>
                             <select 
                                 v-model="form.invoice_id"
                                 class="w-full text-xs rounded-xl border-slate-200 focus:border-rose-500 focus:ring-rose-500 py-2.5 bg-slate-50/50"
                             >
-                                <option value="">-- بدون ربط بفاتورة سابقة --</option>
+                                <option value="">{{ $t('s_return_form.not_linked_to_a_previous_invoice') }}</option>
                                 <option v-for="inv in recentInvoices" :key="inv.id" :value="inv.id">
                                     {{ inv.invoice_number }} - {{ inv.customer?.name }} ({{ formatCurrency(inv.total) }} ﷼)
                                 </option>
@@ -238,15 +238,15 @@ const submit = () => {
 
                         <!-- Customer Selection -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">العميل *</label>
-                            <SelectCreate v-model="form.customer_id" :options="customers" entity="customer" :label="(c) => `${c.name} ${c.company_name ? `(${c.company_name})` : ''}`" placeholder="-- اختر العميل --" required />
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_return_form.customer_2') }}</label>
+                            <SelectCreate v-model="form.customer_id" :options="customers" entity="customer" :label="(c) => `${c.name} ${c.company_name ? `(${c.company_name})` : ''}`" :placeholder="$t('s_return_form.choose_the_customer')" required />
                             <p v-if="form.errors.customer_id" class="text-2xs text-rose-500 mt-1">{{ form.errors.customer_id }}</p>
                         </div>
 
                         <!-- Customer info preview -->
                         <div v-if="selectedCustomer" class="p-3 bg-slate-50 rounded-xl text-xs space-y-1 text-slate-600">
                             <p class="flex justify-between">
-                                <span>الرصيد الحالي للعميل:</span>
+                                <span>{{ $t('s_return_form.customer_current_balance') }}</span>
                                 <span class="font-mono font-bold" :class="selectedCustomer.current_balance > 0 ? 'text-amber-600' : 'text-slate-800'">
                                     {{ formatCurrency(selectedCustomer.current_balance) }} ﷼
                                 </span>
@@ -257,16 +257,16 @@ const submit = () => {
                     <!-- Left Card: Amounts & Reason -->
                     <div class="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-2xs space-y-4">
                         <div class="pb-3 border-b border-slate-100">
-                            <h3 class="text-sm font-black text-slate-800">المبالغ وسبب الإرجاع</h3>
+                            <h3 class="text-sm font-black text-slate-800">{{ $t('s_return_form.amounts_and_return_reason') }}</h3>
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">سبب الإرجاع / الإشعار الدائن *</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_return_form.return_credit_note_reason') }}</label>
                             <textarea 
                                 v-model="form.reason"
                                 rows="3"
                                 class="w-full text-xs rounded-xl border-slate-200 focus:border-rose-500 focus:ring-rose-500 bg-slate-50/50"
-                                placeholder="مثال: تلف في البضاعة أثناء النقل، خطأ في المواصفات، رغبة العميل في الإلغاء..."
+                                :placeholder="$t('s_return_form.example_goods_damaged_in_transit')"
                                 required
                             ></textarea>
                             <p v-if="form.errors.reason" class="text-2xs text-rose-500 mt-1">{{ form.errors.reason }}</p>
@@ -274,7 +274,7 @@ const submit = () => {
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">المبلغ قبل الضريبة (﷼) *</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_return_form.amount_before_tax_sar') }}</label>
                                 <input 
                                     v-model.number="form.subtotal"
                                     type="text" inputmode="decimal" data-num
@@ -300,7 +300,7 @@ const submit = () => {
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">الإجمالي المسترد شامل الضريبة (﷼) *</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_return_form.refunded_total_including_tax_sar') }}</label>
                             <input 
                                 v-model.number="form.total"
                                 type="text" inputmode="decimal" data-num
@@ -314,14 +314,14 @@ const submit = () => {
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">طريقة المعالجة المحاسبية</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_return_form.accounting_treatment') }}</label>
                             <select 
                                 v-model="form.status"
                                 class="w-full text-xs rounded-xl border-slate-200 focus:border-rose-500 focus:ring-rose-500 py-2.5 bg-slate-50/50"
                             >
-                                <option value="approved">خصم من رصيد العميل (قيد بالحساب)</option>
-                                <option value="refunded">استرداد نقدي فوري للعميل</option>
-                                <option value="draft">حفظ كمسودة للمراجعة</option>
+                                <option value="approved">{{ $t('s_return_form.deduct_from_the_customer_balance') }}</option>
+                                <option value="refunded">{{ $t('s_return_form.immediate_cash_refund_to_the_cus') }}</option>
+                                <option value="draft">{{ $t('s_return_form.save_as_a_draft_for_review') }}</option>
                             </select>
                         </div>
                     </div>
@@ -333,7 +333,7 @@ const submit = () => {
                         :href="route('sales.returns.index')"
                         class="px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold transition-colors"
                     >
-                        إلغاء
+                        {{ $t('s_return_form.cancel') }}
                     </Link>
                     <button 
                         type="submit"
@@ -341,7 +341,7 @@ const submit = () => {
                         class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm shadow-xs hover:shadow-rose-500/20 transition-all disabled:opacity-50"
                     >
                         <CheckIcon class="w-4 h-4 stroke-2" />
-                        <span>اعتماد وإصدار الإشعار الدائن</span>
+                        <span>{{ $t('s_return_form.approve_and_issue_the_credit_not') }}</span>
                     </button>
                 </div>
             </form>

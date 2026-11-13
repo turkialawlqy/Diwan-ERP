@@ -163,17 +163,17 @@ const importLines = (lines, replace) => {
 
 <template>
     <AppLayout>
-        <Head title="إنشاء عرض سعر جديد" />
+        <Head :title="$t('s_quote_form.create_a_new_quotation')" />
 
         <div class="space-y-6 w-full pb-12">
             <!-- Header Ribbon -->
-            <PageHeader title="إنشاء عرض سعر" :crumbs="[{ label: 'المبيعات' }, { label: 'عروض الأسعار' }, { label: 'إنشاء عرض سعر' }]">
+            <PageHeader :title="$t('s_quote_form.create_quotation')" :crumbs="[{ label: 'المبيعات' }, { label: 'عروض الأسعار' }, { label: 'إنشاء عرض سعر' }]">
 <template #actions>
 <Link 
                         :href="route('sales.quotations.index')"
                         class="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold transition-colors"
                     >
-                        إلغاء
+                        {{ $t('s_quote_form.cancel') }}
                     </Link>
                     <button 
                         @click="submit"
@@ -181,7 +181,7 @@ const importLines = (lines, replace) => {
                         class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all disabled:opacity-50"
                     >
                         <CheckIcon class="w-4 h-4 stroke-2" />
-                        <span>حفظ عرض السعر</span>
+                        <span>{{ $t('s_quote_form.save_quotation') }}</span>
                     </button>
 </template>
 </PageHeader>
@@ -195,7 +195,7 @@ const importLines = (lines, replace) => {
                         <div class="flex items-center justify-between pb-3 border-b border-slate-100">
                             <h3 class="text-sm font-black text-slate-800 flex items-center gap-2">
                                 <UserPlusIcon class="w-4 h-4 text-indigo-600" />
-                                <span>بيانات العميل</span>
+                                <span>{{ $t('s_quote_form.customer_details') }}</span>
                             </h3>
                             <Link 
                                 v-if="$canRoute('sales.clients.create')"
@@ -203,24 +203,24 @@ const importLines = (lines, replace) => {
                                 target="_blank"
                                 class="text-2xs text-indigo-600 hover:text-indigo-700 font-bold"
                             >
-                                + عميل جديد
+                                {{ $t('s_quote_form.new_customer') }}
                             </Link>
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1.5">اختر العميل *</label>
-                            <SelectCreate v-model="form.customer_id" :options="customerList" entity="customer" :label="(c) => `${c.name} ${c.company_name ? `(${c.company_name})` : ''}`" placeholder="-- حدد العميل --" :allow-empty="false" required @created="(c) => customerList.push(c)" />
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_quote_form.choose_the_customer') }}</label>
+                            <SelectCreate v-model="form.customer_id" :options="customerList" entity="customer" :label="(c) => `${c.name} ${c.company_name ? `(${c.company_name})` : ''}`" :placeholder="$t('s_quote_form.select_the_customer')" :allow-empty="false" required @created="(c) => customerList.push(c)" />
                             <p v-if="form.errors.customer_id" class="text-2xs text-rose-500 mt-1">{{ form.errors.customer_id }}</p>
                         </div>
 
                         <!-- Customer Details Snapshot -->
                         <div v-if="selectedCustomer" class="p-3.5 bg-slate-50/80 rounded-xl border border-slate-100 text-xs space-y-1.5 text-slate-600">
                             <p class="flex justify-between">
-                                <span class="text-slate-400">الرقم الضريبي:</span>
-                                <span class="font-mono font-bold text-slate-800">{{ selectedCustomer.tax_number || 'غير مسجل' }}</span>
+                                <span class="text-slate-400">{{ $t('s_quote_form.tax_number') }}</span>
+                                <span class="font-mono font-bold text-slate-800">{{ selectedCustomer.tax_number || $t('s_quote_form.not_registered') }}</span>
                             </p>
                             <p class="flex justify-between">
-                                <span class="text-slate-400">الهاتف:</span>
+                                <span class="text-slate-400">{{ $t('s_quote_form.phone') }}</span>
                                 <span class="font-mono text-slate-800">{{ selectedCustomer.phone || '-' }}</span>
                             </p>
                         </div>
@@ -232,13 +232,13 @@ const importLines = (lines, replace) => {
                         <div class="pb-3 border-b border-slate-100">
                             <h3 class="text-sm font-black text-slate-800 flex items-center gap-2">
                                 <DocumentTextIcon class="w-4 h-4 text-indigo-600" />
-                                <span>بيانات عرض السعر</span>
+                                <span>{{ $t('s_quote_form.quotation_details') }}</span>
                             </h3>
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">رقم عرض السعر *</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_quote_form.quotation_number') }}</label>
                                 <input 
                                     v-model="form.quotation_number"
                                     type="text" 
@@ -249,7 +249,7 @@ const importLines = (lines, replace) => {
                             </div>
 
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">تاريخ العرض *</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_quote_form.quotation_date') }}</label>
                                 <DatePicker 
                                     v-model="form.quotation_date" 
                                     class="w-full font-mono text-xs rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 py-2.5 bg-slate-50/50"
@@ -258,7 +258,7 @@ const importLines = (lines, replace) => {
                             </div>
 
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">صالح حتى تاريخ</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_quote_form.valid_until') }}</label>
                                 <DatePicker 
                                     v-model="form.valid_until" 
                                     class="w-full font-mono text-xs rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 py-2.5 bg-slate-50/50" />
@@ -267,22 +267,22 @@ const importLines = (lines, replace) => {
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">شروط وأحكام العرض</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_quote_form.quotation_terms_and_conditions') }}</label>
                                 <textarea 
                                     v-model="form.terms"
                                     rows="2"
                                     class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 bg-slate-50/50"
-                                    placeholder="شروط التسليم، السداد، الضمان..."
+                                    :placeholder="$t('s_quote_form.delivery_payment_and_warranty_te')"
                                 ></textarea>
                             </div>
 
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1.5">ملاحظات إضافية</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_quote_form.additional_notes') }}</label>
                                 <textarea 
                                     v-model="form.notes"
                                     rows="2"
                                     class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 bg-slate-50/50"
-                                    placeholder="أي ملاحظات خاصة للعميل..."
+                                    :placeholder="$t('s_quote_form.any_special_notes_for_the_custom')"
                                 ></textarea>
                             </div>
                         </div>
@@ -292,7 +292,7 @@ const importLines = (lines, replace) => {
                 <!-- Items Section -->
                 <div class="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
                     <div class="p-4 sm:p-6 border-b border-slate-100 flex items-center justify-between">
-                        <h3 class="text-sm font-black text-slate-800">الأصناف والخدمات المقدمة</h3>
+                        <h3 class="text-sm font-black text-slate-800">{{ $t('s_quote_form.items_and_services_offered') }}</h3>
                         <div class="flex flex-wrap items-center gap-2">
                         <ImportLines kind="sales" :customer-id="form.customer_id" @imported="importLines" />
                         <button 
@@ -301,7 +301,7 @@ const importLines = (lines, replace) => {
                             class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors"
                         >
                             <PlusIcon class="w-3.5 h-3.5 stroke-2" />
-                            <span>إضافة بند جديد</span>
+                            <span>{{ $t('s_quote_form.add_a_new_line') }}</span>
                         </button>
                         </div>
                     </div>
@@ -311,12 +311,12 @@ const importLines = (lines, replace) => {
                             <thead>
                                 <tr class="border-b border-slate-100 bg-slate-50/60 text-slate-600 font-bold">
                                     <th class="py-3 px-4 w-12 text-center">#</th>
-                                    <th class="py-3 px-4 min-w-[200px]">الصنف / الخدمة</th>
-                                    <th class="py-3 px-4 w-28">الكمية</th>
-                                    <th class="py-3 px-4 w-32">سعر الوحدة (﷼)</th>
-                                    <th class="py-3 px-4 w-28">خصم (﷼)</th>
-                                    <th class="py-3 px-4 w-24">الضريبة %</th>
-                                    <th class="py-3 px-4 w-32 text-start">الإجمالي (﷼)</th>
+                                    <th class="py-3 px-4 min-w-[200px]">{{ $t('s_quote_form.item_service') }}</th>
+                                    <th class="py-3 px-4 w-28">{{ $t('s_quote_form.quantity') }}</th>
+                                    <th class="py-3 px-4 w-32">{{ $t('s_quote_form.unit_price_sar') }}</th>
+                                    <th class="py-3 px-4 w-28">{{ $t('s_quote_form.discount_sar') }}</th>
+                                    <th class="py-3 px-4 w-24">{{ $t('s_quote_form.tax') }}</th>
+                                    <th class="py-3 px-4 w-32 text-start">{{ $t('s_quote_form.total_sar') }}</th>
                                     <th class="py-3 px-4 w-12 text-center"></th>
                                 </tr>
                             </thead>
@@ -326,18 +326,18 @@ const importLines = (lines, replace) => {
                                         {{ idx + 1 }}
                                     </td>
                                     <td class="py-3 px-4 space-y-1">
-                                        <SelectCreate :model-value="item.product_id || ''" :options="productList" entity="product" :label="(p) => `${p.name_ar || p.name_en} (${formatCurrency(p.selling_price)} ﷼)`" placeholder="-- اختر من قائمة المنتجات (اختياري) --" class="mb-1" @created="(p) => productList.push(p)" @update:modelValue="(id) => onProductSelect(idx, id)" />
+                                        <SelectCreate :model-value="item.product_id || ''" :options="productList" entity="product" :label="(p) => `${p.name_ar || p.name_en} (${formatCurrency(p.selling_price)} ﷼)`" :placeholder="$t('s_quote_form.choose_from_the_product_list_opt')" class="mb-1" @created="(p) => productList.push(p)" @update:modelValue="(id) => onProductSelect(idx, id)" />
                                         <input 
                                             v-model="item.item_name"
                                             type="text" 
-                                            placeholder="اسم الصنف أو الخدمة *"
+                                            :placeholder="$t('s_quote_form.item_or_service_name')"
                                             class="w-full text-xs font-bold rounded-lg border-slate-200 focus:border-indigo-500 py-1.5"
                                             required
                                         />
                                         <input 
                                             v-model="item.description"
                                             type="text" 
-                                            placeholder="وصف تفصيلي للبند (اختياري)..."
+                                            :placeholder="$t('s_quote_form.detailed_line_description_option')"
                                             class="w-full text-2xs text-slate-500 rounded-lg border-slate-200 focus:border-indigo-500 py-1"
                                         />
                                     </td>
@@ -388,7 +388,7 @@ const importLines = (lines, replace) => {
                                             @click="removeItem(idx)"
                                             :disabled="form.items.length <= 1"
                                             class="text-slate-300 hover:text-rose-500 transition-colors disabled:opacity-30"
-                                            title="حذف البند"
+                                            :title="$t('s_quote_form.delete_line')"
                                         >
                                             <TrashIcon class="w-4 h-4" />
                                         </button>
@@ -406,16 +406,16 @@ const importLines = (lines, replace) => {
                             class="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 text-xs font-bold self-start"
                         >
                             <PlusIcon class="w-4 h-4 stroke-2" />
-                            <span>إضافة بند آخر</span>
+                            <span>{{ $t('s_quote_form.add_another_line') }}</span>
                         </button>
 
                         <div class="w-full sm:w-80 space-y-2 text-xs">
                             <div class="flex justify-between text-slate-600">
-                                <span>المجموع قبل الضريبة:</span>
+                                <span>{{ $t('s_quote_form.subtotal_before_tax') }}</span>
                                 <span class="font-mono font-bold">{{ formatCurrency(subtotal) }} ﷼</span>
                             </div>
                             <div v-if="totalDiscount > 0" class="flex justify-between text-emerald-600">
-                                <span>إجمالي الخصم:</span>
+                                <span>{{ $t('s_quote_form.total_discount') }}</span>
                                 <span class="font-mono font-bold">- {{ formatCurrency(totalDiscount) }} ﷼</span>
                             </div>
                             <div class="flex justify-between text-slate-600">
@@ -423,7 +423,7 @@ const importLines = (lines, replace) => {
                                 <span class="font-mono font-bold">{{ formatCurrency(totalTax) }} ﷼</span>
                             </div>
                             <div class="flex justify-between text-base font-black text-slate-900 pt-2 border-t border-slate-200">
-                                <span>الإجمالي النهائي:</span>
+                                <span>{{ $t('s_quote_form.grand_total') }}</span>
                                 <span class="font-mono text-indigo-600">{{ formatCurrency(grandTotal) }} ﷼</span>
                             </div>
                         </div>
@@ -436,7 +436,7 @@ const importLines = (lines, replace) => {
                         :href="route('sales.quotations.index')"
                         class="px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-bold transition-colors"
                     >
-                        إلغاء
+                        {{ $t('s_quote_form.cancel') }}
                     </Link>
                     <button 
                         type="submit"
@@ -444,7 +444,7 @@ const importLines = (lines, replace) => {
                         class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all disabled:opacity-50"
                     >
                         <CheckIcon class="w-4 h-4 stroke-2" />
-                        <span>حفظ عرض السعر</span>
+                        <span>{{ $t('s_quote_form.save_quotation') }}</span>
                     </button>
                 </div>
             </form>
