@@ -74,7 +74,10 @@ class LeadController extends Controller
 
     public function move(Request $request, Lead $lead)
     {
-        $lead->update($request->validate(['status' => ['required', Rule::in(array_keys(self::STATUSES))]]));
+        $lead->update($request->validate([
+            'status' => ['required', Rule::in(array_keys(self::STATUSES))],
+            'lost_reason' => 'nullable|required_if:status,lost|string|max:500',
+        ]));
 
         return back();
     }
@@ -101,11 +104,13 @@ class LeadController extends Controller
      */
     public function convert(Lead $lead)
     {
-        if ($lead->customer_id) {
-            return redirect()->route('sales.clients.show', $lead->customer_id);
-        }
-
         $customer = DB::transaction(function () use ($lead) {
+            // Locked and read again: a second click waits here, then finds the customer the first one made.
+            $lead = Lead::whereKey($lead->id)->lockForUpdate()->firstOrFail();
+            if ($lead->customer_id) {
+                return Customer::findOrFail($lead->customer_id);
+            }
+
             $customer = Customer::create([
                 'code' => $this->nextNumber('customer'),
                 'name' => $lead->name,
@@ -121,7 +126,9 @@ class LeadController extends Controller
             return $customer;
         });
 
-        return redirect()->route('sales.clients.show', $customer->id)->with('success', 'تم تحويل العميل المحتمل إلى عميل');
+        $response = redirect()->route('sales.clients.show', $customer->id);
+
+        return $customer->wasRecentlyCreated ? $response->with('success', 'تم تحويل العميل المحتمل إلى عميل') : $response;
     }
 
     protected function validated(Request $request): array

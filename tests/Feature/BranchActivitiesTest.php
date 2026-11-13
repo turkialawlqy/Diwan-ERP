@@ -47,7 +47,7 @@ class BranchActivitiesTest extends TestCase
 
     protected Customer $customer;
 
-    protected const PERMS = ['clinic.patients.view', 'clinic.patients.create', 'workshop.vehicles.view', 'workshop.vehicles.create', 'work_orders.orders.view', 'work_orders.orders.create',
+    protected const PERMS = ['clinic.patients.view', 'clinic.patients.create', 'clinic.visits.view', 'workshop.vehicles.view', 'workshop.vehicles.create', 'work_orders.orders.view', 'work_orders.orders.create',
         'bookings.bookings.view', 'bookings.bookings.create', 'bookings.services.view', 'bookings.resources.view', 'real_estate.leases.view', 'real_estate.properties.view', 'real_estate.units.view', 'sales.clients.view'];
 
     protected function setUp(): void
@@ -245,6 +245,53 @@ class BranchActivitiesTest extends TestCase
         $this->assertSame($u->id, auth()->id());
     }
 
+    public function test_a_record_cannot_be_moved_to_a_branch_the_user_may_not_use(): void
+    {
+        $vehicle = $this->records($this->clinic)['vehicle'];
+        $this->asStaff([$this->clinic, $this->shop], $this->clinic);
+
+        foreach ([$this->general->id, null] as $target) { // another branch, or none (shared with every branch)
+            try {
+                $vehicle->update(['branch_id' => $target]);
+                $this->fail('a move out of the user\'s branches must be refused');
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('branch_id', $e->errors());
+            }
+            $this->assertSame($this->clinic->id, $vehicle->fresh()->branch_id);
+            $vehicle->refresh();
+        }
+
+        // Editing in place and moving between the user's own branches go through.
+        $vehicle->update(['plate' => 'V-EDITED', 'branch_id' => (string) $this->clinic->id]);
+        $this->assertSame('V-EDITED', $vehicle->fresh()->plate);
+        $vehicle->update(['branch_id' => $this->shop->id]);
+        $this->assertSame($this->shop->id, $vehicle->fresh()->branch_id);
+
+        // The owner works in every branch.
+        $this->actingAs($this->owner);
+        $vehicle->update(['branch_id' => $this->clinic->id]);
+        $this->assertSame($this->clinic->id, $vehicle->fresh()->branch_id);
+    }
+
+    public function test_moving_a_record_is_not_restricted_outside_a_users_own_work(): void
+    {
+        $vehicle = $this->records($this->clinic)['vehicle'];
+        $this->asStaff([$this->clinic]);
+
+        BranchScopeSwitch::off(fn () => $vehicle->update(['branch_id' => $this->shop->id]));
+        $this->assertSame($this->shop->id, $vehicle->fresh()->branch_id);
+
+        $this->app['env'] = 'production'; // running in the console, not a test run: a job or a command
+        $vehicle->update(['branch_id' => $this->general->id]);
+        $this->assertSame($this->general->id, $vehicle->fresh()->branch_id);
+        $this->app['env'] = 'testing';
+
+        $this->app['auth']->forgetGuards(); // nobody signed in
+        $this->assertNull(auth()->user());
+        $vehicle->update(['branch_id' => $this->shop->id]);
+        $this->assertSame($this->shop->id, $vehicle->fresh()->branch_id);
+    }
+
     // ---------------------------------------------------------------- packs
 
     public function test_a_pack_applies_to_one_branch_and_adds_its_modules_there(): void
@@ -255,7 +302,7 @@ class BranchActivitiesTest extends TestCase
         $this->assertContains('real_estate', $this->shop->fresh()->modules);
         $this->assertSame(['workshop', 'work_orders', 'real_estate'], array_values(array_intersect($this->shop->fresh()->modules, ['workshop', 'work_orders', 'real_estate'])));
         $this->assertSame($this->shop->id, WorkType::withoutGlobalScopes()->where('name', 'صيانة سباكة')->value('branch_id'));
-        $this->assertNull(ContractTemplate::withoutGlobalScopes()->where('name', 'عقد إيجار وحدة سكنية')->value('branch_id') ?? null); // company-wide
+        $this->assertTrue(ContractTemplate::withoutGlobalScopes()->where('name', 'عقد إيجار وحدة سكنية')->exists()); // contract templates are company-wide: they have no branch
 
         // the clinic branch's user does not see the shop's work types
         $this->asStaff([$this->clinic]);
@@ -304,6 +351,22 @@ class BranchActivitiesTest extends TestCase
         $this->asStaff([$this->general]);
         $this->post(route('clinic.patients.store'), ['customer_id' => $customer->id])->assertSessionHasErrors('customer_id'); // a message, not a 500
         $this->assertSame(1, PatientFile::count());
+    }
+
+    public function test_bookings_waiting_for_a_visit_record_are_offered_only_to_who_can_record_one(): void
+    {
+        $service = BookableService::create(['name' => 'كشف', 'duration_minutes' => 30, 'price' => 10, 'tax_rate' => 0, 'branch_id' => $this->clinic->id]);
+        $resource = BookingResource::create(['name' => 'عيادة 1', 'type' => 'room', 'branch_id' => $this->clinic->id]);
+        Booking::create(['number' => 'BKG-1', 'customer_id' => $this->customer->id, 'bookable_service_id' => $service->id, 'booking_resource_id' => $resource->id, 'starts_at' => '2026-06-10 10:00', 'ends_at' => '2026-06-10 10:30', 'status' => 'completed', 'price' => 10, 'branch_id' => $this->clinic->id]);
+        $patient = PatientFile::create(['customer_id' => $this->customer->id, 'file_number' => 'PF-1', 'branch_id' => $this->clinic->id]);
+
+        $user = $this->asStaff([$this->clinic]);
+        $this->get(route('clinic.patients.show', $patient->id))->assertOk()->assertInertia(fn ($p) => $p->has('unrecorded', 0));
+
+        app(PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
+        $user->givePermissionTo('clinic.visits.create');
+        $this->actingAs($user->fresh());
+        $this->get(route('clinic.patients.show', $patient->id))->assertOk()->assertInertia(fn ($p) => $p->has('unrecorded', 1));
     }
 
     public function test_search_leaves_out_systems_the_branch_does_not_run(): void

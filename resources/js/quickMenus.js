@@ -3,7 +3,7 @@ import {
     BuildingOffice2Icon, TruckIcon, UserCircleIcon, BuildingLibraryIcon, DocumentTextIcon, ClipboardDocumentListIcon,
     ShoppingCartIcon, ArrowUturnLeftIcon, DocumentPlusIcon, CreditCardIcon, BookOpenIcon, ArrowsRightLeftIcon,
     CubeIcon, BuildingStorefrontIcon, ArchiveBoxIcon, ClipboardDocumentCheckIcon, Cog6ToothIcon, BriefcaseIcon,
-    BanknotesIcon, ListBulletIcon, SparklesIcon, LightBulbIcon,
+    BanknotesIcon, ListBulletIcon, SparklesIcon, LightBulbIcon, LockClosedIcon,
 } from '@heroicons/vue/24/outline';
 
 /**
@@ -76,6 +76,7 @@ export const viewMenu = [
     { label: 'الطلبات الإدارية', route: 'hr.admin-requests.index', icon: ClipboardDocumentListIcon },
     { label: 'المنتجات', route: 'inventory.products.index', icon: CubeIcon },
     { label: 'فواتير المبيعات', route: 'sales.invoices.index', icon: DocumentTextIcon },
+    { label: 'الورديات المفتوحة', route: 'pos.open-sessions.index', icon: LockClosedIcon },
     { label: 'اشتراكات العملاء', route: 'sales.subscriptions.index', icon: CreditCardIcon },
     { label: 'خطط الاشتراك', route: 'sales.service-plans.index', icon: CreditCardIcon },
     { label: 'نماذج العقود', route: 'contracts.templates.index', icon: DocumentTextIcon },

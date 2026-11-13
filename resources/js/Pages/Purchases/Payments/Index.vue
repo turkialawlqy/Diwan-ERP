@@ -19,8 +19,6 @@ import {
 
 const props = defineProps({
     payments: Object,
-    suppliers: Array,
-    unpaidInvoices: Array,
     stats: Object,
     filters: Object,
 });

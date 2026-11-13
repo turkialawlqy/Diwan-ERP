@@ -138,6 +138,17 @@ class PortalAccessTest extends TestCase
         $this->assertDatabaseHas('ticket_messages', ['ticket_id' => $t->id, 'type' => 'customer', 'portal_user_id' => $this->user->id]);
     }
 
+    public function test_portal_writes_are_rate_limited_per_account(): void
+    {
+        $this->asCustomer();
+        for ($i = 1; $i <= 10; $i++) {
+            $this->post($this->url('customer-portal.tickets.store'), ['subject' => "طلب {$i}", 'description' => 'تفاصيل'])->assertSessionHasNoErrors();
+        }
+
+        $this->post($this->url('customer-portal.tickets.store'), ['subject' => 'طلب 11', 'description' => 'تفاصيل'])->assertStatus(429);
+        $this->assertSame(10, Ticket::where('customer_id', $this->mine->id)->count());
+    }
+
     public function test_only_shared_contracts_show_and_acceptance_is_per_version_with_evidence(): void
     {
         $hidden = $this->contract($this->mine, ['title' => 'غير مشارك']);

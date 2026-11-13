@@ -28,7 +28,7 @@ const submitAdjust = () => adjustForm.post(route('inventory.operations.adjust'))
             <form @submit.prevent="submitAdjust" class="form-grid text-xs">
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1">المنتج *</label>
-                                <SelectCreate v-model="adjustForm.product_id" :options="products" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" :allow-empty="false" required />
+                                <SelectCreate v-model="adjustForm.product_id" :options="products" search="lookup.products" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" :allow-empty="false" required />
                             </div>
             
                             <div>

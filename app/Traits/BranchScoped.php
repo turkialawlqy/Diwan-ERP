@@ -11,9 +11,9 @@ use Illuminate\Validation\ValidationException;
 /**
  * Branch data scope: lists show the branch chosen in the top bar (or every
  * branch the user may use while "all branches" is shown), plus documents
- * without a branch. A new record belongs to the chosen branch, and cannot be
- * filed in a branch the user may not work in. Jobs and console commands are
- * not restricted.
+ * without a branch. A new record belongs to the chosen branch, and no record
+ * can be filed in or moved to a branch the user may not work in. Jobs and
+ * console commands are not restricted.
  */
 trait BranchScoped
 {
@@ -42,10 +42,40 @@ trait BranchScoped
             if (empty($model->branch_id)) {
                 $model->branch_id = app(ActiveBranch::class)->forWrite();
             }
-            if (! $user->canUseBranch($model->branch_id ? (int) $model->branch_id : null)) {
-                throw ValidationException::withMessages(['branch_id' => 'لا تملك صلاحية العمل على هذا الفرع.']);
+            static::assertUsableBranch($user, $model);
+        });
+
+        static::updating(function ($model) {
+            $user = $model->isDirty('branch_id') ? static::scopedUser() : null;
+            if ($user) {
+                static::assertUsableBranch($user, $model);
             }
         });
+    }
+
+    /**
+     * @throws ValidationException when the user may not work in the model's branch
+     */
+    protected static function assertUsableBranch(User $user, $model): void
+    {
+        if (! $user->canUseBranch($model->branch_id ? (int) $model->branch_id : null)) {
+            throw ValidationException::withMessages(['branch_id' => 'لا تملك صلاحية العمل على هذا الفرع.']);
+        }
+    }
+
+    /**
+     * Every branch $user may work in, not only the one chosen in the top bar (with rows
+     * without a branch, like the global scope). For screens that look across branches.
+     */
+    public function scopeInBranchesOf(Builder $query, User $user): void
+    {
+        $query->withoutGlobalScope('branch');
+
+        $allowed = $user->allowedBranchIds();
+        if ($allowed !== null) {
+            $column = $query->getModel()->qualifyColumn('branch_id');
+            $query->where(fn ($q) => $q->whereIn($column, $allowed)->orWhereNull($column));
+        }
     }
 
     /**
@@ -65,7 +95,8 @@ trait BranchScoped
         }
         $user = auth()->user();
 
-        return $user instanceof User && $user->company_id ? $user : null;
+        // A platform admin counts too: ActiveBranch leaves their lists unrestricted until they choose a branch, and what they save needs one.
+        return $user instanceof User && ($user->company_id || $user->isSuperAdmin()) ? $user : null;
     }
 
     /**

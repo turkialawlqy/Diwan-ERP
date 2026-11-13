@@ -26,8 +26,8 @@ const input = 'w-full text-xs rounded-xl border-slate-200 focus:border-indigo-60
         <PageHeader title="أمر تصنيع لدى الغير" :crumbs="[{ label: 'التصنيع' }, { label: 'التصنيع لدى الغير', href: route('manufacturing.subcontracts.index') }, { label: 'جديد' }]" />
         <form @submit.prevent="form.post(route('manufacturing.subcontracts.store'))" class="bg-white border border-slate-200/80 rounded-2xl p-6 space-y-5">
             <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                <Field label="المصنّع (المورد) *" :error="form.errors.supplier_id"><SelectCreate v-model="form.supplier_id" :options="suppliers" entity="supplier" label="name" placeholder="— اختر —" required /></Field>
-                <Field label="المنتج المطلوب *" :error="form.errors.product_id"><SelectCreate v-model="form.product_id" :options="products" entity="product" label="name_ar" placeholder="— اختر —" required /></Field>
+                <Field label="المصنّع (المورد) *" :error="form.errors.supplier_id"><SelectCreate v-model="form.supplier_id" :options="suppliers" :search="{ route: 'lookup.suppliers', params: { active: 1 } }" entity="supplier" label="name" placeholder="— اختر —" required /></Field>
+                <Field label="المنتج المطلوب *" :error="form.errors.product_id"><SelectCreate v-model="form.product_id" :options="products" :search="{ route: 'lookup.products', params: { stockable: 1 } }" entity="product" label="name_ar" placeholder="— اختر —" required /></Field>
                 <Field label="قائمة المواد (الخامات المرسلة)"><select v-model="form.bom_id" :class="input"><option value="">— بلا مواد —</option><option v-for="b in productBoms" :key="b.id" :value="b.id">{{ b.name }} (إصدار {{ b.version }})</option></select></Field>
                 <Field label="الكمية *" :error="form.errors.quantity"><input v-model.number="form.quantity" type="text" inputmode="decimal" data-num step="0.0001" :class="input" required /></Field>
                 <Field label="أجر التصنيع للوحدة *" :error="form.errors.service_price"><input v-model.number="form.service_price" type="text" inputmode="decimal" data-num step="0.0001" :class="input" required /></Field>

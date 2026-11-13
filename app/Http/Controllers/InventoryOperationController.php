@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Warehouse;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Inventory\StockService;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -20,17 +21,12 @@ class InventoryOperationController extends Controller
             ->latest()
             ->paginate(20);
 
-        $products = Product::where('is_active', true)->get(['id', 'name_ar', 'name_en', 'sku']);
-        $warehouses = Warehouse::where('is_active', true)->get(['id', 'name_ar', 'name_en', 'code']);
-
         $totalUnits = InventoryStock::sum('quantity');
         $warehousesCount = Warehouse::where('is_active', true)->count();
         $stockedProductsCount = InventoryStock::distinct('product_id')->count('product_id');
 
         return Inertia::render('Inventory/Operations/Index', [
             'stocks' => $stocks,
-            'products' => $products,
-            'warehouses' => $warehouses,
             'stats' => [
                 'total_units' => number_format($totalUnits, 2),
                 'warehouses_count' => $warehousesCount,
@@ -46,13 +42,14 @@ class InventoryOperationController extends Controller
 
     public function adjustForm(Request $request): Response
     {
-        return Inertia::render('Inventory/Operations/AdjustForm', $this->lookups() + ['preset' => $request->only(['product_id', 'warehouse_id'])]);
+        return Inertia::render('Inventory/Operations/AdjustForm', $this->lookups([$request->input('product_id')]) + ['preset' => $request->only(['product_id', 'warehouse_id'])]);
     }
 
-    protected function lookups(): array
+    /** @param array<int|string|null> $chosen products already selected on the form */
+    protected function lookups(array $chosen = []): array
     {
         return [
-            'products' => Product::where('is_active', true)->get(['id', 'name_ar', 'name_en', 'sku']),
+            'products' => PickerOptions::from(Product::where('is_active', true)->orderBy('id'), ['id', 'name_ar', 'name_en', 'sku'], $chosen),
             'warehouses' => Warehouse::where('is_active', true)->get(['id', 'name_ar', 'name_en', 'code']),
         ];
     }

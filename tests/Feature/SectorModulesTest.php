@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\FileController;
 use App\Models\Company;
 use App\Models\Contract;
 use App\Models\Customer;
+use App\Models\CustomerPackage;
 use App\Models\CustomerSubscription;
 use App\Models\CustomerVehicle;
 use App\Models\Invoice;
@@ -14,6 +16,7 @@ use App\Models\PatientFile;
 use App\Models\Property;
 use App\Models\PropertyUnit;
 use App\Models\ServicePlan;
+use App\Models\User;
 use App\Models\VisitPackage;
 use App\Models\WorkOrder;
 use App\Models\WorkType;
@@ -30,9 +33,11 @@ use App\Services\WorkOrders\WorkOrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 /** The light sector modules: clinic files, gym check-in, workshop vehicles, real-estate leases. */
@@ -83,6 +88,61 @@ class SectorModulesTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['auditable_type' => PatientFile::class, 'auditable_id' => $patient->id]);
     }
 
+    /** A role with nothing in the clinic, plus exactly these permissions. */
+    protected function clinicStaff(array $permissions): User
+    {
+        $user = $this->userWithRole($this->company, 'warehouse_keeper');
+        app(PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
+        $user->givePermissionTo($permissions);
+
+        return $user->fresh();
+    }
+
+    public function test_the_patient_page_carries_visits_only_with_the_visits_permission(): void
+    {
+        $patient = PatientFile::create(['customer_id' => $this->customer->id, 'file_number' => 'PF-1']);
+        $patient->visits()->create(['visit_date' => '2026-06-15', 'diagnosis' => 'تشخيص سري', 'prescription' => 'وصفة سرية', 'attachments' => [['name' => 'xray.jpg', 'path' => "companies/{$this->company->id}/clinic/xray.jpg"]]]);
+        $page = route('clinic.patients.show', $patient->id);
+
+        // The patient file alone: the page opens, but nothing of the medical record reaches the browser by any prop.
+        $this->actingAs($this->clinicStaff(['clinic.patients.view']));
+        $hidden = $this->get($page)->assertOk()->assertInertia(fn ($p) => $p->component('Clinic/Patients/Show')->where('patient.file_number', 'PF-1')->missing('visits')->missing('patient.visits'));
+        $sent = json_encode($hidden->viewData('page')['props'], JSON_UNESCAPED_UNICODE);
+        foreach (['تشخيص سري', 'وصفة سرية', 'xray.jpg'] as $medical) {
+            $this->assertStringNotContainsString($medical, $sent);
+        }
+
+        $this->actingAs($this->clinicStaff(['clinic.patients.view', 'clinic.visits.view']));
+        $this->get($page)->assertOk()->assertInertia(fn ($p) => $p->has('visits', 1)->where('visits.0.diagnosis', 'تشخيص سري')->where('visits.0.prescription', 'وصفة سرية')->where('visits.0.files.0.name', 'xray.jpg')->missing('patient.visits'));
+
+        // Recording a visit does not open the record either.
+        $this->actingAs($this->clinicStaff(['clinic.patients.view', 'clinic.visits.create']));
+        $this->get($page)->assertOk()->assertInertia(fn ($p) => $p->missing('visits')->missing('patient.visits'));
+    }
+
+    public function test_each_visit_route_needs_its_matching_action(): void
+    {
+        $patient = PatientFile::create(['customer_id' => $this->customer->id, 'file_number' => 'PF-1']);
+        $visit = $patient->visits()->create(['visit_date' => '2026-06-15']);
+        $data = ['visit_date' => '2026-06-16'];
+
+        $this->actingAs($this->clinicStaff(['clinic.patients.view', 'clinic.visits.view']));
+        $this->post(route('clinic.visits.store', $patient->id), $data)->assertForbidden();
+        $this->post(route('clinic.visits.update', $visit->id), $data)->assertForbidden();
+
+        $this->actingAs($this->clinicStaff(['clinic.visits.create']));
+        $this->post(route('clinic.visits.update', $visit->id), $data)->assertForbidden();
+        $this->post(route('clinic.visits.store', $patient->id), $data)->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame(2, $patient->visits()->count());
+
+        $this->actingAs($this->clinicStaff(['clinic.visits.edit']));
+        $this->post(route('clinic.visits.store', $patient->id), $data)->assertForbidden();
+        $this->assertSame('2026-06-15', $visit->fresh()->visit_date->toDateString());
+        $this->post(route('clinic.visits.update', $visit->id), $data)->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame('2026-06-16', $visit->fresh()->visit_date->toDateString());
+        $this->assertSame(2, $patient->visits()->count());
+    }
+
     public function test_medical_data_needs_its_own_permission(): void
     {
         $patient = PatientFile::create(['customer_id' => $this->customer->id, 'file_number' => 'PF-1']);
@@ -92,6 +152,32 @@ class SectorModulesTest extends TestCase
         $this->post(route('clinic.visits.store', $patient->id), ['visit_date' => '2026-06-15'])->assertForbidden();
         $this->actingAs($this->userWithRole($this->company, 'accountant'));
         $this->get(route('clinic.patients.index'))->assertForbidden(); // not granted by the migration either
+    }
+
+    public function test_a_clinic_file_needs_the_medical_visits_permission(): void
+    {
+        $patient = PatientFile::create(['customer_id' => $this->customer->id, 'file_number' => 'PF-1']);
+        $this->post(route('clinic.visits.store', $patient->id), ['visit_date' => '2026-06-15', 'files' => [UploadedFile::fake()->image('xray.jpg')]])->assertSessionHasNoErrors();
+        $url = $this->get(route('clinic.patients.show', $patient->id))->viewData('page')['props']['visits'][0]['files'][0]['url'];
+        $this->get($url)->assertOk(); // the owner
+        $missing = route('files.show', ['token' => Crypt::encryptString("companies/{$this->company->id}/clinic/missing.jpg")], false);
+        $other = FileController::storeForTenant(UploadedFile::fake()->create('contract.pdf', 5), 'attachments')['url'];
+
+        $clerk = $this->userWithRole($this->company, 'accountant');
+        $this->actingAs($clerk);
+        $this->get($url)->assertForbidden();
+        $this->get($missing)->assertForbidden(); // whether the file exists stays hidden too
+        $this->get($other)->assertOk(); // other private files still follow the company alone
+
+        app(PermissionRegistrar::class)->setPermissionsTeamId($this->company->id);
+        $clerk->givePermissionTo('clinic.patients.view'); // the patient file alone is not the medical record
+        $this->actingAs($clerk->fresh());
+        $this->get($url)->assertForbidden();
+
+        $clerk->givePermissionTo('clinic.visits.view');
+        $this->actingAs($clerk->fresh());
+        $this->get($url)->assertOk();
+        $this->get($missing)->assertNotFound();
     }
 
     // --------------------------------------------------------------------- gym
@@ -152,6 +238,28 @@ class SectorModulesTest extends TestCase
         Carbon::setTestNow('2026-06-17 09:00:00');
         $this->assertFalse($gym->scan('C-00001')['allowed']); // nothing left
         $this->assertSame(2, $pack->usages()->count());
+    }
+
+    public function test_a_scan_that_loses_the_race_for_the_package_uses_no_second_visit(): void
+    {
+        $template = VisitPackage::create(['name' => '12 حصة', 'visits' => 10, 'price' => 0, 'tax_rate' => 0, 'is_active' => true]);
+        $pack = app(PackageService::class)->sell($template, $this->customer->id);
+
+        // Another reception screen finishes the same card's check-in after this scan has looked and before it locks the package.
+        $finished = false;
+        CustomerPackage::retrieved(function (CustomerPackage $p) use (&$finished) {
+            if (! $finished) {
+                $finished = true;
+                MemberCheckin::create(['customer_id' => $p->customer_id, 'customer_package_id' => $p->id, 'code_entered' => 'C-00001', 'method' => 'scan', 'allowed' => true, 'checked_in_at' => now()]);
+                CustomerPackage::whereKey($p->id)->increment('visits_used');
+            }
+        });
+
+        $this->assertTrue(app(GymCheckinService::class)->scan('C-00001')['allowed']);
+
+        $this->assertTrue($finished);
+        $this->assertSame(1, (int) $pack->fresh()->visits_used);
+        $this->assertDatabaseHas('member_checkins', ['customer_id' => $this->customer->id, 'reason' => 'دخول ثانٍ اليوم (لا يُخصم)']);
     }
 
     public function test_the_checkin_endpoint_answers_json_and_respects_the_permission(): void

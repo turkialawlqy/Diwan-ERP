@@ -28,6 +28,7 @@
         "pos_session": "Cashier Session",
         "pos_registers": "Cashier Devices",
         "pos_history": "Sales History",
+        "pos_open_sessions": "Open Shifts",
         "inventory": "Inventory",
         "products": "Products & Costs",
         "categories": "Categories",
@@ -405,6 +406,7 @@
         "year": "Fiscal year",
         "applying": "Applying...",
         "apply": "Apply change",
+        "support_saves_to_main": "With all branches shown, what you save goes to the main branch. Choose a branch to save there.",
         "none_available": "No other branches or fiscal years are available to you."
     },
     "share": {
@@ -431,6 +433,13 @@
         "sending": "Sending...",
         "send_email": "Send email",
         "open_wa": "Open WhatsApp"
+    },
+    "bookings": {
+        "deposit_received": "Deposit received",
+        "deposit_credit": "Stays the customer's credit (refunded or used later)",
+        "deposit_forfeit": "Forfeited (other income)",
+        "deposit_late": "Cancelled inside the service's free-cancellation window.",
+        "deposit_early": "Cancelled before the service's free-cancellation window: the deposit normally stays the customer's credit."
     },
     "journals": {
         "status": "Status",
@@ -1648,5 +1657,30 @@
         "st_on_hold": "On hold",
         "st_completed": "Completed",
         "st_closed": "Closed"
+    },
+    "crm": {
+        "lost_title": "Why was this lead lost?",
+        "lost_reason": "Reason"
+    },
+    "pos_open": {
+        "title": "Open Shifts",
+        "subtitle": "Open shifts in all the branches you may work in. Close one a cashier left behind to free its device.",
+        "cashier": "Cashier",
+        "register": "Device",
+        "branch": "Branch",
+        "opened_at": "Opened at",
+        "opening_cash": "Opening float",
+        "expected_cash": "Expected cash",
+        "close": "Close",
+        "close_title": "Close shift",
+        "counted": "Actual cash in the drawer",
+        "balanced": "Matches the expected cash",
+        "shortage": "Shortage: {amount}",
+        "overage": "Overage: {amount}",
+        "deposit": "Deposit to account",
+        "deposit_hint": "Leave empty to keep the cash in the device's cash box.",
+        "deposit_none": "No deposit",
+        "notes": "Notes",
+        "confirm": "Confirm closing the shift"
     }
 }

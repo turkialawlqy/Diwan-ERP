@@ -38,6 +38,11 @@ class PosSession extends Model
         'closed_at' => 'datetime',
     ];
 
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
     public function register(): BelongsTo
     {
         return $this->belongsTo(PosRegister::class, 'pos_register_id');

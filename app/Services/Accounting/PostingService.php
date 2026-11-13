@@ -11,6 +11,7 @@ use App\Models\Warehouse;
 use App\Services\ActiveBranch;
 use App\Services\Documents\DocumentNumberService;
 use App\Services\TenantManager;
+use App\Support\BranchScopeSwitch;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
@@ -64,9 +65,13 @@ class PostingService
     /**
      * Create (and by default post) a journal entry.
      *
-     * $data: date, description, reference?, branch_id?, entry_type? (system),
+     * $data: date, description, reference?, branch_id?, no_branch?, entry_type? (system),
      *        status? (posted|draft), source? (Model), created_by?,
      *        lines: [[account_id|role, debit, credit, description?, cost_center_id?, party_type?, party_id?], ...]
+     *
+     * A missing or null branch_id means "not given": the entry takes its source document's branch,
+     * else the one chosen in the top bar. With no_branch => true it takes neither and stays without
+     * a branch (closing or reversing entries that have none); a branch_id that is given still wins.
      */
     public function post(array $data): JournalEntry
     {
@@ -90,20 +95,21 @@ class PostingService
 
             $totalDebit = round(array_sum(array_column($lines, 'debit')), 2);
             $source = $data['source'] ?? null;
+            $noBranch = ! empty($data['no_branch']) && ! isset($data['branch_id']);
+            // The entry's branch: given, else its source document's, else the one chosen in the top bar.
+            $branchId = $noBranch ? null : ($data['branch_id'] ?? $this->branchOf($source) ?? app(ActiveBranch::class)->forWrite());
 
             // A branch closed for the year (its closing entry exists) takes no more postings in that year,
             // even while the year itself and its periods are still open for the other branches.
             if ($status === JournalEntry::STATUS_POSTED && ! in_array($entryType, ['closing', 'reversal'], true)) { // reopening the year reverses the closing entries
-                $branchId = $data['branch_id'] ?? $this->branchOf($source);
                 if ($branchId && FiscalYearClosing::withoutGlobalScopes()->where('company_id', $companyId)->where('fiscal_year_id', $period->fiscal_year_id)->where('branch_id', $branchId)->exists()) {
                     throw new AccountingException('هذا الفرع أُقفل لهذه السنة المالية؛ لا يمكن الترحيل عليه بتاريخ '.$date->toDateString().'.');
                 }
             }
 
-            $entry = JournalEntry::withoutGlobalScopes()->create([
+            $attributes = [
                 'company_id' => $companyId,
-                // The entry's branch: given, else its source document's, else the one chosen in the top bar.
-                'branch_id' => $data['branch_id'] ?? $this->branchOf($source) ?? app(ActiveBranch::class)->forWrite(),
+                'branch_id' => $branchId,
                 'entry_number' => $this->numbers->next('journal_entry', $date, $companyId),
                 'date' => $date->toDateString(),
                 'reference' => $data['reference'] ?? null,
@@ -119,7 +125,12 @@ class PostingService
                 'posted_at' => $status === JournalEntry::STATUS_POSTED ? now() : null,
                 'posted_by' => $status === JournalEntry::STATUS_POSTED ? auth()->id() : null,
                 'created_by' => $data['created_by'] ?? auth()->id(),
-            ]);
+            ];
+
+            // On creation BranchScoped gives an empty branch the top bar's (and refuses one under "all branches").
+            $entry = $noBranch
+                ? BranchScopeSwitch::off(fn () => JournalEntry::withoutGlobalScopes()->create($attributes))
+                : JournalEntry::withoutGlobalScopes()->create($attributes);
 
             foreach ($lines as $line) {
                 JournalEntryLine::withoutGlobalScopes()->create([
@@ -174,6 +185,11 @@ class PostingService
             }
             $period = $this->calendar->assertOpen($entry->date, $entry->company_id);
 
+            // As in post(): a branch closed for the year takes no more postings in that year, drafts included.
+            if ($entry->branch_id && FiscalYearClosing::withoutGlobalScopes()->where('company_id', $entry->company_id)->where('fiscal_year_id', $period->fiscal_year_id)->where('branch_id', $entry->branch_id)->exists()) {
+                throw new AccountingException('هذا الفرع أُقفل لهذه السنة المالية؛ لا يمكن الترحيل عليه بتاريخ '.$entry->date->toDateString().'.');
+            }
+
             $entry->update([
                 'status' => JournalEntry::STATUS_POSTED,
                 'fiscal_period_id' => $period->id,
@@ -209,6 +225,7 @@ class PostingService
             $reversal = $this->post([
                 'company_id' => $entry->company_id,
                 'branch_id' => $entry->branch_id,
+                'no_branch' => $entry->branch_id === null, // the mirror stays where its original is
                 'date' => $reverseDate,
                 'reference' => $entry->entry_number,
                 'description' => $description ?? 'عكس القيد '.$entry->entry_number.' - '.$entry->description,

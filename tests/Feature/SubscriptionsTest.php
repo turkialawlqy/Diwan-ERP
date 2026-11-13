@@ -14,6 +14,7 @@ use App\Services\Subscriptions\SubscriptionService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /** Customer subscriptions: plans, billing through the recurring-invoice template, and the lifecycle. */
@@ -165,6 +166,56 @@ class SubscriptionsTest extends TestCase
         $this->assertEquals(345.0, (float) Invoice::orderByDesc('id')->first()->total);
     }
 
+    public function test_a_renewal_cancelled_at_period_end_is_not_billed_even_when_the_invoice_run_comes_first(): void
+    {
+        $sub = $this->subscribe($this->plan());
+        $this->post(route('sales.subscriptions.cancel', $sub->id), ['reason' => 'انتقل لمنافس', 'at_period_end' => true])->assertSessionHasNoErrors();
+
+        Carbon::setTestNow('2026-07-15 01:10:00');
+        app(RecurringInvoiceRunner::class)->runDue(); // before (or without) the subscriptions run
+
+        $this->assertSame(1, Invoice::count());
+        $this->assertSame('cancelled', $sub->fresh()->status);
+        $this->assertSame('ended', $sub->recurring->fresh()->status);
+        $this->assertSame(0, $this->service()->nightly()['ended']); // nothing left for it to do
+    }
+
+    public function test_a_plan_change_waiting_for_the_renewal_applies_before_the_invoice_run_bills_it(): void
+    {
+        $basic = $this->plan(['price' => 300]);
+        $pro = $this->plan(['name' => 'الباقة المتقدمة', 'price' => 600]);
+        $sub = $this->subscribe($pro);
+        $this->post(route('sales.subscriptions.change-plan', $sub->id), ['service_plan_id' => $basic->id, 'when' => 'now'])->assertSessionHasNoErrors(); // a downgrade waits
+
+        Carbon::setTestNow('2026-07-15 01:10:00');
+        app(RecurringInvoiceRunner::class)->runDue();
+
+        $this->assertSame($basic->id, $sub->fresh()->service_plan_id);
+        $this->assertEquals(345.0, (float) Invoice::orderByDesc('id')->first()->total); // billed at the new plan
+        $this->assertSame(0, $this->service()->nightly()['plan_changed']);
+    }
+
+    public function test_one_subscription_that_fails_does_not_stop_the_nightly_run(): void
+    {
+        $plan = $this->plan(['trial_days' => 7]);
+        $broken = $this->subscribe($plan);
+        $other = Customer::create(['name' => 'عميل آخر', 'customer_type' => 'individual', 'status' => 'active']);
+        $healthy = $this->subscribe($plan, ['customer_id' => $other->id]);
+        CustomerSubscription::updating(function (CustomerSubscription $s) use ($broken) {
+            if ($s->id === $broken->id) {
+                throw new \RuntimeException('خادم البريد لا يرد');
+            }
+        });
+
+        Carbon::setTestNow('2026-06-22 01:00:00'); // both trials ended today
+        $done = $this->service()->nightly();
+
+        $this->assertSame('active', $healthy->fresh()->status); // still processed after the one before it failed
+        $this->assertSame('trial', $broken->fresh()->status);
+        $this->assertSame(1, $done['failed']);
+        $this->assertSame(1, $done['trial_ended']);
+    }
+
     public function test_the_upgrade_difference_is_listed_with_the_subscription_and_cannot_be_deleted(): void
     {
         $basic = $this->plan(['price' => 300]);
@@ -242,6 +293,29 @@ class SubscriptionsTest extends TestCase
         $invoice->forceFill(['payment_status' => 'paid', 'paid_amount' => $invoice->total, 'remaining_amount' => 0])->save();
         $this->assertSame(1, $this->service()->nightly()['recovered']);
         $this->assertSame('active', $sub->fresh()->status);
+    }
+
+    public function test_the_nightly_run_reads_invoices_a_batch_at_a_time_and_each_stays_with_its_own_subscription(): void
+    {
+        $plan = $this->plan();
+        $late = $this->subscribe($plan);
+        $paid = $this->subscribe($plan, ['customer_id' => Customer::create(['name' => 'عميل مسدد', 'customer_type' => 'commercial', 'status' => 'active'])->id]);
+        $others = collect(range(1, 4))->map(fn ($i) => $this->subscribe($plan, ['customer_id' => Customer::create(['name' => 'عميل '.$i, 'customer_type' => 'commercial', 'status' => 'active'])->id]));
+        $others->each(fn ($s) => $this->service()->invoices($s)->each(fn ($i) => Invoice::whereKey($i->id)->update(['paid_amount' => $i->total, 'remaining_amount' => 0, 'payment_status' => 'paid'])));
+        $this->service()->invoices($paid)->each(fn ($i) => Invoice::whereKey($i->id)->update(['paid_amount' => $i->total, 'remaining_amount' => 0, 'payment_status' => 'paid']));
+
+        Carbon::setTestNow('2026-08-15 10:00:00');
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $done = $this->service()->nightly();
+        $log = array_column(DB::getQueryLog(), 'query');
+        DB::disableQueryLog();
+
+        $this->assertCount(1, array_filter($log, fn ($sql) => preg_match('/from ["`]recurring_invoice_runs["`]/', $sql)));
+        $this->assertCount(1, array_filter($log, fn ($sql) => preg_match('/from ["`]invoices["`]/', $sql)));
+        $this->assertSame(1, $done['past_due']);
+        $this->assertSame('past_due', $late->fresh()->status);
+        $this->assertSame('active', $paid->fresh()->status);
     }
 
     public function test_renewal_reminders_go_out_once_per_step(): void

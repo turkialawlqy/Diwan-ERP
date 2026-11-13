@@ -291,7 +291,8 @@ const closeSessionForm = useForm({
 });
 
 const submitCloseSession = () => {
-    closeSessionForm.post(route('pos.session.close', props.session.id));
+    // A cashier with another shift still open lands back on this page: it must start afresh, not with this dialog open over that shift.
+    closeSessionForm.post(route('pos.session.close', props.session.id), { preserveState: 'errors' });
 };
 
 const formatCurrency = (val) => {

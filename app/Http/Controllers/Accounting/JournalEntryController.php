@@ -18,6 +18,7 @@ use App\Services\Accounting\PostingService;
 use App\Services\Accounting\SourceDocument;
 use App\Services\TenantManager;
 use App\Services\Workflow\ApprovalGate;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -96,8 +97,8 @@ class JournalEntryController extends Controller
             'costCenters' => CostCenter::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_ar']),
             'projects' => Project::orderBy('name')->get(['id', 'name']),
             'dimensionPolicy' => app(DimensionPolicy::class)->modes(),
-            'customers' => Customer::orderBy('name')->get(['id', 'name', 'code']),
-            'suppliers' => Supplier::orderBy('name')->get(['id', 'name']),
+            'customers' => PickerOptions::from(Customer::orderBy('name'), ['id', 'name', 'code']),
+            'suppliers' => PickerOptions::from(Supplier::orderBy('name'), ['id', 'name']),
             'partyAccounts' => $this->partyAccounts(),
             'bankAccounts' => BankAccount::where('is_active', true)->whereNotNull('account_id')->orderBy('name')->get(['id', 'name', 'type', 'account_id']),
         ]);

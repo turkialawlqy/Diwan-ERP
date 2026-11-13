@@ -8,6 +8,7 @@ use App\Models\ProcessStage;
 use App\Models\Product;
 use App\Models\Warehouse;
 use App\Models\WorkCenter;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -34,7 +35,7 @@ class ProcessStageController extends Controller
     {
         return Inertia::render('Manufacturing/Process/Stages/Form', [
             'stage' => $stage,
-            'products' => Product::where('is_active', true)->where('type', '!=', 'service')->orderBy('name_ar')->get(['id', 'name_ar', 'sku']),
+            'products' => PickerOptions::from(Product::where('is_active', true)->where('type', '!=', 'service')->orderBy('name_ar'), ['id', 'name_ar', 'sku'], [$stage->product_id]),
             'stages' => ProcessStage::when($stage->id, fn ($q) => $q->whereKeyNot($stage->id))->orderBy('sequence')->get(['id', 'code', 'name']),
             'warehouses' => Warehouse::where('is_active', true)->orderByDesc('is_main')->get(['id', 'name_ar']),
             'workCenters' => WorkCenter::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name']),
