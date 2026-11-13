@@ -35,9 +35,9 @@ const pick = (s) => { emit('update:modelValue', s.time); emit('picked', s); };
 
 <template>
     <div data-slots>
-        <p v-if="!service || !date" class="text-3xs text-slate-400">اختر الخدمة والتاريخ لتظهر الأوقات المتاحة.</p>
-        <p v-else-if="loading" class="text-3xs text-slate-400">جارٍ تحميل الأوقات…</p>
-        <p v-else-if="!slots.length" class="text-3xs text-rose-600 font-bold" data-no-slots>لا أوقات متاحة في هذا اليوم.</p>
+        <p v-if="!service || !date" class="text-3xs text-slate-400">{{ $t('cmp.choose_the_service_and_date_to_s') }}</p>
+        <p v-else-if="loading" class="text-3xs text-slate-400">{{ $t('cmp.loading_times') }}</p>
+        <p v-else-if="!slots.length" class="text-3xs text-rose-600 font-bold" data-no-slots>{{ $t('cmp.no_times_available_on_this_day') }}</p>
         <div v-else class="flex flex-wrap gap-1.5">
             <button v-for="s in slots" :key="s.time" type="button" :data-slot="s.time"
                 class="px-3 py-1.5 rounded-lg border text-xs font-mono font-bold" :class="modelValue === s.time ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-200 text-slate-700 hover:border-indigo-300'"

@@ -24,7 +24,7 @@ const apply = () => router.get(route(props.routeName, props.routeParams), { ...p
 <template>
     <form @submit.prevent="apply" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-wrap items-end gap-3 text-xs mb-4 print:hidden">
         <template v-if="single">
-            <label><span class="block font-bold text-slate-600 mb-1">كما في تاريخ</span><DatePicker v-model="form.as_of" class="rounded-xl border-slate-200 text-xs" /></label>
+            <label><span class="block font-bold text-slate-600 mb-1">{{ $t('cmp.as_of_date') }}</span><DatePicker v-model="form.as_of" class="rounded-xl border-slate-200 text-xs" /></label>
         </template>
         <template v-else>
             <label><span class="block font-bold text-slate-600 mb-1">{{ $t('ui.from') }}</span><DatePicker v-model="form.start_date" class="rounded-xl border-slate-200 text-xs" /></label>

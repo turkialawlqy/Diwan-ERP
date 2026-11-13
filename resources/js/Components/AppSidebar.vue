@@ -185,11 +185,11 @@ const slim = computed(() => sidebarCollapsed.value);
                 </span>
                 <span class="text-[10px] text-slate-500 font-mono" data-version>
                     v{{ $page.props.brand?.version }}
-                    <span v-if="$page.props.update?.available && $page.props.update?.latest" class="text-emerald-400" title="يتوفر إصدار أحدث: حدّثه من لوحة التحكم">· متوفر v{{ $page.props.update.latest.version }}</span>
+                    <span v-if="$page.props.update?.available && $page.props.update?.latest" class="text-emerald-400" :title="$t('cmp.a_newer_version_is_available_upd')">· متوفر v{{ $page.props.update.latest.version }}</span>
                 </span>
             </div>
             <div :class="slim ? 'lg:flex' : 'hidden'" class="hidden justify-center">
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" title="متصل"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" :title="$t('cmp.online')"></span>
             </div>
         </div>
     </aside>

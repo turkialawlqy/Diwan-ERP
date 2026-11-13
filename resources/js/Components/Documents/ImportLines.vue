@@ -1,9 +1,11 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { ref } from 'vue';
 import axios from 'axios';
 import Dialog from '@/Components/UI/Dialog.vue';
 import { money } from '@/utils/format';
 import { ArrowUpTrayIcon } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 /**
  * "Import from Excel" for document lines: the file is read on the server
@@ -14,7 +16,7 @@ import { ArrowUpTrayIcon } from '@heroicons/vue/24/outline';
 const props = defineProps({
     kind: { type: String, default: 'sales' }, // sales | purchase | stock | journal
     customerId: { type: [Number, String, null], default: null },
-    label: { type: String, default: 'استيراد من Excel' },
+    label: { type: String, default: '' },
 });
 const emit = defineEmits(['imported']);
 
@@ -40,7 +42,7 @@ const upload = async (event) => {
     try {
         result.value = (await axios.post(route('lookup.lines.import'), data)).data;
     } catch (e) {
-        error.value = e.response?.data?.errors ? Object.values(e.response.data.errors).flat().join(' ') : 'تعذرت قراءة الملف.';
+        error.value = e.response?.data?.errors ? Object.values(e.response.data.errors).flat().join(' ') : t('cmp.read_failed');
     } finally {
         loading.value = false;
     }
@@ -54,27 +56,27 @@ const apply = (replace) => {
 <template>
     <span class="inline-flex items-center gap-2">
         <button type="button" @click="pick" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 text-xs font-bold" data-import-lines>
-            <ArrowUpTrayIcon class="w-4 h-4" /> {{ label }}
+            <ArrowUpTrayIcon class="w-4 h-4" /> {{ label || $t('cmp.import_from_excel') }}
         </button>
-        <a :href="route('lookup.lines.template', { kind })" class="text-3xs text-slate-500 underline">القالب</a>
+        <a :href="route('lookup.lines.template', { kind })" class="text-3xs text-slate-500 underline">{{ $t('cmp.template') }}</a>
         <input ref="input" type="file" accept=".xlsx,.xls,.csv" class="hidden" @change="upload" />
 
-        <Dialog :show="open" title="استيراد البنود من Excel" size="lg" @close="open = false">
-            <p v-if="loading" class="text-xs text-slate-500">جارٍ قراءة الملف...</p>
+        <Dialog :show="open" :title="$t('cmp.import_lines_from_excel')" size="lg" @close="open = false">
+            <p v-if="loading" class="text-xs text-slate-500">{{ $t('cmp.reading_the_file') }}</p>
             <p v-else-if="error" class="text-xs text-rose-600">{{ error }}</p>
             <div v-else-if="result" class="space-y-3 text-xs" data-import-preview>
                 <div class="flex flex-wrap gap-2">
-                    <span class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold">{{ result.lines.length }} سطر جاهز</span>
-                    <span v-if="result.summary.free" class="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-bold">{{ result.summary.free }} سطر حر (صنف غير موجود)</span>
-                    <span v-if="result.errors.length" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 font-bold">{{ result.errors.length }} سطر مرفوض</span>
-                    <span v-if="kind === 'journal'" class="px-2 py-1 rounded-lg bg-slate-100 font-bold" :class="result.summary.debit === result.summary.credit ? 'text-emerald-700' : 'text-rose-700'">مدين {{ money(result.summary.debit) }} / دائن {{ money(result.summary.credit) }}</span>
+                    <span class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold">{{ $t('cmp.lines_ready', { n: result.lines.length }) }}</span>
+                    <span v-if="result.summary.free" class="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-bold">{{ $t('cmp.lines_free', { n: result.summary.free }) }}</span>
+                    <span v-if="result.errors.length" class="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 font-bold">{{ $t('cmp.lines_rejected', { n: result.errors.length }) }}</span>
+                    <span v-if="kind === 'journal'" class="px-2 py-1 rounded-lg bg-slate-100 font-bold" :class="result.summary.debit === result.summary.credit ? 'text-emerald-700' : 'text-rose-700'">{{ $t('cmp.debit') }} {{ money(result.summary.debit) }} / {{ $t('cmp.credit') }} {{ money(result.summary.credit) }}</span>
                 </div>
                 <ul v-if="result.errors.length" class="list-disc ps-5 text-rose-600 max-h-28 overflow-y-auto"><li v-for="(e, i) in result.errors" :key="i">{{ e }}</li></ul>
                 <div class="overflow-x-auto max-h-72 overflow-y-auto border border-slate-100 rounded-xl">
                     <table class="w-full">
                         <thead class="bg-slate-50 text-slate-500 sticky top-0">
-                            <tr v-if="kind === 'journal'"><th class="p-2 text-start">الحساب</th><th class="p-2 text-end">مدين</th><th class="p-2 text-end">دائن</th></tr>
-                            <tr v-else><th class="p-2 text-start">الصنف</th><th class="p-2 text-end">الكمية</th><th v-if="kind !== 'stock'" class="p-2 text-end">السعر</th></tr>
+                            <tr v-if="kind === 'journal'"><th class="p-2 text-start">{{ $t('cmp.account') }}</th><th class="p-2 text-end">{{ $t('cmp.debit') }}</th><th class="p-2 text-end">{{ $t('cmp.credit') }}</th></tr>
+                            <tr v-else><th class="p-2 text-start">{{ $t('cmp.item') }}</th><th class="p-2 text-end">{{ $t('cmp.quantity') }}</th><th v-if="kind !== 'stock'" class="p-2 text-end">{{ $t('cmp.price') }}</th></tr>
                         </thead>
                         <tbody>
                             <tr v-for="l in result.lines" :key="l.line" class="border-t border-slate-100">
@@ -83,7 +85,7 @@ const apply = (replace) => {
                                     <td class="p-2 text-end font-mono">{{ l.debit ? money(l.debit) : '' }}</td><td class="p-2 text-end font-mono">{{ l.credit ? money(l.credit) : '' }}</td>
                                 </template>
                                 <template v-else>
-                                    <td class="p-2"><span v-if="l.sku" class="font-mono text-slate-400">{{ l.sku }}</span> {{ l.item_name }} <span v-if="!l.product_id" class="text-amber-600">(حر)</span></td>
+                                    <td class="p-2"><span v-if="l.sku" class="font-mono text-slate-400">{{ l.sku }}</span> {{ l.item_name }} <span v-if="!l.product_id" class="text-amber-600">{{ $t('cmp.free') }}</span></td>
                                     <td class="p-2 text-end font-mono">{{ l.quantity }}</td>
                                     <td v-if="kind !== 'stock'" class="p-2 text-end font-mono">{{ money(l.unit_price) }}</td>
                                 </template>
@@ -94,10 +96,10 @@ const apply = (replace) => {
             </div>
             <template #footer>
                 <template v-if="result && result.lines.length">
-                    <button type="button" @click="apply(false)" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">إضافة إلى البنود</button>
-                    <button type="button" @click="apply(true)" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">استبدال البنود الحالية</button>
+                    <button type="button" @click="apply(false)" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('cmp.add_to_lines') }}</button>
+                    <button type="button" @click="apply(true)" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('cmp.replace_current_lines') }}</button>
                 </template>
-                <button v-else type="button" @click="open = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">إغلاق</button>
+                <button v-else type="button" @click="open = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('cmp.close') }}</button>
             </template>
         </Dialog>
     </span>

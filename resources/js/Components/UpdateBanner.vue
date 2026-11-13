@@ -1,8 +1,10 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { ref, computed, onBeforeUnmount } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ArrowPathIcon, ArrowDownTrayIcon } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 // "New version available" banner for the owner of a local install. The update runs in the
 // background (the system keeps working); this only starts it and follows its progress.
@@ -34,7 +36,7 @@ const poll = async () => {
         } else if (Date.now() - startedAt > 120000 && data.status?.state === 'requested') {
             clearInterval(timer);
             busy.value = false;
-            error.value = 'لم يبدأ التحديث التلقائي على هذا الجهاز. سيتم التحديث ليلاً، أو شغّل «تحديث الديوان» من قائمة ابدأ.';
+            error.value = t('cmp.upd_not_started');
         }
     } catch (e) {
         // The system restarts for a moment while switching versions: keep waiting.
@@ -51,7 +53,7 @@ const start = async () => {
         timer = setInterval(poll, 3000);
     } catch (e) {
         busy.value = false;
-        error.value = e.response?.data?.message || 'تعذر بدء التحديث.';
+        error.value = e.response?.data?.message || t('cmp.upd_failed_start');
     }
 };
 
@@ -68,19 +70,19 @@ onBeforeUnmount(() => clearInterval(timer));
         <ArrowPathIcon v-else class="w-6 h-6 text-emerald-700 flex-shrink-0 animate-spin" />
         <div class="flex-1 min-w-0 text-sm">
             <template v-if="finished">
-                <b class="text-emerald-800">تم التحديث إلى الإصدار {{ status?.to || info.latest?.version }}.</b> جارٍ إعادة تحميل الصفحة...
+                <b class="text-emerald-800">{{ $t('cmp.upd_done', { v: status?.to || info.latest?.version }) }}</b> {{ $t('cmp.reloading_the_page') }}
             </template>
             <template v-else-if="working">
-                <b class="text-emerald-800">جارٍ التحديث إلى أحدث إصدار{{ status?.to ? ' ' + status.to : '' }}</b>
-                <span class="text-slate-600"> — يمكنك متابعة العمل، لن يتوقف النظام. ستُعاد الصفحة تلقائياً عند الانتهاء.</span>
+                <b class="text-emerald-800">{{ $t('cmp.upd_working') }}{{ status?.to ? ' ' + status.to : '' }}</b>
+                <span class="text-slate-600"> {{ $t('cmp.you_can_keep_working_the_system') }}</span>
             </template>
             <template v-else>
-                <b class="text-emerald-800">يتوفر إصدار جديد {{ info.latest?.version }}</b>
-                <span class="text-slate-600"> (الحالي {{ info.current }}). يُنزَّل في الخلفية ويُؤخذ نسخ احتياطي للبيانات قبل أي تغيير.</span>
+                <b class="text-emerald-800">{{ $t('cmp.upd_new', { v: info.latest?.version }) }}</b>
+                <span class="text-slate-600"> {{ $t('cmp.upd_note', { v: info.current }) }}</span>
             </template>
-            <p v-if="state === 'failed'" class="text-xs text-rose-700 mt-1">فشل التحديث الأخير والنظام يعمل بالإصدار السابق: {{ status.message }}</p>
+            <p v-if="state === 'failed'" class="text-xs text-rose-700 mt-1">{{ $t('cmp.upd_last_failed') }}: {{ status.message }}</p>
             <p v-if="error" class="text-xs text-rose-700 mt-1">{{ error }}</p>
         </div>
-        <button v-if="!working && info.available" type="button" @click="start" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition">حدّث الآن</button>
+        <button v-if="!working && info.available" type="button" @click="start" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition">{{ $t('cmp.update_now') }}</button>
     </div>
 </template>

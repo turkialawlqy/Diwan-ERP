@@ -34,16 +34,16 @@ const remove = () => {
     <div class="flex items-center gap-3" data-product-image>
         <div class="w-20 h-20 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-slate-300 text-3xs">
             <img v-if="shown" :src="shown" alt="" class="w-full h-full object-cover" data-image-preview />
-            <span v-else>بلا صورة</span>
+            <span v-else>{{ $t('cmp.no_image') }}</span>
         </div>
         <div class="space-y-1.5">
             <label class="inline-block px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 cursor-pointer hover:bg-slate-50">
                 {{ shown ? 'تغيير الصورة' : 'رفع صورة' }}
                 <input type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" :disabled="busy" @change="pick" data-image-input />
             </label>
-            <button v-if="shown" type="button" class="block text-3xs font-bold text-rose-600" @click="remove">حذف الصورة</button>
+            <button v-if="shown" type="button" class="block text-3xs font-bold text-rose-600" @click="remove">{{ $t('cmp.remove_image') }}</button>
             <p v-if="error" class="text-3xs font-bold text-rose-600">{{ error }}</p>
-            <p class="text-3xs text-slate-400">PNG أو JPG أو WebP حتى 2 ميجا</p>
+            <p class="text-3xs text-slate-400">{{ $t('cmp.png_jpg_or_webp_up_to_2_mb') }}</p>
         </div>
     </div>
 </template>

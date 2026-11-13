@@ -24,11 +24,11 @@ const needProject = computed(() => dimensionRequired(props.policy, 'project', pr
 <template>
     <div class="grid grid-cols-2 gap-3">
         <Field :label="'مركز التكلفة' + (needCc ? ' *' : '')" :error="errors.cost_center_id">
-            <SelectCreate v-model="costCenter" :options="costCenters" entity="cost_center" :label="(c) => `${c.code} - ${c.name_ar}`" placeholder="بدون" :required="needCc" :allow-empty="!needCc" />
+            <SelectCreate v-model="costCenter" :options="costCenters" entity="cost_center" :label="(c) => `${c.code} - ${c.name_ar}`" :placeholder="$t('cmp.none')" :required="needCc" :allow-empty="!needCc" />
         </Field>
         <Field :label="'المشروع' + (needProject ? ' *' : '')" :error="errors.project_id">
             <select v-model="project" :required="needProject" class="w-full rounded-xl border-slate-200 text-xs">
-                <option value="">بدون</option>
+                <option value="">{{ $t('cmp.none') }}</option>
                 <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
             </select>
         </Field>

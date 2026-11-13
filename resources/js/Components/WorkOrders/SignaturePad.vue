@@ -32,6 +32,6 @@ const clear = () => { ctx.clearRect(0, 0, canvas.value.width, canvas.value.heigh
     <div data-signature>
         <canvas ref="canvas" :style="{ height: height + 'px' }" class="w-full rounded-xl border border-dashed border-slate-300 bg-white touch-none" data-signature-canvas
             @pointerdown.prevent="down" @pointermove.prevent="move" @pointerup="up" @pointerleave="up" @pointercancel="up"></canvas>
-        <button type="button" class="mt-1 text-3xs font-bold text-rose-600" @click="clear" data-signature-clear>مسح التوقيع</button>
+        <button type="button" class="mt-1 text-3xs font-bold text-rose-600" @click="clear" data-signature-clear>{{ $t('cmp.clear_signature') }}</button>
     </div>
 </template>

@@ -2,7 +2,7 @@
 import { amount } from '@/utils/format';
 
 /** A statement's lines with the earlier period beside the current one: change and percentage. */
-defineProps({ comparison: { type: Object, required: true }, currentLabel: { type: String, default: 'الفترة الحالية' } });
+defineProps({ comparison: { type: Object, required: true }, currentLabel: { type: String, default: '' } });
 const pct = (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v}%`);
 </script>
 
@@ -11,10 +11,10 @@ const pct = (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}
         <table class="w-full text-xs">
             <thead class="bg-slate-50 text-slate-500">
                 <tr>
-                    <th class="text-start px-4 py-2">الحساب</th>
-                    <th class="px-3 py-2 text-end">{{ currentLabel }}</th>
+                    <th class="text-start px-4 py-2">{{ $t('cmp.account') }}</th>
+                    <th class="px-3 py-2 text-end">{{ currentLabel || $t('cmp.current_period') }}</th>
                     <th class="px-3 py-2 text-end">{{ comparison.label }}</th>
-                    <th class="px-3 py-2 text-end">الفرق</th>
+                    <th class="px-3 py-2 text-end">{{ $t('cmp.difference') }}</th>
                     <th class="px-3 py-2 text-end">%</th>
                 </tr>
             </thead>

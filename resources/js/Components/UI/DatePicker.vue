@@ -1,8 +1,10 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/24/outline';
 import { hijri } from '@/utils/format';
 import { toLatinDigits } from '@/utils/latinDigits';
+const { t } = useI18n();
 
 /**
  * The app's date field: a typed YYYY-MM-DD box with a calendar popup in Arabic
@@ -23,8 +25,8 @@ const props = defineProps({
 });
 const emit = defineEmits(['update:modelValue', 'change']);
 
-const months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-const weekdays = ['س', 'ح', 'ن', 'ث', 'ر', 'خ', 'ج']; // Saturday first
+const months = computed(() => ['cmp.month_1', 'cmp.month_2', 'cmp.month_3', 'cmp.month_4', 'cmp.month_5', 'cmp.month_6', 'cmp.month_7', 'cmp.month_8', 'cmp.month_9', 'cmp.month_10', 'cmp.month_11', 'cmp.month_12'].map((k) => t(k)));
+const weekdays = computed(() => ['cmp.wd_1', 'cmp.wd_2', 'cmp.wd_3', 'cmp.wd_4', 'cmp.wd_5', 'cmp.wd_6', 'cmp.wd_7'].map((k) => t(k))); // Saturday first
 const isMonth = computed(() => props.type === 'month');
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
@@ -139,14 +141,14 @@ onBeforeUnmount(() => {
         <Teleport to="body">
             <div v-if="open" ref="panel" :style="{ top: pos.top + 'px', left: pos.left + 'px' }" class="fixed z-[60] w-72 bg-white border border-slate-200 rounded-2xl shadow-xl p-3 text-xs" data-date-panel dir="rtl">
                 <div class="flex items-center gap-1.5 mb-2">
-                    <button type="button" class="p-1.5 rounded-lg hover:bg-slate-100" aria-label="السابق" @click="step(isMonth ? -12 : -1)"><ChevronRightIcon class="w-4 h-4" /></button>
+                    <button type="button" class="p-1.5 rounded-lg hover:bg-slate-100" :aria-label="$t('cmp.prev')" @click="step(isMonth ? -12 : -1)"><ChevronRightIcon class="w-4 h-4" /></button>
                     <select v-if="!isMonth" v-model.number="view.m" class="flex-1 rounded-lg border-slate-200 text-xs py-1">
                         <option v-for="(name, i) in months" :key="i" :value="i">{{ name }}</option>
                     </select>
                     <select v-model.number="view.y" class="rounded-lg border-slate-200 text-xs py-1" :class="isMonth ? 'flex-1' : 'w-24'">
                         <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
                     </select>
-                    <button type="button" class="p-1.5 rounded-lg hover:bg-slate-100" aria-label="التالي" @click="step(isMonth ? 12 : 1)"><ChevronLeftIcon class="w-4 h-4" /></button>
+                    <button type="button" class="p-1.5 rounded-lg hover:bg-slate-100" :aria-label="$t('cmp.next')" @click="step(isMonth ? 12 : 1)"><ChevronLeftIcon class="w-4 h-4" /></button>
                 </div>
                 <div v-if="isMonth" class="grid grid-cols-3 gap-1.5">
                     <button v-for="(name, i) in months" :key="i" type="button" class="py-2 rounded-lg hover:bg-indigo-50" :class="selected && selected.y === view.y && selected.m === i ? 'bg-indigo-600 text-white hover:bg-indigo-600 font-bold' : 'text-slate-700'" @click="pickMonth(i)">{{ name }}</button>
@@ -164,9 +166,9 @@ onBeforeUnmount(() => {
                     </div>
                 </template>
                 <div class="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                    <button type="button" class="px-2.5 py-1 rounded-lg text-indigo-700 font-bold hover:bg-indigo-50" @click="today">{{ isMonth ? 'هذا الشهر' : 'اليوم' }}</button>
+                    <button type="button" class="px-2.5 py-1 rounded-lg text-indigo-700 font-bold hover:bg-indigo-50" @click="today">{{ isMonth ? $t('cmp.this_month') : $t('cmp.today') }}</button>
                     <span v-if="hijriText" class="text-[10px] text-slate-400">{{ hijriText }}</span>
-                    <button v-if="!required" type="button" class="px-2.5 py-1 rounded-lg text-slate-500 hover:bg-slate-100" @click="clear">مسح</button>
+                    <button v-if="!required" type="button" class="px-2.5 py-1 rounded-lg text-slate-500 hover:bg-slate-100" @click="clear">{{ $t('cmp.clear') }}</button>
                 </div>
             </div>
         </Teleport>

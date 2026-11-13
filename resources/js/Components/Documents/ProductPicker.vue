@@ -6,7 +6,7 @@ import { useLookup } from '@/composables/useLookup';
 const props = defineProps({
     modelValue: [Number, String, null],
     initial: { type: Object, default: null },
-    placeholder: { type: String, default: 'ابحث باسم الصنف أو رمزه أو الباركود...' },
+    placeholder: { type: String, default: '' },
 });
 const emit = defineEmits(['update:modelValue', 'select']);
 
@@ -29,10 +29,10 @@ const clear = () => { selected.value = null; emit('update:modelValue', null); em
     <div class="relative">
         <div v-if="selected" class="flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs">
             <span class="font-bold text-slate-800">{{ selected.name_ar }} <span v-if="selected.sku" class="text-slate-400 font-mono ms-2">{{ selected.sku }}</span></span>
-            <button type="button" @click="clear" class="text-slate-400 hover:text-rose-600" aria-label="إزالة">✕</button>
+            <button type="button" @click="clear" class="text-slate-400 hover:text-rose-600" :aria-label="$t('cmp.remove')">✕</button>
         </div>
         <template v-else>
-            <input v-model="term" @input="search" :placeholder="placeholder" class="w-full rounded-xl border-slate-200 text-xs" />
+            <input v-model="term" @input="search" :placeholder="placeholder || $t('cmp.product_search')" class="w-full rounded-xl border-slate-200 text-xs" />
             <div v-if="results.length" class="absolute z-30 mt-1 w-full bg-white border rounded-xl shadow max-h-56 overflow-y-auto">
                 <button v-for="p in results" :key="p.id" type="button" @mousedown.prevent="pick(p)" @keydown.enter.prevent="pick(p)" class="block w-full text-start px-3 py-2 text-xs hover:bg-indigo-50">
                     {{ p.name_ar }} <span class="text-slate-400 font-mono">{{ p.sku }}</span>

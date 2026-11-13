@@ -23,10 +23,10 @@ const returnToSuperAdmin = () => {
             <div class="flex items-center gap-2">
                 <ShieldExclamationIcon class="w-5 h-5 text-amber-900 flex-shrink-0" />
                 <span>
-                    <strong>وضع التدريب والدعم الفني:</strong> 
-                    أنت تتصفح حالياً حساب 
+                    <strong>{{ $t('cmp.training_and_support_mode') }}</strong> 
+                    {{ $t('cmp.you_are_currently_browsing_the_a') }} 
                     <span class="underline decoration-2 decoration-amber-900 font-bold px-1">{{ impersonation.company_name }}</span> 
-                    بصلاحية المدير العام للنظام.
+                    {{ $t('cmp.with_system_administrator_permis') }}
                 </span>
             </div>
 
@@ -35,7 +35,7 @@ const returnToSuperAdmin = () => {
                 class="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-black text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow transition-colors"
             >
                 <ArrowUturnLeftIcon class="w-3.5 h-3.5" />
-                <span>العودة للوحة التحكم الرئيسية</span>
+                <span>{{ $t('cmp.back_to_the_main_dashboard') }}</span>
             </button>
         </div>
     </div>

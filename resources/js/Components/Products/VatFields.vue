@@ -22,15 +22,15 @@ const setCategory = (value) => {
 
 <template>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label class="block text-xs font-bold text-slate-700">الفئة الضريبية
+        <label class="block text-xs font-bold text-slate-700">{{ $t('cmp.tax_category') }}
             <select :value="category" @change="setCategory($event.target.value)" class="mt-1 w-full rounded-xl border-slate-200 text-xs">
                 <option v-for="(label, key) in categories" :key="key" :value="key">{{ key }} — {{ label }}</option>
             </select>
             <span v-if="errors.vat_category" class="block text-[11px] text-rose-600 mt-1">{{ errors.vat_category }}</span>
         </label>
-        <label v-if="category !== 'S'" class="block text-xs font-bold text-slate-700">سبب الإعفاء / النسبة الصفرية (ZATCA)
+        <label v-if="category !== 'S'" class="block text-xs font-bold text-slate-700">{{ $t('cmp.exemption_zero_rate_reason_zatca') }}
             <select :value="code" @change="emit('update:code', $event.target.value)" class="mt-1 w-full rounded-xl border-slate-200 text-xs">
-                <option value="">— السبب الافتراضي للمنشأة —</option>
+                <option value="">{{ $t('cmp.company_default_reason') }}</option>
                 <option v-for="(r, key) in options" :key="key" :value="key">{{ key }} — {{ r.ar }}</option>
             </select>
             <span v-if="errors.vat_exemption_code" class="block text-[11px] text-rose-600 mt-1">{{ errors.vat_exemption_code }}</span>

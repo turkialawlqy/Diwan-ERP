@@ -20,7 +20,7 @@ defineProps({
     },
     trendText: {
         type: String,
-        default: 'مقارنة بالفترة السابقة',
+        default: '',
     },
     color: {
         type: String,
@@ -75,7 +75,7 @@ defineProps({
                 <ArrowTrendingDownIcon v-else class="w-3 h-3" />
                 <span>{{ Math.abs(trend) }}%</span>
             </span>
-            <span class="text-slate-400 font-medium truncate">{{ trendText }}</span>
+            <span class="text-slate-400 font-medium truncate">{{ trendText || $t('cmp.vs_prev') }}</span>
         </div>
     </div>
 </template>
