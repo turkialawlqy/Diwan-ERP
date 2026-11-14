@@ -52,17 +52,17 @@ const submit = () => {
 
 <template>
     <AppLayout>
-        <Head title="إضافة منتج أو خدمة جديدة" />
+        <Head :title="$t('i_products_create.add_a_new_product_or_service')" />
 
         <div class="space-y-6">
             <!-- Header Ribbon -->
-            <PageHeader title="إضافة منتج" :crumbs="[{ label: 'إضافة منتج' }]">
+            <PageHeader :title="$t('i_products_create.add_product')" :crumbs="[{ label: 'إضافة منتج' }]">
 <template #actions>
 <Link 
                         :href="route('inventory.products.index')"
                         class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50"
                     >
-                        إلغاء
+                        {{ $t('i_products_create.cancel') }}
                     </Link>
                     <button 
                         @click="submit"
@@ -70,7 +70,7 @@ const submit = () => {
                         class="px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs hover:shadow-indigo-500/20 disabled:opacity-50 flex items-center gap-1.5"
                     >
                         <CheckIcon class="w-4 h-4 stroke-2" />
-                        <span>حفظ المنتج</span>
+                        <span>{{ $t('i_products_create.save_product') }}</span>
                     </button>
 </template>
 </PageHeader>
@@ -79,12 +79,12 @@ const submit = () => {
             <div class="bg-white rounded-2xl border border-slate-200/80 p-6 sm:p-8 shadow-2xs space-y-6">
                 <form @submit.prevent="submit" class="space-y-5">
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-2">صورة الصنف (تظهر في الكاشير)</label>
+                        <label class="block text-xs font-bold text-slate-700 mb-2">{{ $t('i_products_create.item_image_shown_at_the_cashier') }}</label>
                         <ProductImageField v-model="form.image" :error="form.errors.image" />
                     </div>
                     <!-- Type Selector -->
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-2">نوع البند</label>
+                        <label class="block text-xs font-bold text-slate-700 mb-2">{{ $t('i_products_create.item_type') }}</label>
                         <div class="grid grid-cols-2 gap-3 max-w-sm">
                             <label 
                                 :class="[
@@ -95,7 +95,7 @@ const submit = () => {
                                 ]"
                             >
                                 <input type="radio" v-model="form.type" value="product" class="sr-only" />
-                                <span>منتج ملموس (له مخزون)</span>
+                                <span>{{ $t('i_products_create.physical_product_has_stock') }}</span>
                             </label>
                             <label 
                                 :class="[
@@ -106,7 +106,7 @@ const submit = () => {
                                 ]"
                             >
                                 <input type="radio" v-model="form.type" value="service" class="sr-only" />
-                                <span>خدمة أو مقاولة (بدون مخزون)</span>
+                                <span>{{ $t('i_products_create.service_or_contracting_no_stock') }}</span>
                             </label>
                         </div>
                     </div>
@@ -114,19 +114,19 @@ const submit = () => {
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <!-- Name AR -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">اسم المنتج بالعربية <span class="text-rose-500">*</span></label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('i_products_create.product_name_in_arabic') }} <span class="text-rose-500">*</span></label>
                             <input 
                                 v-model="form.name_ar"
                                 type="text" 
                                 required
-                                placeholder="مثال: لابتوب ديل انسبيرون..."
+                                :placeholder="$t('i_products_create.example_dell_inspiron_laptop')"
                                 class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 font-medium"
                             />
                         </div>
 
                         <!-- Name EN -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">الاسم بالإنجليزية</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('i_products_create.name_in_english') }}</label>
                             <input 
                                 v-model="form.name_en"
                                 type="text" 
@@ -137,19 +137,19 @@ const submit = () => {
 
                         <!-- Category -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">التصنيف</label>
-                            <SelectCreate v-model="form.category_id" :options="categories" entity="category" label="name_ar" placeholder="بدون تصنيف" />
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('i_products_create.category') }}</label>
+                            <SelectCreate v-model="form.category_id" :options="categories" entity="category" label="name_ar" :placeholder="$t('i_products_create.no_category')" />
                         </div>
 
                         <!-- Unit -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">وحدة القياس</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('i_products_create.unit_of_measure') }}</label>
                             <SelectCreate v-model="form.unit_id" :options="units" entity="unit" label="name_ar" :allow-empty="false" />
                         </div>
 
                         <!-- SKU -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">رمز المنتج (SKU)</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('i_products_create.product_code_sku') }}</label>
                             <input 
                                 v-model="form.sku"
                                 type="text" 
@@ -159,18 +159,18 @@ const submit = () => {
 
                         <!-- Barcode -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">الباركود (Barcode / EAN)</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('i_products_create.barcode_ean') }}</label>
                             <input 
                                 v-model="form.barcode"
                                 type="text" 
-                                placeholder="امسح الباركود هنا..."
+                                :placeholder="$t('i_products_create.scan_the_barcode_here')"
                                 class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 font-mono"
                             />
                         </div>
 
                         <!-- Purchase Price -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">سعر الشراء (التكلفة) <span class="text-rose-500">*</span></label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('i_products_create.purchase_price_cost') }} <span class="text-rose-500">*</span></label>
                             <input 
                                 v-model.number="form.purchase_price"
                                 type="text" inputmode="decimal" data-num 
@@ -183,7 +183,7 @@ const submit = () => {
 
                         <!-- Selling Price -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-700 mb-1">سعر البيع (قبل الضريبة) <span class="text-rose-500">*</span></label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('i_products_create.selling_price_before_tax') }} <span class="text-rose-500">*</span></label>
                             <input 
                                 v-model.number="form.selling_price"
                                 type="text" inputmode="decimal" data-num 
@@ -196,7 +196,7 @@ const submit = () => {
 
                         <!-- Initial Stock (if product) -->
                         <div v-if="form.type === 'product'">
-                            <label class="block text-xs font-bold text-slate-700 mb-1">الرصيد الافتتاحي للمخزون</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('i_products_create.opening_stock_balance') }}</label>
                             <input 
                                 v-model.number="form.initial_stock"
                                 type="text" inputmode="decimal" data-num 
@@ -208,7 +208,7 @@ const submit = () => {
 
                         <!-- Warehouse (if product) -->
                         <div v-if="form.type === 'product'">
-                            <label class="block text-xs font-bold text-slate-700 mb-1">المستودع</label>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('i_products_create.warehouse') }}</label>
                             <SelectCreate v-model="form.warehouse_id" :options="warehouses" entity="warehouse" label="name_ar" :allow-empty="false" />
                         </div>
                     </div>
@@ -216,7 +216,7 @@ const submit = () => {
                     <VatFields v-model:category="form.vat_category" v-model:code="form.vat_exemption_code" v-model:tax-rate="form.tax_rate" :categories="vatCategories" :reasons="exemptionReasons" :errors="form.errors" />
 
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">الوصف أو الملاحظات</label>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('i_products_create.description_or_notes') }}</label>
                         <textarea 
                             v-model="form.description"
                             rows="2"
@@ -229,14 +229,14 @@ const submit = () => {
                             :href="route('inventory.products.index')"
                             class="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                         >
-                            إلغاء
+                            {{ $t('i_products_create.cancel') }}
                         </Link>
                         <button 
                             type="submit" 
                             :disabled="form.processing"
                             class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs hover:shadow-indigo-500/20 disabled:opacity-50"
                         >
-                            {{ form.processing ? 'جاري الحفظ...' : 'حفظ المنتج' }}
+                            {{ form.processing ? $t('i_products_create.saving') : $t('i_products_create.save_product') }}
                         </button>
                     </div>
                 </form>

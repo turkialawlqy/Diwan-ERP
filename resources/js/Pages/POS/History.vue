@@ -52,7 +52,7 @@ const formatCurrency = (val) => {
 </script>
 
 <template>
-    <AppLayout title="سجل فواتير نقاط البيع">
+    <AppLayout :title="$t('pos_history.pos_invoice_log')">
         <div class="space-y-6">
             <!-- Header Section -->
             <PageHeader title="سجل عمليات نقاط البيع" subtitle="استعراض وإعادة طباعة فواتير مبيعات نقاط البيع" :crumbs="[{ label: 'نقاط البيع' }, { label: 'سجل المبيعات' }]">
@@ -61,7 +61,7 @@ const formatCurrency = (val) => {
                         :href="route('pos.index')"
                         class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5"
                     >
-                        <span>الذهاب إلى نقطة البيع</span>
+                        <span>{{ $t('pos_history.go_to_the_point_of_sale') }}</span>
                     </Link>
 </template>
 </PageHeader>
@@ -72,14 +72,14 @@ const formatCurrency = (val) => {
                     <table class="w-full text-right text-xs">
                         <thead>
                             <tr class="bg-slate-50/75 border-b border-slate-200/80 text-slate-500 font-bold">
-                                <th class="py-3.5 px-4">رقم الطلب</th>
-                                <th class="py-3.5 px-4">العميل</th>
-                                <th class="py-3.5 px-4">الكاشير</th>
-                                <th class="py-3.5 px-4">نقطة البيع</th>
-                                <th class="py-3.5 px-4">طريقة الدفع</th>
-                                <th class="py-3.5 px-4">المجموع الكلي</th>
-                                <th class="py-3.5 px-4">التاريخ والوقت</th>
-                                <th class="py-3.5 px-4 text-center">الإجراءات</th>
+                                <th class="py-3.5 px-4">{{ $t('pos_history.order_number') }}</th>
+                                <th class="py-3.5 px-4">{{ $t('a_cheques.customer') }}</th>
+                                <th class="py-3.5 px-4">{{ $t('pos_history.cashier') }}</th>
+                                <th class="py-3.5 px-4">{{ $t('pos_history.point_of_sale') }}</th>
+                                <th class="py-3.5 px-4">{{ $t('pos_history.pay_method') }}</th>
+                                <th class="py-3.5 px-4">{{ $t('pos_history.grand_total') }}</th>
+                                <th class="py-3.5 px-4">{{ $t('pos_history.date_and_time') }}</th>
+                                <th class="py-3.5 px-4 text-center">{{ $t('p_invoices_index.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 text-slate-700">
@@ -92,13 +92,13 @@ const formatCurrency = (val) => {
                                     {{ order.order_number }}
                                 </td>
                                 <td class="py-3.5 px-4 font-medium">
-                                    {{ order.customer?.name || 'عميل نقدي (عام)' }}
+                                    {{ order.customer?.name || $t('pos_terminal.cash_customer_general') }}
                                 </td>
                                 <td class="py-3.5 px-4 text-slate-600">
                                     {{ order.user?.name || '-' }}
                                 </td>
                                 <td class="py-3.5 px-4 text-slate-600">
-                                    {{ order.session?.register?.name || 'جهاز نقاط البيع' }}
+                                    {{ order.session?.register?.name || $t('pos_opensession.pos_device') }}
                                 </td>
                                 <td class="py-3.5 px-4">
                                     <span 
@@ -109,7 +109,7 @@ const formatCurrency = (val) => {
                                                 : 'bg-purple-50 text-purple-700 border border-purple-200/60'
                                         ]"
                                     >
-                                        {{ ({ cash: 'نقداً (Cash)', card: 'مدى / بطاقة', multiple: 'مجزأ', credit: 'آجل' })[order.payment_method] || order.payment_method }}
+                                        {{ ({ cash: $t('pos_terminal.cash_cash'), card: $t('pos_terminal.mada_card'), multiple: $t('pos_history.split'), credit: $t('p_invoices_from_receipts.credit') })[order.payment_method] || order.payment_method }}
                                     </span>
                                 </td>
                                 <td class="py-3.5 px-4 font-mono font-bold text-slate-900">
@@ -122,16 +122,16 @@ const formatCurrency = (val) => {
                                     <button
                                         @click="viewReceipt(order)"
                                         class="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium text-3xs transition-colors inline-flex items-center gap-1"
-                                        title="عرض وطباعة الإيصال الحراري"
+                                        :title="$t('pos_history.view_and_print_the_thermal_receipt')"
                                     >
                                         <PrinterIcon class="w-3.5 h-3.5" />
-                                        <span>عرض الإيصال</span>
+                                        <span>{{ $t('pos_history.view_receipt') }}</span>
                                     </button>
                                 </td>
                             </tr>
                             <tr v-if="!orders.data || orders.data.length === 0">
                                 <td colspan="8" class="py-12 text-center text-slate-400">
-                                    لا توجد عمليات نقاط بيع مسجلة حتى الآن.
+                                    {{ $t('pos_history.no_pos_transactions_recorded_yet') }}
                                 </td>
                             </tr>
                         </tbody>

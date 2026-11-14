@@ -156,6 +156,15 @@ test('sales list and form pages follow the language', async ({ page }) => {
         ['/purchases/receipts', 'Goods receipt'],
         ['/purchases/requests', 'Purchase requests'],
         ['/purchases/returns', 'Purchase returns'],
+        ['/inventory/products', 'Total products'],
+        ['/inventory/warehouses', 'Total warehouses'],
+        ['/inventory/counts', 'Stock counting'],
+        ['/inventory/stock-transfers', 'Stock transfers'],
+        ['/inventory/operations', 'Stock movements'],
+        ['/inventory/categories', 'Categories'],
+        ['/inventory/assembly', 'Assembly and bills of materials (BOM)'],
+        ['/pos/history', 'Go to the point of sale'],
+        ['/pos/registers', 'Cashier devices'],
     ]) {
         await page.goto(url);
         await expect(page.getByText(text).first()).toBeVisible();

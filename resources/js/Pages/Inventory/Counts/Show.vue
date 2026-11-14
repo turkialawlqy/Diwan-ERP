@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import ImportLines from '@/Components/Documents/ImportLines.vue';
 import { reactive, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
@@ -8,6 +9,7 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import Pagination from '@/Components/UI/Pagination.vue';
 import StatCard from '@/Components/UI/StatCard.vue';
 import { qty, amount } from '@/utils/format';
+const { t } = useI18n();
 
 const props = defineProps({ count: Object, items: Object, summary: Object, filters: Object });
 
@@ -21,8 +23,8 @@ const save = () => {
     form.lines = Object.entries(entered).filter(([, v]) => v !== '' && v !== null).map(([product_id, counted_quantity]) => ({ product_id: Number(product_id), counted_quantity }));
     form.put(route('inventory.counts.update', props.count.id), { preserveScroll: true });
 };
-const approve = () => confirm('اعتماد الجرد؟ سيتم تعديل أرصدة الأصناف المجرودة وترحيل قيد الفروقات.') && router.post(route('inventory.counts.approve', props.count.id));
-const cancel = () => confirm('إلغاء الجرد؟') && router.post(route('inventory.counts.cancel', props.count.id));
+const approve = () => confirm(t('i_counts_show.confirm_approve')) && router.post(route('inventory.counts.approve', props.count.id));
+const cancel = () => confirm(t('i_counts_show.confirm_cancel')) && router.post(route('inventory.counts.cancel', props.count.id));
 
 // Spot counts: add a product by name / barcode.
 const lookup = ref('');
@@ -46,30 +48,30 @@ const importCounts = (lines) => {
 
 <template>
     <AppLayout>
-        <Head :title="`جرد ${count.count_number}`" />
-        <PageHeader :title="`جرد ${count.count_number}`" :subtitle="`${count.warehouse.name_ar} · ${count.count_date.substring(0, 10)}`" :crumbs="[{ label: 'الجرد', href: route('inventory.counts.index') }, { label: count.count_number }]">
+        <Head :title="`${$t('i_counts_index.stock_count')} ${count.count_number}`" />
+        <PageHeader :title="`${$t('i_counts_index.stock_count')} ${count.count_number}`" :subtitle="`${count.warehouse.name_ar} · ${count.count_date.substring(0, 10)}`" :crumbs="[{ label: 'الجرد', href: route('inventory.counts.index') }, { label: count.count_number }]">
             <template #actions v-if="editable">
-                <ImportLines kind="stock" label="استيراد الكميات المعدودة" @imported="importCounts" />
-                <button @click="save" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">حفظ الكميات</button>
-                <button v-if="$can('inventory.counts.approve')" @click="approve" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">اعتماد الجرد</button>
-                <button v-if="$can('inventory.counts.approve')" @click="cancel" class="px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">إلغاء</button>
+                <ImportLines kind="stock" :label="$t('i_counts_show.import_the_counted_quantities')" @imported="importCounts" />
+                <button @click="save" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('i_counts_show.save_quantities') }}</button>
+                <button v-if="$can('inventory.counts.approve')" @click="approve" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">{{ $t('i_counts_show.approve_the_count') }}</button>
+                <button v-if="$can('inventory.counts.approve')" @click="cancel" class="px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">{{ $t('i_counts_show.cancel') }}</button>
             </template>
         </PageHeader>
 
         <div class="grid grid-cols-3 gap-3 mb-4">
-            <StatCard label="عدد الأصناف" :value="summary.line_count" />
-            <StatCard label="لم تُجرد بعد" :value="summary.uncounted" tone="amber" />
-            <StatCard label="قيمة الفروقات" :value="amount(summary.value_difference)" :tone="summary.value_difference < 0 ? 'rose' : 'emerald'" />
+            <StatCard :label="$t('i_counts_show.number_of_items')" :value="summary.line_count" />
+            <StatCard :label="$t('i_counts_show.not_counted_yet')" :value="summary.uncounted" tone="amber" />
+            <StatCard :label="$t('i_counts_show.variance_value_2')" :value="amount(summary.value_difference)" :tone="summary.value_difference < 0 ? 'rose' : 'emerald'" />
         </div>
 
         <div class="flex flex-wrap gap-2 mb-3 text-xs">
             <form @submit.prevent="apply" class="flex gap-2">
-                <input v-model="filters.search" placeholder="بحث بالاسم / الرمز / الباركود" class="rounded-xl border-slate-200 text-xs w-64" />
-                <select v-model="filters.only" class="rounded-xl border-slate-200 text-xs"><option value="">كل الأصناف</option><option value="uncounted">غير المجرودة</option><option value="differences">التي بها فروقات</option></select>
+                <input v-model="filters.search" :placeholder="$t('i_counts_show.search_by_name_code_barcode')" class="rounded-xl border-slate-200 text-xs w-64" />
+                <select v-model="filters.only" class="rounded-xl border-slate-200 text-xs"><option value="">{{ $t('i_counts_show.all_items') }}</option><option value="uncounted">{{ $t('i_counts_show.uncounted') }}</option><option value="differences">{{ $t('i_counts_show.with_variances') }}</option></select>
                 <button class="px-4 rounded-xl bg-slate-800 text-white font-bold">{{ $t('ui.apply') }}</button>
             </form>
             <div v-if="editable && count.count_type === 'partial'" class="relative">
-                <input v-model="lookup" @input="search" placeholder="+ إضافة صنف للجرد" class="rounded-xl border-slate-200 text-xs w-64" />
+                <input v-model="lookup" @input="search" :placeholder="$t('i_counts_show.add_an_item_to_the_count')" class="rounded-xl border-slate-200 text-xs w-64" />
                 <div v-if="results.length" class="absolute z-10 mt-1 w-full bg-white border rounded-xl shadow max-h-48 overflow-y-auto">
                     <button type="button" v-for="p in results" :key="p.id" @mousedown.prevent="addProduct(p)" @keydown.enter.prevent="addProduct(p)" class="block w-full text-start px-3 py-2 hover:bg-indigo-50">{{ p.name_ar }} <span class="text-slate-400">{{ p.sku }}</span></button>
                 </div>
@@ -78,7 +80,7 @@ const importCounts = (lines) => {
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <table class="w-full text-xs">
-                <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الصنف</th><th class="text-end px-3 py-2">الرصيد الدفتري</th><th class="text-center px-3 py-2 w-40">الكمية المجرودة</th><th class="text-end px-3 py-2">الفرق</th><th class="text-end px-3 py-2">قيمة الفرق</th></tr></thead>
+                <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">{{ $t('i_counts_show.item') }}</th><th class="text-end px-3 py-2">{{ $t('i_counts_show.book_balance') }}</th><th class="text-center px-3 py-2 w-40">{{ $t('i_counts_show.counted_quantity') }}</th><th class="text-end px-3 py-2">{{ $t('i_counts_show.difference') }}</th><th class="text-end px-3 py-2">{{ $t('i_counts_show.variance_value') }}</th></tr></thead>
                 <tbody>
                     <tr v-for="item in items.data" :key="item.id" class="border-t border-slate-100">
                         <td class="px-3 py-2 font-semibold">{{ item.product?.name_ar }} <span class="text-slate-400 font-mono">{{ item.product?.sku }}</span></td>

@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import ImportButton from '@/Components/UI/ImportButton.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { ref } from 'vue';
@@ -13,6 +14,7 @@ import {
     TrashIcon,
     PencilSquareIcon,
 } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 const props = defineProps({
     categories: Array,
@@ -39,7 +41,7 @@ const submit = () => {
 };
 
 const deleteCategory = (id) => {
-    if (confirm('هل ترغب في حذف هذا التصنيف؟')) {
+    if (confirm(t('i_categories_index.confirm_delete'))) {
         form.delete(route('inventory.categories.destroy', id));
     }
 };
@@ -47,20 +49,20 @@ const deleteCategory = (id) => {
 
 <template>
     <AppLayout>
-        <Head title="تصنيفات المنتجات" />
+        <Head :title="$t('i_categories_index.product_categories')" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
-            <PageHeader title="التصنيفات" :crumbs="[{ label: 'التصنيفات' }]">
+            <PageHeader :title="$t('i_categories_index.categories')" :crumbs="[{ label: 'التصنيفات' }]">
 <template #actions>
 <button 
                         @click="router.reload()"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-xs"
-                        title="تحديث البيانات"
+                        :title="$t('i_categories_index.refresh_data')"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
                     </button>
-                <ImportButton v-if="$can('inventory.categories.create')" type="categories" title="استيراد التصنيفات من Excel" />
+                <ImportButton v-if="$can('inventory.categories.create')" type="categories" :title="$t('i_categories_index.import_categories_from_excel')" />
 </template>
 </PageHeader>
 
@@ -69,23 +71,23 @@ const deleteCategory = (id) => {
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
                     <h3 class="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center gap-2">
                         <TagIcon class="w-4 h-4 text-indigo-600" />
-                        <span>{{ editingId ? 'تعديل التصنيف' : 'إضافة تصنيف جديد' }}</span>
+                        <span>{{ editingId ? $t('i_categories_index.edit') : $t('i_categories_index.new') }}</span>
                     </h3>
 
                     <form @submit.prevent="submit" class="space-y-4 text-xs">
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">اسم التصنيف (عربي) <span class="text-rose-500">*</span></label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('i_categories_index.category_name_arabic') }} <span class="text-rose-500">*</span></label>
                             <input 
                                 v-model="form.name_ar" 
                                 type="text" 
                                 required 
-                                placeholder="مثال: إلكترونيات..." 
+                                :placeholder="$t('i_categories_index.example_electronics')" 
                                 class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500"
                             />
                         </div>
 
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">اسم التصنيف (إنجليزي)</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('i_categories_index.category_name_english') }}</label>
                             <input 
                                 v-model="form.name_en" 
                                 type="text" 
@@ -95,7 +97,7 @@ const deleteCategory = (id) => {
                         </div>
 
                         <div>
-                            <label class="block font-bold text-slate-700 mb-1">كود التصنيف</label>
+                            <label class="block font-bold text-slate-700 mb-1">{{ $t('i_categories_index.category_code') }}</label>
                             <input 
                                 v-model="form.code" 
                                 type="text" 
@@ -109,16 +111,16 @@ const deleteCategory = (id) => {
                             :disabled="form.processing"
                             class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs disabled:opacity-50"
                         >
-                            {{ editingId ? 'حفظ التعديل' : 'إضافة التصنيف' }}
+                            {{ editingId ? $t('i_categories_index.save_edit') : $t('i_categories_index.add') }}
                         </button>
-                        <button v-if="editingId" type="button" @click="cancelEdit" class="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs">إلغاء التعديل</button>
+                        <button v-if="editingId" type="button" @click="cancelEdit" class="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs">{{ $t('i_categories_index.cancel_editing') }}</button>
                     </form>
                 </div>
 
                 <!-- Categories List (Left 2 columns) -->
                 <div class="md:col-span-2 bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
                     <h3 class="text-sm font-bold text-slate-800 border-b border-slate-100 pb-3">
-                        التصنيفات الحالية ({{ categories.length }})
+                        {{ $t('i_categories_index.current', { n: categories.length }) }}
                     </h3>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -133,17 +135,17 @@ const deleteCategory = (id) => {
                                 </div>
                                 <div>
                                     <h4 class="font-bold text-xs text-slate-800">{{ cat.name_ar }}</h4>
-                                    <p class="text-2xs text-slate-400 mt-0.5">{{ cat.products_count }} منتج مرتبط</p>
+                                    <p class="text-2xs text-slate-400 mt-0.5">{{ $t('i_categories_index.linked', { n: cat.products_count }) }}</p>
                                 </div>
                             </div>
                             <span class="flex items-center">
-                            <button v-if="$can('inventory.categories.edit')" @click="editCategory(cat)" class="p-1.5 text-slate-300 hover:text-indigo-600 transition-colors" title="تعديل" data-row-edit>
+                            <button v-if="$can('inventory.categories.edit')" @click="editCategory(cat)" class="p-1.5 text-slate-300 hover:text-indigo-600 transition-colors" :title="$t('i_categories_index.edit')" data-row-edit>
                                 <PencilSquareIcon class="w-4 h-4" />
                             </button>
                             <button 
                                 @click="deleteCategory(cat.id)" 
                                 class="p-1.5 text-slate-300 hover:text-rose-600 transition-colors"
-                                title="حذف"
+                                :title="$t('i_categories_index.delete')"
                             >
                                 <TrashIcon class="w-4 h-4" />
                             </button>
