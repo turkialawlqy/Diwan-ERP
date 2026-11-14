@@ -33,33 +33,33 @@ const submitSupplier = () => (editingSupplier
 
 <template>
     <AppLayout>
-        <Head :title="props.supplier?.id ? 'تعديل مورد' : 'مورد جديد'" />
+        <Head :title="props.supplier?.id ? $t('p_suppliers_form.edit') : $t('p_suppliers_form.new')" />
         <PageHeader :title="props.supplier?.id ? 'تعديل بيانات المورد' : 'مورد جديد'" :crumbs="[{ label: 'المشتريات' }, { label: 'الموردون', href: route('purchases.suppliers.index') }, { label: props.supplier?.id ? 'تعديل' : 'جديد' }]" />
 
         <div class="bg-white border border-slate-200/80 rounded-2xl p-6">
             <form @submit.prevent="submitSupplier" class="form-grid text-xs">
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">اسم المورد <span class="text-rose-500">*</span></label>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ $t('p_suppliers_form.supplier_name') }} <span class="text-rose-500">*</span></label>
                                     <input 
                                         v-model="form.name" 
                                         type="text" 
                                         required 
-                                        placeholder="اسم المورد أو الشركة" 
+                                        :placeholder="$t('p_suppliers_form.supplier_or_company_name')" 
                                         class="w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-indigo-500"
                                     />
                                 </div>
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">الاسم التجاري / الشركة</label>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ $t('p_suppliers_form.trade_name_company') }}</label>
                                     <input 
                                         v-model="form.company_name" 
                                         type="text" 
-                                        placeholder="الاسم التجاري" 
+                                        :placeholder="$t('p_suppliers_form.trade_name')" 
                                         class="w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-indigo-500"
                                     />
                                 </div>
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">الرقم الضريبي (15 رقم)</label>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ $t('p_suppliers_form.tax_number_15_digits') }}</label>
                                     <input 
                                         v-model="form.tax_number" 
                                         type="text" 
@@ -69,7 +69,7 @@ const submitSupplier = () => (editingSupplier
                                     />
                                 </div>
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">رقم السجل التجاري</label>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ $t('p_suppliers_form.commercial_register_number') }}</label>
                                     <input 
                                         v-model="form.commercial_register" 
                                         type="text" 
@@ -78,7 +78,7 @@ const submitSupplier = () => (editingSupplier
                                     />
                                 </div>
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">رقم الهاتف</label>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ $t('p_suppliers_form.phone_number') }}</label>
                                     <input 
                                         v-model="form.phone" 
                                         type="text" 
@@ -87,7 +87,7 @@ const submitSupplier = () => (editingSupplier
                                     />
                                 </div>
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">البريد الإلكتروني</label>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ $t('p_suppliers_form.email') }}</label>
                                     <input 
                                         v-model="form.email" 
                                         type="email" 
@@ -96,30 +96,30 @@ const submitSupplier = () => (editingSupplier
                                     />
                                 </div>
                                 <div class="col-span-full border border-slate-200 rounded-xl p-3 grid sm:grid-cols-3 gap-3" data-wht-fields>
-                                    <label class="inline-flex items-center gap-2 font-bold text-slate-700"><input type="checkbox" v-model="form.is_non_resident" data-non-resident /> مورد غير مقيم (تُستقطع الضريبة من مدفوعاته)</label>
+                                    <label class="inline-flex items-center gap-2 font-bold text-slate-700"><input type="checkbox" v-model="form.is_non_resident" data-non-resident /> {{ $t('p_suppliers_form.non_resident_supplier_tax_is_wit') }}</label>
                                     <div v-if="form.is_non_resident">
-                                        <label class="block font-bold text-slate-700 mb-1">نوع الدفعة (نسبة الاستقطاع)</label>
+                                        <label class="block font-bold text-slate-700 mb-1">{{ $t('p_suppliers_form.payment_type_withholding_rate') }}</label>
                                         <select v-model="form.wht_category" class="w-full rounded-xl border border-slate-200 ps-3 pe-8 py-2">
-                                            <option value="">أخرى</option>
+                                            <option value="">{{ $t('p_suppliers_form.other') }}</option>
                                             <option v-for="c in whtCategories" :key="c.key" :value="c.key">{{ c.label }} — {{ c.rate }}%</option>
                                         </select>
                                     </div>
                                     <div v-if="form.is_non_resident">
-                                        <label class="block font-bold text-slate-700 mb-1">الدولة</label>
+                                        <label class="block font-bold text-slate-700 mb-1">{{ $t('p_suppliers_form.country') }}</label>
                                         <input v-model="form.country" type="text" class="w-full rounded-xl border border-slate-200 px-3 py-2" />
                                     </div>
                                 </div>
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">اسم البنك</label>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ $t('p_suppliers_form.bank_name') }}</label>
                                     <input 
                                         v-model="form.bank_name" 
                                         type="text" 
-                                        placeholder="مصرف الراجحي / البنك الأهلي" 
+                                        :placeholder="$t('p_suppliers_form.al_rajhi_bank_national_bank')" 
                                         class="w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-indigo-500"
                                     />
                                 </div>
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">رقم الآيبان (IBAN)</label>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ $t('p_suppliers_form.iban') }}</label>
                                     <input 
                                         v-model="form.iban" 
                                         type="text" 
@@ -130,23 +130,23 @@ const submitSupplier = () => (editingSupplier
                             </div>
             
                             <div>
-                                <label class="block font-bold text-slate-700 mb-1">العنوان الوطني / المقر</label>
+                                <label class="block font-bold text-slate-700 mb-1">{{ $t('p_suppliers_form.national_address_premises') }}</label>
                                 <input 
                                     v-model="form.address" 
                                     type="text" 
-                                    placeholder="المدينة، الحي، اسم الشارع..." 
+                                    :placeholder="$t('p_suppliers_form.city_district_street_name')" 
                                     class="w-full rounded-xl border border-slate-200 px-3 py-2 focus:border-indigo-500"
                                 />
                             </div>
             
                             <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                                <Link :href="route('purchases.suppliers.index')" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium">إلغاء</Link>
+                                <Link :href="route('purchases.suppliers.index')" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium">{{ $t('p_suppliers_form.cancel') }}</Link>
                                 <button 
                                     type="submit" 
                                     :disabled="form.processing" 
                                     class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-xs hover:shadow-indigo-500/20 disabled:opacity-50"
                                 >
-                                    {{ editingSupplier ? 'تحديث البيانات' : 'حفظ المورد' }}
+                                    {{ editingSupplier ? $t('p_suppliers_form.update') : $t('p_suppliers_form.save') }}
                                 </button>
                             </div>
                         </form>

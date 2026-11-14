@@ -32,8 +32,8 @@ const apply = () => {
 
 <template>
     <AppLayout>
-        <Head title="دفتر الأستاذ العام" />
-        <PageHeader title="دفتر الأستاذ / كشف حساب" :subtitle="selectedAccount ? `${selectedAccount.code} - ${selectedAccount.name_ar}` : ''" :crumbs="[{ label: 'المحاسبة' }, { label: 'دفتر الأستاذ' }]">
+        <Head :title="$t('a_ledger.general_ledger')" />
+        <PageHeader :title="$t('a_ledger.general_ledger_account_statement')" :subtitle="selectedAccount ? `${selectedAccount.code} - ${selectedAccount.name_ar}` : ''" :crumbs="[{ label: 'المحاسبة' }, { label: 'دفتر الأستاذ' }]">
             <template #actions><ExportButtons v-if="selectedAccount" report="ledger" :params="{ account_id: filters.account_id, start_date: filters.start_date, end_date: filters.end_date, cost_center_id: filters.cost_center_id }" permission="accounting.ledger.export" /></template>
         </PageHeader>
 
@@ -50,10 +50,10 @@ const apply = () => {
 
         <template v-if="ledger">
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                <StatCard label="الرصيد الافتتاحي" :value="amount(ledger.opening_balance)" />
-                <StatCard label="إجمالي المدين" :value="money(ledger.period_debit)" tone="indigo" />
-                <StatCard label="إجمالي الدائن" :value="money(ledger.period_credit)" tone="amber" />
-                <StatCard label="الرصيد الختامي" :value="amount(ledger.closing_balance)" :tone="ledger.closing_balance < 0 ? 'rose' : 'emerald'" />
+                <StatCard :label="$t('a_ledger.opening_balance_2')" :value="amount(ledger.opening_balance)" />
+                <StatCard :label="$t('a_ledger.total_debit')" :value="money(ledger.period_debit)" tone="indigo" />
+                <StatCard :label="$t('a_ledger.total_credit')" :value="money(ledger.period_credit)" tone="amber" />
+                <StatCard :label="$t('a_ledger.closing_balance')" :value="amount(ledger.closing_balance)" :tone="ledger.closing_balance < 0 ? 'rose' : 'emerald'" />
             </div>
 
             <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
@@ -62,7 +62,7 @@ const apply = () => {
                         <thead class="bg-slate-50 text-slate-500">
                             <tr>
                                 <th class="text-start px-3 py-2">{{ $t('ui.date') }}</th>
-                                <th class="text-start px-3 py-2">رقم القيد</th>
+                                <th class="text-start px-3 py-2">{{ $t('a_ledger.entry_number') }}</th>
                                 <th class="text-start px-3 py-2">{{ $t('ui.description') }}</th>
                                 <th class="text-end px-3 py-2">{{ $t('ui.debit') }}</th>
                                 <th class="text-end px-3 py-2">{{ $t('ui.credit') }}</th>
@@ -71,7 +71,7 @@ const apply = () => {
                         </thead>
                         <tbody>
                             <tr class="bg-amber-50/50 text-slate-700 font-bold" v-if="ledger.lines.current_page === 1">
-                                <td class="px-3 py-2" colspan="5">رصيد أول المدة</td>
+                                <td class="px-3 py-2" colspan="5">{{ $t('a_ledger.opening_balance') }}</td>
                                 <td class="px-3 py-2 text-end font-mono">{{ amount(ledger.opening_balance) }}</td>
                             </tr>
                             <tr v-for="line in ledger.lines.data" :key="line.id" class="border-t border-slate-100 hover:bg-slate-50/60">
@@ -86,7 +86,7 @@ const apply = () => {
                                 <td class="px-3 py-2 text-end font-mono">{{ line.credit ? money(line.credit) : '' }}</td>
                                 <td class="px-3 py-2 text-end font-mono font-bold">{{ amount(line.balance) }}</td>
                             </tr>
-                            <tr v-if="!ledger.lines.data.length"><td colspan="6" class="py-10 text-center text-slate-400">لا توجد حركات في هذه الفترة</td></tr>
+                            <tr v-if="!ledger.lines.data.length"><td colspan="6" class="py-10 text-center text-slate-400">{{ $t('a_ledger.no_transactions_in_this_period') }}</td></tr>
                         </tbody>
                     </table>
                 </div>

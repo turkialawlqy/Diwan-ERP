@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import RowActions from '@/Components/UI/RowActions.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { ref } from 'vue';
@@ -20,6 +21,7 @@ import {
     FunnelIcon,
     XMarkIcon,
 } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 const props = defineProps({
     orders: Object,
@@ -45,7 +47,7 @@ const resetFilter = () => {
 };
 
 const convertToInvoice = (order) => {
-    if (confirm(`هل أنت متأكد من تحويل أمر الشراء رقم "${order.order_number}" إلى فاتورة شراء رسمية وتوريد البضاعة للمخزون؟`)) {
+    if (confirm(t('p_orders_index.confirm_convert', { number: order.order_number }))) {
         router.post(route('purchases.orders.convert', order.id));
     }
 };
@@ -60,20 +62,20 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="أوامر الشراء" />
+        <Head :title="$t('p_orders_index.purchase_orders')" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
-            <PageHeader year-scoped title="أوامر الشراء" :crumbs="[{ label: 'المشتريات' }, { label: 'أوامر الشراء' }]">
+            <PageHeader year-scoped :title="$t('p_orders_index.purchase_orders')" :crumbs="[{ label: 'المشتريات' }, { label: 'أوامر الشراء' }]">
 <template #actions>
 <button 
                         @click="handleSearch"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-xs"
-                        title="تحديث البيانات"
+                        :title="$t('p_orders_index.refresh_data')"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
                     </button>
-<Link v-if="$can('purchases.orders.create')" :href="route('purchases.orders.create')" class="px-3.5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold flex items-center gap-2"><PlusIcon class="w-4 h-4" /><span>أمر شراء</span></Link>
+<Link v-if="$can('purchases.orders.create')" :href="route('purchases.orders.create')" class="px-3.5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold flex items-center gap-2"><PlusIcon class="w-4 h-4" /><span>{{ $t('p_orders_index.purchase_order') }}</span></Link>
                     <button 
                         @click="isFilterOpen = !isFilterOpen"
                         :class="[
@@ -82,7 +84,7 @@ const formatCurrency = (val) => {
                         ]"
                     >
                         <FunnelIcon class="w-4 h-4" />
-                        <span>تصفية</span>
+                        <span>{{ $t('p_orders_index.filter') }}</span>
                     </button>
 </template>
 </PageHeader>
@@ -100,14 +102,14 @@ const formatCurrency = (val) => {
                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                         <!-- Search Query -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1.5">بحث بأمر الشراء أو المورد</label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">{{ $t('p_orders_index.search_by_purchase_order_or_supp') }}</label>
                             <div class="relative">
                                 <MagnifyingGlassIcon class="w-4 h-4 text-slate-400 absolute start-3 top-1/2 -translate-y-1/2" />
                                 <input 
                                     v-model="search"
                                     @keyup.enter="handleSearch"
                                     type="text" 
-                                    placeholder="رقم الأمر، اسم المورد..." 
+                                    :placeholder="$t('p_orders_index.order_number_supplier_name')" 
                                     class="w-full ps-9 pe-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
                                 />
                             </div>
@@ -115,21 +117,21 @@ const formatCurrency = (val) => {
 
                         <!-- Status Filter -->
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1.5">حالة الأمر</label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">{{ $t('p_orders_index.order_status') }}</label>
                             <select 
                                 v-model="status" 
                                 @change="handleSearch"
                                 class="w-full py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition"
                             >
-                                <option value="">كل الحالات</option>
-                                <option value="pending">قيد الانتظار</option>
-                                <option value="approved">معتمد</option>
-                                <option value="converted_to_invoice">تم التحويل لفاتورة</option>
-                                <option value="draft">مسودة</option>
-                                <option value="pending_approval">بانتظار الاعتماد</option>
-                                <option value="partially_received">مستلم جزئياً</option>
-                                <option value="received">مستلم</option>
-                                <option value="cancelled">ملغى</option>
+                                <option value="">{{ $t('p_orders_index.all_statuses') }}</option>
+                                <option value="pending">{{ $t('p_orders_index.pending') }}</option>
+                                <option value="approved">{{ $t('p_orders_index.approved') }}</option>
+                                <option value="converted_to_invoice">{{ $t('p_orders_index.converted_to_an_invoice') }}</option>
+                                <option value="draft">{{ $t('p_orders_index.draft') }}</option>
+                                <option value="pending_approval">{{ $t('p_orders_index.awaiting_approval') }}</option>
+                                <option value="partially_received">{{ $t('p_orders_index.partially_received') }}</option>
+                                <option value="received">{{ $t('p_orders_index.received') }}</option>
+                                <option value="cancelled">{{ $t('p_orders_index.cancelled') }}</option>
                             </select>
                         </div>
 
@@ -139,12 +141,12 @@ const formatCurrency = (val) => {
                                 @click="handleSearch"
                                 class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs"
                             >
-                                تطبيق
+                                {{ $t('p_orders_index.apply') }}
                             </button>
                             <button 
                                 @click="resetFilter"
                                 class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition"
-                                title="إعادة تعيين"
+                                :title="$t('p_orders_index.reset')"
                             >
                                 <ArrowPathIcon class="w-4 h-4" />
                             </button>
@@ -156,19 +158,19 @@ const formatCurrency = (val) => {
             <!-- KPI Cards -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <span class="text-xs font-bold text-slate-500">إجمالي أوامر الشراء</span>
+                    <span class="text-xs font-bold text-slate-500">{{ $t('p_orders_index.total_purchase_orders') }}</span>
                     <h3 class="text-xl font-black text-slate-900 mt-1">{{ stats?.total_orders || 0 }}</h3>
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <span class="text-xs font-bold text-slate-500">الأوامر المعلقة</span>
+                    <span class="text-xs font-bold text-slate-500">{{ $t('p_orders_index.pending_orders') }}</span>
                     <h3 class="text-xl font-black text-amber-600 mt-1">{{ stats?.pending_orders || 0 }}</h3>
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <span class="text-xs font-bold text-slate-500">الأوامر المعتمدة</span>
+                    <span class="text-xs font-bold text-slate-500">{{ $t('p_orders_index.approved_orders') }}</span>
                     <h3 class="text-xl font-black text-indigo-600 mt-1">{{ stats?.approved_orders || 0 }}</h3>
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <span class="text-xs font-bold text-slate-500">إجمالي قيمة الأوامر</span>
+                    <span class="text-xs font-bold text-slate-500">{{ $t('p_orders_index.total_order_value') }}</span>
                     <h3 class="text-xl font-black text-emerald-600 font-mono mt-1">{{ formatCurrency(stats?.total_orders_value) }} <span class="text-xs font-normal text-slate-400">﷼</span></h3>
                 </div>
             </div>
@@ -179,13 +181,13 @@ const formatCurrency = (val) => {
                     <table class="w-full text-right text-xs">
                         <thead>
                             <tr class="bg-slate-50/50 border-b border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <th class="py-4 px-6">رقم الأمر</th>
-                                <th class="py-4 px-6">المورد</th>
-                                <th class="py-4 px-6">تاريخ الطلب</th>
-                                <th class="py-4 px-6">التسليم المتوقع</th>
-                                <th class="py-4 px-6">القيمة الإجمالية</th>
-                                <th class="py-4 px-6 text-center">الحالة</th>
-                                <th class="py-4 px-6 text-center">الإجراءات</th>
+                                <th class="py-4 px-6">{{ $t('p_orders_index.order_number') }}</th>
+                                <th class="py-4 px-6">{{ $t('p_orders_index.supplier') }}</th>
+                                <th class="py-4 px-6">{{ $t('p_orders_index.order_date') }}</th>
+                                <th class="py-4 px-6">{{ $t('p_orders_index.expected_delivery') }}</th>
+                                <th class="py-4 px-6">{{ $t('p_orders_index.total_value') }}</th>
+                                <th class="py-4 px-6 text-center">{{ $t('p_orders_index.status') }}</th>
+                                <th class="py-4 px-6 text-center">{{ $t('p_orders_index.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 text-slate-700">
@@ -213,7 +215,7 @@ const formatCurrency = (val) => {
                                     <StatusBadge :status="order.status" />
                                 </td>
                                 <td class="py-4 px-6 text-center">
-                                    <Link :href="route('purchases.orders.show', order.id)" class="px-3 py-1 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs me-1">فتح</Link>
+                                    <Link :href="route('purchases.orders.show', order.id)" class="px-3 py-1 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs me-1">{{ $t('p_orders_index.open') }}</Link>
                                     <RowActions :edit="['draft', 'rejected'].includes(order.status) && $can('purchases.orders.edit') ? route('purchases.orders.edit', order.id) : null" :remove="['draft', 'pending_approval', 'approved', 'rejected', 'cancelled'].includes(order.status) && $can('purchases.orders.cancel') ? route('purchases.orders.destroy', order.id) : null" :confirm="`نقل أمر الشراء ${order.order_number} إلى سلة المحذوفات؟`" />
                                     <button 
                                         v-if="['pending', 'approved'].includes(order.status) && $can('purchases.orders.convert')"
@@ -221,13 +223,13 @@ const formatCurrency = (val) => {
                                         class="px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition-colors inline-flex items-center gap-1"
                                     >
                                         <ArrowRightCircleIcon class="w-3.5 h-3.5 rtl:rotate-180" />
-                                        <span>تحويل لفاتورة شراء</span>
+                                        <span>{{ $t('p_orders_index.convert_to_a_purchase_invoice') }}</span>
                                     </button>
                                 </td>
                             </tr>
                             <tr v-if="!orders.data || orders.data.length === 0">
                                 <td colspan="7" class="py-12 text-center text-slate-400">
-                                    لا توجد أوامر شراء مسجلة.
+                                    {{ $t('p_orders_index.no_purchase_orders_recorded') }}
                                 </td>
                             </tr>
                         </tbody>
@@ -237,7 +239,7 @@ const formatCurrency = (val) => {
                 <!-- Pagination -->
                 <div v-if="orders?.links && orders.links.length > 3" class="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div class="text-xs text-slate-500 font-medium">
-                        عرض <span class="font-bold text-slate-700">{{ orders.from || 0 }}</span> إلى <span class="font-bold text-slate-700">{{ orders.to || 0 }}</span> من إجمالي <span class="font-bold text-slate-700">{{ orders.total }}</span> أمر
+                        {{ $t('p_orders_index.showing') }} <span class="font-bold text-slate-700">{{ orders.from || 0 }}</span> {{ $t('p_orders_index.to') }} <span class="font-bold text-slate-700">{{ orders.to || 0 }}</span> {{ $t('p_orders_index.of') }} <span class="font-bold text-slate-700">{{ orders.total }}</span> {{ $t('p_orders_index.orders') }}
                     </div>
                     <div class="flex items-center gap-1">
                         <template v-for="(link, i) in orders.links" :key="i">

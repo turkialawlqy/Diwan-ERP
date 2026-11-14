@@ -41,22 +41,22 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="سندات صرف الموردين" />
+        <Head :title="$t('p_payments_index.supplier_payment_vouchers')" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
-            <PageHeader year-scoped title="سندات صرف الموردين" :crumbs="[{ label: 'المشتريات' }, { label: 'سندات صرف الموردين' }]">
+            <PageHeader year-scoped :title="$t('p_payments_index.supplier_payment_vouchers')" :crumbs="[{ label: 'المشتريات' }, { label: 'سندات صرف الموردين' }]">
 <template #actions>
 <button 
                         @click="handleSearch"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-xs"
-                        title="تحديث البيانات"
+                        :title="$t('p_payments_index.refresh_data')"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
                     </button>
 <Link v-if="$can('purchases.payments.create')" :href="route('purchases.payments.create')" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-indigo-500/20 transition-all flex items-center gap-1.5">
                         <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>سند صرف جديد</span>
+                        <span>{{ $t('p_payments_index.new_payment_voucher') }}</span>
                     </Link>
 </template>
 </PageHeader>
@@ -64,11 +64,11 @@ const formatCurrency = (val) => {
             <!-- KPI Cards -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <span class="text-xs font-bold text-slate-500">عدد سندات الصرف</span>
+                    <span class="text-xs font-bold text-slate-500">{{ $t('p_payments_index.number_of_payment_vouchers') }}</span>
                     <h3 class="text-xl font-black text-slate-900 mt-1">{{ stats?.total_payments_count || 0 }}</h3>
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <span class="text-xs font-bold text-slate-500">إجمالي المبالغ المصروفة</span>
+                    <span class="text-xs font-bold text-slate-500">{{ $t('p_payments_index.total_amounts_paid') }}</span>
                     <h3 class="text-xl font-black text-emerald-600 font-mono mt-1">{{ formatCurrency(stats?.total_paid_amount) }} <span class="text-xs font-normal text-slate-400">﷼</span></h3>
                 </div>
             </div>
@@ -79,13 +79,13 @@ const formatCurrency = (val) => {
                     <table class="w-full text-right text-xs">
                         <thead>
                             <tr class="bg-slate-50/50 border-b border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <th class="py-4 px-6">رقم السند</th>
-                                <th class="py-4 px-6">المورد</th>
-                                <th class="py-4 px-6">فاتورة الشراء</th>
-                                <th class="py-4 px-6">تاريخ السند</th>
-                                <th class="py-4 px-6">طريقة الصرف</th>
-                                <th class="py-4 px-6">رقم المرجع / التحويل</th>
-                                <th class="py-4 px-6 text-end">المبلغ المصروف</th>
+                                <th class="py-4 px-6">{{ $t('p_payments_index.voucher_number') }}</th>
+                                <th class="py-4 px-6">{{ $t('p_payments_index.supplier') }}</th>
+                                <th class="py-4 px-6">{{ $t('p_payments_index.purchase_invoice') }}</th>
+                                <th class="py-4 px-6">{{ $t('p_payments_index.voucher_date') }}</th>
+                                <th class="py-4 px-6">{{ $t('p_payments_index.payment_method') }}</th>
+                                <th class="py-4 px-6">{{ $t('p_payments_index.reference_transfer_number') }}</th>
+                                <th class="py-4 px-6 text-end">{{ $t('p_payments_index.amount_paid_out') }}</th>
                                 <th class="py-4 px-6"></th>
                             </tr>
                         </thead>
@@ -105,14 +105,14 @@ const formatCurrency = (val) => {
                                     <span v-if="pay.purchase_invoice">
                                         {{ pay.purchase_invoice.invoice_number }}
                                     </span>
-                                    <span v-else class="text-slate-400">سند عام على الحساب</span>
+                                    <span v-else class="text-slate-400">{{ $t('p_payments_index.general_voucher_on_account') }}</span>
                                 </td>
                                 <td class="py-4 px-6 font-mono text-xs text-slate-600">
                                     {{ pay.payment_date ? pay.payment_date.substring(0, 10) : '-' }}
                                 </td>
                                 <td class="py-4 px-6">
                                     <span class="px-2.5 py-0.5 rounded-full text-3xs font-bold bg-slate-100 text-slate-700">
-                                        {{ pay.payment_method === 'bank_transfer' ? 'تحويل بنكي' : (pay.payment_method === 'cash' ? 'نقداً' : pay.payment_method) }}
+                                        {{ pay.payment_method === 'bank_transfer' ? $t('s_payments.bank_transfer') : (pay.payment_method === 'cash' ? $t('s_payments.cash') : pay.payment_method) }}
                                     </span>
                                 </td>
                                 <td class="py-4 px-6 font-mono text-xs text-slate-500">
@@ -121,11 +121,11 @@ const formatCurrency = (val) => {
                                 <td class="py-4 px-6 font-mono font-black text-slate-900 text-end">
                                     {{ formatCurrency(pay.amount) }} <span class="text-xs font-normal">﷼</span>
                                 </td>
-                                <td class="py-4 px-6"><div class="flex items-center gap-3"><ShareDocument v-if="$can('purchases.payments.print') && pay.status !== 'cancelled'" type="payment" :id="pay.id" compact /><CancelDocument v-if="$can('purchases.payments.cancel') || pay.status === 'cancelled'" :url="route('purchases.payments.cancel', pay.id)" label="سند الصرف" :status="pay.status" /></div></td>
+                                <td class="py-4 px-6"><div class="flex items-center gap-3"><ShareDocument v-if="$can('purchases.payments.print') && pay.status !== 'cancelled'" type="payment" :id="pay.id" compact /><CancelDocument v-if="$can('purchases.payments.cancel') || pay.status === 'cancelled'" :url="route('purchases.payments.cancel', pay.id)" :label="$t('p_payments_index.payment_voucher')" :status="pay.status" /></div></td>
                             </tr>
                             <tr v-if="!payments.data || payments.data.length === 0">
                                 <td colspan="8" class="py-12 text-center text-slate-400">
-                                    لا توجد سندات صرف مسجلة.
+                                    {{ $t('p_payments_index.no_payment_vouchers_recorded') }}
                                 </td>
                             </tr>
                         </tbody>
@@ -135,7 +135,7 @@ const formatCurrency = (val) => {
                 <!-- Pagination -->
                 <div v-if="payments?.links && payments.links.length > 3" class="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div class="text-xs text-slate-500 font-medium">
-                        عرض <span class="font-bold text-slate-700">{{ payments.from || 0 }}</span> إلى <span class="font-bold text-slate-700">{{ payments.to || 0 }}</span> من إجمالي <span class="font-bold text-slate-700">{{ payments.total }}</span> سند
+                        {{ $t('p_payments_index.showing') }} <span class="font-bold text-slate-700">{{ payments.from || 0 }}</span> {{ $t('p_payments_index.to') }} <span class="font-bold text-slate-700">{{ payments.to || 0 }}</span> {{ $t('p_payments_index.of') }} <span class="font-bold text-slate-700">{{ payments.total }}</span> {{ $t('p_payments_index.vouchers') }}
                     </div>
                     <div class="flex items-center gap-1">
                         <template v-for="(link, i) in payments.links" :key="i">

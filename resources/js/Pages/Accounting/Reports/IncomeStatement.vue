@@ -18,8 +18,8 @@ const pct = (part, whole) => (Number(whole) ? `${(Number(part) / Number(whole) *
 
 <template>
     <AppLayout>
-        <Head title="قائمة الدخل" />
-        <PageHeader title="قائمة الدخل (الأرباح والخسائر)" :subtitle="`من ${filters.start_date} إلى ${filters.end_date}`" :crumbs="[{ label: 'المحاسبة' }, { label: 'القوائم المالية' }]">
+        <Head :title="$t('a_income.income_statement')" />
+        <PageHeader :title="$t('a_income.income_statement_profit_and_loss')" :subtitle="$t('a_rep.range', { from: filters.start_date, to: filters.end_date })" :crumbs="[{ label: 'المحاسبة' }, { label: 'القوائم المالية' }]">
             <template #actions>
                 <button @click="printPage" class="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">{{ $t('ui.print') }}</button>
                 <ExportButtons report="income-statement" :params="{ start_date: filters.start_date, end_date: filters.end_date, cost_center_id: filters.cost_center_id, compare: filters.compare }" permission="accounting.statements.export" />
@@ -27,17 +27,17 @@ const pct = (part, whole) => (Number(whole) ? `${(Number(part) / Number(whole) *
         </PageHeader>
 
         <DateRangeFilter route-name="accounting.reports.income-statement" :filters="filters" :extra="{ cost_center_id: costCenter || undefined, compare: compare || undefined }">
-            <label><span class="block font-bold text-slate-600 mb-1">مقارنة بـ</span>
+            <label><span class="block font-bold text-slate-600 mb-1">{{ $t('a_income.compare_with') }}</span>
                 <select v-model="compare" data-compare class="rounded-xl border-slate-200 text-xs">
-                    <option value="">بدون مقارنة</option>
-                    <option value="previous">الفترة السابقة</option>
-                    <option value="year">نفس الفترة من السنة السابقة</option>
+                    <option value="">{{ $t('a_income.no_comparison') }}</option>
+                    <option value="previous">{{ $t('a_income.previous_period') }}</option>
+                    <option value="year">{{ $t('a_income.same_period_last_year') }}</option>
                     <option value="budget">{{ $t('repgap.vs_budget') }}</option>
                 </select>
             </label>
-            <label><span class="block font-bold text-slate-600 mb-1">مركز التكلفة</span>
+            <label><span class="block font-bold text-slate-600 mb-1">{{ $t('a_income.cost_center') }}</span>
                 <select v-model="costCenter" class="rounded-xl border-slate-200 text-xs">
-                    <option value="">كل المراكز</option>
+                    <option value="">{{ $t('a_income.all_centers') }}</option>
                     <option v-for="c in costCenters" :key="c.id" :value="c.id">{{ c.code }} - {{ c.name_ar }}</option>
                 </select>
             </label>
@@ -45,14 +45,14 @@ const pct = (part, whole) => (Number(whole) ? `${(Number(part) / Number(whole) *
 
         <ComparisonTable v-if="comparison" :comparison="comparison" />
         <div v-else class="bg-white border border-slate-200 rounded-2xl p-5">
-            <StatementSection title="الإيرادات" :rows="report.revenue.rows" :total="report.total_revenue" :ledger-query="filters" />
-            <StatementSection title="المصروفات والتكاليف" :rows="report.expense.rows" :total="report.total_expense" :ledger-query="filters" />
+            <StatementSection :title="$t('a_income.revenue')" :rows="report.revenue.rows" :total="report.total_revenue" :ledger-query="filters" />
+            <StatementSection :title="$t('a_income.expenses_and_costs')" :rows="report.expense.rows" :total="report.total_expense" :ledger-query="filters" />
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 text-xs">
-                <div class="rounded-xl bg-slate-50 p-3"><p class="text-slate-500">تكلفة المبيعات</p><p class="font-mono font-black text-slate-800 mt-1">{{ amount(report.cost_of_sales) }}</p></div>
-                <div class="rounded-xl bg-slate-50 p-3"><p class="text-slate-500">مجمل الربح</p><p class="font-mono font-black text-slate-800 mt-1">{{ amount(report.gross_profit) }}</p></div>
+                <div class="rounded-xl bg-slate-50 p-3"><p class="text-slate-500">{{ $t('a_income.cost_of_sales') }}</p><p class="font-mono font-black text-slate-800 mt-1">{{ amount(report.cost_of_sales) }}</p></div>
+                <div class="rounded-xl bg-slate-50 p-3"><p class="text-slate-500">{{ $t('a_income.gross_profit') }}</p><p class="font-mono font-black text-slate-800 mt-1">{{ amount(report.gross_profit) }}</p></div>
                 <div :class="[report.net_profit >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700', 'rounded-xl p-3']">
-                    <p>{{ report.net_profit >= 0 ? 'صافي الربح' : 'صافي الخسارة' }}</p>
+                    <p>{{ report.net_profit >= 0 ? $t('a_rep.net_profit') : $t('a_rep.net_loss') }}</p>
                     <p class="font-mono font-black text-lg mt-1">{{ amount(report.net_profit) }}</p>
                 </div>
             </div>

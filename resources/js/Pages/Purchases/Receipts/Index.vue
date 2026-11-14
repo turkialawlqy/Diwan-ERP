@@ -1,8 +1,10 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { Head } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import DocumentTable from '@/Components/Documents/DocumentTable.vue';
+const { t } = useI18n();
 
 defineProps({ receipts: Object, filters: Object });
 const columns = [
@@ -19,8 +21,8 @@ const statuses = [{ value: 'received', label: 'غير مفوتر' }, { value: 'i
 
 <template>
     <AppLayout>
-        <Head title="استلام البضاعة" />
-        <PageHeader year-scoped title="استلام البضاعة (GRN)" subtitle="البضاعة المستلمة غير المفوترة تظهر في حساب «بضاعة مستلمة لم تصل فواتيرها»" :crumbs="[{ label: 'المشتريات' }, { label: 'الاستلامات' }]" />
+        <Head :title="$t('p_receipts_index.goods_receipt')" />
+        <PageHeader year-scoped :title="$t('p_receipts_index.goods_receipt_grn')" :subtitle="$t('p_receipts_index.received_uninvoiced_goods_appear')" :crumbs="[{ label: 'المشتريات' }, { label: 'الاستلامات' }]" />
         <DocumentTable :paginator="receipts" :columns="columns" :filters="filters" :statuses="statuses" search-route="purchases.receipts.index" :link="(r) => route('purchases.receipts.show', r.id)" />
     </AppLayout>
 </template>

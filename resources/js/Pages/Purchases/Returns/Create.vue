@@ -28,25 +28,25 @@ const save = () => form.transform((d) => ({ ...d, items: d.items.filter((i) => N
 
 <template>
     <AppLayout>
-        <Head title="مرتجع مشتريات" />
-        <PageHeader title="مرتجع مشتريات" :subtitle="`الرقم المتوقع: ${suggestedNumber}`" :crumbs="[{ label: 'المشتريات' }, { label: 'المرتجعات', href: route('purchases.returns.index') }, { label: 'جديد' }]" />
+        <Head :title="$t('p_returns_create.purchase_return')" />
+        <PageHeader :title="$t('p_returns_create.purchase_return')" :subtitle="`الرقم المتوقع: ${suggestedNumber}`" :crumbs="[{ label: 'المشتريات' }, { label: 'المرتجعات', href: route('purchases.returns.index') }, { label: 'جديد' }]" />
         <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <Field label="فاتورة الشراء" class="md:col-span-2">
+                <Field :label="$t('p_returns_create.purchase_invoice')" class="md:col-span-2">
                     <select :value="invoice?.id" @change="pick" class="w-full rounded-xl border-slate-200 text-xs">
-                        <option value="">اختر الفاتورة...</option>
+                        <option value="">{{ $t('p_returns_create.choose_the_invoice') }}</option>
                         <option v-for="inv in recentInvoices" :key="inv.id" :value="inv.id">{{ inv.invoice_number }} — {{ inv.supplier?.name }} ({{ money(inv.total) }})</option>
                     </select>
                 </Field>
-                <Field label="التاريخ"><DatePicker v-model="form.return_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="التسوية">
-                    <select v-model="form.settlement" class="w-full rounded-xl border-slate-200 text-xs"><option value="credit">تخفيض رصيد المورد</option><option value="cash">استرداد نقدي</option><option value="bank_transfer">استرداد بنكي</option></select>
+                <Field :label="$t('p_returns_create.date')"><DatePicker v-model="form.return_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('p_returns_create.settlement')">
+                    <select v-model="form.settlement" class="w-full rounded-xl border-slate-200 text-xs"><option value="credit">{{ $t('p_returns_create.reduce_the_supplier_balance') }}</option><option value="cash">{{ $t('p_returns_create.cash_refund') }}</option><option value="bank_transfer">{{ $t('p_returns_create.bank_refund') }}</option></select>
                 </Field>
-                <Field v-if="form.settlement !== 'credit'" label="الحساب"><SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" label="name" placeholder="الافتراضي" /></Field>
-                <Field label="السبب" class="md:col-span-3"><input v-model="form.reason" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field v-if="form.settlement !== 'credit'" :label="$t('p_returns_create.account')"><SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('p_returns_create.default')" /></Field>
+                <Field :label="$t('p_returns_create.reason')" class="md:col-span-3"><input v-model="form.reason" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
             </div>
             <div class="overflow-x-auto" v-if="invoice"><table class="w-full text-xs">
-                <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الصنف</th><th class="px-3 py-2">القابل للإرجاع</th><th class="px-3 py-2 text-end">صافي سعر الوحدة</th><th class="px-3 py-2 w-32">كمية المرتجع</th></tr></thead>
+                <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">{{ $t('p_returns_create.item') }}</th><th class="px-3 py-2">{{ $t('p_returns_create.returnable') }}</th><th class="px-3 py-2 text-end">{{ $t('p_returns_create.net_unit_price') }}</th><th class="px-3 py-2 w-32">{{ $t('p_returns_create.return_quantity') }}</th></tr></thead>
                 <tbody>
                     <tr v-for="i in form.items" :key="i.purchase_invoice_item_id" class="border-t border-slate-100">
                         <td class="px-3 py-2">{{ i.name }}</td>
@@ -58,8 +58,8 @@ const save = () => form.transform((d) => ({ ...d, items: d.items.filter((i) => N
             </table></div>
             <p v-for="(msg, key) in form.errors" :key="key" class="text-xs text-rose-600">{{ msg }}</p>
             <div class="flex justify-between items-center">
-                <span class="text-xs">إجمالي المرتجع شامل الضريبة: <b class="font-mono">{{ money(total) }}</b></span>
-                <button @click="save" :disabled="form.processing || !invoice || total <= 0" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40">تسجيل المرتجع</button>
+                <span class="text-xs">{{ $t('p_returns_create.total_returned_including_tax') }} <b class="font-mono">{{ money(total) }}</b></span>
+                <button @click="save" :disabled="form.processing || !invoice || total <= 0" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40">{{ $t('p_returns_create.record_the_return') }}</button>
             </div>
         </div>
     </AppLayout>

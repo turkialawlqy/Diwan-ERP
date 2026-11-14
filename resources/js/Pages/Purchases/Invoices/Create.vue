@@ -248,7 +248,7 @@ const submitNewSupplier = async () => {
             suppliersList.value.unshift(created);
             selectSupplier(created);
             closeSupplierModal();
-            triggerToast(`تمت إضافة المورد "${created.name}" وتحديده للفاتورة بنجاح.`);
+            triggerToast(t('p_common.supplier_added', { name: created.name }));
         }
     } catch (err) {
         if (err.response && err.response.data && err.response.data.errors) {
@@ -386,7 +386,7 @@ const submitNewProduct = async () => {
             }
 
             closeProductModal();
-            triggerToast(`تمت إضافة الصنف "${created.name_ar}" وإدراجه في الفاتورة بنجاح.`);
+            triggerToast(t('p_common.item_added', { name: created.name_ar }));
         }
     } catch (err) {
         if (err.response && err.response.data && err.response.data.errors) {

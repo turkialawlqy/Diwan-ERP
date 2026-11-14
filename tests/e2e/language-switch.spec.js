@@ -146,6 +146,16 @@ test('sales list and form pages follow the language', async ({ page }) => {
         ['/accounting/reconciliations', 'Bank reconciliations'],
         ['/accounting/cost-centers', 'Cost centers'],
         ['/accounting/budgets', 'Budgets'],
+        ['/accounting/reports/vat-return', 'VAT return'],
+        ['/accounting/trial-balance', 'Trial balance'],
+        ['/purchases/invoices', 'Total purchases'],
+        ['/purchases/orders', 'Total purchase orders'],
+        ['/purchases/suppliers', 'Total suppliers'],
+        ['/purchases/payments', 'Supplier payment vouchers'],
+        ['/purchases/landed-costs', 'Landed costs'],
+        ['/purchases/receipts', 'Goods receipt'],
+        ['/purchases/requests', 'Purchase requests'],
+        ['/purchases/returns', 'Purchase returns'],
     ]) {
         await page.goto(url);
         await expect(page.getByText(text).first()).toBeVisible();

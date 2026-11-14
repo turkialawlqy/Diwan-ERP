@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import { Head, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -6,26 +7,27 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import ExportButtons from '@/Components/UI/ExportButtons.vue';
 import { money } from '@/utils/format';
 import { computed, reactive } from 'vue';
+const { t } = useI18n();
 
 const props = defineProps({ report: Object, filters: Object });
 const form = reactive({ ...props.filters });
 const apply = () => router.get(route('accounting.reports.aging'), form, { preserveState: true });
 const lastKey = computed(() => props.report.columns[props.report.columns.length - 1][0]);
-const columns = computed(() => [...props.report.columns, ['total', 'الإجمالي'], ...(props.report.past ? [['collected_after', null]] : [])]);
+const columns = computed(() => [...props.report.columns, ['total', t('a_rep.total')], ...(props.report.past ? [['collected_after', null]] : [])]);
 </script>
 
 <template>
     <AppLayout>
-        <Head title="أعمار الديون" />
-        <PageHeader :title="filters.kind === 'payables' ? 'أعمار الذمم الدائنة (الموردون)' : 'أعمار الذمم المدينة (العملاء)'" :subtitle="`كما في ${filters.as_of}`" :crumbs="[{ label: 'المحاسبة' }, { label: 'أعمار الديون' }]">
+        <Head :title="$t('a_aging.debt_aging')" />
+        <PageHeader :title="filters.kind === 'payables' ? $t('a_aging.payables') : $t('a_aging.receivables')" :subtitle="$t('a_rep.as_of', { d: filters.as_of })" :crumbs="[{ label: 'المحاسبة' }, { label: 'أعمار الديون' }]">
             <template #actions><ExportButtons report="aging" :params="{ kind: filters.kind, as_of: filters.as_of, buckets: filters.buckets }" permission="accounting.aging.export" /></template>
         </PageHeader>
 
         <form @submit.prevent="apply" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-wrap items-end gap-3 text-xs mb-4">
-            <label><span class="block font-bold text-slate-600 mb-1">النوع</span>
-                <select v-model="form.kind" class="rounded-xl border-slate-200 text-xs"><option value="receivables">العملاء</option><option value="payables">الموردون</option></select>
+            <label><span class="block font-bold text-slate-600 mb-1">{{ $t('a_aging.type') }}</span>
+                <select v-model="form.kind" class="rounded-xl border-slate-200 text-xs"><option value="receivables">{{ $t('a_aging.customers') }}</option><option value="payables">{{ $t('a_aging.suppliers') }}</option></select>
             </label>
-            <label><span class="block font-bold text-slate-600 mb-1">كما في</span><DatePicker v-model="form.as_of" class="rounded-xl border-slate-200 text-xs" /></label>
+            <label><span class="block font-bold text-slate-600 mb-1">{{ $t('a_aging.as_at') }}</span><DatePicker v-model="form.as_of" class="rounded-xl border-slate-200 text-xs" /></label>
             <label><span class="block font-bold text-slate-600 mb-1">{{ $t('aging3.buckets') }}</span><input v-model="form.buckets" dir="ltr" class="rounded-xl border-slate-200 text-xs w-40" placeholder="30,60,90" /></label>
             <button class="rounded-xl bg-indigo-600 text-white font-bold px-5 py-2">{{ $t('ui.apply') }}</button>
         </form>

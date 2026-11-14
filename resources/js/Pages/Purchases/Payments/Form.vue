@@ -87,48 +87,48 @@ const submitPayment = () => form.transform((d) => {
 
 <template>
     <AppLayout>
-        <Head title="سند صرف جديد" />
-        <PageHeader title="سند صرف جديد" :crumbs="[{ label: 'المشتريات' }, { label: 'مدفوعات الموردين', href: route('purchases.payments.index') }, { label: 'جديد' }]" />
+        <Head :title="$t('p_payments_form.new_payment_voucher')" />
+        <PageHeader :title="$t('p_payments_form.new_payment_voucher')" :crumbs="[{ label: 'المشتريات' }, { label: 'مدفوعات الموردين', href: route('purchases.payments.index') }, { label: 'جديد' }]" />
 
         <div class="bg-white border border-slate-200/80 rounded-2xl p-6">
             <form @submit.prevent="submitPayment" class="form-grid text-xs">
                             <div>
-                                <label class="block font-bold text-slate-700 mb-1">المورد <span class="text-rose-500">*</span></label>
-                                <SelectCreate v-model="form.supplier_id" :options="suppliers" entity="supplier" :label="(s) => `${s.name} (الرصيد: ${formatCurrency(s.current_balance)} ﷼)`" placeholder="اختر المورد" :allow-empty="false" required @update:modelValue="$nextTick(onSupplierChange)" />
+                                <label class="block font-bold text-slate-700 mb-1">{{ $t('p_payments_form.supplier') }} <span class="text-rose-500">*</span></label>
+                                <SelectCreate v-model="form.supplier_id" :options="suppliers" entity="supplier" :label="(s) => `${s.name} (${$t('p_payments_form.balance')}: ${formatCurrency(s.current_balance)} ﷼)`" :placeholder="$t('p_payments_form.choose_the_supplier')" :allow-empty="false" required @update:modelValue="$nextTick(onSupplierChange)" />
                             </div>
             
                             <div>
-                                <label class="block font-bold text-slate-700 mb-1">فاتورة الشراء (اختياري)</label>
+                                <label class="block font-bold text-slate-700 mb-1">{{ $t('p_payments_form.purchase_invoice_optional') }}</label>
                                 <select 
                                     v-model="form.purchase_invoice_id"
                                     @change="() => { const inv = filteredInvoices.find((i) => i.id === form.purchase_invoice_id); form.currency_code = inv?.currency_code || ''; form.exchange_rate = ''; }" 
                                     class="w-full rounded-xl border border-slate-200 py-2 font-medium"
                                 >
-                                    <option value="">سداد عام على رصيد الحساب</option>
+                                    <option value="">{{ $t('p_payments_form.general_payment_on_the_account_b') }}</option>
                                     <option v-for="inv in filteredInvoices" :key="inv.id" :value="inv.id">
-                                        {{ inv.invoice_number }} (المتبقي: {{ formatCurrency(inv.remaining_amount) }} ﷼)
+                                        {{ inv.invoice_number }} ({{ $t('s_payments.remaining') }}: {{ formatCurrency(inv.remaining_amount) }} ﷼)
                                     </option>
                                 </select>
                             </div>
             
                             <p v-if="whtRate > 0" class="col-span-full rounded-xl bg-amber-50 text-amber-800 px-3 py-2 font-bold" data-wht-note>
-                                مورد غير مقيم: تُستقطع ضريبة {{ whtRate }}% = {{ formatCurrency(whtAmount) }} ﷼، والمدفوع فعليًا {{ formatCurrency((Number(form.amount) || 0) - whtAmount) }} ﷼ (تُورَّد للهيئة).
+                                {{ $t('p_payments_form.wht_note', { rate: whtRate, tax: formatCurrency(whtAmount), paid: formatCurrency((Number(form.amount) || 0) - whtAmount) }) }}
                             </p>
 
                             <div v-if="!form.purchase_invoice_id && openInvoices.length" class="col-span-full border border-slate-200 rounded-xl p-3 space-y-2" data-allocation>
                                 <div class="flex flex-wrap items-center justify-between gap-2">
-                                    <span class="font-bold text-slate-700">توزيع المبلغ على عدة فواتير (اختياري)</span>
+                                    <span class="font-bold text-slate-700">{{ $t('p_payments_form.spread_the_amount_over_several_i') }}</span>
                                     <span class="flex items-center gap-3">
-                                        <label class="inline-flex items-center gap-1.5"><input type="checkbox" v-model="form.auto_allocate" :disabled="allocated > 0" /> الأقدم أولًا تلقائيًا</label>
-                                        <button type="button" @click="distribute" data-distribute class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold">وزّع حسب المبلغ</button>
+                                        <label class="inline-flex items-center gap-1.5"><input type="checkbox" v-model="form.auto_allocate" :disabled="allocated > 0" /> {{ $t('p_payments_form.oldest_first_automatically') }}</label>
+                                        <button type="button" @click="distribute" data-distribute class="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold">{{ $t('p_payments_form.spread_by_amount') }}</button>
                                     </span>
                                 </div>
                                 <div v-for="inv in openInvoices" :key="inv.id" class="flex items-center gap-3" data-allocation-row>
                                     <span class="flex-1 font-mono">{{ inv.invoice_number }}</span>
-                                    <span class="text-slate-500">المتبقي {{ formatCurrency(inv.remaining_amount) }}</span>
+                                    <span class="text-slate-500">{{ $t('p_payments_form.remaining') }} {{ formatCurrency(inv.remaining_amount) }}</span>
                                     <input v-model="alloc[inv.id]" type="text" inputmode="decimal" data-num placeholder="0.00" class="w-28 rounded-lg border border-slate-200 px-2 py-1 font-mono text-center" />
                                 </div>
-                                <p class="text-slate-500">الموزَّع {{ formatCurrency(allocated) }} من {{ formatCurrency(form.amount) }}، والباقي يبقى دفعة على حساب المورد.</p>
+                                <p class="text-slate-500">{{ $t('p_payments_form.allocated_note', { a: formatCurrency(allocated), b: formatCurrency(form.amount) }) }}</p>
                                 <p v-if="form.errors.allocations" class="text-rose-600 font-bold">{{ form.errors.allocations }}</p>
                             </div>
 
@@ -136,7 +136,7 @@ const submitPayment = () => form.transform((d) => {
             
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">المبلغ المصروف <span class="text-rose-500">*</span></label>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ $t('p_payments_form.amount_paid_out') }} <span class="text-rose-500">*</span></label>
                                     <input 
                                         v-model.number="form.amount" 
                                         type="text" inputmode="decimal" data-num 
@@ -148,7 +148,7 @@ const submitPayment = () => form.transform((d) => {
                                     />
                                 </div>
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">تاريخ السند <span class="text-rose-500">*</span></label>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ $t('p_payments_form.voucher_date') }} <span class="text-rose-500">*</span></label>
                                     <DatePicker 
                                         v-model="form.payment_date" 
                                         required 
@@ -158,19 +158,19 @@ const submitPayment = () => form.transform((d) => {
             
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">طريقة الصرف</label>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ $t('p_payments_form.payment_method') }}</label>
                                     <select 
                                         v-model="form.payment_method" 
                                         class="w-full rounded-xl border border-slate-200 py-2 font-medium"
                                     >
-                                        <option value="bank_transfer">تحويل بنكي</option>
-                                        <option value="cash">نقداً</option>
-                                        <option value="cheque">شيك</option>
-                                        <option value="card">بطاقة</option>
+                                        <option value="bank_transfer">{{ $t('p_payments_form.bank_transfer') }}</option>
+                                        <option value="cash">{{ $t('p_payments_form.cash') }}</option>
+                                        <option value="cheque">{{ $t('p_payments_form.cheque') }}</option>
+                                        <option value="card">{{ $t('p_payments_form.card') }}</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block font-bold text-slate-700 mb-1">رقم المرجع أو التحويل</label>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ $t('p_payments_form.reference_or_transfer_number') }}</label>
                                     <input 
                                         v-model="form.reference_number" 
                                         type="text" 
@@ -179,30 +179,30 @@ const submitPayment = () => form.transform((d) => {
                                     />
                                 </div>
                                 <div v-if="form.payment_method === 'cheque'">
-                                    <label class="block font-bold text-slate-700 mb-1">تاريخ استحقاق الشيك (فارغ = حاضر)</label>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ $t('p_payments_form.cheque_due_date_empty_payable_no') }}</label>
                                     <DatePicker v-model="form.cheque_due_date" class="w-full rounded-xl border border-slate-200 px-3 py-2" />
                                     <p v-if="form.errors.cheque_due_date" class="text-rose-600 mt-1">{{ form.errors.cheque_due_date }}</p>
                                 </div>
                             </div>
             
                             <div>
-                                <label class="block font-bold text-slate-700 mb-1">البيان أو الملاحظات</label>
+                                <label class="block font-bold text-slate-700 mb-1">{{ $t('p_payments_form.description_or_notes') }}</label>
                                 <input 
                                     v-model="form.notes" 
                                     type="text" 
-                                    placeholder="ملاحظات السند..." 
+                                    :placeholder="$t('p_payments_form.voucher_notes')" 
                                     class="w-full rounded-xl border border-slate-200 px-3 py-2"
                                 />
                             </div>
             
                             <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                                <Link :href="route('purchases.payments.index')" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium">إلغاء</Link>
+                                <Link :href="route('purchases.payments.index')" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium">{{ $t('p_payments_form.cancel') }}</Link>
                                 <button 
                                     type="submit" 
                                     :disabled="form.processing" 
                                     class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-xs hover:shadow-indigo-500/20 disabled:opacity-50"
                                 >
-                                    حفظ السند
+                                    {{ $t('p_payments_form.save_voucher') }}
                                 </button>
                             </div>
                         </form>

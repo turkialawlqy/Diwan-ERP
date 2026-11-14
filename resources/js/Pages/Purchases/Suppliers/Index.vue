@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import ImportButton from '@/Components/UI/ImportButton.vue';
 import { ref } from 'vue';
@@ -21,6 +22,7 @@ import {
     PhoneIcon,
     EnvelopeIcon,
 } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 const props = defineProps({
     suppliers: Object,
@@ -34,7 +36,7 @@ const status = ref(props.filters?.status || '');
 const activeMenu = ref(null);
 
 const deleteSupplier = (supplier) => {
-    if (confirm(`هل أنت متأكد من حذف المورد "${supplier.name}"؟`)) {
+    if (confirm(t('p_suppliers_index.confirm_delete', { name: supplier.name }))) {
         router.delete(route('purchases.suppliers.destroy', supplier.id));
     }
 };
@@ -62,16 +64,16 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="إدارة الموردين" />
+        <Head :title="$t('p_suppliers_index.supplier_management')" />
 
         <div class="space-y-5" @click="activeMenu = null">
             <!-- Header Ribbon -->
-            <PageHeader title="الموردين" :crumbs="[{ label: 'المشتريات' }, { label: 'الموردين' }]">
+            <PageHeader :title="$t('p_suppliers_index.suppliers')" :crumbs="[{ label: 'المشتريات' }, { label: 'الموردين' }]">
 <template #actions>
 
                     <button 
                         @click="handleSearch"
-                        title="تحديث البيانات"
+                        :title="$t('p_suppliers_index.refresh_data')"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-xs transition-all"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
@@ -86,13 +88,13 @@ const formatCurrency = (val) => {
                         ]"
                     >
                         <MagnifyingGlassIcon class="w-4 h-4 text-indigo-600" />
-                        <span>البحث والتصفية</span>
+                        <span>{{ $t('p_suppliers_index.search_and_filter') }}</span>
                     </button>
                     <Link v-if="$can('purchases.suppliers.create')" :href="route('purchases.suppliers.create')" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150">
                         <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>إضافة مورد</span>
+                        <span>{{ $t('p_suppliers_index.add_supplier') }}</span>
                     </Link>
-<ImportButton v-if="$can('purchases.suppliers.create')" type="suppliers" title="استيراد الموردين من Excel" hint="عمود opening_balance اختياري: الرصيد الدائن الافتتاحي (للموردين الجدد فقط)." />
+<ImportButton v-if="$can('purchases.suppliers.create')" type="suppliers" :title="$t('p_suppliers_index.import_suppliers_from_excel')" :hint="$t('p_suppliers_index.the_opening_balance_column_is_op')" />
 </template>
 </PageHeader>
 
@@ -108,24 +110,24 @@ const formatCurrency = (val) => {
                 <div v-if="isFilterOpen" class="bg-white rounded-2xl border border-indigo-100/80 p-5 shadow-sm space-y-4">
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">بحث بالاسم / الشركة / الهاتف / الضريبي</label>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">{{ $t('p_suppliers_index.search_by_name_company_phone_tax') }}</label>
                             <input 
                                 v-model="search"
                                 @keyup.enter="handleSearch"
                                 type="text" 
-                                placeholder="اكتب للبحث..." 
+                                :placeholder="$t('p_suppliers_index.type_to_search')" 
                                 class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                             />
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">الحالة</label>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">{{ $t('p_suppliers_index.status') }}</label>
                             <select 
                                 v-model="status" 
                                 class="w-full text-xs rounded-xl border border-slate-200 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                             >
-                                <option value="">جميع الحالات</option>
-                                <option value="active">نشط</option>
-                                <option value="inactive">غير نشط</option>
+                                <option value="">{{ $t('p_suppliers_index.all_statuses') }}</option>
+                                <option value="active">{{ $t('p_suppliers_index.active') }}</option>
+                                <option value="inactive">{{ $t('p_suppliers_index.inactive') }}</option>
                             </select>
                         </div>
                         <div class="flex items-end gap-2">
@@ -133,13 +135,13 @@ const formatCurrency = (val) => {
                                 @click="handleSearch"
                                 class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
                             >
-                                تطبيق التصفية
+                                {{ $t('p_suppliers_index.apply_filter') }}
                             </button>
                             <button 
                                 @click="resetFilter"
                                 class="px-4 py-2.5 text-xs font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
                             >
-                                إعادة ضبط
+                                {{ $t('p_suppliers_index.reset') }}
                             </button>
                         </div>
                     </div>
@@ -149,15 +151,15 @@ const formatCurrency = (val) => {
             <!-- KPI Stats Cards -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي الموردين</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('p_suppliers_index.total_suppliers') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-slate-800">{{ stats?.total_suppliers || 0 }}</p>
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">المستحقات الحالية للموردين</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('p_suppliers_index.current_payables_to_suppliers') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-rose-500">{{ formatCurrency(stats?.total_payable) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">الموردين النشطين</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('p_suppliers_index.active_suppliers') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ stats?.active_suppliers || 0 }}</p>
                 </div>
             </div>
@@ -168,13 +170,13 @@ const formatCurrency = (val) => {
                     <table class="w-full text-right text-xs">
                         <thead>
                             <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <th class="py-4 px-6 text-start">اسم المورد</th>
-                                <th class="py-4 px-6 text-start">الشركة والنشاط</th>
-                                <th class="py-4 px-6 text-start">الرقم الضريبي</th>
-                                <th class="py-4 px-6 text-start">الهاتف / التواصل</th>
-                                <th class="py-4 px-6 text-start">الرصيد المستحق</th>
-                                <th class="py-4 px-6 text-center">الحالة</th>
-                                <th class="py-4 px-6 text-center">الإجراءات</th>
+                                <th class="py-4 px-6 text-start">{{ $t('p_suppliers_index.supplier_name') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('p_suppliers_index.company_and_activity') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('p_suppliers_index.tax_number') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('p_suppliers_index.phone_contact') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('p_suppliers_index.balance_due') }}</th>
+                                <th class="py-4 px-6 text-center">{{ $t('p_suppliers_index.status') }}</th>
+                                <th class="py-4 px-6 text-center">{{ $t('p_suppliers_index.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 text-slate-700">
@@ -220,21 +222,21 @@ const formatCurrency = (val) => {
                                                 : 'bg-slate-100 text-slate-600'
                                         ]"
                                     >
-                                        {{ supplier.status === 'active' ? 'نشط' : 'معطل' }}
+                                        {{ supplier.status === 'active' ? $t('s_common.active_m') : $t('s_common.disabled_m') }}
                                     </span>
                                 </td>
                                 <td class="py-4 px-6 text-center">
                                     <div class="flex items-center justify-center gap-1.5">
-                                        <Link :href="route('purchases.suppliers.statement', supplier.id)" class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="كشف حساب" data-supplier-statement>
+                                        <Link :href="route('purchases.suppliers.statement', supplier.id)" class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" :title="$t('p_suppliers_index.account_statement')" data-supplier-statement>
                                             <DocumentTextIcon class="w-4 h-4" />
                                         </Link>
-                                        <Link v-if="$can('purchases.suppliers.edit')" :href="route('purchases.suppliers.edit', supplier.id)" class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="تعديل">
+                                        <Link v-if="$can('purchases.suppliers.edit')" :href="route('purchases.suppliers.edit', supplier.id)" class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" :title="$t('p_suppliers_index.edit')">
                                             <PencilSquareIcon class="w-4 h-4" />
                                         </Link>
                                         <button 
                                             @click="deleteSupplier(supplier)"
                                             class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                                            title="حذف"
+                                            :title="$t('p_suppliers_index.delete')"
                                         >
                                             <TrashIcon class="w-4 h-4" />
                                         </button>
@@ -243,7 +245,7 @@ const formatCurrency = (val) => {
                             </tr>
                             <tr v-if="!suppliers.data || suppliers.data.length === 0">
                                 <td colspan="7" class="py-12 text-center text-slate-400">
-                                    لا يوجد موردين مسجلين حتى الآن.
+                                    {{ $t('p_suppliers_index.no_suppliers_recorded_yet') }}
                                 </td>
                             </tr>
                         </tbody>
@@ -253,8 +255,8 @@ const formatCurrency = (val) => {
                 <!-- Pagination Footer -->
                 <div class="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-medium">
                     <div class="flex items-center gap-2">
-                        <span>الإجمالي {{ suppliers.total || 0 }}.</span>
-                        <span>لكل صفحة:</span>
+                        <span>{{ $t('s_invoices.total_n', { n: suppliers.total || 0 }) }}</span>
+                        <span>{{ $t('p_suppliers_index.per_page') }}</span>
                         <select 
                             :value="suppliers.per_page"
                             @change="router.get(route('purchases.suppliers.index'), { per_page: $event.target.value }, { preserveState: true })"
@@ -266,7 +268,7 @@ const formatCurrency = (val) => {
                         </select>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span>الصفحة {{ suppliers.current_page }} من {{ suppliers.last_page || 1 }}.</span>
+                        <span>{{ $t('s_invoices.page_of', { a: suppliers.current_page, b: suppliers.last_page || 1 }) }}</span>
                         <div class="flex items-center gap-1">
                             <Link 
                                 v-if="suppliers.prev_page_url" 
