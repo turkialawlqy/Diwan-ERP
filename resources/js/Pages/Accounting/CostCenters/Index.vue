@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import ImportButton from '@/Components/UI/ImportButton.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import { ref, computed } from 'vue';
@@ -8,6 +9,7 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
 import { PlusIcon, PencilSquareIcon, TrashIcon } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 const props = defineProps({ costCenters: Array });
 
@@ -31,16 +33,16 @@ const save = () => {
     const opts = { preserveScroll: true, onSuccess: () => (open.value = false) };
     editing.value ? form.put(route('accounting.cost-centers.update', editing.value.id), opts) : form.post(route('accounting.cost-centers.store'), opts);
 };
-const remove = (c) => confirm(`حذف مركز التكلفة ${c.name_ar}؟`) && router.delete(route('accounting.cost-centers.destroy', c.id), { preserveScroll: true });
+const remove = (c) => confirm(t('a_cc.confirm_delete', { name: c.name_ar })) && router.delete(route('accounting.cost-centers.destroy', c.id), { preserveScroll: true });
 </script>
 
 <template>
     <AppLayout>
-        <Head title="مراكز التكلفة" />
-        <PageHeader title="مراكز التكلفة" subtitle="أبعاد تحليلية لتوزيع الإيرادات والمصروفات على الأقسام والفروع والمشاريع" :crumbs="[{ label: 'المحاسبة' }, { label: 'مراكز التكلفة' }]">
+        <Head :title="$t('a_cc.cost_centers')" />
+        <PageHeader :title="$t('a_cc.cost_centers')" :subtitle="$t('a_cc.analytical_dimensions_to_distrib')" :crumbs="[{ label: 'المحاسبة' }, { label: 'مراكز التكلفة' }]">
             <template #actions>
-                <button v-if="$can('accounting.cost_centers.create')" @click="create" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> مركز تكلفة</button>
-                <ImportButton v-if="$can('accounting.cost_centers.create')" type="cost_centers" title="استيراد مراكز التكلفة من Excel" />
+                <button v-if="$can('accounting.cost_centers.create')" @click="create" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> {{ $t('a_cc.cost_center') }}</button>
+                <ImportButton v-if="$can('accounting.cost_centers.create')" type="cost_centers" :title="$t('a_cc.import_cost_centers_from_excel')" />
 </template>
         </PageHeader>
 
@@ -51,26 +53,26 @@ const remove = (c) => confirm(`حذف مركز التكلفة ${c.name_ar}؟`) &
                     <tr v-for="c in tree" :key="c.id" class="border-t border-slate-100">
                         <td class="px-4 py-2 font-mono text-slate-500">{{ c.code }}</td>
                         <td class="px-4 py-2 font-semibold text-slate-800" :style="{ paddingInlineStart: (16 + c.depth * 18) + 'px' }">{{ c.name_ar }}</td>
-                        <td class="px-4 py-2 text-center"><span :class="c.is_active ? 'text-emerald-600' : 'text-slate-400'">{{ c.is_active ? 'نشط' : 'موقوف' }}</span></td>
+                        <td class="px-4 py-2 text-center"><span :class="c.is_active ? 'text-emerald-600' : 'text-slate-400'">{{ c.is_active ? $t('s_common.active_m') : $t('a_cheques.suspended') }}</span></td>
                         <td class="px-4 py-2 text-end">
                             <button v-if="$can('accounting.cost_centers.edit')" @click="edit(c)" class="p-1.5 text-slate-400 hover:text-indigo-600"><PencilSquareIcon class="w-4 h-4" /></button>
                             <button v-if="$can('accounting.cost_centers.delete')" @click="remove(c)" class="p-1.5 text-slate-400 hover:text-rose-600"><TrashIcon class="w-4 h-4" /></button>
                         </td>
                     </tr>
-                    <tr v-if="!tree.length"><td colspan="4" class="py-10 text-center text-slate-400">لا توجد مراكز تكلفة بعد</td></tr>
+                    <tr v-if="!tree.length"><td colspan="4" class="py-10 text-center text-slate-400">{{ $t('a_cc.no_cost_centers_yet') }}</td></tr>
                 </tbody>
             </table>
         </div>
 
-        <Dialog :show="open" :title="editing ? 'تعديل مركز تكلفة' : 'مركز تكلفة جديد'" @close="open = false">
+        <Dialog :show="open" :title="editing ? $t('a_cc.edit') : $t('a_cc.new')" @close="open = false">
             <form @submit.prevent="save" class="space-y-3 text-xs">
-                <Field label="المركز الرئيسي"><SelectCreate v-model="form.parent_id" :options="costCenters.filter(x => x.id !== editing?.id)" entity="cost_center" :label="(c) => `${c.code} - ${c.name_ar}`" placeholder="— رئيسي —" /></Field>
+                <Field :label="$t('a_cc.parent_center')"><SelectCreate v-model="form.parent_id" :options="costCenters.filter(x => x.id !== editing?.id)" entity="cost_center" :label="(c) => `${c.code} - ${c.name_ar}`" :placeholder="$t('a_cc.top_level')" /></Field>
                 <div class="grid grid-cols-2 gap-3">
                     <Field :label="$t('ui.code')" :error="form.errors.code"><input v-model="form.code" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field label="الاسم بالعربي" :error="form.errors.name_ar"><input v-model="form.name_ar" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('a_cc.name_in_arabic')" :error="form.errors.name_ar"><input v-model="form.name_ar" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 </div>
-                <Field label="الاسم بالإنجليزي"><input v-model="form.name_en" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <label class="flex items-center gap-2"><input v-model="form.is_active" type="checkbox" class="rounded border-slate-300 text-indigo-600" /> نشط</label>
+                <Field :label="$t('a_cc.name_in_english')"><input v-model="form.name_en" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <label class="flex items-center gap-2"><input v-model="form.is_active" type="checkbox" class="rounded border-slate-300 text-indigo-600" /> {{ $t('a_cc.active') }}</label>
             </form>
             <template #footer>
                 <button @click="open = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('ui.cancel') }}</button>

@@ -134,6 +134,18 @@ test('sales list and form pages follow the language', async ({ page }) => {
         ['/sales/price-lists', 'Price lists'],
         ['/sales/customer-groups', 'Customer groups'],
         ['/sales/deliveries', 'Delivery notes'],
+        ['/accounting/cheques', 'Cheque management'],
+        ['/accounting/accounts', 'Chart of accounts'],
+        ['/accounting/journals', 'Total journal entries'],
+        ['/accounting/journals/create', 'Journal entry'],
+        ['/accounting/mappings', 'Automatic account mapping'],
+        ['/accounting/fixed-assets', 'Post monthly depreciation'],
+        ['/accounting/period-end', 'Revaluation of foreign currency balances'],
+        ['/accounting/fiscal-years', 'Fiscal years and periods'],
+        ['/accounting/recurring', 'Recurring entries'],
+        ['/accounting/reconciliations', 'Bank reconciliations'],
+        ['/accounting/cost-centers', 'Cost centers'],
+        ['/accounting/budgets', 'Budgets'],
     ]) {
         await page.goto(url);
         await expect(page.getByText(text).first()).toBeVisible();

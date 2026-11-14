@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { ask } from '@/composables/useDialog';
 import { reactive, ref, computed } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
@@ -6,6 +7,7 @@ import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { money, amount, monthLabel } from '@/utils/format';
+const { t } = useI18n();
 
 const props = defineProps({ budget: Object, months: Array, rows: Array, scope: { type: Object, default: null }, dimensionOptions: Object });
 const dimension = ref(props.scope?.dimension || '');
@@ -20,7 +22,7 @@ const grid = reactive(Object.fromEntries(props.rows.map((r) => [r.id, { ...r.pla
 const rowTotal = (id) => props.months.reduce((s, p) => s + Number(grid[id][p] || 0), 0);
 const actualTotal = (row) => props.months.reduce((s, p) => s + Number(row.actual[p] || 0), 0);
 const spread = async (id) => {
-    const answer = await ask('إجمالي السنة لتوزيعه بالتساوي على الأشهر:', { title: 'توزيع الموازنة', type: 'number', default: rowTotal(id), required: true });
+    const answer = await ask(t('a_budget.spread_q'), { title: t('a_budget.spread_title'), type: 'number', default: rowTotal(id), required: true });
     if (answer === null) return;
     const total = Number(answer) || 0;
     const each = Math.round((total / props.months.length) * 100) / 100;
@@ -38,15 +40,15 @@ const save = (approve = false) => {
 <template>
     <AppLayout>
         <Head :title="budget.name" />
-        <PageHeader :title="budget.name" :subtitle="`السنة المالية ${budget.fiscal_year.name}`" :crumbs="[{ label: 'الموازنات', href: route('accounting.budgets.index') }, { label: budget.name }]">
+        <PageHeader :title="budget.name" :subtitle="`${$t('a_period_end.fiscal_year')} ${budget.fiscal_year.name}`" :crumbs="[{ label: 'الموازنات', href: route('accounting.budgets.index') }, { label: budget.name }]">
             <template #actions>
                 <div class="flex rounded-xl border border-slate-200 overflow-hidden text-xs">
-                    <button @click="mode = 'plan'" :class="mode === 'plan' ? 'bg-indigo-600 text-white' : 'bg-white'" class="px-3 py-2 font-bold">التخطيط</button>
-                    <button @click="mode = 'compare'" :class="mode === 'compare' ? 'bg-indigo-600 text-white' : 'bg-white'" class="px-3 py-2 font-bold">المخطط مقابل الفعلي</button>
+                    <button @click="mode = 'plan'" :class="mode === 'plan' ? 'bg-indigo-600 text-white' : 'bg-white'" class="px-3 py-2 font-bold">{{ $t('a_budget.planning') }}</button>
+                    <button @click="mode = 'compare'" :class="mode === 'compare' ? 'bg-indigo-600 text-white' : 'bg-white'" class="px-3 py-2 font-bold">{{ $t('a_budget.planned_vs_actual') }}</button>
                 </div>
                 <template v-if="editable && $can('accounting.budgets.edit')">
                     <button @click="save(false)" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('ui.save') }}</button>
-                    <button v-if="$can('accounting.budgets.approve')" @click="save(true)" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">حفظ واعتماد</button>
+                    <button v-if="$can('accounting.budgets.approve')" @click="save(true)" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">{{ $t('a_budget.save_and_approve') }}</button>
                 </template>
             </template>
         </PageHeader>
@@ -72,15 +74,15 @@ const save = (approve = false) => {
                     <tr>
                         <th class="text-start px-3 py-2 sticky start-0 bg-slate-50 min-w-[200px]">{{ $t('ui.account') }}</th>
                         <th v-if="mode === 'plan'" v-for="p in months" :key="p" class="px-1 py-2 font-mono">{{ monthLabel(p) }}</th>
-                        <template v-else><th class="px-3 py-2 text-end">المخطط</th><th class="px-3 py-2 text-end">الفعلي</th><th class="px-3 py-2 text-end">الانحراف</th><th class="px-3 py-2 text-end">نسبة التحقق</th></template>
-                        <th v-if="mode === 'plan'" class="px-3 py-2 text-end">الإجمالي</th>
+                        <template v-else><th class="px-3 py-2 text-end">{{ $t('a_budget.planned') }}</th><th class="px-3 py-2 text-end">{{ $t('a_budget.actual') }}</th><th class="px-3 py-2 text-end">{{ $t('a_budget.variance') }}</th><th class="px-3 py-2 text-end">{{ $t('a_budget.achievement_rate') }}</th></template>
+                        <th v-if="mode === 'plan'" class="px-3 py-2 text-end">{{ $t('a_budget.total') }}</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr v-for="row in rows" :key="row.id" class="border-t border-slate-100">
                         <td class="px-3 py-1.5 sticky start-0 bg-white">
                             <span class="font-mono text-slate-400">{{ row.code }}</span> {{ row.name }}
-                            <button v-if="mode === 'plan' && editable" @click="spread(row.id)" class="ms-1 text-indigo-500 hover:underline">توزيع</button>
+                            <button v-if="mode === 'plan' && editable" @click="spread(row.id)" class="ms-1 text-indigo-500 hover:underline">{{ $t('a_budget.spread') }}</button>
                         </td>
                         <template v-if="mode === 'plan'">
                             <td v-for="p in months" :key="p" class="px-0.5 py-1"><input v-model.number="grid[row.id][p]" :disabled="!editable" type="text" inputmode="decimal" data-num step="0.01" class="w-24 rounded-lg border-slate-200 text-[11px] font-mono py-1 px-1.5" /></td>

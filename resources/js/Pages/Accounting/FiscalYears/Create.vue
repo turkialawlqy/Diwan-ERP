@@ -37,29 +37,29 @@ const input = 'w-full rounded-xl border-slate-200 text-sm';
 
 <template>
     <AppLayout>
-        <Head title="إضافة سنة مالية جديدة" />
-        <PageHeader title="إضافة سنة مالية جديدة" :crumbs="[{ label: 'المحاسبة' }, { label: 'السنوات المالية', href: route('accounting.fiscal-years.index') }, { label: 'جديدة' }]" />
+        <Head :title="$t('a_year_form.add_a_new_fiscal_year')" />
+        <PageHeader :title="$t('a_year_form.add_a_new_fiscal_year')" :crumbs="[{ label: 'المحاسبة' }, { label: 'السنوات المالية', href: route('accounting.fiscal-years.index') }, { label: 'جديدة' }]" />
 
         <form @submit.prevent="submit" class="space-y-5">
             <div class="bg-white border border-slate-200 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <Field label="اسم السنة المالية *" :error="form.errors.name"><input v-model="form.name" required maxlength="100" :class="input" /></Field>
-                <Field label="نوع الفترات *" :error="form.errors.period_type">
+                <Field :label="$t('a_year_form.fiscal_year_name')" :error="form.errors.name"><input v-model="form.name" required maxlength="100" :class="input" /></Field>
+                <Field :label="$t('a_year_form.period_type')" :error="form.errors.period_type">
                     <select v-model="form.period_type" :class="input"><option v-for="(label, key) in periodTypes" :key="key" :value="key">{{ label }}</option></select>
                 </Field>
-                <Field label="تاريخ البداية *" :error="form.errors.start_date"><DatePicker v-model="form.start_date" required :class="input" /></Field>
-                <Field label="تاريخ النهاية *" :error="form.errors.end_date"><DatePicker v-model="form.end_date" required :min="form.start_date" :class="input" /></Field>
+                <Field :label="$t('a_year_form.start_date')" :error="form.errors.start_date"><DatePicker v-model="form.start_date" required :class="input" /></Field>
+                <Field :label="$t('a_year_form.end_date')" :error="form.errors.end_date"><DatePicker v-model="form.end_date" required :min="form.start_date" :class="input" /></Field>
                 <p v-if="preview.overlap || form.errors.start_date" class="md:col-span-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs" data-overlap>
-                    {{ form.errors.start_date || `تتداخل هذه السنة المالية مع «${preview.overlap.name}» (${preview.overlap.from} → ${preview.overlap.to}) — لا يمكن أن تمتلك المنشأة سنتين ماليتين متداخلتين.` }}
+                    {{ form.errors.start_date || $t('a_year_form.overlap', { name: preview.overlap.name, from: preview.overlap.from, to: preview.overlap.to }) }}
                 </p>
                 <p v-if="error" class="md:col-span-2 text-rose-600 text-xs">{{ error }}</p>
             </div>
 
             <div class="bg-white border border-slate-200 rounded-2xl p-5" data-period-preview>
-                <h3 class="font-black text-slate-800 text-sm mb-1">معاينة الفترات المحاسبية ({{ preview.periods.length }} فترة)</h3>
-                <p class="text-xs text-slate-400 mb-3">تُشتق تواريخ كل فترة تلقائيًا من تاريخي البداية والنهاية ونوع الفترات أعلاه، ولا يمكن تعديلها يدويًا بعد التوليد.</p>
+                <h3 class="font-black text-slate-800 text-sm mb-1">{{ $t('a_year_form.preview', { n: preview.periods.length }) }}</h3>
+                <p class="text-xs text-slate-400 mb-3">{{ $t('a_year_form.each_period_s_dates_are_derived') }}</p>
                 <div class="border border-slate-200 rounded-xl overflow-hidden">
                     <table class="w-full text-xs">
-                        <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 w-10 text-start">#</th><th class="px-3 py-2 text-start">الفترة</th><th class="px-3 py-2 text-start">من</th><th class="px-3 py-2 text-start">إلى</th></tr></thead>
+                        <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 w-10 text-start">#</th><th class="px-3 py-2 text-start">{{ $t('a_year_form.period') }}</th><th class="px-3 py-2 text-start">{{ $t('a_year_form.from') }}</th><th class="px-3 py-2 text-start">{{ $t('a_year_form.to') }}</th></tr></thead>
                         <tbody>
                             <tr v-for="p in preview.periods" :key="p.code" class="border-t border-slate-100">
                                 <td class="px-3 py-2 font-mono font-bold text-indigo-600">{{ String(p.n).padStart(2, '0') }}</td>
@@ -67,15 +67,15 @@ const input = 'w-full rounded-xl border-slate-200 text-sm';
                                 <td class="px-3 py-2 font-mono text-slate-500">{{ p.from }}</td>
                                 <td class="px-3 py-2 font-mono text-slate-500">{{ p.to }}</td>
                             </tr>
-                            <tr v-if="!preview.periods.length"><td colspan="4" class="py-6 text-center text-slate-400">حدّد تاريخي البداية والنهاية.</td></tr>
+                            <tr v-if="!preview.periods.length"><td colspan="4" class="py-6 text-center text-slate-400">{{ $t('a_year_form.set_the_start_and_end_dates') }}</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
             <div class="flex items-center gap-2">
-                <button type="submit" :disabled="form.processing || !!preview.overlap || !preview.periods.length" class="px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold disabled:opacity-40">إضافة السنة المالية</button>
-                <Link :href="route('accounting.fiscal-years.index')" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-bold bg-white">إلغاء</Link>
+                <button type="submit" :disabled="form.processing || !!preview.overlap || !preview.periods.length" class="px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold disabled:opacity-40">{{ $t('a_year_form.add_the_fiscal_year') }}</button>
+                <Link :href="route('accounting.fiscal-years.index')" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-bold bg-white">{{ $t('a_year_form.cancel') }}</Link>
             </div>
         </form>
     </AppLayout>
