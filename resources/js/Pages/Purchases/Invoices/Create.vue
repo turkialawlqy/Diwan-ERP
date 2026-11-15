@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import { useFixedDropdown } from '@/composables/useFixedDropdown';
 import DatePicker from '@/Components/UI/DatePicker.vue';
@@ -69,6 +70,7 @@ const branchTax = computed(() => props.branches?.find((b) => Number(b.id) === Nu
 const lineRate = () => Number(branchTax.value?.rate ?? props.defaultTaxRate ?? taxRate());
 
 const form = useForm({
+    attachment_ids: [],
     supplier_id: suppliersList.value[0]?.id || '',
     warehouse_id: props.warehouses?.[0]?.id || '',
     branch_id: selectedBranchId.value,
@@ -248,7 +250,7 @@ const submitNewSupplier = async () => {
             suppliersList.value.unshift(created);
             selectSupplier(created);
             closeSupplierModal();
-            triggerToast(`تمت إضافة المورد "${created.name}" وتحديده للفاتورة بنجاح.`);
+            triggerToast(t('p_common.supplier_added', { name: created.name }));
         }
     } catch (err) {
         if (err.response && err.response.data && err.response.data.errors) {
@@ -386,7 +388,7 @@ const submitNewProduct = async () => {
             }
 
             closeProductModal();
-            triggerToast(`تمت إضافة الصنف "${created.name_ar}" وإدراجه في الفاتورة بنجاح.`);
+            triggerToast(t('p_common.item_added', { name: created.name_ar }));
         }
     } catch (err) {
         if (err.response && err.response.data && err.response.data.errors) {
@@ -859,6 +861,7 @@ const importLines = (lines, replace) => {
                             <DimensionFields v-model:cost-center="form.cost_center_id" v-model:project="form.project_id" :policy="dimensionPolicy" :cost-centers="costCenters" :projects="projects" :errors="form.errors" />
                         </div>
 
+                        <AttachmentsPanel v-if="!editing" kind="purchase-invoice" v-model="form.attachment_ids" />
                         <!-- Notes -->
                         <div class="pt-3 border-t border-slate-100">
                             <label class="block text-2xs font-bold text-slate-600 mb-1">{{ $t('pinv.invoice_notes_or_supply_terms') }}</label>

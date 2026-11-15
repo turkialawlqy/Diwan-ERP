@@ -35,8 +35,8 @@ const isBalanced = () => Math.abs(props.totals.closing_debit - props.totals.clos
 
 <template>
     <AppLayout>
-        <Head title="ميزان المراجعة" />
-        <PageHeader title="ميزان المراجعة" :crumbs="[{ label: 'المحاسبة' }, { label: 'ميزان المراجعة' }]">
+        <Head :title="$t('a_trial.trial_balance')" />
+        <PageHeader :title="$t('a_trial.trial_balance')" :crumbs="[{ label: 'المحاسبة' }, { label: 'ميزان المراجعة' }]">
             <template #actions>
                 <button @click="printPage" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-indigo-600">
                     <PrinterIcon class="w-4 h-4" /> {{ $t('ui.print') }}
@@ -48,35 +48,35 @@ const isBalanced = () => Math.abs(props.totals.closing_debit - props.totals.clos
         <form @submit.prevent="apply" class="bg-white border border-slate-200 rounded-2xl p-4 grid grid-cols-2 md:grid-cols-6 gap-3 text-xs mb-4 print:hidden">
             <label class="col-span-1"><span class="block font-bold text-slate-600 mb-1">{{ $t('ui.from') }}</span><DatePicker v-model="form.start_date" class="w-full rounded-xl border-slate-200 text-xs" /></label>
             <label class="col-span-1"><span class="block font-bold text-slate-600 mb-1">{{ $t('ui.to') }}</span><DatePicker v-model="form.end_date" class="w-full rounded-xl border-slate-200 text-xs" /></label>
-            <label><span class="block font-bold text-slate-600 mb-1">المستوى</span>
+            <label><span class="block font-bold text-slate-600 mb-1">{{ $t('a_trial.level') }}</span>
                 <select v-model="form.level" class="w-full rounded-xl border-slate-200 text-xs">
-                    <option value="">كل المستويات</option>
-                    <option v-for="n in 5" :key="n" :value="n">حتى المستوى {{ n }}</option>
+                    <option value="">{{ $t('a_trial.all_levels') }}</option>
+                    <option v-for="n in 5" :key="n" :value="n">{{ $t('a_trial.up_to_level', { n }) }}</option>
                 </select>
             </label>
-            <label><span class="block font-bold text-slate-600 mb-1">مركز التكلفة</span>
+            <label><span class="block font-bold text-slate-600 mb-1">{{ $t('a_trial.cost_center') }}</span>
                 <select v-model="form.cost_center_id" class="w-full rounded-xl border-slate-200 text-xs">
-                    <option value="">الكل</option>
+                    <option value="">{{ $t('a_trial.all') }}</option>
                     <option v-for="c in costCenters" :key="c.id" :value="c.id">{{ c.code }} - {{ c.name_ar }}</option>
                 </select>
             </label>
-            <label class="flex items-end gap-2 pb-2"><input v-model="form.show_zero" type="checkbox" class="rounded border-slate-300 text-indigo-600" /> <span>إظهار الأرصدة الصفرية</span></label>
+            <label class="flex items-end gap-2 pb-2"><input v-model="form.show_zero" type="checkbox" class="rounded border-slate-300 text-indigo-600" /> <span>{{ $t('a_trial.show_zero_balances') }}</span></label>
             <div class="flex items-end"><button type="submit" class="w-full rounded-xl bg-indigo-600 text-white font-bold py-2 hover:bg-indigo-700">{{ $t('ui.apply') }}</button></div>
         </form>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <div class="hidden print:block text-center py-3">
-                <h2 class="font-black">ميزان المراجعة</h2>
-                <p class="text-xs">من {{ filters.start_date }} إلى {{ filters.end_date }}</p>
+                <h2 class="font-black">{{ $t('a_trial.trial_balance') }}</h2>
+                <p class="text-xs">{{ $t('a_rep.range', { from: filters.start_date, to: filters.end_date }) }}</p>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-xs">
                     <thead class="bg-slate-50 text-slate-500">
                         <tr>
-                            <th rowspan="2" class="text-start px-3 py-2">الحساب</th>
-                            <th colspan="2" class="px-3 py-2 border-s border-slate-200">الرصيد الافتتاحي</th>
-                            <th colspan="2" class="px-3 py-2 border-s border-slate-200">حركة الفترة</th>
-                            <th colspan="2" class="px-3 py-2 border-s border-slate-200">الرصيد الختامي</th>
+                            <th rowspan="2" class="text-start px-3 py-2">{{ $t('a_trial.account') }}</th>
+                            <th colspan="2" class="px-3 py-2 border-s border-slate-200">{{ $t('a_trial.opening_balance') }}</th>
+                            <th colspan="2" class="px-3 py-2 border-s border-slate-200">{{ $t('a_trial.period_movement') }}</th>
+                            <th colspan="2" class="px-3 py-2 border-s border-slate-200">{{ $t('a_trial.closing_balance') }}</th>
                         </tr>
                         <tr>
                             <th class="px-3 py-1 border-s border-slate-200">{{ $t('ui.debit') }}</th><th class="px-3 py-1">{{ $t('ui.credit') }}</th>
@@ -104,7 +104,7 @@ const isBalanced = () => Math.abs(props.totals.closing_debit - props.totals.clos
                     <tfoot class="bg-slate-100 font-black text-slate-900">
                         <tr>
                             <td class="px-3 py-2">{{ $t('ui.total') }}
-                                <span :class="isBalanced() ? 'text-emerald-600' : 'text-rose-600'" class="ms-2 text-[11px]">{{ isBalanced() ? '✓ متوازن' : '✗ غير متوازن' }}</span>
+                                <span :class="isBalanced() ? 'text-emerald-600' : 'text-rose-600'" class="ms-2 text-[11px]">{{ isBalanced() ? $t('a_trial.ok') : $t('a_trial.bad') }}</span>
                             </td>
                             <td class="px-3 py-2 text-end font-mono">{{ money(totals.opening_debit) }}</td>
                             <td class="px-3 py-2 text-end font-mono">{{ money(totals.opening_credit) }}</td>

@@ -1,4 +1,6 @@
 <script setup>
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import DimensionFields from '@/Components/Documents/DimensionFields.vue';
@@ -9,13 +11,14 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { today } from '@/utils/format';
+const { t } = useI18n();
 
 const props = defineProps({ expenseAccounts: Array, bankAccounts: Array, costCenters: Array, projects: Array, dimensionPolicy: Object, expense: { type: Object, default: null }, prefill: { type: Object, default: null } });
 const editing = props.expense;
 
 const form = useForm({
     title: '',
-    category: 'مصروفات عامة',
+    category: t('fin_finance_expenses_form.general_expenses'),
     account_id: props.expenseAccounts?.[0]?.id || '',
     cost_center_id: '',
     project_id: '',
@@ -67,35 +70,35 @@ const submitExpense = () => (editing ? form.put(route('finance.expenses.update',
 
 <template>
     <AppLayout>
-        <Head :title="editing ? `تعديل السند ${editing.expense_number}` : 'سند مصروف جديد'" />
-        <PageHeader :title="editing ? `تعديل السند ${editing.expense_number}` : 'سند مصروف جديد'" :crumbs="[{ label: 'المالية' }, { label: 'المصروفات', href: route('finance.expenses.index') }, { label: editing ? 'تعديل' : 'جديد' }]" />
+        <Head :title="editing ? $t('fin_finance_expenses_form.edit_voucher_n', { n0: editing.expense_number }) : $t('fin_finance_expenses_form.new_expense_voucher')" />
+        <PageHeader :title="editing ? $t('fin_finance_expenses_form.edit_voucher_n', { n0: editing.expense_number }) : $t('fin_finance_expenses_form.new_expense_voucher')" :crumbs="[{ label: $t('fin_finance_expenses_form.finance') }, { label: $t('fin_finance_expenses_form.expenses'), href: route('finance.expenses.index') }, { label: editing ? $t('fin_finance_expenses_form.edit') : $t('fin_finance_expenses_form.new') }]" />
 
         <div class="bg-white border border-slate-200/80 rounded-2xl p-6">
             <form @submit.prevent="submitExpense" class="form-grid text-xs">
                             <div>
-                                <label class="block font-medium text-slate-700 mb-1">بيان / عنوان المصروف <span class="text-rose-500">*</span></label>
+                                <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_expenses_form.expense_description_title') }} <span class="text-rose-500">*</span></label>
                                 <input 
                                     v-model="form.title" 
                                     type="text" 
                                     required 
-                                    placeholder="مثال: سداد فاتورة الكهرباء لشهر سبتمبر"
+                                    :placeholder="$t('fin_finance_expenses_form.example_paying_the_september_ele')"
                                     class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-rose-500 focus:border-rose-500" 
                                 />
                             </div>
             
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block font-medium text-slate-700 mb-1">التصنيف <span class="text-rose-500">*</span></label>
+                                    <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_expenses_form.category') }} <span class="text-rose-500">*</span></label>
                                     <input 
                                         v-model="form.category" 
                                         type="text" 
                                         required 
-                                        placeholder="إيجار، رواتب، فواتير..."
+                                        :placeholder="$t('fin_finance_expenses_form.rent_salaries_bills')"
                                         class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-rose-500 focus:border-rose-500" 
                                     />
                                 </div>
                                 <div>
-                                    <label class="block font-medium text-slate-700 mb-1">تاريخ الصرف <span class="text-rose-500">*</span></label>
+                                    <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_expenses_form.payment_date') }} <span class="text-rose-500">*</span></label>
                                     <DatePicker 
                                         v-model="form.expense_date" 
                                         required 
@@ -105,7 +108,7 @@ const submitExpense = () => (editing ? form.put(route('finance.expenses.update',
             
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block font-medium text-slate-700 mb-1">المبلغ (غير شامل الضريبة) <span class="text-rose-500">*</span></label>
+                                    <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_expenses_form.amount_excluding_tax') }} <span class="text-rose-500">*</span></label>
                                     <input 
                                         v-model.number="form.amount" 
                                         @input="onAmountChange"
@@ -117,7 +120,7 @@ const submitExpense = () => (editing ? form.put(route('finance.expenses.update',
                                     />
                                 </div>
                                 <div>
-                                    <label class="flex items-center gap-2 font-medium text-slate-700 mb-1"><input v-model="form.taxable" type="checkbox" @change="onAmountChange" class="rounded border-slate-300" /> خاضع لـ{{ $taxLabel() }}</label>
+                                    <label class="flex items-center gap-2 font-medium text-slate-700 mb-1"><input v-model="form.taxable" type="checkbox" @change="onAmountChange" class="rounded border-slate-300" /> {{ $t('fin_finance_expenses_form.subject_to_n', { n0: $taxLabel() }) }}</label>
                                     <input 
                                         v-model.number="form.tax_amount" 
                                         :disabled="!form.taxable"
@@ -130,7 +133,7 @@ const submitExpense = () => (editing ? form.put(route('finance.expenses.update',
                             </div>
             
                             <div class="p-3 bg-rose-50/50 rounded-xl flex items-center justify-between text-xs border border-rose-100">
-                                <span class="font-bold text-rose-900">المجموع الإجمالي شامل الضريبة:</span>
+                                <span class="font-bold text-rose-900">{{ $t('fin_finance_expenses_form.grand_total_including_tax') }}</span>
                                 <span class="font-mono font-black text-sm text-rose-600">
                                     {{ formatCurrency((parseFloat(form.amount || 0) + parseFloat(form.tax_amount || 0))) }} ﷼
                                 </span>
@@ -138,11 +141,11 @@ const submitExpense = () => (editing ? form.put(route('finance.expenses.update',
             
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block font-medium text-slate-700 mb-1">مدفوع من (الخزينة أو البنك)</label>
-                                    <SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" :label="(bank) => `${bank.name} (الرصيد: ${formatCurrency(bank.current_balance)} ﷼)`" :allow-empty="false" />
+                                    <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_expenses_form.paid_from_cash_box_or_bank') }}</label>
+                                    <SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" :label="(bank) => $t('fin_finance_expenses_form.n_balance_n_sar', { n0: bank.name, n1: formatCurrency(bank.current_balance) })" :allow-empty="false" />
                                 </div>
                                 <div>
-                                    <label class="block font-medium text-slate-700 mb-1">حساب المصروف في الدليل</label>
+                                    <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_expenses_form.expense_account_in_the_chart') }}</label>
                                     <SelectCreate v-model="form.account_id" :options="expenseAccounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :allow-empty="false" />
                                 </div>
                             </div>
@@ -151,50 +154,50 @@ const submitExpense = () => (editing ? form.put(route('finance.expenses.update',
             
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block font-medium text-slate-700 mb-1">الجهة المستفيدة / المدفوع له</label>
+                                    <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_expenses_form.payee') }}</label>
                                     <input 
                                         v-model="form.vendor_name" 
                                         type="text" 
-                                        placeholder="اسم الشركة أو الشخص"
+                                        :placeholder="$t('fin_finance_expenses_form.company_or_person_name')"
                                         class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-rose-500 focus:border-rose-500" 
                                     />
                                     <template v-if="form.taxable">
-                                        <label class="block font-medium text-slate-700 mt-2 mb-1" for="vendor-vat">الرقم الضريبي للمورد</label>
+                                        <label class="block font-medium text-slate-700 mt-2 mb-1" for="vendor-vat">{{ $t('fin_finance_expenses_form.supplier_tax_number') }}</label>
                                         <input id="vendor-vat" v-model="form.vendor_tax_number" dir="ltr" maxlength="15" placeholder="3xxxxxxxxxxxxx3" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono" />
                                         <p v-if="form.errors.vendor_tax_number" class="text-rose-600 text-3xs mt-1">{{ form.errors.vendor_tax_number }}</p>
                                     </template>
                                 </div>
                                 <div>
-                                    <label class="block font-medium text-slate-700 mb-1">طريقة الدفع</label>
+                                    <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_expenses_form.payment_method') }}</label>
                                     <select 
                                         v-model="form.payment_method" 
                                         class="w-full py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-rose-500 focus:border-rose-500"
                                     >
-                                        <option value="bank_transfer">تحويل بنكي</option>
-                                        <option value="cash">نقداً</option>
-                                        <option value="card">بطاقة مدى / ائتمان</option>
+                                        <option value="bank_transfer">{{ $t('fin_finance_expenses_form.bank_transfer') }}</option>
+                                        <option value="cash">{{ $t('fin_finance_expenses_form.cash') }}</option>
+                                        <option value="card">{{ $t('fin_finance_expenses_form.mada_credit_card') }}</option>
                                     </select>
                                 </div>
                             </div>
             
                             <div>
-                                <label class="block font-medium text-slate-700 mb-1">ملاحظات أو تفاصيل</label>
+                                <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_expenses_form.notes_or_details') }}</label>
                                 <textarea 
                                     v-model="form.notes" 
                                     rows="2" 
-                                    placeholder="أي تفاصيل إضافية عن السند..."
+                                    :placeholder="$t('fin_finance_expenses_form.any_additional_details_about_the')"
                                     class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-rose-500 focus:border-rose-500"
                                 ></textarea>
                             </div>
             
                             <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                                <Link :href="route('finance.expenses.index')" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium">إلغاء</Link>
+                                <Link :href="route('finance.expenses.index')" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium">{{ $t('fin_finance_expenses_form.cancel') }}</Link>
                                 <button 
                                     type="submit" 
                                     :disabled="form.processing"
                                     class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs hover:shadow-rose-500/20 disabled:opacity-50"
                                 >
-                                    حفظ السند
+                                    {{ $t('fin_finance_expenses_form.save_voucher') }}
                                 </button>
                             </div>
                         </form>

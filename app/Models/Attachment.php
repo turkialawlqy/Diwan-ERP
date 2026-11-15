@@ -10,7 +10,7 @@ class Attachment extends Model
 {
     use BelongsToCompany;
 
-    protected $fillable = ['company_id', 'attachable_type', 'attachable_id', 'path', 'original_name', 'mime', 'size', 'uploaded_by'];
+    protected $fillable = ['company_id', 'attachable_type', 'attachable_id', 'stage_kind', 'path', 'original_name', 'mime', 'size', 'uploaded_by'];
 
     public function attachable(): MorphTo
     {

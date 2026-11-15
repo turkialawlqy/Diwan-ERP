@@ -1,9 +1,11 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import MobileLayout from '@/Layouts/MobileLayout.vue';
 import SignaturePad from '@/Components/WorkOrders/SignaturePad.vue';
 import { PhoneIcon, MapPinIcon, CameraIcon } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 const props = defineProps({ order: Object, running: Object, minutes: Number, rules: Object, statuses: Object, open: Boolean });
 const o = computed(() => props.order);
@@ -50,8 +52,8 @@ const upload = (e) => {
 const sign = useForm({ name: '', signature: '' });
 const doSign = () => sign.post(route('work-orders.mine.sign', o.value.id), { preserveScroll: true });
 const finish = useForm({ notes: props.order.completion_notes || '' });
-const doComplete = () => { if (confirm('إنهاء أمر العمل؟')) finish.post(route('work-orders.mine.complete', o.value.id)); };
-const hours = computed(() => `${Math.floor(props.minutes / 60)}س ${props.minutes % 60}د`);
+const doComplete = () => { if (confirm(t('wo2_workorders_mine_show.finish_the_work_order'))) finish.post(route('work-orders.mine.complete', o.value.id)); };
+const hours = computed(() => t('wo2_workorders_mine_show.nh_nm', { n0: Math.floor(props.minutes / 60), n1: props.minutes % 60 }));
 const input = 'w-full rounded-xl border-slate-200 text-sm';
 </script>
 
@@ -66,16 +68,16 @@ const input = 'w-full rounded-xl border-slate-200 text-sm';
         </div>
 
         <div v-if="open" class="bg-white rounded-2xl p-4 shadow-sm space-y-2">
-            <p class="text-xs text-slate-500">الوقت المسجَّل: <b class="font-mono" data-minutes>{{ hours }}</b></p>
+            <p class="text-xs text-slate-500">{{ $t('wo2_workorders_mine_show.recorded_time') }} <b class="font-mono" data-minutes>{{ hours }}</b></p>
             <p v-if="mine" class="text-3xl font-black font-mono text-center text-emerald-600" data-elapsed>{{ elapsed }}</p>
-            <button v-if="mine" type="button" class="w-full py-4 rounded-2xl bg-rose-600 text-white font-black text-base" @click="act('work-orders.mine.stop')" data-stop>إيقاف المؤقت</button>
-            <button v-else type="button" :disabled="otherRunning" class="w-full py-4 rounded-2xl bg-emerald-600 text-white font-black text-base disabled:opacity-40" @click="act('work-orders.mine.start')" data-start>بدء العمل</button>
-            <p v-if="otherRunning" class="text-3xs text-amber-700 font-bold">عندك مؤقت يعمل على أمر آخر؛ أوقفه أولًا.</p>
-            <button v-if="order.status === 'in_progress' && !mine" type="button" class="w-full py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600" @click="act('work-orders.mine.hold')">تعليق الأمر</button>
+            <button v-if="mine" type="button" class="w-full py-4 rounded-2xl bg-rose-600 text-white font-black text-base" @click="act('work-orders.mine.stop')" data-stop>{{ $t('wo2_workorders_mine_show.stop_the_timer') }}</button>
+            <button v-else type="button" :disabled="otherRunning" class="w-full py-4 rounded-2xl bg-emerald-600 text-white font-black text-base disabled:opacity-40" @click="act('work-orders.mine.start')" data-start>{{ $t('wo2_workorders_mine_show.start_work') }}</button>
+            <p v-if="otherRunning" class="text-3xs text-amber-700 font-bold">{{ $t('wo2_workorders_mine_show.you_have_a_timer_running_on_anot') }}</p>
+            <button v-if="order.status === 'in_progress' && !mine" type="button" class="w-full py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600" @click="act('work-orders.mine.hold')">{{ $t('wo2_workorders_mine_show.put_the_order_on_hold') }}</button>
         </div>
 
         <div v-if="order.tasks.length" class="bg-white rounded-2xl p-4 shadow-sm space-y-1" data-tasks>
-            <p class="text-xs font-bold mb-1">قائمة المهام</p>
+            <p class="text-xs font-bold mb-1">{{ $t('wo2_workorders_mine_show.checklist') }}</p>
             <button v-for="t in order.tasks" :key="t.id" type="button" :disabled="!open" class="w-full flex items-center gap-3 py-2 text-start text-sm" :data-task="t.title" @click="toggleTask(t)">
                 <span class="w-6 h-6 rounded-lg border-2 flex items-center justify-center text-white text-xs" :class="t.is_done ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300'">{{ t.is_done ? '✓' : '' }}</span>
                 <span :class="t.is_done ? 'line-through text-slate-400' : ''">{{ t.title }}</span>
@@ -83,40 +85,40 @@ const input = 'w-full rounded-xl border-slate-200 text-sm';
         </div>
 
         <div class="bg-white rounded-2xl p-4 shadow-sm space-y-2">
-            <p class="text-xs font-bold">القطع المستهلكة</p>
+            <p class="text-xs font-bold">{{ $t('wo2_workorders_mine_show.parts_used') }}</p>
             <p v-for="p in order.parts" :key="p.id" class="text-xs flex justify-between" data-part><span>{{ p.name }}</span><b class="font-mono">× {{ p.quantity }}</b></p>
             <template v-if="open">
                 <div class="relative">
-                    <input v-model="term" :class="input" placeholder="ابحث عن قطعة بالاسم أو الباركود" @input="search" data-part-search />
+                    <input v-model="term" :class="input" :placeholder="$t('wo2_workorders_mine_show.search_for_a_part_by_name_or_bar')" @input="search" data-part-search />
                     <div v-if="found.length" class="absolute inset-x-0 z-10 mt-1 bg-white border border-slate-200 rounded-xl shadow max-h-56 overflow-y-auto">
                         <button v-for="p in found" :key="p.id" type="button" class="w-full text-start px-3 py-2 text-sm hover:bg-slate-50" @click="choose(p)">{{ p.name_ar }} <span class="font-mono text-slate-400 text-xs">{{ p.sku }}</span></button>
                     </div>
                 </div>
-                <div class="flex gap-2"><input v-model="partForm.quantity" type="text" inputmode="decimal" data-num :class="input" class="w-24 text-center font-mono" data-part-qty /><button type="button" :disabled="!partForm.product_id || partForm.processing" class="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm disabled:opacity-40" @click="addPart" data-add-part>إضافة القطعة</button></div>
+                <div class="flex gap-2"><input v-model="partForm.quantity" type="text" inputmode="decimal" data-num :class="input" class="w-24 text-center font-mono" data-part-qty /><button type="button" :disabled="!partForm.product_id || partForm.processing" class="flex-1 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm disabled:opacity-40" @click="addPart" data-add-part>{{ $t('wo2_workorders_mine_show.add_the_part') }}</button></div>
                 <p v-if="partForm.errors.quantity || partForm.errors.product_id" class="text-xs text-rose-600 font-bold">{{ partForm.errors.quantity || partForm.errors.product_id }}</p>
             </template>
         </div>
 
         <div class="bg-white rounded-2xl p-4 shadow-sm space-y-2">
-            <p class="text-xs font-bold">الصور</p>
+            <p class="text-xs font-bold">{{ $t('wo2_workorders_mine_show.photos') }}</p>
             <div class="flex flex-wrap gap-2"><a v-for="ph in order.photos" :key="ph.id" :href="ph.url" target="_blank"><img :src="ph.url" class="w-16 h-16 object-cover rounded-lg border" alt="" /></a></div>
-            <label v-if="open" class="flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-slate-300 text-sm font-bold text-slate-600"><CameraIcon class="w-5 h-5" /> التقاط / رفع صورة<input type="file" accept="image/*" capture="environment" class="sr-only" @change="upload" data-photo-input /></label>
+            <label v-if="open" class="flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-slate-300 text-sm font-bold text-slate-600"><CameraIcon class="w-5 h-5" /> {{ $t('wo2_workorders_mine_show.take_upload_a_photo') }}<input type="file" accept="image/*" capture="environment" class="sr-only" @change="upload" data-photo-input /></label>
         </div>
 
         <div v-if="open" class="bg-white rounded-2xl p-4 shadow-sm space-y-2">
-            <p class="text-xs font-bold">توقيع العميل<span v-if="rules.require_signature" class="text-rose-600"> *</span></p>
-            <p v-if="order.signed" class="text-xs text-emerald-700 font-bold" data-signed>وقّع {{ order.signed_by }} ✓</p>
+            <p class="text-xs font-bold">{{ $t('wo2_workorders_mine_show.customer_signature') }}<span v-if="rules.require_signature" class="text-rose-600"> *</span></p>
+            <p v-if="order.signed" class="text-xs text-emerald-700 font-bold" data-signed>{{ $t('wo2_workorders_mine_show.signed_by_n', { n0: order.signed_by }) }}</p>
             <template v-else>
-                <input v-model="sign.name" :class="input" placeholder="اسم الموقّع" data-sign-name />
+                <input v-model="sign.name" :class="input" :placeholder="$t('wo2_workorders_mine_show.signer_s_name')" data-sign-name />
                 <SignaturePad v-model="sign.signature" />
-                <button type="button" :disabled="!sign.signature || !sign.name || sign.processing" class="w-full py-2 rounded-xl border border-indigo-200 text-indigo-700 font-bold text-sm disabled:opacity-40" @click="doSign" data-save-signature>حفظ التوقيع</button>
+                <button type="button" :disabled="!sign.signature || !sign.name || sign.processing" class="w-full py-2 rounded-xl border border-indigo-200 text-indigo-700 font-bold text-sm disabled:opacity-40" @click="doSign" data-save-signature>{{ $t('wo2_workorders_mine_show.save_the_signature') }}</button>
             </template>
         </div>
 
         <div v-if="open" class="bg-white rounded-2xl p-4 shadow-sm space-y-2">
-            <textarea v-model="finish.notes" rows="3" :class="input" placeholder="ملاحظات الإنجاز" data-notes></textarea>
-            <button type="button" :disabled="finish.processing || mine" class="w-full py-4 rounded-2xl bg-indigo-700 text-white font-black text-base disabled:opacity-40" @click="doComplete" data-complete>إنهاء الأمر</button>
-            <p v-if="mine" class="text-3xs text-slate-500">أوقف المؤقت قبل الإنهاء.</p>
+            <textarea v-model="finish.notes" rows="3" :class="input" :placeholder="$t('wo2_workorders_mine_show.completion_notes')" data-notes></textarea>
+            <button type="button" :disabled="finish.processing || mine" class="w-full py-4 rounded-2xl bg-indigo-700 text-white font-black text-base disabled:opacity-40" @click="doComplete" data-complete>{{ $t('wo2_workorders_mine_show.finish_the_order') }}</button>
+            <p v-if="mine" class="text-3xs text-slate-500">{{ $t('wo2_workorders_mine_show.stop_the_timer_before_finishing') }}</p>
         </div>
     </MobileLayout>
 </template>

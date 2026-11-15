@@ -10,11 +10,11 @@ defineProps({ rows: Object });
 
 <template>
     <AppLayout>
-        <Head title="حد إعادة الطلب" />
-        <PageHeader title="أصناف وصلت حد إعادة الطلب" subtitle="مع الكمية المقترحة للشراء" :crumbs="[{ label: 'المستودعات' }, { label: 'إعادة الطلب' }]" />
+        <Head :title="$t('i_reports_reorder.reorder_level_2')" />
+        <PageHeader :title="$t('i_reports_reorder.items_that_reached_the_reorder_l')" :subtitle="$t('i_reports_reorder.with_the_suggested_purchase_quan')" :crumbs="[{ label: 'المستودعات' }, { label: 'إعادة الطلب' }]" />
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <table class="w-full text-xs">
-                <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">الصنف</th><th class="text-end px-3 py-2">الرصيد</th><th class="text-end px-3 py-2">حد الطلب</th><th class="text-end px-3 py-2">الكمية المقترحة</th><th class="text-end px-3 py-2">التكلفة التقديرية</th></tr></thead>
+                <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-3 py-2">{{ $t('i_reports_reorder.item') }}</th><th class="text-end px-3 py-2">{{ $t('i_reports_reorder.balance') }}</th><th class="text-end px-3 py-2">{{ $t('i_reports_reorder.reorder_level') }}</th><th class="text-end px-3 py-2">{{ $t('i_reports_reorder.suggested_quantity') }}</th><th class="text-end px-3 py-2">{{ $t('i_reports_reorder.estimated_cost') }}</th></tr></thead>
                 <tbody>
                     <tr v-for="r in rows.data" :key="r.id" class="border-t border-slate-100">
                         <td class="px-3 py-2 font-semibold">{{ r.name_ar }} <span class="text-slate-400 font-mono">{{ r.sku }}</span></td>
@@ -23,7 +23,7 @@ defineProps({ rows: Object });
                         <td class="px-3 py-2 text-end font-mono">{{ qty(r.suggested) }}</td>
                         <td class="px-3 py-2 text-end font-mono">{{ money(r.suggested * r.purchase_price) }}</td>
                     </tr>
-                    <tr v-if="!rows.data.length"><td colspan="5" class="py-10 text-center text-slate-400">لا توجد أصناف تحت حد الطلب</td></tr>
+                    <tr v-if="!rows.data.length"><td colspan="5" class="py-10 text-center text-slate-400">{{ $t('i_reports_reorder.no_items_below_the_reorder_level') }}</td></tr>
                 </tbody>
             </table>
             <Pagination :paginator="rows" />

@@ -1,18 +1,42 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import AppSidebar from '../Components/AppSidebar.vue';
 import AppTopBar from '../Components/AppTopBar.vue';
 import UpdateBanner from '../Components/UpdateBanner.vue';
 import IdleWatcher from '../Components/IdleWatcher.vue';
 import ImpersonationBanner from '../Components/ImpersonationBanner.vue';
+import SplitScreen from '../Components/SplitScreen.vue';
 import { sidebarCollapsed } from '@/composables/useSidebar';
+import { embedded, splitOpen, splitOrientation, splitRatio, openSplit, toggleSplit } from '@/composables/useSplitScreen';
 import { CheckCircleIcon, ExclamationCircleIcon, XMarkIcon } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 // Pages that list their own form errors set own-errors so they are not shown twice.
 const props = defineProps({ ownErrors: { type: Boolean, default: false } });
 const page = usePage();
 const isSidebarOpen = ref(false);
+
+// The cashier screens never split; a page inside the split frame shows only its content.
+const splitActive = computed(() => splitOpen.value && !embedded && !page.url.startsWith('/pos'));
+
+// Alt + click on a side-menu link opens it in the other pane; Alt + Shift + S toggles the split.
+const altClick = (event) => {
+    if (!event.altKey || embedded) return;
+    const link = event.target.closest?.('aside a[href], nav a[href]');
+    if (!link || link.getAttribute('href').startsWith('/pos')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openSplit(link.getAttribute('href'));
+};
+const splitKey = (event) => {
+    if (embedded || !event.altKey || !event.shiftKey || event.code !== 'KeyS' || page.url.startsWith('/pos')) return;
+    event.preventDefault();
+    toggleSplit();
+};
+onMounted(() => { document.addEventListener('click', altClick, true); document.addEventListener('keydown', splitKey); });
+onBeforeUnmount(() => { document.removeEventListener('click', altClick, true); document.removeEventListener('keydown', splitKey); });
 
 const impersonation = computed(() => page.props.impersonation);
 const flash = computed(() => page.props.flash);
@@ -41,9 +65,9 @@ const subscriptionNotice = computed(() => {
     const sub = page.props.subscription;
     if (!sub) return null;
     const days = sub.ends_at ? Math.ceil((new Date(sub.ends_at) - new Date()) / 86400000) : null;
-    if (sub.state === 'expired') return { tone: 'bg-rose-600', text: 'انتهى الاشتراك: البيانات متاحة للعرض فقط حتى التجديد.' };
-    if (sub.state === 'grace') return { tone: 'bg-amber-500', text: 'انتهى الاشتراك وأنت في فترة السماح. جدّد لتفادي إيقاف الإدخال.' };
-    if (sub.state === 'trial' && days !== null && days <= 7) return { tone: 'bg-sky-600', text: `تنتهي الفترة التجريبية خلال ${Math.max(days, 0)} يوم.` };
+    if (sub.state === 'expired') return { tone: 'bg-rose-600', text: t('z_resources_js_layouts_applayout.the_subscription_has_expired_dat') };
+    if (sub.state === 'grace') return { tone: 'bg-amber-500', text: t('z_resources_js_layouts_applayout.the_subscription_has_expired_and') };
+    if (sub.state === 'trial' && days !== null && days <= 7) return { tone: 'bg-sky-600', text: t('z_resources_js_layouts_applayout.the_trial_ends_in_n_days', { n0: Math.max(days, 0) }) };
     return null;
 });
 
@@ -57,24 +81,26 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value, field
 <template>
     <div class="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white print:bg-white print:min-h-0 print:p-0 print:m-0 print:block">
         <!-- Super Admin Impersonation Notice Banner -->
-        <ImpersonationBanner class="print:hidden" :impersonation="impersonation" />
-        <div v-if="subscriptionNotice" :class="subscriptionNotice.tone" class="text-white text-xs font-bold px-4 py-2 text-center print:hidden">
+        <ImpersonationBanner v-if="!embedded" class="print:hidden" :impersonation="impersonation" />
+        <div v-if="subscriptionNotice && !embedded" :class="subscriptionNotice.tone" class="text-white text-xs font-bold px-4 py-2 text-center print:hidden">
             {{ subscriptionNotice.text }}
-            <a v-if="$canRoute('billing.index')" :href="route('billing.index')" class="underline ms-2">إدارة الاشتراك</a>
+            <a v-if="$canRoute('billing.index')" :href="route('billing.index')" class="underline ms-2">{{ $t('z_resources_js_layouts_applayout.manage_the_subscription') }}</a>
         </div>
 
         <div class="flex-1 flex print:block">
             <!-- Right Navigation Sidebar (in RTL) -->
             <AppSidebar 
+                v-if="!embedded"
                 class="print:hidden"
                 :is-open="isSidebarOpen" 
                 @close-sidebar="isSidebarOpen = false" 
             />
 
             <!-- Main Content Shell (Padded for the sidebar on the start side: Right in RTL, Left in LTR) -->
-            <div :class="sidebarCollapsed ? 'lg:ps-20' : 'lg:ps-72'" class="flex-1 flex flex-col min-w-0 transition-all duration-300 print:ps-0 print:p-0 print:m-0 print:block">
+            <div :class="[embedded ? '' : (sidebarCollapsed ? 'lg:ps-20' : 'lg:ps-72'), splitActive ? (splitOrientation === 'h' ? 'lg:flex-row h-screen sticky top-0' : 'h-screen sticky top-0') : 'flex-col']" class="flex-1 flex min-w-0 transition-all duration-300 print:ps-0 print:p-0 print:m-0 print:block" :data-split-active="splitActive || null" :data-embedded="embedded || null">
+              <div :class="splitActive ? 'overflow-auto' : ''" :style="splitActive ? { flexBasis: `${splitRatio * 100}%`, flexGrow: 0, flexShrink: 0 } : { flex: '1 1 0%' }" class="flex flex-col min-w-0 min-h-0">
                 <!-- Top Sticky Navbar -->
-                <AppTopBar class="print:hidden" @toggle-sidebar="isSidebarOpen = !isSidebarOpen" />
+                <AppTopBar v-if="!embedded" class="print:hidden" @toggle-sidebar="isSidebarOpen = !isSidebarOpen" />
 
                 <!-- Flash Notification Banner -->
                 <div v-if="showFlash && (flash?.success || flash?.error || generalError || fieldErrors.length)" class="px-4 sm:px-8 pt-4 print:hidden space-y-2">
@@ -109,11 +135,11 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value, field
                             <div class="flex items-start gap-2 min-w-0">
                                 <ExclamationCircleIcon class="w-5 h-5 text-amber-600 flex-shrink-0" />
                                 <div class="min-w-0">
-                                    <p class="font-bold">لم يتم الحفظ. راجع {{ fieldErrors.length === 1 ? 'الملاحظة التالية' : `الملاحظات التالية (${fieldErrors.length})` }}:</p>
+                                    <p class="font-bold">{{ $t('z_resources_js_layouts_applayout.not_saved_review_n', { n0: fieldErrors.length === 1 ? 'الملاحظة التالية' : `الملاحظات التالية (${fieldErrors.length})` }) }}</p>
                                     <ul class="list-disc ps-5 mt-1 space-y-0.5 break-words">
                                         <li v-for="(message, i) in (showAllErrors ? fieldErrors : fieldErrors.slice(0, 5))" :key="i">{{ message }}</li>
                                     </ul>
-                                    <button v-if="fieldErrors.length > 5 && !showAllErrors" @click="showAllErrors = true" class="mt-1 font-bold underline">عرض الكل</button>
+                                    <button v-if="fieldErrors.length > 5 && !showAllErrors" @click="showAllErrors = true" class="mt-1 font-bold underline">{{ $t('z_resources_js_layouts_applayout.view_all') }}</button>
                                 </div>
                             </div>
                             <button @click="dismissFlash" class="text-amber-600 hover:text-amber-900"><XMarkIcon class="w-4 h-4" /></button>
@@ -135,11 +161,13 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value, field
                 </div>
 
                 <!-- Page Content Slot -->
-                <main class="flex-1 p-4 sm:p-6 lg:p-8 print:p-0 print:m-0 print:block">
+                <main :class="embedded ? 'p-3' : 'p-4 sm:p-6 lg:p-8'" class="flex-1 print:p-0 print:m-0 print:block">
                     <UpdateBanner v-if="$page.props.update" />
                     <IdleWatcher v-if="$page.props.idleMinutes" />
                     <slot />
                 </main>
+              </div>
+              <SplitScreen v-if="splitActive" />
             </div>
         </div>
     </div>

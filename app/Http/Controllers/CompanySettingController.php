@@ -9,6 +9,7 @@ use App\Models\Company;
 use App\Models\CompanySetting;
 use App\Models\Invoice;
 use App\Services\Auth\TwoFactor;
+use App\Services\RemoteAccess;
 use App\Services\TenantManager;
 use App\Support\LocalNetwork;
 use Illuminate\Http\Request;
@@ -54,6 +55,8 @@ class CompanySettingController extends Controller
             'countryLocked' => Invoice::withoutGlobalScope('branch')->exists(),
             // Local install: addresses the office's other devices open the system on.
             'localAccess' => config('app.local_install') ? LocalNetwork::urls(request()) : null,
+            // Linux local install, owner only: the internet-access page (Cloudflare Tunnel / Tailscale).
+            'remoteAccess' => app(RemoteAccess::class)->enabled() && request()->user()->isCompanyOwner() ? app(RemoteAccess::class)->active() : null,
         ]);
     }
 

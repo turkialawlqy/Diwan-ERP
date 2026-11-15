@@ -36,13 +36,13 @@ const logout = () => {
                         class="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition"
                     >
                         <BuildingOfficeIcon class="w-4 h-4 text-purple-400" />
-                        <span>جميع الشركات والمنشآت</span>
+                        <span>{{ $t('z_resources_js_layouts_superadminlayout.all_companies') }}</span>
                     </Link>
-                    <Link :href="route('super-admin.plans')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">الباقات</Link>
-                    <Link :href="route('super-admin.invoices')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">فواتير الاشتراكات</Link>
-                    <Link :href="route('super-admin.audit')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">سجل تدقيق المنصة</Link>
-                    <Link :href="route('super-admin.backups')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">النسخ الاحتياطي</Link>
-                    <Link :href="route('super-admin.legal')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">الشروط والخصوصية</Link>
+                    <Link :href="route('super-admin.plans')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">{{ $t('z_resources_js_layouts_superadminlayout.packages') }}</Link>
+                    <Link :href="route('super-admin.invoices')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">{{ $t('z_resources_js_layouts_superadminlayout.subscription_invoices') }}</Link>
+                    <Link :href="route('super-admin.audit')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">{{ $t('z_resources_js_layouts_superadminlayout.platform_audit_log') }}</Link>
+                    <Link :href="route('super-admin.backups')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">{{ $t('z_resources_js_layouts_superadminlayout.backups') }}</Link>
+                    <Link :href="route('super-admin.legal')" class="px-3 py-2 rounded-lg hover:bg-slate-800 transition">{{ $t('z_resources_js_layouts_superadminlayout.terms_and_privacy') }}</Link>
                 </nav>
             </div>
 
@@ -55,12 +55,12 @@ const logout = () => {
                     </div>
                     <div class="hidden sm:flex flex-col text-start leading-tight">
                         <span class="text-xs font-bold text-slate-100">{{ user?.name }}</span>
-                        <span class="text-[10px] text-purple-300">مسؤول النظام الرئيسي</span>
+                        <span class="text-[10px] text-purple-300">{{ $t('z_resources_js_layouts_superadminlayout.main_system_administrator') }}</span>
                     </div>
 
                     <button 
                         @click="logout"
-                        title="تسجيل الخروج"
+                        :title="$t('z_resources_js_layouts_superadminlayout.sign_out')"
                         class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
                     >
                         <ArrowRightOnRectangleIcon class="w-5 h-5" />

@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import ImportButton from '@/Components/UI/ImportButton.vue';
 import { ref } from 'vue';
@@ -19,6 +20,7 @@ import {
     TagIcon,
     ExclamationTriangleIcon,
 } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 const props = defineProps({
     products: Object,
@@ -54,7 +56,7 @@ const resetFilters = () => {
 };
 
 const deleteProduct = (id, name) => {
-    if (confirm(`هل أنت متأكد من حذف المنتج "${name}"؟`)) {
+    if (confirm(t('i_products_index.confirm_delete', { name }))) {
         router.delete(route('inventory.products.destroy', id), {
             onSuccess: () => closeMenu(),
         });
@@ -72,15 +74,15 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="دليل المنتجات والمخزون" />
+        <Head :title="$t('i_products_index.products_and_stock_directory')" />
 
         <div class="space-y-5" @click="closeMenu">
             <!-- Top Breadcrumbs & Action Bar (Exact match to live screenshot) -->
-            <PageHeader title="المنتجات" :crumbs="[{ label: 'المنتجات' }]">
+            <PageHeader :title="$t('i_products_index.products_2')" :crumbs="[{ label: 'المنتجات' }]">
 <template #actions>
 <button 
                         @click="router.reload()" 
-                        title="تحديث البيانات"
+                        :title="$t('i_products_index.refresh_data')"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-xs transition-all"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
@@ -95,7 +97,7 @@ const formatCurrency = (val) => {
                         ]"
                     >
                         <MagnifyingGlassIcon class="w-4 h-4 text-indigo-600" />
-                        <span>البحث والتصفية</span>
+                        <span>{{ $t('i_products_index.search_and_filter') }}</span>
                     </button>
 
 
@@ -106,9 +108,9 @@ const formatCurrency = (val) => {
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >
                         <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>إضافة</span>
+                        <span>{{ $t('i_products_index.add') }}</span>
                     </Link>
-<ImportButton v-if="$can('inventory.products.create')" type="products" title="استيراد الأصناف من Excel" hint="الأصناف الموجودة (بنفس SKU) تُحدّث. opening_quantity و opening_cost و warehouse_code للرصيد الافتتاحي." />
+<ImportButton v-if="$can('inventory.products.create')" type="products" :title="$t('i_products_index.import_items_from_excel')" :hint="$t('i_products_index.existing_items_with_the_same_sku')" />
 </template>
 </PageHeader>
 
@@ -125,24 +127,24 @@ const formatCurrency = (val) => {
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <!-- Search Keyword -->
                         <div class="sm:col-span-2">
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">اسم المنتج، الرمز (SKU)، أو الباركود</label>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">{{ $t('i_products_index.product_name_code_sku_or_barcode') }}</label>
                             <input 
                                 v-model="search"
                                 @keyup.enter="applyFilters"
                                 type="text" 
-                                placeholder="بحث عن منتج أو خدمة..."
+                                :placeholder="$t('i_products_index.search_for_a_product_or_service')"
                                 class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                             />
                         </div>
 
                         <!-- Category Filter -->
                         <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">التصنيف</label>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">{{ $t('i_products_index.category') }}</label>
                             <select 
                                 v-model="categoryId"
                                 class="w-full text-xs rounded-xl border border-slate-200 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                             >
-                                <option value="">جميع التصنيفات</option>
+                                <option value="">{{ $t('i_products_index.all_categories') }}</option>
                                 <option v-for="cat in categories" :key="cat.id" :value="cat.id">
                                     {{ cat.name_ar }}
                                 </option>
@@ -155,13 +157,13 @@ const formatCurrency = (val) => {
                             @click="resetFilters" 
                             class="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
                         >
-                            إعادة ضبط
+                            {{ $t('i_products_index.reset') }}
                         </button>
                         <button 
                             @click="applyFilters" 
                             class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition-colors"
                         >
-                            تطبيق التصفية
+                            {{ $t('i_products_index.apply_filter') }}
                         </button>
                     </div>
                 </div>
@@ -170,19 +172,19 @@ const formatCurrency = (val) => {
             <!-- KPI Mini Summary Bar -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي المنتجات</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('i_products_index.total_products') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-slate-800">{{ stats?.total_products ?? products.total ?? 0 }}</p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">التصنيفات المتاحة</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('i_products_index.available_categories') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ stats?.total_categories ?? categories?.length ?? 0 }}</p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">منخفضة المخزون</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('i_products_index.low_stock') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-amber-600">{{ stats?.low_stock_count ?? 0 }}</p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">المعروض بالصفحة</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('i_products_index.shown_on_the_page') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ products.data?.length ?? 0 }}</p>
                 </div>
             </div>
@@ -195,12 +197,12 @@ const formatCurrency = (val) => {
                     <table class="w-full text-right border-collapse">
                         <thead>
                             <tr class="border-b border-slate-200 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <th class="py-4 px-6 text-start">الاسم</th>
-                                <th class="py-4 px-6 text-start">المخزون</th>
-                                <th class="py-4 px-6 text-start">سعر الشراء</th>
-                                <th class="py-4 px-6 text-start">سعر البيع</th>
+                                <th class="py-4 px-6 text-start">{{ $t('i_products_index.name') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('i_products_index.stock') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('i_products_index.purchase_price') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('i_products_index.selling_price') }}</th>
                                 <th class="py-4 px-6 text-center w-12">
-                                    <span class="sr-only">إجراءات</span>
+                                    <span class="sr-only">{{ $t('i_products_index.actions') }}</span>
                                 </th>
                             </tr>
                         </thead>
@@ -243,7 +245,7 @@ const formatCurrency = (val) => {
                                             {{ Number(p.total_stock) }}
                                         </span>
                                         <span class="text-xs font-normal text-slate-400">
-                                            {{ p.unit?.name_ar || 'حبة' }}
+                                            {{ p.unit?.name_ar || $t('i_common.piece') }}
                                         </span>
                                     </div>
                                 </td>
@@ -263,7 +265,7 @@ const formatCurrency = (val) => {
                                     <button 
                                         @click="toggleMenu(p.id)"
                                         class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                                        title="خيارات"
+                                        :title="$t('i_products_index.options')"
                                     >
                                         <EllipsisVerticalIcon class="w-5 h-5" />
                                     </button>
@@ -278,7 +280,7 @@ const formatCurrency = (val) => {
                                             class="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-50 hover:text-indigo-600 transition-colors text-start"
                                         >
                                             <PencilSquareIcon class="w-4 h-4 text-slate-400" />
-                                            <span>تعديل المنتج</span>
+                                            <span>{{ $t('i_products_index.edit_product') }}</span>
                                         </Link>
                                         <div class="h-px bg-slate-100 my-1"></div>
                                         <button 
@@ -286,7 +288,7 @@ const formatCurrency = (val) => {
                                             class="w-full flex items-center gap-2 px-4 py-2 text-rose-600 hover:bg-rose-50 transition-colors text-start"
                                         >
                                             <TrashIcon class="w-4 h-4 text-rose-500" />
-                                            <span>حذف المنتج</span>
+                                            <span>{{ $t('i_products_index.delete_product') }}</span>
                                         </button>
                                     </div>
                                 </td>
@@ -297,7 +299,7 @@ const formatCurrency = (val) => {
                                 <td colspan="5" class="py-12 text-center text-slate-400">
                                     <div class="flex flex-col items-center justify-center gap-2">
                                         <CubeIcon class="w-10 h-10 text-slate-300 stroke-1" />
-                                        <p class="font-semibold text-slate-500">لا توجد منتجات مطابقة</p>
+                                        <p class="font-semibold text-slate-500">{{ $t('i_products_index.no_matching_products') }}</p>
                                     </div>
                                 </td>
                             </tr>
@@ -308,7 +310,7 @@ const formatCurrency = (val) => {
                 <!-- Pagination Footer -->
                 <div class="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
                     <p>
-                        عرض <span class="font-bold text-slate-700">{{ products.from || 0 }}</span> إلى <span class="font-bold text-slate-700">{{ products.to || 0 }}</span> من إجمالي <span class="font-bold text-slate-700">{{ products.total || 0 }}</span> منتج
+                        {{ $t('i_products_index.showing') }} <span class="font-bold text-slate-700">{{ products.from || 0 }}</span> {{ $t('i_products_index.to') }} <span class="font-bold text-slate-700">{{ products.to || 0 }}</span> {{ $t('i_products_index.of') }} <span class="font-bold text-slate-700">{{ products.total || 0 }}</span> {{ $t('i_products_index.products') }}
                     </p>
                     <div v-if="products?.links && products.links.length > 3" class="flex items-center gap-1">
                         <Link 

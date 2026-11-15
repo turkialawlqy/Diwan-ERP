@@ -28,23 +28,23 @@ const save = () => form.post(route('purchases.landed-costs.store'), { onSuccess:
 
 <template>
     <AppLayout>
-        <Head title="التكاليف الإضافية" />
-        <PageHeader title="التكاليف الإضافية على المشتريات" subtitle="الشحن والجمارك والتخليص تُوزّع على تكلفة الأصناف بنسبة قيمتها" :crumbs="[{ label: 'المشتريات' }, { label: 'التكاليف الإضافية' }]">
-            <template #actions><button v-if="$can('purchases.landed_costs.create')" @click="open = true" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> تكلفة إضافية</button></template>
+        <Head :title="$t('p_landedcosts_index.landed_costs')" />
+        <PageHeader :title="$t('p_landedcosts_index.landed_costs_on_purchases')" :subtitle="$t('p_landedcosts_index.freight_customs_and_clearance_ar')" :crumbs="[{ label: 'المشتريات' }, { label: 'التكاليف الإضافية' }]">
+            <template #actions><button v-if="$can('purchases.landed_costs.create')" @click="open = true" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> {{ $t('p_landedcosts_index.additional_cost') }}</button></template>
         </PageHeader>
         <DocumentTable :paginator="costs" :columns="columns" />
-        <Dialog :show="open" title="تكلفة إضافية على فاتورة شراء" @close="open = false">
+        <Dialog :show="open" :title="$t('p_landedcosts_index.additional_cost_on_a_purchase_in')" @close="open = false">
             <div class="grid grid-cols-2 gap-3">
-                <Field label="فاتورة الشراء" :error="form.errors.purchase_invoice_id" class="col-span-2">
-                    <select v-model="form.purchase_invoice_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">اختر...</option><option v-for="i in invoices" :key="i.id" :value="i.id">{{ i.invoice_number }} {{ i.supplier_invoice_number ? `(${i.supplier_invoice_number})` : '' }}</option></select>
+                <Field :label="$t('p_landedcosts_index.purchase_invoice')" :error="form.errors.purchase_invoice_id" class="col-span-2">
+                    <select v-model="form.purchase_invoice_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">{{ $t('p_landedcosts_index.choose') }}</option><option v-for="i in invoices" :key="i.id" :value="i.id">{{ i.invoice_number }} {{ i.supplier_invoice_number ? `(${i.supplier_invoice_number})` : '' }}</option></select>
                 </Field>
-                <Field label="البيان" :error="form.errors.description" class="col-span-2"><input v-model="form.description" placeholder="شحن بحري، رسوم جمركية..." class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="التاريخ"><DatePicker v-model="form.date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="المبلغ قبل الضريبة" :error="form.errors.amount"><input v-model.number="form.amount" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
-                <Field label="ضريبة المدخلات"><input v-model.number="form.tax_amount" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
-                <Field label="السداد"><select v-model="form.paid_from" class="w-full rounded-xl border-slate-200 text-xs"><option value="payables">آجل على مورد الخدمة</option><option value="cash">نقدي</option><option value="bank_transfer">بنكي</option></select></Field>
-                <Field v-if="form.paid_from === 'payables'" label="مورد الخدمة" :error="form.errors.supplier_id" class="col-span-2"><PartyPicker v-model="form.supplier_id" route-name="lookup.suppliers" /></Field>
-                <Field v-else label="الحساب" class="col-span-2"><SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" label="name" placeholder="الافتراضي" /></Field>
+                <Field :label="$t('p_landedcosts_index.description')" :error="form.errors.description" class="col-span-2"><input v-model="form.description" :placeholder="$t('p_landedcosts_index.sea_freight_customs_duties')" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('p_landedcosts_index.date')"><DatePicker v-model="form.date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('p_landedcosts_index.amount_before_tax')" :error="form.errors.amount"><input v-model.number="form.amount" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
+                <Field :label="$t('p_landedcosts_index.input_tax')"><input v-model.number="form.tax_amount" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
+                <Field :label="$t('p_landedcosts_index.payment')"><select v-model="form.paid_from" class="w-full rounded-xl border-slate-200 text-xs"><option value="payables">{{ $t('p_landedcosts_index.on_credit_to_the_service_supplie') }}</option><option value="cash">{{ $t('p_landedcosts_index.cash') }}</option><option value="bank_transfer">{{ $t('p_landedcosts_index.bank') }}</option></select></Field>
+                <Field v-if="form.paid_from === 'payables'" :label="$t('p_landedcosts_index.service_supplier')" :error="form.errors.supplier_id" class="col-span-2"><PartyPicker v-model="form.supplier_id" route-name="lookup.suppliers" /></Field>
+                <Field v-else :label="$t('p_landedcosts_index.account')" class="col-span-2"><SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('p_landedcosts_index.default')" /></Field>
             </div>
             <template #footer><button @click="save" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('ui.save') }}</button></template>
         </Dialog>

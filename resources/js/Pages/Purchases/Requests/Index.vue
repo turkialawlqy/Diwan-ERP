@@ -1,6 +1,7 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import DatePicker from '@/Components/UI/DatePicker.vue';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -10,17 +11,18 @@ import DocumentTable from '@/Components/Documents/DocumentTable.vue';
 import LineItemsEditor from '@/Components/Documents/LineItemsEditor.vue';
 import { PlusIcon } from '@heroicons/vue/24/outline';
 import { today } from '@/utils/format';
+const { t } = useI18n();
 
 defineProps({ requests: Object, filters: Object });
-const columns = [
-    { key: 'request_number', label: 'الرقم', type: 'mono' },
-    { key: 'request_date', label: 'التاريخ', type: 'date' },
-    { key: 'required_date', label: 'مطلوب بتاريخ', type: 'date' },
-    { key: 'requester.name', label: 'مقدم الطلب' },
-    { key: 'items_count', label: 'الأصناف' },
-    { key: 'status', label: 'الحالة', type: 'status' },
-];
-const statuses = [{ value: 'pending_approval', label: 'بانتظار الاعتماد' }, { value: 'approved', label: 'معتمد' }, { value: 'ordered', label: 'تم الطلب' }, { value: 'rejected', label: 'مرفوض' }];
+const columns = computed(() => ([
+    { key: 'request_number', label: t('z_purchases_requests_index.number'), type: 'mono' },
+    { key: 'request_date', label: t('z_purchases_requests_index.date'), type: 'date' },
+    { key: 'required_date', label: t('z_purchases_requests_index.required_by'), type: 'date' },
+    { key: 'requester.name', label: t('z_purchases_requests_index.requested_by') },
+    { key: 'items_count', label: t('z_purchases_requests_index.items') },
+    { key: 'status', label: t('z_purchases_requests_index.status'), type: 'status' },
+]));
+const statuses = computed(() => ([{ value: 'pending_approval', label: t('z_purchases_requests_index.awaiting_approval') }, { value: 'approved', label: t('z_purchases_requests_index.approved') }, { value: 'ordered', label: t('z_purchases_requests_index.ordered') }, { value: 'rejected', label: t('z_purchases_requests_index.rejected') }]));
 const open = ref(false);
 const form = useForm({ request_date: today(), required_date: '', notes: '', items: [] });
 const save = () => form.transform((d) => ({ ...d, items: d.items.map((i) => ({ product_id: i.product_id, item_name: i.item_name, quantity: i.quantity, estimated_price: i.estimated_price })) }))
@@ -29,20 +31,20 @@ const save = () => form.transform((d) => ({ ...d, items: d.items.map((i) => ({ p
 
 <template>
     <AppLayout>
-        <Head title="طلبات الشراء" />
-        <PageHeader year-scoped title="طلبات الشراء" subtitle="طلب داخلي ← اعتماد ← أمر شراء للمورد" :crumbs="[{ label: 'المشتريات' }, { label: 'طلبات الشراء' }]">
-            <template #actions><button v-if="$can('purchases.requests.create')" @click="open = true" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> طلب شراء</button></template>
+        <Head :title="$t('p_requests_index.purchase_requests')" />
+        <PageHeader year-scoped :title="$t('p_requests_index.purchase_requests')" :subtitle="$t('p_requests_index.internal_request_approval_purcha')" :crumbs="[{ label: $t('z_purchases_requests_index.purchases') }, { label: $t('z_purchases_requests_index.purchase_requests') }]">
+            <template #actions><button v-if="$can('purchases.requests.create')" @click="open = true" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> {{ $t('p_requests_index.purchase_request') }}</button></template>
         </PageHeader>
         <DocumentTable :paginator="requests" :columns="columns" :filters="filters" :statuses="statuses" search-route="purchases.requests.index" :link="(r) => route('purchases.requests.show', r.id)" />
-        <Dialog :show="open" title="طلب شراء" size="xl" @close="open = false">
+        <Dialog :show="open" :title="$t('p_requests_index.purchase_request')" size="xl" @close="open = false">
             <div class="grid grid-cols-3 gap-3 mb-3">
-                <Field label="التاريخ"><DatePicker v-model="form.request_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="مطلوب بتاريخ"><DatePicker v-model="form.required_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="ملاحظات"><input v-model="form.notes" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('p_requests_index.date')"><DatePicker v-model="form.request_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('p_requests_index.required_by')"><DatePicker v-model="form.required_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('p_requests_index.notes')"><input v-model="form.notes" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
             </div>
-            <LineItemsEditor v-model="form.items" price-field="purchase_price" price-key="estimated_price" price-label="السعر التقديري" :allow-discount="false" />
+            <LineItemsEditor v-model="form.items" price-field="purchase_price" price-key="estimated_price" :price-label="$t('p_requests_show.estimated_price')" :allow-discount="false" />
             <p v-for="(msg, key) in form.errors" :key="key" class="text-xs text-rose-600 mt-1">{{ msg }}</p>
-            <template #footer><button @click="save" :disabled="form.processing || !form.items.length" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">إرسال الطلب</button></template>
+            <template #footer><button @click="save" :disabled="form.processing || !form.items.length" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('p_requests_index.submit_the_request') }}</button></template>
         </Dialog>
     </AppLayout>
 </template>

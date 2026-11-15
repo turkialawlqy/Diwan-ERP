@@ -177,7 +177,7 @@ class PurchaseCycleService
             $receipt = GoodsReceipt::create([
                 'branch_id' => $order?->branch_id ?? app(ActiveBranch::class)->forWrite(),
                 'warehouse_id' => $this->documentStock->warehouse($data['warehouse_id'] ?? $order?->warehouse_id),
-                'supplier_id' => $order?->supplier_id ?? $data['supplier_id'],
+                'supplier_id' => $order?->supplier_id ?? ($data['supplier_id'] ?? null), // a keeper's stock-in has no supplier yet
                 'purchase_order_id' => $order?->id,
                 'receipt_number' => $this->numbers->next('goods_receipt', Carbon::parse($data['receipt_date'])),
                 'receipt_date' => $data['receipt_date'],

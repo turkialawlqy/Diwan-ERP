@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import ImportButton from '@/Components/UI/ImportButton.vue';
 import { notify } from '@/composables/useDialog';
@@ -26,6 +27,7 @@ import {
     ArrowTopRightOnSquareIcon,
     CheckIcon,
 } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 const props = defineProps({
     accounts: Array,
@@ -155,15 +157,15 @@ const suggestChildCode = (parentId) => {
 // Delete Handler
 const deleteAccount = (acc) => {
     if (acc.children_count > 0) {
-        notify('لا يمكن حذف هذا الحساب لوجود حسابات فرعية تابعة له. يرجى حذفها أو نقلها أولاً.');
+        notify(t('a_accounts.has_children'));
         return;
     }
     if (acc.journal_lines_count > 0) {
-        notify('لا يمكن حذف هذا الحساب لوجود قيود يومية وعمليات محاسبية مسجلة عليه.');
+        notify(t('a_accounts.has_entries'));
         return;
     }
 
-    if (confirm(`هل أنت متأكد من حذف الحساب "${acc.code} - ${acc.name_ar}"؟`)) {
+    if (confirm(t('a_accounts.confirm_delete', { name: `${acc.code} - ${acc.name_ar}` }))) {
         router.delete(route('accounting.accounts.destroy', acc.id), {
             preserveScroll: true,
         });
@@ -189,13 +191,7 @@ const formatCurrency = (val) => {
     });
 };
 
-const typeLabels = {
-    asset: 'أصول',
-    liability: 'خصوم والتزامات',
-    equity: 'حقوق ملكية',
-    revenue: 'إيرادات',
-    expense: 'مصروفات',
-};
+const typeLabels = computed(() => ({ asset: t('a_common.assets'), liability: t('a_common.liabilities'), equity: t('a_common.equity'), revenue: t('a_common.revenue'), expense: t('a_common.expenses') }));
 
 const typeBadgeColors = {
     asset: 'bg-indigo-50 text-indigo-700 border-indigo-200',
@@ -208,78 +204,78 @@ const typeBadgeColors = {
 
 <template>
     <AppLayout>
-        <Head title="دليل الحسابات" />
+        <Head :title="$t('a_accounts.chart_of_accounts')" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
-            <PageHeader title="دليل الحسابات" :crumbs="[{ label: 'المحاسبة' }, { label: 'دليل الحسابات' }]">
+            <PageHeader :title="$t('a_accounts.chart_of_accounts')" :crumbs="[{ label: 'المحاسبة' }, { label: 'دليل الحسابات' }]">
 <template #actions>
 
                     <button 
                         @click="handleSearch"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-xs"
-                        title="تحديث البيانات"
+                        :title="$t('a_accounts.refresh_data')"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
                     </button>
 <button 
                         @click="expandAll"
                         class="px-3.5 py-2.5 bg-white border border-slate-200/80 text-slate-700 hover:text-indigo-600 hover:bg-slate-50 rounded-xl text-xs font-semibold shadow-xs transition flex items-center gap-1.5"
-                        title="توسيع كافة فروع شجرة الحسابات"
+                        :title="$t('a_accounts.expand_all_branches_of_the_chart')"
                     >
                         <ArrowsPointingOutIcon class="w-4 h-4" />
-                        <span>توسيع الكل</span>
+                        <span>{{ $t('a_accounts.expand_all') }}</span>
                     </button>
 
                     <button 
                         @click="collapseAll"
                         class="px-3.5 py-2.5 bg-white border border-slate-200/80 text-slate-700 hover:text-indigo-600 hover:bg-slate-50 rounded-xl text-xs font-semibold shadow-xs transition flex items-center gap-1.5"
-                        title="طي كافة فروع شجرة الحسابات"
+                        :title="$t('a_accounts.collapse_all_branches_of_the_cha')"
                     >
                         <ArrowsPointingInIcon class="w-4 h-4" />
-                        <span>طي الكل</span>
+                        <span>{{ $t('a_accounts.collapse_all') }}</span>
                     </button>
 
                     <Link v-if="$can('accounting.accounts.create')" :href="route('accounting.accounts.create')" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-indigo-500/20 transition-all flex items-center gap-1.5">
                         <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>إضافة حساب رئيسي جديد</span>
+                        <span>{{ $t('a_accounts.add_a_new_top_level_account') }}</span>
                     </Link>
-<ImportButton v-if="$can('accounting.accounts.create')" type="accounts" title="استيراد دليل الحسابات من Excel" hint="الحساب الجديد يُنشأ تحت أبيه (parent_code) ويرث نوعه. الحساب الموجود يُحدّث اسمه فقط." />
+<ImportButton v-if="$can('accounting.accounts.create')" type="accounts" :title="$t('a_accounts.import_the_chart_of_accounts_fro')" :hint="$t('a_accounts.a_new_account_is_created_under_i')" />
 </template>
 </PageHeader>
 
             <!-- KPI Cards -->
             <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
                 <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-1 cursor-pointer hover:border-indigo-300 transition" @click="setTypeFilter('asset')">
-                    <span class="text-xs font-bold text-slate-500">الأصول (Assets)</span>
+                    <span class="text-xs font-bold text-slate-500">{{ $t('a_accounts.assets') }}</span>
                     <h3 class="text-lg font-black font-mono text-indigo-600 truncate">
                         {{ formatCurrency(stats?.total_assets) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                     </h3>
                 </div>
 
                 <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-1 cursor-pointer hover:border-amber-300 transition" @click="setTypeFilter('liability')">
-                    <span class="text-xs font-bold text-slate-500">الخصوم (Liabilities)</span>
+                    <span class="text-xs font-bold text-slate-500">{{ $t('a_accounts.liabilities') }}</span>
                     <h3 class="text-lg font-black font-mono text-amber-600 truncate">
                         {{ formatCurrency(stats?.total_liabilities) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                     </h3>
                 </div>
 
                 <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-1 cursor-pointer hover:border-purple-300 transition" @click="setTypeFilter('equity')">
-                    <span class="text-xs font-bold text-slate-500">حقوق الملكية (Equity)</span>
+                    <span class="text-xs font-bold text-slate-500">{{ $t('a_accounts.equity') }}</span>
                     <h3 class="text-lg font-black font-mono text-purple-600 truncate">
                         {{ formatCurrency(stats?.total_equity) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                     </h3>
                 </div>
 
                 <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-1 cursor-pointer hover:border-emerald-300 transition" @click="setTypeFilter('revenue')">
-                    <span class="text-xs font-bold text-slate-500">الإيرادات (Revenues)</span>
+                    <span class="text-xs font-bold text-slate-500">{{ $t('a_accounts.revenues') }}</span>
                     <h3 class="text-lg font-black font-mono text-emerald-600 truncate">
                         {{ formatCurrency(stats?.total_revenues) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                     </h3>
                 </div>
 
                 <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-1 cursor-pointer hover:border-rose-300 transition" @click="setTypeFilter('expense')">
-                    <span class="text-xs font-bold text-slate-500">المصروفات (Expenses)</span>
+                    <span class="text-xs font-bold text-slate-500">{{ $t('a_accounts.expenses') }}</span>
                     <h3 class="text-lg font-black font-mono text-rose-600 truncate">
                         {{ formatCurrency(stats?.total_expenses) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                     </h3>
@@ -294,7 +290,7 @@ const typeBadgeColors = {
                         v-model="search"
                         @keyup.enter="handleSearch"
                         type="text" 
-                        placeholder="بحث برقم الكود، أو اسم الحساب..."
+                        :placeholder="$t('a_accounts.search_by_code_or_account_name')"
                         class="w-full ps-9 pe-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                     />
                 </div>
@@ -304,7 +300,7 @@ const typeBadgeColors = {
                         @click="setTypeFilter('')"
                         :class="[!selectedType ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100', 'px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition']"
                     >
-                        الكل ({{ stats?.total_accounts_count }})
+                        {{ $t('s_clients.all') }} ({{ stats?.total_accounts_count }})
                     </button>
                     <button 
                         v-for="(label, key) in typeLabels" 
@@ -323,13 +319,13 @@ const typeBadgeColors = {
                     <table class="w-full text-start text-xs">
                         <thead>
                             <tr class="bg-slate-50/50 border-b border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <th class="py-4 px-6 text-start w-32">رمز الحساب</th>
-                                <th class="py-4 px-6 text-start">شجرة الحسابات المحاسبية</th>
-                                <th class="py-4 px-6 text-start w-28">النوع</th>
-                                <th class="py-4 px-6 text-start w-28">طبيعة الحساب</th>
-                                <th class="py-4 px-6 text-start w-24">المستوى</th>
-                                <th class="py-4 px-6 text-end w-36">الرصيد التراكمي</th>
-                                <th class="py-4 px-6 text-center w-56">إجراءات الحساب</th>
+                                <th class="py-4 px-6 text-start w-32">{{ $t('a_accounts.account_code') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('a_accounts.chart_of_accounts_tree') }}</th>
+                                <th class="py-4 px-6 text-start w-28">{{ $t('a_accounts.type') }}</th>
+                                <th class="py-4 px-6 text-start w-28">{{ $t('a_accounts.account_nature') }}</th>
+                                <th class="py-4 px-6 text-start w-24">{{ $t('a_accounts.level') }}</th>
+                                <th class="py-4 px-6 text-end w-36">{{ $t('a_accounts.running_balance') }}</th>
+                                <th class="py-4 px-6 text-center w-56">{{ $t('a_accounts.account_actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -359,7 +355,7 @@ const typeBadgeColors = {
                                                 v-if="acc.is_parent || acc.children_count > 0"
                                                 @click.stop="toggleNode(acc.id)"
                                                 class="w-5 h-5 flex items-center justify-center rounded-md hover:bg-slate-200/80 text-slate-500 transition-colors flex-shrink-0"
-                                                :title="expandedNodes.has(acc.id) ? 'طي هذا الفرع' : 'توسيع هذا الفرع'"
+                                                :title="expandedNodes.has(acc.id) ? $t('a_accounts.collapse_branch') : $t('a_accounts.expand_branch')"
                                             >
                                                 <ChevronDownIcon 
                                                     :class="[
@@ -392,7 +388,7 @@ const typeBadgeColors = {
                                             <span 
                                                 v-if="acc.children_count > 0" 
                                                 class="text-3xs font-semibold px-1.5 py-0.2 rounded-full bg-slate-200/70 text-slate-600"
-                                                :title="`${acc.children_count} حسابات متفرعة`"
+                                                :title="$t('a_accounts.sub_count', { n: acc.children_count })"
                                             >
                                                 {{ acc.children_count }}
                                             </span>
@@ -408,13 +404,13 @@ const typeBadgeColors = {
 
                                     <!-- Nature (Debit/Credit) -->
                                     <td class="py-3 px-4 text-slate-500 text-3xs whitespace-nowrap">
-                                        {{ acc.nature === 'debit' ? 'مدين (Debit)' : 'دائن (Credit)' }}
+                                        {{ acc.nature === 'debit' ? $t('a_common.debit') : $t('a_common.credit') }}
                                     </td>
 
                                     <!-- Hierarchy Level -->
                                     <td class="py-3 px-4 text-slate-400 text-3xs whitespace-nowrap">
                                         <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">
-                                            مستوى {{ getAccountLevel(acc) }}
+                                            {{ $t('a_accounts.level_n', { n: getAccountLevel(acc) }) }}
                                         </span>
                                     </td>
 
@@ -431,9 +427,9 @@ const typeBadgeColors = {
                                     <td class="py-2.5 px-4 text-center whitespace-nowrap">
                                         <div class="flex items-center justify-center gap-1">
                                             <!-- 1. زر إضافة حساب فرعي (Add Sub-Account) -->
-                                            <Link v-if="$can('accounting.accounts.create')" :href="route('accounting.accounts.create', { parent_id: acc.id })" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-3xs font-bold transition flex items-center gap-1 border border-indigo-200/60 shadow-2xs" title="إضافة حساب فرعي متفرع من هذا الحساب">
+                                            <Link v-if="$can('accounting.accounts.create')" :href="route('accounting.accounts.create', { parent_id: acc.id })" class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-3xs font-bold transition flex items-center gap-1 border border-indigo-200/60 shadow-2xs" :title="$t('a_accounts.add_a_sub_account_under_this_acc')">
                                                 <PlusCircleIcon class="w-3.5 h-3.5" />
-                                                <span>فرعي</span>
+                                                <span>{{ $t('a_accounts.sub_account') }}</span>
                                             </Link>
 
                                             <!-- 2. زر كشف الحساب للحسابات الفرعية (Statement of Account) -->
@@ -441,14 +437,14 @@ const typeBadgeColors = {
                                                 v-if="!acc.is_parent || acc.children_count === 0"
                                                 :href="route('accounting.ledger.index', { account_id: acc.id })"
                                                 class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-3xs font-bold transition flex items-center gap-1 border border-emerald-200/60 shadow-2xs"
-                                                title="عرض كشف الحساب ودفتر الأستاذ التفصيلي"
+                                                :title="$t('a_accounts.view_the_account_statement_and_d')"
                                             >
                                                 <DocumentTextIcon class="w-3.5 h-3.5" />
-                                                <span>كشف الحساب</span>
+                                                <span>{{ $t('a_accounts.statement') }}</span>
                                             </Link>
 
                                             <!-- 3. زر تعديل الحساب (Edit) -->
-                                            <Link v-if="$can('accounting.accounts.edit')" :href="route('accounting.accounts.edit', acc.id)" class="p-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition" title="تعديل بيانات الحساب">
+                                            <Link v-if="$can('accounting.accounts.edit')" :href="route('accounting.accounts.edit', acc.id)" class="p-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition" :title="$t('a_accounts.edit_account_details')">
                                                 <PencilSquareIcon class="w-4 h-4" />
                                             </Link>
 
@@ -464,8 +460,8 @@ const typeBadgeColors = {
                                                 ]"
                                                 :title="
                                                     acc.children_count > 0 
-                                                        ? 'لا يمكن حذف الحساب لوجود حسابات فرعية تحته' 
-                                                        : (acc.journal_lines_count > 0 ? 'لا يمكن حذف الحساب لوجود قيود مسجلة عليه' : 'حذف الحساب')
+                                                        ? $t('a_accounts.tip_children') 
+                                                        : (acc.journal_lines_count > 0 ? $t('a_accounts.tip_entries') : $t('a_accounts.tip_delete'))
                                                 "
                                             >
                                                 <TrashIcon class="w-4 h-4" />
@@ -476,7 +472,7 @@ const typeBadgeColors = {
                             </template>
                             <tr v-if="!accounts || accounts.length === 0">
                                 <td colspan="7" class="py-12 text-center text-slate-400">
-                                    لا توجد حسابات مسجلة مطابقة للبحث.
+                                    {{ $t('a_accounts.no_accounts_match_the_search') }}
                                 </td>
                             </tr>
                         </tbody>

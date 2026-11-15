@@ -1,6 +1,7 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { ask } from '@/composables/useDialog';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -9,6 +10,7 @@ import Field from '@/Components/UI/Field.vue';
 import Pagination from '@/Components/UI/Pagination.vue';
 import { date } from '@/utils/format';
 import { PlusIcon, ShieldCheckIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 const props = defineProps({ taxDefaults: Object, vatCategories: Object, exemptionReasons: Object, devices: Array, documents: Object, stats: Object, overdue: Number, background: Object, seller: Object, missing: Array, branches: Array, phase: String, filters: Object });
 
@@ -28,20 +30,20 @@ const saveDevice = () => deviceForm.post(route('zatca.devices.store'), { onSucce
 const otp = ref({});
 const onboard = (device) => router.post(route('zatca.devices.onboard', device.id), { otp: otp.value[device.id] || '' }, { preserveScroll: true });
 const renew = async (device) => {
-    const code = await ask('أدخل رمز OTP من بوابة «فاتورة» لتجديد الشهادة:', { title: 'تجديد شهادة الجهاز', type: 'password', required: true, minLength: 6 });
+    const code = await ask(t('x_zatca_index.enter_the_otp_from_the_fatoora_p'), { title: t('x_zatca_index.renew_the_device_certificate'), type: 'password', required: true, minLength: 6 });
     if (code) router.post(route('zatca.devices.renew', device.id), { otp: code });
 };
-const revoke = (device) => { if (confirm('إيقاف الجهاز؟ لن تُوقّع به فواتير جديدة.')) router.post(route('zatca.devices.revoke', device.id)); };
+const revoke = (device) => { if (confirm(t('x_zatca_index.disable_the_device_new_invoices'))) router.post(route('zatca.devices.revoke', device.id)); };
 const sending = ref(false);
 const resubmit = (doc) => router.post(route('zatca.documents.resubmit', doc.id), {}, { preserveScroll: true, onStart: () => { sending.value = true; }, onFinish: () => { sending.value = false; } });
 const submitPending = () => router.post(route('zatca.documents.submit-pending'), {}, { preserveScroll: true, onStart: () => { sending.value = true; }, onFinish: () => { sending.value = false; } });
 const waiting = () => (props.stats.pending || 0) + (props.stats.failed || 0);
 const filter = (status) => router.get(route('zatca.index'), { status: status || undefined }, { preserveState: true, preserveScroll: true });
 
-const deviceStatus = { new: ['بانتظار OTP', 'bg-slate-100 text-slate-600'], compliance: ['فحوصات الامتثال', 'bg-amber-50 text-amber-700'], active: ['مفعل', 'bg-emerald-50 text-emerald-700'], revoked: ['موقوف', 'bg-rose-50 text-rose-700'] };
-const docStatus = { pending: ['بانتظار الإرسال', 'text-amber-600'], submitting: ['جارٍ الإرسال', 'text-sky-600'], cleared: ['معتمدة (Cleared)', 'text-emerald-600'], reported: ['مبلغ عنها', 'text-emerald-600'], warning: ['مقبولة بتحذيرات', 'text-amber-600'], rejected: ['مرفوضة', 'text-rose-600'], failed: ['تعذر الإرسال', 'text-rose-600'], superseded: ['مُستبدل (أُعيد توقيعه)', 'text-slate-400'] };
-const envLabel = { sandbox: 'بيئة المطورين', simulation: 'المحاكاة', production: 'الإنتاج' };
-const typeLabel = { '388': 'فاتورة', '381': 'إشعار دائن', '383': 'إشعار مدين' };
+const deviceStatus = computed(() => ({ new: [t('x_zatca_index.awaiting_otp'), 'bg-slate-100 text-slate-600'], compliance: [t('x_zatca_index.compliance_checks'), 'bg-amber-50 text-amber-700'], active: [t('x_zatca_index.enabled'), 'bg-emerald-50 text-emerald-700'], revoked: [t('x_zatca_index.suspended'), 'bg-rose-50 text-rose-700'] }));
+const docStatus = computed(() => ({ pending: [t('x_zatca_index.awaiting_submission'), 'text-amber-600'], submitting: [t('x_zatca_index.submitting'), 'text-sky-600'], cleared: [t('x_zatca_index.cleared'), 'text-emerald-600'], reported: [t('x_zatca_index.reported'), 'text-emerald-600'], warning: [t('x_zatca_index.accepted_with_warnings'), 'text-amber-600'], rejected: [t('x_zatca_index.rejected'), 'text-rose-600'], failed: [t('x_zatca_index.could_not_submit'), 'text-rose-600'], superseded: [t('x_zatca_index.superseded_re_signed'), 'text-slate-400'] }));
+const envLabel = computed(() => ({ sandbox: t('x_zatca_index.developer_environment'), simulation: t('x_zatca_index.simulation'), production: t('x_zatca_index.production') }));
+const typeLabel = computed(() => ({ '388': t('x_zatca_index.invoice'), '381': t('x_zatca_index.credit_note'), '383': t('x_zatca_index.debit_note') }));
 </script>
 
 <template>
@@ -135,7 +137,7 @@ const typeLabel = { '388': 'فاتورة', '381': 'إشعار دائن', '383': 
             <div class="flex flex-wrap gap-2 p-3 border-b border-slate-100 text-xs">
                 <button @click="filter(null)" :class="!filters.status ? 'bg-slate-800 text-white' : 'bg-slate-50'" class="px-3 py-1 rounded-lg font-bold">{{ $t('zatca.all') }}</button>
                 <button v-for="(label, key) in docStatus" :key="key" @click="filter(key)" :class="filters.status === key ? 'bg-slate-800 text-white' : 'bg-slate-50'" class="px-3 py-1 rounded-lg font-bold">{{ label[0] }} <span class="font-mono">({{ stats[key] || 0 }})</span></button>
-                <button v-if="waiting() && $can('admin.zatca.manage')" type="button" @click="submitPending" :disabled="sending" class="ms-auto px-3 py-1 rounded-lg bg-indigo-600 text-white font-bold disabled:opacity-50" data-submit-pending>{{ sending ? 'جارٍ الإرسال...' : `إرسال المعلّق الآن (${waiting()})` }}</button>
+                <button v-if="waiting() && $can('admin.zatca.manage')" type="button" @click="submitPending" :disabled="sending" class="ms-auto px-3 py-1 rounded-lg bg-indigo-600 text-white font-bold disabled:opacity-50" data-submit-pending>{{ sending ? $t('x_zatca_index.sending') : $t('x_zatca_index.submit_the_pending_now_n', { n0: waiting() }) }}</button>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-xs">

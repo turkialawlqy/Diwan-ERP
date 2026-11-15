@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Accounting\AccountController;
 use App\Http\Controllers\Accounting as A;
+use App\Http\Controllers\Accounting\ConsolidatedStatementController;
 use App\Http\Controllers\Accounting\GeneralLedgerController;
 use App\Http\Controllers\Accounting\JournalEntryController;
 use App\Http\Controllers\Accounting\TrialBalanceController;
@@ -71,6 +72,7 @@ use App\Http\Controllers\PosRegisterController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Projects as PR;
+use App\Http\Controllers\PurchaseDraftController;
 use App\Http\Controllers\PurchaseInvoiceController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\Purchases as P;
@@ -78,6 +80,7 @@ use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\RealEstate;
 use App\Http\Controllers\RecycleBinController;
 use App\Http\Controllers\ReleaseNotesController;
+use App\Http\Controllers\RemoteAccessController;
 use App\Http\Controllers\Reports\InsightsController;
 use App\Http\Controllers\Reports\ReportController;
 use App\Http\Controllers\Reports\ReportExportController;
@@ -93,7 +96,9 @@ use App\Http\Controllers\Sales\SubscriptionController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SectorPackController;
 use App\Http\Controllers\SelfUpdateController;
+use App\Http\Controllers\SidebarPreferenceController;
 use App\Http\Controllers\StockCountController;
+use App\Http\Controllers\StockInController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SuperAdmin\ImpersonationController;
 use App\Http\Controllers\SuperAdmin\PlatformController;
@@ -259,6 +264,8 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     // 1. Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/dashboard/widgets', [DashboardWidgetController::class, 'update'])->name('dashboard.widgets');
+    Route::post('/preferences/sidebar', [SidebarPreferenceController::class, 'update'])->name('preferences.sidebar.update');
+    Route::delete('/preferences/sidebar', [SidebarPreferenceController::class, 'reset'])->name('preferences.sidebar.reset');
     Route::get('/search', SearchController::class)->name('search');
 
     // Working branch and fiscal year (sidebar «سياق العمل» card).
@@ -267,6 +274,9 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     Route::post('/context/fiscal-year', [ActiveContextController::class, 'fiscalYear'])->name('context.fiscal-year');
     Route::get('/system/update', [SelfUpdateController::class, 'status'])->name('system.update.status');
     Route::post('/system/update', [SelfUpdateController::class, 'apply'])->middleware('throttle:6,1')->name('system.update.apply');
+    Route::get('/settings/remote-access', [RemoteAccessController::class, 'edit'])->name('settings.remote-access');
+    Route::get('/settings/remote-access/status', [RemoteAccessController::class, 'status'])->name('settings.remote-access.status');
+    Route::post('/settings/remote-access', [RemoteAccessController::class, 'apply'])->middleware('throttle:6,1')->name('settings.remote-access.apply');
 
     // Type-ahead lookups for document forms (bounded results).
     Route::prefix('lookup')->name('lookup.')->group(function () {
@@ -280,6 +290,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     });
 
     // Files attached to documents (invoices, bills, vouchers, journals, quotations, orders).
+    Route::post('/attachments/stage/{kind}', [AttachmentController::class, 'stage'])->name('attachments.stage');
     Route::get('/attachments/file/{attachment}', [AttachmentController::class, 'download'])->name('attachments.download');
     Route::delete('/attachments/{attachment}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
     Route::get('/attachments/{kind}/{id}', [AttachmentController::class, 'index'])->name('attachments.index')->whereNumber('id');
@@ -485,6 +496,9 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/warehouses', [WarehouseController::class, 'store'])->name('warehouses.store');
         Route::put('/warehouses/{warehouse}', [WarehouseController::class, 'update'])->name('warehouses.update');
         Route::delete('/warehouses/{warehouse}', [WarehouseController::class, 'destroy'])->name('warehouses.destroy');
+        Route::get('/stock-in', [StockInController::class, 'index'])->name('stock-in.index');
+        Route::get('/stock-in/create', [StockInController::class, 'create'])->name('stock-in.create');
+        Route::post('/stock-in', [StockInController::class, 'store'])->name('stock-in.store');
         Route::get('/counts', [StockCountController::class, 'index'])->name('counts.index');
         Route::post('/counts', [StockCountController::class, 'store'])->name('counts.store');
         Route::get('/counts/{count}', [StockCountController::class, 'show'])->name('counts.show');
@@ -507,6 +521,10 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         // Purchase Invoices
         Route::get('/invoices', [PurchaseInvoiceController::class, 'index'])->name('invoices.index');
         Route::get('/invoices/create', [PurchaseInvoiceController::class, 'create'])->name('invoices.create');
+        Route::get('/drafts', [PurchaseDraftController::class, 'index'])->name('drafts.index');
+        Route::get('/drafts/{draft}/complete', [PurchaseDraftController::class, 'completeForm'])->name('drafts.complete-form');
+        Route::post('/drafts/{draft}/complete', [PurchaseDraftController::class, 'complete'])->name('drafts.complete');
+        Route::delete('/drafts/{draft}', [PurchaseDraftController::class, 'destroy'])->name('drafts.destroy');
         Route::get('/invoices/from-receipts', [PurchaseInvoiceController::class, 'fromReceipts'])->name('invoices.from-receipts');
         Route::post('/invoices/from-receipts', [PurchaseInvoiceController::class, 'storeFromReceipts'])->name('invoices.store-from-receipts');
         Route::post('/invoices', [PurchaseInvoiceController::class, 'store'])->name('invoices.store');
@@ -601,6 +619,12 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::get('/readings', [EQ\ReadingController::class, 'index'])->name('readings.index');
         Route::post('/readings', [EQ\ReadingController::class, 'store'])->name('readings.store');
         Route::delete('/readings/{reading}', [EQ\ReadingController::class, 'destroy'])->name('readings.destroy');
+        Route::get('/preparations', [EQ\PreparationController::class, 'index'])->name('preparations.index');
+        Route::get('/preparations/create', [EQ\PreparationController::class, 'create'])->name('preparations.create');
+        Route::post('/preparations', [EQ\PreparationController::class, 'store'])->name('preparations.store');
+        Route::get('/preparations/{preparation}/edit', [EQ\PreparationController::class, 'edit'])->name('preparations.edit');
+        Route::put('/preparations/{preparation}', [EQ\PreparationController::class, 'update'])->name('preparations.update');
+        Route::delete('/preparations/{preparation}', [EQ\PreparationController::class, 'destroy'])->name('preparations.destroy');
         Route::get('/rentals', [EQ\RentalController::class, 'index'])->name('rentals.index');
         Route::post('/rentals', [EQ\RentalController::class, 'store'])->name('rentals.store');
         Route::get('/rentals/{rental}', [EQ\RentalController::class, 'show'])->name('rentals.show');
@@ -761,6 +785,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
 
         // General Ledger
         Route::get('/ledger', [GeneralLedgerController::class, 'index'])->name('ledger.index');
+        Route::get('/statements/consolidated', [ConsolidatedStatementController::class, 'index'])->name('statements.consolidated');
 
         // Control reports (exceptions, sub-ledger reconciliation, party balances, cash movement, dormant accounts)
         Route::get('/controls', [A\ControlReportsController::class, 'index'])->name('controls.index');

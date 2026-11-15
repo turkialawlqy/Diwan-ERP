@@ -24,26 +24,26 @@ const input = 'w-full text-xs rounded-xl border-slate-200 focus:border-indigo-60
 
 <template>
     <AppLayout>
-        <Head title="أمر إنتاج جديد" />
-        <PageHeader title="أمر إنتاج جديد" :crumbs="[{ label: 'التصنيع' }, { label: 'أوامر الإنتاج', href: route('manufacturing.orders.index') }, { label: 'جديد' }]" />
+        <Head :title="$t('mfg_manufacturing_orders_create.new_production_order')" />
+        <PageHeader :title="$t('mfg_manufacturing_orders_create.new_production_order')" :crumbs="[{ label: $t('mfg_manufacturing_orders_create.manufacturing') }, { label: $t('mfg_manufacturing_orders_create.production_orders'), href: route('manufacturing.orders.index') }, { label: $t('mfg_manufacturing_orders_create.new') }]" />
         <form @submit.prevent="submit" class="bg-white border border-slate-200/80 rounded-2xl p-6 space-y-5">
             <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                <Field label="المنتج *" :error="form.errors.product_id"><SelectCreate v-model="form.product_id" :options="products" :search="{ route: 'lookup.products', params: { stockable: 1 } }" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" placeholder="— اختر —" required /></Field>
-                <Field label="الكمية *" :error="form.errors.quantity"><input v-model.number="form.quantity" type="text" inputmode="decimal" data-num step="0.0001" :class="input" required /></Field>
-                <Field label="قائمة المواد" :error="form.errors.bom_id"><select v-model="form.bom_id" :class="input"><option value="">— الافتراضية —</option><option v-for="b in productBoms" :key="b.id" :value="b.id">{{ b.name }} (إصدار {{ b.version }})</option></select></Field>
-                <Field label="مسار التشغيل"><select v-model="form.routing_id" :class="input"><option value="">— من القائمة —</option><option v-for="r in routings" :key="r.id" :value="r.id">{{ r.code }} — {{ r.name }}</option></select></Field>
-                <Field label="مستودع صرف المواد *" :error="form.errors.warehouse_id"><SelectCreate v-model="form.warehouse_id" :options="warehouses" entity="warehouse" label="name_ar" :allow-empty="false" required /></Field>
-                <Field label="مستودع المنتج التام" hint="الافتراضي: نفس مستودع المواد"><SelectCreate v-model="form.output_warehouse_id" :options="warehouses" entity="warehouse" label="name_ar" placeholder="—" /></Field>
-                <Field label="بداية مخططة"><DatePicker v-model="form.planned_start" :class="input" /></Field>
-                <Field label="نهاية مخططة" :error="form.errors.planned_end"><DatePicker v-model="form.planned_end" :class="input" /></Field>
-                <Field label="الأولوية"><select v-model="form.priority" :class="input"><option :value="1">عاجلة جداً</option><option :value="2">عالية</option><option :value="3">عادية</option><option :value="4">منخفضة</option><option :value="5">مؤجلة</option></select></Field>
-                <Field label="أمر بيع مرتبط"><select v-model="form.sales_order_id" :class="input"><option value="">—</option><option v-for="s in salesOrders" :key="s.id" :value="s.id">{{ s.order_number }}</option></select></Field>
+                <Field :label="$t('mfg_manufacturing_orders_create.product')" :error="form.errors.product_id"><SelectCreate v-model="form.product_id" :options="products" :search="{ route: 'lookup.products', params: { stockable: 1 } }" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" :placeholder="$t('mfg_manufacturing_orders_create.choose')" required /></Field>
+                <Field :label="$t('mfg_manufacturing_orders_create.quantity')" :error="form.errors.quantity"><input v-model.number="form.quantity" type="text" inputmode="decimal" data-num step="0.0001" :class="input" required /></Field>
+                <Field :label="$t('mfg_manufacturing_orders_create.bill_of_materials')" :error="form.errors.bom_id"><select v-model="form.bom_id" :class="input"><option value="">{{ $t('mfg_manufacturing_orders_create.default') }}</option><option v-for="b in productBoms" :key="b.id" :value="b.id">{{ $t('mfg_manufacturing_orders_create.n_version_n', { n0: b.name, n1: b.version }) }}</option></select></Field>
+                <Field :label="$t('mfg_manufacturing_orders_create.routing')"><select v-model="form.routing_id" :class="input"><option value="">{{ $t('mfg_manufacturing_orders_create.from_the_list') }}</option><option v-for="r in routings" :key="r.id" :value="r.id">{{ r.code }} — {{ r.name }}</option></select></Field>
+                <Field :label="$t('mfg_manufacturing_orders_create.material_issue_warehouse')" :error="form.errors.warehouse_id"><SelectCreate v-model="form.warehouse_id" :options="warehouses" entity="warehouse" label="name_ar" :allow-empty="false" required /></Field>
+                <Field :label="$t('mfg_manufacturing_orders_create.finished_goods_warehouse')" :hint="$t('mfg_manufacturing_orders_create.default_the_same_as_the_material')"><SelectCreate v-model="form.output_warehouse_id" :options="warehouses" entity="warehouse" label="name_ar" placeholder="—" /></Field>
+                <Field :label="$t('mfg_manufacturing_orders_create.planned_start')"><DatePicker v-model="form.planned_start" :class="input" /></Field>
+                <Field :label="$t('mfg_manufacturing_orders_create.planned_end')" :error="form.errors.planned_end"><DatePicker v-model="form.planned_end" :class="input" /></Field>
+                <Field :label="$t('mfg_manufacturing_orders_create.priority')"><select v-model="form.priority" :class="input"><option :value="1">{{ $t('mfg_manufacturing_orders_create.very_urgent') }}</option><option :value="2">{{ $t('mfg_manufacturing_orders_create.high') }}</option><option :value="3">{{ $t('mfg_manufacturing_orders_create.normal') }}</option><option :value="4">{{ $t('mfg_manufacturing_orders_create.low') }}</option><option :value="5">{{ $t('mfg_manufacturing_orders_create.postponed') }}</option></select></Field>
+                <Field :label="$t('mfg_manufacturing_orders_create.linked_sales_order')"><select v-model="form.sales_order_id" :class="input"><option value="">—</option><option v-for="s in salesOrders" :key="s.id" :value="s.id">{{ s.order_number }}</option></select></Field>
             </div>
-            <Field label="ملاحظات"><textarea v-model="form.notes" rows="2" :class="input"></textarea></Field>
-            <p class="text-xs text-slate-500">تُحسب المواد المطلوبة والعمليات تلقائياً من القائمة والمسار. يُعدَّل الأمر قبل الإفراج عنه بحذفه وإنشائه من جديد.</p>
+            <Field :label="$t('mfg_manufacturing_orders_create.notes')"><textarea v-model="form.notes" rows="2" :class="input"></textarea></Field>
+            <p class="text-xs text-slate-500">{{ $t('mfg_manufacturing_orders_create.required_materials_and_operation') }}</p>
             <div class="flex gap-2 pt-2 border-t border-slate-100">
-                <button type="submit" :disabled="form.processing" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold disabled:opacity-50">إنشاء الأمر</button>
-                <Link :href="route('manufacturing.orders.index')" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">إلغاء</Link>
+                <button type="submit" :disabled="form.processing" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold disabled:opacity-50">{{ $t('mfg_manufacturing_orders_create.create_the_order') }}</button>
+                <Link :href="route('manufacturing.orders.index')" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">{{ $t('mfg_manufacturing_orders_create.cancel') }}</Link>
             </div>
         </form>
     </AppLayout>

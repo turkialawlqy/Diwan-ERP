@@ -28,15 +28,15 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="مرتجعات المبيعات والإشعارات الدائنة" />
+        <Head :title="$t('s_returns.sales_returns_and_credit_notes')" />
 
         <div class="space-y-5">
             <!-- Breadcrumbs Ribbon -->
-            <PageHeader year-scoped title="المرتجعات والإشعارات الدائنة" :crumbs="[{ label: 'المبيعات' }, { label: 'المرتجعات والإشعارات الدائنة' }]">
+            <PageHeader year-scoped :title="$t('s_returns.returns_and_credit_notes')" :crumbs="[{ label: 'المبيعات' }, { label: 'المرتجعات والإشعارات الدائنة' }]">
 <template #actions>
 <button 
                         @click="router.reload()" 
-                        title="تحديث البيانات"
+                        :title="$t('s_returns.refresh_data')"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 transition-all"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
@@ -47,7 +47,7 @@ const formatCurrency = (val) => {
                         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >
                         <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>إصدار إشعار دائن جديد</span>
+                        <span>{{ $t('s_returns.issue_a_new_credit_note') }}</span>
                     </Link>
 </template>
 </PageHeader>
@@ -55,11 +55,11 @@ const formatCurrency = (val) => {
             <!-- Summary KPI Cards -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي الإشعارات الدائنة</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('s_returns.total_credit_notes') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-slate-800">{{ stats?.total_returns || 0 }}</p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي المبالغ المستردة</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('s_returns.total_amounts_refunded') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-rose-600">{{ formatCurrency(stats?.total_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
             </div>
@@ -70,12 +70,12 @@ const formatCurrency = (val) => {
                     <table class="w-full text-right border-collapse text-xs sm:text-sm">
                         <thead>
                             <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <th class="py-4 px-6 text-start">رقم الإشعار الدائن</th>
-                                <th class="py-4 px-6 text-start">العميل</th>
-                                <th class="py-4 px-6 text-start">الفاتورة الأصلية</th>
-                                <th class="py-4 px-6 text-start">المبلغ المسترد</th>
-                                <th class="py-4 px-6 text-start">التاريخ</th>
-                                <th class="py-4 px-6 text-center">الحالة</th>
+                                <th class="py-4 px-6 text-start">{{ $t('s_returns.credit_note_number') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('s_returns.customer') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('s_returns.original_invoice') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('s_returns.amount_refunded') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('s_returns.date') }}</th>
+                                <th class="py-4 px-6 text-center">{{ $t('s_returns.status') }}</th>
                                 <th class="py-4 px-6 text-center w-12"></th>
                             </tr>
                         </thead>
@@ -100,26 +100,26 @@ const formatCurrency = (val) => {
                                         v-if="r.status === 'refunded'"
                                         class="inline-block px-2.5 py-0.5 rounded-full text-2xs font-bold bg-purple-50 text-purple-700 border border-purple-200"
                                     >
-                                        مسترد نقداً
+                                        {{ $t('s_returns.refunded_in_cash') }}
                                     </span>
                                     <span 
                                         v-else-if="r.status === 'approved'"
                                         class="inline-block px-2.5 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
                                     >
-                                        معتمد بالحساب
+                                        {{ $t('s_returns.approved_on_account') }}
                                     </span>
                                     <span 
                                         v-else
                                         class="inline-block px-2.5 py-0.5 rounded-full text-2xs font-bold bg-slate-100 text-slate-600"
                                     >
-                                        مسودة
+                                        {{ $t('s_returns.draft') }}
                                     </span>
                                 </td>
                                 <td class="py-4 px-6 text-center">
                                     <Link 
                                         :href="route('sales.returns.show', r.id)"
                                         class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 inline-block transition-colors"
-                                        title="عرض الإشعار والطباعة"
+                                        :title="$t('s_returns.view_and_print_the_note')"
                                     >
                                         <EyeIcon class="w-4 h-4" />
                                     </Link>
@@ -129,7 +129,7 @@ const formatCurrency = (val) => {
                                 <td colspan="7" class="py-12 text-center text-slate-400">
                                     <div class="flex flex-col items-center justify-center gap-2">
                                         <ArrowUturnLeftIcon class="w-10 h-10 text-slate-300 stroke-1" />
-                                        <p class="font-semibold text-slate-500">لا توجد مرتجعات مسجلة</p>
+                                        <p class="font-semibold text-slate-500">{{ $t('s_returns.no_returns_recorded') }}</p>
                                     </div>
                                 </td>
                             </tr>
@@ -140,8 +140,8 @@ const formatCurrency = (val) => {
                 <!-- Pagination Footer -->
                 <div v-if="returns.total > 0" class="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-medium">
                     <div class="flex items-center gap-2">
-                        <span>الإجمالي {{ returns.total || 0 }}.</span>
-                        <span>لكل صفحة:</span>
+                        <span>{{ $t('s_invoices.total_n', { n: returns.total || 0 }) }}</span>
+                        <span>{{ $t('s_returns.per_page') }}</span>
                         <select 
                             :value="returns.per_page"
                             @change="router.get(route('sales.returns.index'), { per_page: $event.target.value }, { preserveState: true })"
@@ -153,7 +153,7 @@ const formatCurrency = (val) => {
                         </select>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span>الصفحة {{ returns.current_page }} من {{ returns.last_page || 1 }}.</span>
+                        <span>{{ $t('s_invoices.page_of', { a: returns.current_page, b: returns.last_page || 1 }) }}</span>
                         <div class="flex items-center gap-1">
                             <Link 
                                 v-if="returns.prev_page_url" 

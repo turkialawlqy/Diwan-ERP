@@ -15,10 +15,10 @@ const save = () => form.put(route('settings.modules.update'), { preserveScroll: 
 
 <template>
     <AppLayout>
-        <Head title="الوحدات" />
-        <PageHeader title="تفعيل وتعطيل الوحدات" subtitle="الوحدة المعطّلة تختفي من القوائم والبحث وتُمنع صفحاتها؛ بياناتها تبقى وتعود عند إعادة التفعيل" :crumbs="[{ label: 'الإعدادات' }, { label: 'الوحدات' }]">
+        <Head :title="$t('set2_settings_modules.modules')" />
+        <PageHeader :title="$t('set2_settings_modules.enable_and_disable_modules')" :subtitle="$t('set2_settings_modules.a_disabled_module_disappears_fro')" :crumbs="[{ label: $t('set2_settings_modules.settings') }, { label: $t('set2_settings_modules.modules') }]">
             <template #actions>
-                <button type="button" @click="save" :disabled="form.processing || !form.isDirty" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50" data-save-modules>حفظ</button>
+                <button type="button" @click="save" :disabled="form.processing || !form.isDirty" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50" data-save-modules>{{ $t('set2_settings_modules.save') }}</button>
             </template>
         </PageHeader>
         <form @submit.prevent="save" class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -32,8 +32,8 @@ const save = () => form.put(route('settings.modules.update'), { preserveScroll: 
                 <span class="text-xs">
                     <b class="block text-slate-900 text-sm">{{ m.label.split(' (')[0] }}</b>
                     <span class="text-slate-500">{{ m.label.includes('(') ? m.label.slice(m.label.indexOf('(') + 1, -1) : '' }}</span>
-                    <span v-if="!m.in_plan" class="block mt-1 text-amber-600 font-bold">غير مشمولة في باقة الاشتراك الحالية.</span>
-                    <span class="block mt-1 font-bold" :class="form.enabled.includes(m.key) ? 'text-emerald-600' : 'text-slate-400'">{{ form.enabled.includes(m.key) ? 'مفعّلة' : 'معطّلة' }}</span>
+                    <span v-if="!m.in_plan" class="block mt-1 text-amber-600 font-bold">{{ $t('set2_settings_modules.not_included_in_the_current_subs') }}</span>
+                    <span class="block mt-1 font-bold" :class="form.enabled.includes(m.key) ? 'text-emerald-600' : 'text-slate-400'">{{ form.enabled.includes(m.key) ? $t('set2_settings_modules.enabled') : $t('set2_settings_modules.disabled') }}</span>
                 </span>
             </label>
         </form>

@@ -33,22 +33,22 @@ const save = (submit) => {
 
 <template>
     <AppLayout>
-        <Head :title="o ? `تعديل ${o.order_number}` : 'أمر شراء جديد'" />
+        <Head :title="o ? `${$t('p_orders_form.edit')} ${o.order_number}` : $t('p_orders_form.new')" />
         <PageHeader :title="o ? `تعديل أمر الشراء ${o.order_number}` : 'أمر شراء جديد'" :subtitle="o ? '' : `الرقم المتوقع: ${suggestedNumber}`" :crumbs="[{ label: 'المشتريات' }, { label: 'أوامر الشراء', href: route('purchases.orders.index') }, { label: o ? o.order_number : 'جديد' }]" />
         <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <Field label="المورد" :error="form.errors.supplier_id" class="md:col-span-2"><PartyPicker v-model="form.supplier_id" route-name="lookup.suppliers" :initial="o?.supplier" /></Field>
-                <Field label="تاريخ الأمر"><DatePicker v-model="form.order_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="التوريد المتوقع"><DatePicker v-model="form.expected_delivery_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="مستودع الاستلام"><SelectCreate v-model="form.warehouse_id" :options="warehouses" entity="warehouse" label="name_ar" placeholder="الافتراضي" /></Field>
-                <Field label="ملاحظات" class="md:col-span-3"><input v-model="form.notes" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="الشروط والأحكام" class="md:col-span-4"><textarea v-model="form.terms" rows="2" class="w-full rounded-xl border-slate-200 text-xs"></textarea></Field>
+                <Field :label="$t('p_orders_form.supplier')" :error="form.errors.supplier_id" class="md:col-span-2"><PartyPicker v-model="form.supplier_id" route-name="lookup.suppliers" :initial="o?.supplier" /></Field>
+                <Field :label="$t('p_orders_form.order_date')"><DatePicker v-model="form.order_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('p_orders_form.expected_supply')"><DatePicker v-model="form.expected_delivery_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('p_orders_form.receiving_warehouse')"><SelectCreate v-model="form.warehouse_id" :options="warehouses" entity="warehouse" label="name_ar" :placeholder="$t('p_orders_form.default')" /></Field>
+                <Field :label="$t('p_orders_form.notes')" class="md:col-span-3"><input v-model="form.notes" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('p_orders_form.terms_and_conditions')" class="md:col-span-4"><textarea v-model="form.terms" rows="2" class="w-full rounded-xl border-slate-200 text-xs"></textarea></Field>
             </div>
             <LineItemsEditor v-model="form.items" price-field="purchase_price" />
             <p v-for="(msg, key) in form.errors" :key="key" class="text-xs text-rose-600">{{ msg }}</p>
             <div class="flex justify-end gap-2">
-                <button @click="save(false)" :disabled="form.processing || !form.items.length || !form.supplier_id" class="px-5 py-2 rounded-xl border border-slate-200 text-xs font-bold disabled:opacity-40">حفظ كمسودة</button>
-                <button @click="save(true)" :disabled="form.processing || !form.items.length || !form.supplier_id" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40">حفظ وإرسال للاعتماد</button>
+                <button @click="save(false)" :disabled="form.processing || !form.items.length || !form.supplier_id" class="px-5 py-2 rounded-xl border border-slate-200 text-xs font-bold disabled:opacity-40">{{ $t('p_orders_form.save_as_draft') }}</button>
+                <button @click="save(true)" :disabled="form.processing || !form.items.length || !form.supplier_id" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40">{{ $t('p_orders_form.save_and_send_for_approval') }}</button>
             </div>
         </div>
     </AppLayout>

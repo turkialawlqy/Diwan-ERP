@@ -1,8 +1,9 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import RowActions from '@/Components/UI/RowActions.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import {
@@ -14,6 +15,7 @@ import {
     ChevronLeftIcon,
     EyeIcon,
 } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 const props = defineProps({
     entries: Object,
@@ -23,12 +25,12 @@ const props = defineProps({
     sourceTypes: { type: Array, default: () => [] },
 });
 
-const statusBadge = {
-    draft: ['مسودة', 'bg-amber-50 text-amber-700 border-amber-200'],
-    posted: ['مرحّل', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
-    reversed: ['معكوس', 'bg-rose-50 text-rose-700 border-rose-200'],
-};
-const typeLabels = { manual: 'يدوي', system: 'آلي', opening: 'افتتاحي', closing: 'إقفال', adjustment: 'تسوية', recurring: 'متكرر', reversal: 'عكسي' };
+const statusBadge = computed(() => ({
+    draft: [t('a_common.draft'), 'bg-amber-50 text-amber-700 border-amber-200'],
+    posted: [t('a_common.posted'), 'bg-emerald-50 text-emerald-700 border-emerald-200'],
+    reversed: [t('a_common.reversed'), 'bg-rose-50 text-rose-700 border-rose-200'],
+}));
+const typeLabels = computed(() => ({ manual: t('a_journals.ty_manual'), system: t('a_journals.ty_system'), opening: t('a_journals.ty_opening'), closing: t('a_journals.ty_closing'), adjustment: t('a_journals.ty_adjustment'), recurring: t('a_journals.ty_recurring'), reversal: t('a_journals.ty_reversal') }));
 
 const isFilterOpen = ref(false);
 const search = ref(props.filters?.search || '');
@@ -63,15 +65,15 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout own-errors>
-        <Head title="القيود اليومية" />
+        <Head :title="$t('a_journals.journal_entries')" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
-            <PageHeader year-scoped title="القيود اليومية" :crumbs="[{ label: 'المحاسبة' }, { label: 'القيود اليومية' }]">
+            <PageHeader year-scoped :title="$t('a_journals.journal_entries')" :crumbs="[{ label: 'المحاسبة' }, { label: 'القيود اليومية' }]">
 <template #actions>
 <button 
                         @click="handleSearch"
-                        title="تحديث البيانات"
+                        :title="$t('a_journals.refresh_data')"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-xs transition-all"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
@@ -86,7 +88,7 @@ const formatCurrency = (val) => {
                         ]"
                     >
                         <MagnifyingGlassIcon class="w-4 h-4 text-indigo-600" />
-                        <span>البحث والتصفية</span>
+                        <span>{{ $t('a_journals.search_and_filter') }}</span>
                     </button>
 
                     <Link v-if="$can('accounting.journals.create')"
@@ -94,7 +96,7 @@ const formatCurrency = (val) => {
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >
                         <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>إنشاء قيد يومية</span>
+                        <span>{{ $t('a_journals.create_a_journal_entry') }}</span>
                     </Link>
 </template>
 </PageHeader>
@@ -111,12 +113,12 @@ const formatCurrency = (val) => {
                 <div v-if="isFilterOpen" class="bg-white rounded-2xl border border-indigo-100/80 p-5 shadow-sm space-y-4">
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div class="sm:col-span-2">
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">بحث برقم القيد، البيان، المرجع</label>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">{{ $t('a_journals.search_by_entry_number_descripti') }}</label>
                             <input 
                                 v-model="search"
                                 @keyup.enter="handleSearch"
                                 type="text" 
-                                placeholder="اكتب للبحث..."
+                                :placeholder="$t('a_journals.type_to_search')"
                                 class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                             />
                         </div>
@@ -126,13 +128,13 @@ const formatCurrency = (val) => {
                                 class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
                                 data-journal-filter-apply
                             >
-                                تطبيق التصفية
+                                {{ $t('a_journals.apply_filter') }}
                             </button>
                             <button 
                                 @click="resetFilters"
                                 class="px-4 py-2.5 text-xs font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
                             >
-                                إعادة ضبط
+                                {{ $t('a_journals.reset') }}
                             </button>
                         </div>
                     </div>
@@ -154,15 +156,15 @@ const formatCurrency = (val) => {
             <!-- KPI Cards -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي القيود اليومية</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('a_journals.total_journal_entries') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-slate-800">{{ stats?.total_entries || 0 }}</p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">حجم التعاملات المقيدة</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('a_journals.volume_of_recorded_transactions') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ formatCurrency(stats?.total_volume) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">القيود المرحلة والمعتمدة</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('a_journals.posted_and_approved_entries') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ stats?.posted_count || 0 }}</p>
                 </div>
             </div>
@@ -177,15 +179,15 @@ const formatCurrency = (val) => {
                     <table class="w-full text-start text-xs">
                         <thead>
                             <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <th class="py-4 px-6 text-start">رقم القيد</th>
-                                <th class="py-4 px-6 text-start">التاريخ</th>
-                                <th class="py-4 px-6 text-start">بيان القيد العام</th>
-                                <th class="py-4 px-6 text-start">المرجع</th>
+                                <th class="py-4 px-6 text-start">{{ $t('a_journals.entry_number') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('a_journals.date') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('a_journals.general_entry_description') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('a_journals.reference') }}</th>
                                 <th class="py-4 px-6 text-start">{{ $t('journals.source') }}</th>
-                                <th class="py-4 px-6 text-end">إجمالي المدين</th>
-                                <th class="py-4 px-6 text-end">إجمالي الدائن</th>
-                                <th class="py-4 px-6 text-center">الحالة</th>
-                                <th class="py-4 px-6 text-center">عرض السند</th>
+                                <th class="py-4 px-6 text-end">{{ $t('a_journals.total_debit') }}</th>
+                                <th class="py-4 px-6 text-end">{{ $t('a_journals.total_credit') }}</th>
+                                <th class="py-4 px-6 text-center">{{ $t('a_journals.status') }}</th>
+                                <th class="py-4 px-6 text-center">{{ $t('a_journals.view_voucher') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -224,14 +226,14 @@ const formatCurrency = (val) => {
                                         class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                                     >
                                         <EyeIcon class="w-3.5 h-3.5" />
-                                        <span>عرض السند</span>
+                                        <span>{{ $t('a_journals.view_voucher') }}</span>
                                     </Link>
-                                    <RowActions :remove="entry.status === 'draft' && $can('accounting.journals.delete') ? route('accounting.journals.destroy', entry.id) : null" :confirm="`حذف مسودة القيد ${entry.entry_number}؟`" />
+                                    <RowActions :remove="entry.status === 'draft' && $can('accounting.journals.delete') ? route('accounting.journals.destroy', entry.id) : null" :confirm="$t('a_journals.confirm_delete', { number: entry.entry_number })" />
                                 </td>
                             </tr>
                             <tr v-if="!entries.data || entries.data.length === 0">
                                 <td colspan="9" class="py-12 text-center text-slate-400">
-                                    لا توجد قيود يومية مسجلة.
+                                    {{ $t('a_journals.no_journal_entries_recorded') }}
                                 </td>
                             </tr>
                         </tbody>
@@ -241,8 +243,8 @@ const formatCurrency = (val) => {
                 <!-- Pagination Footer -->
                 <div v-if="entries?.total > 0" class="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-medium">
                     <div class="flex items-center gap-2">
-                        <span>الإجمالي {{ entries.total || 0 }}.</span>
-                        <span>لكل صفحة:</span>
+                        <span>{{ $t('s_invoices.total_n', { n: entries.total || 0 }) }}</span>
+                        <span>{{ $t('a_journals.per_page') }}</span>
                         <select 
                             :value="entries.per_page"
                             @change="router.get(route('accounting.journals.index'), { per_page: $event.target.value }, { preserveState: true })"
@@ -254,7 +256,7 @@ const formatCurrency = (val) => {
                         </select>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span>الصفحة {{ entries.current_page }} من {{ entries.last_page || 1 }}.</span>
+                        <span>{{ $t('s_invoices.page_of', { a: entries.current_page, b: entries.last_page || 1 }) }}</span>
                         <div class="flex items-center gap-1">
                             <Link 
                                 v-if="entries.prev_page_url" 

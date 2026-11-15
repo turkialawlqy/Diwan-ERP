@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
 import { ref, onMounted } from 'vue';
@@ -271,6 +272,7 @@ const formatDateArabic = (dateStr) => {
                 </div>
             </div>
         </div>
+        <AttachmentsPanel kind="credit-note" :id="creditNote.id" class="mt-4 print:hidden" />
     </AppLayout>
 </template>
 

@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import ImportButton from '@/Components/UI/ImportButton.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -25,11 +26,12 @@ import {
     DocumentTextIcon,
 } from '@heroicons/vue/24/outline';
 import { timeZone } from '@/utils/format';
+const { t } = useI18n();
 
 // Invoices of branches without government e-invoicing can be edited / deleted (the server checks the rest).
 const changeable = (inv) => props.editableBranches.includes(inv.branch_id);
 const removeInvoice = (inv) => {
-    if (confirm(`حذف الفاتورة ${inv.invoice_number}؟ يُعكس قيدها ويعود المخزون.`)) router.delete(route('sales.invoices.destroy', inv.id), { preserveScroll: true });
+    if (confirm(t('s_invoices.confirm_delete', { number: inv.invoice_number }))) router.delete(route('sales.invoices.destroy', inv.id), { preserveScroll: true });
 };
 
 const props = defineProps({
@@ -98,15 +100,15 @@ const formatDateArabic = (dateStr) => {
 
 <template>
     <AppLayout>
-        <Head title="فواتير المبيعات" />
+        <Head :title="$t('s_invoices.sales_invoices')" />
 
         <div class="space-y-5" @click="closeMenu">
             <!-- Top Breadcrumbs & Action Bar -->
-            <PageHeader year-scoped title="الفواتير" :crumbs="[{ label: 'المبيعات' }, { label: 'الفواتير' }]">
+            <PageHeader year-scoped :title="$t('s_invoices.invoices')" :crumbs="[{ label: 'المبيعات' }, { label: 'الفواتير' }]">
 <template #actions>
 <button 
                         @click="router.reload()" 
-                        title="تحديث البيانات"
+                        :title="$t('s_invoices.refresh_data')"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-xs transition-all"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
@@ -121,7 +123,7 @@ const formatDateArabic = (dateStr) => {
                         ]"
                     >
                         <MagnifyingGlassIcon class="w-4 h-4 text-indigo-600" />
-                        <span>البحث والتصفية</span>
+                        <span>{{ $t('s_invoices.search_and_filter') }}</span>
                     </button>
 
                     
@@ -131,9 +133,9 @@ const formatDateArabic = (dateStr) => {
                         class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150"
                     >
                         <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>إضافة</span>
+                        <span>{{ $t('s_invoices.add') }}</span>
                     </Link>
-<ImportButton v-if="$can('sales.invoices.create')" type="sales_invoices" title="استيراد فواتير تاريخية من Excel" hint="تُرحَّل بتواريخها دون أي حركة مخزون." />
+<ImportButton v-if="$can('sales.invoices.create')" type="sales_invoices" :title="$t('s_invoices.import_historical_invoices_from')" :hint="$t('s_invoices.posted_on_their_own_dates_with_n')" />
 </template>
 </PageHeader>
 
@@ -150,7 +152,7 @@ const formatDateArabic = (dateStr) => {
                     <div class="flex items-center justify-between pb-3 border-b border-slate-100">
                         <div class="flex items-center gap-2 text-slate-800 font-bold text-sm">
                             <FunnelIcon class="w-4 h-4 text-indigo-600" />
-                            <span>تصفية الفواتير المتقدمة</span>
+                            <span>{{ $t('s_invoices.advanced_invoice_filter') }}</span>
                         </div>
                         <button @click="isFilterOpen = false" class="text-slate-400 hover:text-slate-600">
                             <XMarkIcon class="w-4 h-4" />
@@ -160,33 +162,33 @@ const formatDateArabic = (dateStr) => {
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <!-- Search Keyword -->
                         <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">رقم الفاتورة أو اسم العميل</label>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">{{ $t('s_invoices.invoice_number_or_customer_name') }}</label>
                             <input 
                                 v-model="search"
                                 @keyup.enter="applyFilters"
                                 type="text" 
-                                placeholder="مثال: INV-26-1 أو شركة مدن..."
+                                :placeholder="$t('s_invoices.example_inv_26_1_or_a_company_na')"
                                 class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                             />
                         </div>
 
                         <!-- Payment Status -->
                         <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">حالة الدفع</label>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">{{ $t('s_invoices.payment_status') }}</label>
                             <select 
                                 v-model="status"
                                 class="w-full text-xs rounded-xl border border-slate-200 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                             >
-                                <option value="">جميع الحالات</option>
-                                <option value="paid">مدفوعة</option>
-                                <option value="unpaid">غير مدفوعة</option>
-                                <option value="partially_paid">مدفوعة جزئياً</option>
+                                <option value="">{{ $t('s_invoices.all_statuses') }}</option>
+                                <option value="paid">{{ $t('s_invoices.paid') }}</option>
+                                <option value="unpaid">{{ $t('s_invoices.unpaid') }}</option>
+                                <option value="partially_paid">{{ $t('s_invoices.partially_paid') }}</option>
                             </select>
                         </div>
 
                         <!-- Date From -->
                         <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">من تاريخ</label>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">{{ $t('s_invoices.from_date') }}</label>
                             <DatePicker 
                                 v-model="dateFrom" 
                                 class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
@@ -194,7 +196,7 @@ const formatDateArabic = (dateStr) => {
 
                         <!-- Date To -->
                         <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">إلى تاريخ</label>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">{{ $t('s_invoices.to_date') }}</label>
                             <DatePicker 
                                 v-model="dateTo" 
                                 class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
@@ -206,13 +208,13 @@ const formatDateArabic = (dateStr) => {
                             @click="resetFilters" 
                             class="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
                         >
-                            إعادة ضبط
+                            {{ $t('s_invoices.reset') }}
                         </button>
                         <button 
                             @click="applyFilters" 
                             class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition-colors"
                         >
-                            تطبيق التصفية
+                            {{ $t('s_invoices.apply_filter') }}
                         </button>
                     </div>
                 </div>
@@ -221,19 +223,19 @@ const formatDateArabic = (dateStr) => {
             <!-- KPI Mini Summary Bar -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي الفواتير</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('s_invoices.total_invoices') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-slate-800">{{ stats?.total_count || 0 }}</p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي المبيعات</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('s_invoices.total_sales') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-indigo-600">{{ formatCurrency(stats?.total_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">المبالغ المحصلة</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('s_invoices.amounts_collected') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ formatCurrency(stats?.paid_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">المستحقات المتبقية</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('s_invoices.remaining_receivables') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-rose-500">{{ formatCurrency(stats?.unpaid_amount) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span></p>
                 </div>
             </div>
@@ -246,12 +248,12 @@ const formatDateArabic = (dateStr) => {
                     <table class="w-full text-right border-collapse">
                         <thead>
                             <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <th class="py-4 px-6 text-start">الفاتورة</th>
-                                <th class="py-4 px-6 text-start">الإجمالي</th>
-                                <th class="py-4 px-6 text-start">تاريخ الإصدار</th>
-                                <th class="py-4 px-6 text-center">الحالة</th>
+                                <th class="py-4 px-6 text-start">{{ $t('s_invoices.invoice') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('s_invoices.total') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('s_invoices.issue_date') }}</th>
+                                <th class="py-4 px-6 text-center">{{ $t('s_invoices.status') }}</th>
                                 <th class="py-4 px-6 text-center w-12">
-                                    <span class="sr-only">إجراءات</span>
+                                    <span class="sr-only">{{ $t('s_invoices.actions') }}</span>
                                 </th>
                             </tr>
                         </thead>
@@ -271,7 +273,7 @@ const formatDateArabic = (dateStr) => {
                                             {{ inv.invoice_number }}
                                         </Link>
                                         <span class="text-xs text-slate-400 font-medium mt-0.5">
-                                            {{ inv.customer?.name || inv.customer?.company_name || 'عميل نقدي' }}
+                                            {{ inv.customer?.name || inv.customer?.company_name || $t('s_invoices.cash_customer') }}
                                         </span>
                                     </div>
                                 </td>
@@ -295,19 +297,19 @@ const formatDateArabic = (dateStr) => {
                                         v-if="inv.payment_status === 'paid'"
                                         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80"
                                     >
-                                        مدفوعة
+                                        {{ $t('s_invoices.paid') }}
                                     </span>
                                     <span 
                                         v-else-if="inv.payment_status === 'partially_paid'"
                                         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200/80"
                                     >
-                                        مدفوعة جزئياً
+                                        {{ $t('s_invoices.partially_paid') }}
                                     </span>
                                     <span 
                                         v-else
                                         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200/80"
                                     >
-                                        غير مدفوعة
+                                        {{ $t('s_invoices.unpaid') }}
                                     </span>
                                 </td>
 
@@ -316,7 +318,7 @@ const formatDateArabic = (dateStr) => {
                                     <button 
                                         @click="toggleMenu(inv.id)"
                                         class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                                        title="خيارات"
+                                        :title="$t('s_invoices.options')"
                                     >
                                         <EllipsisVerticalIcon class="w-5 h-5" />
                                     </button>
@@ -331,22 +333,22 @@ const formatDateArabic = (dateStr) => {
                                             class="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
                                         >
                                             <EyeIcon class="w-4 h-4 text-slate-400" />
-                                            <span>عرض الفاتورة</span>
+                                            <span>{{ $t('s_invoices.view_invoice') }}</span>
                                         </Link>
                                         <Link 
                                             :href="route('sales.invoices.print', inv.id)"
                                             class="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
                                         >
                                             <PrinterIcon class="w-4 h-4 text-slate-400" />
-                                            <span>طباعة الفاتورة</span>
+                                            <span>{{ $t('s_invoices.print_invoice') }}</span>
                                         </Link>
                                         <Link v-if="changeable(inv) && $can('sales.invoices.edit')" :href="route('sales.invoices.edit', inv.id)" class="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 hover:text-indigo-600 transition-colors" data-edit-invoice>
                                             <PencilSquareIcon class="w-4 h-4 text-slate-400" />
-                                            <span>تعديل الفاتورة</span>
+                                            <span>{{ $t('s_invoices.edit_invoice') }}</span>
                                         </Link>
                                         <button v-if="changeable(inv) && $can('sales.invoices.delete')" type="button" @click="removeInvoice(inv)" class="w-full flex items-center gap-2 px-4 py-2 hover:bg-rose-50 text-rose-600 transition-colors" data-delete-invoice>
                                             <TrashIcon class="w-4 h-4" />
-                                            <span>حذف الفاتورة</span>
+                                            <span>{{ $t('s_invoices.delete_invoice') }}</span>
                                         </button>
                                     </div>
                                 </td>
@@ -357,13 +359,13 @@ const formatDateArabic = (dateStr) => {
                                 <td colspan="5" class="py-12 text-center text-slate-400">
                                     <div class="flex flex-col items-center justify-center gap-2">
                                         <DocumentTextIcon class="w-10 h-10 text-slate-300 stroke-1" />
-                                        <p class="font-semibold text-slate-500">لا توجد فواتير مطابقة للبحث</p>
+                                        <p class="font-semibold text-slate-500">{{ $t('s_invoices.no_invoices_match_the_search') }}</p>
                                         <Link 
                                             v-if="$canRoute('sales.invoices.create')"
                                             :href="route('sales.invoices.create')"
                                             class="mt-2 text-xs font-bold text-indigo-600 hover:text-indigo-800"
                                         >
-                                            + إنشاء أول فاتورة الآن
+                                            {{ $t('s_invoices.create_the_first_invoice_now') }}
                                         </Link>
                                     </div>
                                 </td>
@@ -375,8 +377,8 @@ const formatDateArabic = (dateStr) => {
                 <!-- Live-Style Pagination Footer -->
                 <div class="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-medium">
                     <div class="flex items-center gap-2">
-                        <span>الإجمالي {{ invoices.total || 0 }}.</span>
-                        <span>لكل صفحة:</span>
+                        <span>{{ $t('s_invoices.total_n', { n: invoices.total || 0 }) }}</span>
+                        <span>{{ $t('s_invoices.per_page') }}</span>
                         <select 
                             :value="invoices.per_page"
                             @change="router.get(route('sales.invoices.index'), { per_page: $event.target.value }, { preserveState: true })"
@@ -390,7 +392,7 @@ const formatDateArabic = (dateStr) => {
 
                     <!-- Page Navigation -->
                     <div class="flex items-center gap-2">
-                        <span>الصفحة {{ invoices.current_page }} من {{ invoices.last_page || 1 }}.</span>
+                        <span>{{ $t('s_invoices.page_of', { a: invoices.current_page, b: invoices.last_page || 1 }) }}</span>
                         <div class="flex items-center gap-1">
                             <Link 
                                 v-if="invoices.prev_page_url" 

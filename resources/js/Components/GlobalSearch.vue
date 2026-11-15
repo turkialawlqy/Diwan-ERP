@@ -105,9 +105,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                 </div>
 
                 <div class="overflow-y-auto" role="listbox">
-                    <p v-if="query.trim().length < 2" class="px-5 py-8 text-center text-xs text-slate-400">اكتب حرفين على الأقل. اختر تصنيفًا من الأعلى لحصر البحث فيه.</p>
-                    <p v-else-if="searching && !groups.length" class="px-5 py-8 text-center text-xs text-slate-400">جارٍ البحث...</p>
-                    <p v-else-if="!groups.length" class="px-5 py-8 text-center text-xs text-slate-400">لا توجد نتائج مطابقة.</p>
+                    <p v-if="query.trim().length < 2" class="px-5 py-8 text-center text-xs text-slate-400">{{ $t('cmp.type_at_least_two_characters_pic') }}</p>
+                    <p v-else-if="searching && !groups.length" class="px-5 py-8 text-center text-xs text-slate-400">{{ $t('cmp.searching') }}</p>
+                    <p v-else-if="!groups.length" class="px-5 py-8 text-center text-xs text-slate-400">{{ $t('cmp.no_matching_results') }}</p>
                     <template v-for="g in groups" :key="g.key">
                         <p v-if="!kind" class="px-5 pt-3 pb-1 text-[11px] font-bold text-slate-400">{{ g.label }}</p>
                         <button v-for="item in g.items" :key="g.key + item.url" type="button" role="option" :aria-selected="indexOf(item) === active"

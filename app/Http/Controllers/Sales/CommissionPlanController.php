@@ -89,7 +89,7 @@ class CommissionPlanController extends Controller
             'bonus_amount' => 'nullable|numeric|min:0|required_with:target_amount',
             'is_active' => 'boolean',
             'users' => 'nullable|array',
-            'users.*' => 'integer|exists:users,id',
+            'users.*' => ['integer', Rule::exists('users', 'id')->where('company_id', app(TenantManager::class)->getTenantId())],
         ]);
         $users = $data['users'] ?? [];
         unset($data['users']);

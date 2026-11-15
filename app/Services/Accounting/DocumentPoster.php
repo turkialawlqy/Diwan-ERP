@@ -504,7 +504,7 @@ class DocumentPoster
             'source' => $receipt,
             'lines' => [
                 ['role' => 'inventory', 'debit' => $value],
-                ['role' => 'grni', 'credit' => $value, 'party_type' => 'supplier', 'party_id' => $receipt->supplier_id],
+                ['role' => 'grni', 'credit' => $value, 'party_type' => $receipt->supplier_id ? 'supplier' : null, 'party_id' => $receipt->supplier_id],
             ],
         ]);
     }

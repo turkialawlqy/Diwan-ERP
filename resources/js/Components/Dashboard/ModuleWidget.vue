@@ -11,7 +11,7 @@ const tones = { neutral: 'text-slate-800', good: 'text-emerald-600', warn: 'text
     <div class="bg-white border border-slate-200 rounded-2xl p-4" :data-widget="widget.key">
         <div class="flex items-center justify-between mb-3">
             <h3 class="font-black text-sm text-slate-700">{{ widget.title }}</h3>
-            <Link v-if="$canRoute(widget.link)" :href="route(widget.link)" class="text-[11px] font-bold text-indigo-600 inline-flex items-center gap-1">عرض النظام <ArrowLeftIcon class="w-3 h-3" /></Link>
+            <Link v-if="$canRoute(widget.link)" :href="route(widget.link)" class="text-[11px] font-bold text-indigo-600 inline-flex items-center gap-1">{{ $t('cmp.view_module') }} <ArrowLeftIcon class="w-3 h-3" /></Link>
         </div>
         <div class="grid grid-cols-3 gap-2">
             <component :is="m.route && $canRoute(m.route) ? Link : 'div'" v-for="m in widget.metrics" :key="m.label" :href="m.route && $canRoute(m.route) ? route(m.route) : undefined"

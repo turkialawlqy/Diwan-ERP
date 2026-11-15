@@ -25,55 +25,55 @@ const doComplete = () => done.transform((d) => ({ ...d, customer_package_id: d.u
 
 <template>
     <AppLayout>
-        <Head :title="`حجز ${b.number}`" />
-        <PageHeader :title="`${b.number} — ${b.customer?.name}`" :crumbs="[{ label: 'الحجوزات', href: route('bookings.calendar') }, { label: b.number }]">
+        <Head :title="$t('bk2_bookings_show.booking_n', { n0: b.number })" />
+        <PageHeader :title="`${b.number} — ${b.customer?.name}`" :crumbs="[{ label: $t('bk2_bookings_show.bookings'), href: route('bookings.calendar') }, { label: b.number }]">
             <template #actions>
                 <ShareDocument v-if="$can('bookings.bookings.view')" type="booking" :id="b.id" />
                 <template v-if="open && $can('bookings.bookings.edit')">
-                    <button v-if="b.status === 'pending'" type="button" class="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold" @click="post('bookings.confirm')" data-confirm>تأكيد</button>
-                    <button type="button" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold" @click="completing = true" data-complete>إنجاز</button>
-                    <Link :href="route('bookings.edit', b.id)" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600" data-reschedule>تغيير الموعد</Link>
-                    <button type="button" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600" @click="post('bookings.no-show')" data-no-show>لم يحضر</button>
-                    <button type="button" class="px-4 py-2 rounded-xl border border-rose-200 text-rose-700 text-xs font-bold" @click="cancelling = true" data-cancel>إلغاء الحجز</button>
+                    <button v-if="b.status === 'pending'" type="button" class="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold" @click="post('bookings.confirm')" data-confirm>{{ $t('bk2_bookings_show.confirm') }}</button>
+                    <button type="button" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold" @click="completing = true" data-complete>{{ $t('bk2_bookings_show.complete') }}</button>
+                    <Link :href="route('bookings.edit', b.id)" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600" data-reschedule>{{ $t('bk2_bookings_show.reschedule') }}</Link>
+                    <button type="button" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600" @click="post('bookings.no-show')" data-no-show>{{ $t('bk2_bookings_show.did_not_attend') }}</button>
+                    <button type="button" class="px-4 py-2 rounded-xl border border-rose-200 text-rose-700 text-xs font-bold" @click="cancelling = true" data-cancel>{{ $t('bk2_bookings_show.cancel_the_booking') }}</button>
                 </template>
             </template>
         </PageHeader>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs">
             <div class="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-5 grid grid-cols-2 gap-3">
-                <div><p class="text-slate-500">الحالة</p><span class="inline-block px-2.5 py-1 rounded-full border font-bold" :class="tone[b.status]" data-status>{{ statuses[b.status] }}</span></div>
-                <div><p class="text-slate-500">الموعد</p><p class="font-mono font-bold">{{ when(b.starts_at) }} → {{ String(b.ends_at).slice(11, 16) }}</p></div>
-                <div><p class="text-slate-500">الخدمة</p><p class="font-bold">{{ b.service?.name }}</p></div>
-                <div><p class="text-slate-500">المورد</p><p class="font-bold">{{ b.resource?.name }}</p></div>
-                <div><p class="text-slate-500">العميل</p><Link :href="route('sales.clients.show', b.customer_id)" class="font-bold text-indigo-600">{{ b.customer?.name }}</Link><p class="text-slate-500" dir="ltr">{{ b.customer?.phone }}</p></div>
-                <div><p class="text-slate-500">المصدر</p><p class="font-bold">{{ b.source === 'portal' ? 'بوابة العملاء' : 'الموظف' }}</p></div>
-                <div v-if="b.notes" class="col-span-2"><p class="text-slate-500">ملاحظات</p><p class="whitespace-pre-line">{{ b.notes }}</p></div>
-                <div v-if="b.cancel_reason" class="col-span-2"><p class="text-slate-500">سبب الإلغاء</p><p>{{ b.cancel_reason }}</p></div>
+                <div><p class="text-slate-500">{{ $t('bk2_bookings_show.status') }}</p><span class="inline-block px-2.5 py-1 rounded-full border font-bold" :class="tone[b.status]" data-status>{{ statuses[b.status] }}</span></div>
+                <div><p class="text-slate-500">{{ $t('bk2_bookings_show.appointment') }}</p><p class="font-mono font-bold">{{ when(b.starts_at) }} → {{ String(b.ends_at).slice(11, 16) }}</p></div>
+                <div><p class="text-slate-500">{{ $t('bk2_bookings_show.service') }}</p><p class="font-bold">{{ b.service?.name }}</p></div>
+                <div><p class="text-slate-500">{{ $t('bk2_bookings_show.supplier') }}</p><p class="font-bold">{{ b.resource?.name }}</p></div>
+                <div><p class="text-slate-500">{{ $t('bk2_bookings_show.customer') }}</p><Link :href="route('sales.clients.show', b.customer_id)" class="font-bold text-indigo-600">{{ b.customer?.name }}</Link><p class="text-slate-500" dir="ltr">{{ b.customer?.phone }}</p></div>
+                <div><p class="text-slate-500">{{ $t('bk2_bookings_show.source') }}</p><p class="font-bold">{{ b.source === 'portal' ? $t('bk2_bookings_show.customer_portal') : $t('bk2_bookings_show.employee') }}</p></div>
+                <div v-if="b.notes" class="col-span-2"><p class="text-slate-500">{{ $t('bk2_bookings_show.notes') }}</p><p class="whitespace-pre-line">{{ b.notes }}</p></div>
+                <div v-if="b.cancel_reason" class="col-span-2"><p class="text-slate-500">{{ $t('bk2_bookings_show.cancellation_reason') }}</p><p>{{ b.cancel_reason }}</p></div>
             </div>
             <div class="bg-white border border-slate-200 rounded-2xl p-5 space-y-2">
-                <h2 class="font-bold text-slate-800">المبلغ</h2>
-                <p class="flex justify-between"><span>السعر</span><span class="font-mono">{{ money(b.price) }}</span></p>
-                <p v-if="Number(b.member_discount)" class="flex justify-between text-emerald-700"><span>خصم العضوية</span><span class="font-mono">- {{ money(b.member_discount) }}</span></p>
-                <p class="flex justify-between font-bold border-t border-slate-100 pt-2"><span>الصافي قبل الضريبة</span><span class="font-mono" data-net>{{ money(net) }}</span></p>
-                <p v-if="Number(b.deposit_amount)" class="flex justify-between"><span>العربون المستلم</span><span class="font-mono">{{ money(b.deposit_amount) }}</span></p>
-                <p v-if="b.invoice" class="pt-2 border-t border-slate-100">الفاتورة: <Link :href="route('sales.invoices.show', b.invoice.id)" class="font-mono font-bold text-indigo-600" data-invoice>{{ b.invoice.invoice_number }}</Link></p>
-                <p v-if="b.package" class="pt-2 border-t border-slate-100">خُصمت زيارة من الباقة: <Link :href="route('bookings.customer-packages.show', b.package.id)" class="font-mono font-bold text-indigo-600" data-used-package>{{ b.package.number }}</Link></p>
+                <h2 class="font-bold text-slate-800">{{ $t('bk2_bookings_show.amount') }}</h2>
+                <p class="flex justify-between"><span>{{ $t('bk2_bookings_show.price') }}</span><span class="font-mono">{{ money(b.price) }}</span></p>
+                <p v-if="Number(b.member_discount)" class="flex justify-between text-emerald-700"><span>{{ $t('bk2_bookings_show.membership_discount') }}</span><span class="font-mono">- {{ money(b.member_discount) }}</span></p>
+                <p class="flex justify-between font-bold border-t border-slate-100 pt-2"><span>{{ $t('bk2_bookings_show.net_before_tax') }}</span><span class="font-mono" data-net>{{ money(net) }}</span></p>
+                <p v-if="Number(b.deposit_amount)" class="flex justify-between"><span>{{ $t('bk2_bookings_show.deposit_received') }}</span><span class="font-mono">{{ money(b.deposit_amount) }}</span></p>
+                <p v-if="b.invoice" class="pt-2 border-t border-slate-100">{{ $t('bk2_bookings_show.invoice') }} <Link :href="route('sales.invoices.show', b.invoice.id)" class="font-mono font-bold text-indigo-600" data-invoice>{{ b.invoice.invoice_number }}</Link></p>
+                <p v-if="b.package" class="pt-2 border-t border-slate-100">{{ $t('bk2_bookings_show.a_visit_was_deducted_from_the_pa') }} <Link :href="route('bookings.customer-packages.show', b.package.id)" class="font-mono font-bold text-indigo-600" data-used-package>{{ b.package.number }}</Link></p>
             </div>
         </div>
 
-        <Dialog :show="completing" title="إنجاز الحجز" @close="completing = false">
+        <Dialog :show="completing" :title="$t('bk2_bookings_show.complete_the_booking')" @close="completing = false">
             <div class="space-y-3 text-xs">
-                <label v-if="coveringPackages.length" class="flex items-center gap-2"><input v-model="done.use_package" type="checkbox" class="rounded border-slate-300" data-use-package /> خصم زيارة من باقة العميل (بلا فاتورة)</label>
+                <label v-if="coveringPackages.length" class="flex items-center gap-2"><input v-model="done.use_package" type="checkbox" class="rounded border-slate-300" data-use-package /> {{ $t('bk2_bookings_show.deduct_a_visit_from_the_customer') }}</label>
                 <select v-if="coveringPackages.length && done.use_package" v-model="done.customer_package_id" class="w-full rounded-xl border-slate-200 text-xs">
-                    <option value="">الأقرب انتهاءً تلقائيًا</option><option v-for="p in coveringPackages" :key="p.id" :value="p.id">{{ p.number }} — {{ p.name }} (متبقٍ {{ p.remaining }})</option>
+                    <option value="">{{ $t('bk2_bookings_show.the_nearest_to_expiry_automatica') }}</option><option v-for="p in coveringPackages" :key="p.id" :value="p.id">{{ $t('bk2_bookings_show.n_n_n_left', { n0: p.number, n1: p.name, n2: p.remaining }) }}</option>
                 </select>
-                <p v-if="!coveringPackages.length || !done.use_package" class="text-slate-600">ستُصدر فاتورة للعميل بالصافي {{ money(net) }}<span v-if="Number(b.deposit_amount)"> بعد خصم العربون {{ money(b.deposit_amount) }}</span>.</p>
+                <p v-if="!coveringPackages.length || !done.use_package" class="text-slate-600">{{ $t('bk2_bookings_show.an_invoice_will_be_issued_to_the', { n0: money(net) }) }}<span v-if="Number(b.deposit_amount)"> {{ $t('bk2_bookings_show.after_deducting_the_deposit_n', { n0: money(b.deposit_amount) }) }}</span>.</p>
                 <p v-if="done.errors.customer_package_id" class="text-rose-600 font-bold">{{ done.errors.customer_package_id }}</p>
             </div>
-            <template #footer><button type="button" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold" @click="completing = false">رجوع</button><button type="button" :disabled="done.processing" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold" @click="doComplete" data-confirm-complete>تأكيد الإنجاز</button></template>
+            <template #footer><button type="button" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold" @click="completing = false">{{ $t('bk2_bookings_show.back') }}</button><button type="button" :disabled="done.processing" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold" @click="doComplete" data-confirm-complete>{{ $t('bk2_bookings_show.confirm_completion') }}</button></template>
         </Dialog>
-        <Dialog :show="cancelling" title="إلغاء الحجز" @close="cancelling = false">
-            <input v-model="cancel.reason" placeholder="سبب الإلغاء (اختياري)" class="w-full rounded-xl border-slate-200 text-xs" data-cancel-reason />
+        <Dialog :show="cancelling" :title="$t('bk2_bookings_show.cancel_the_booking')" @close="cancelling = false">
+            <input v-model="cancel.reason" :placeholder="$t('bk2_bookings_show.cancellation_reason_optional')" class="w-full rounded-xl border-slate-200 text-xs" data-cancel-reason />
             <div v-if="depositOnCancel" class="mt-3 space-y-1.5 text-xs" data-cancel-deposit>
                 <p class="font-bold text-slate-600">{{ $t('bookings.deposit_received') }} {{ money(b.deposit_amount) }}</p>
                 <label class="flex items-center gap-2"><input v-model="cancel.deposit" type="radio" value="credit" data-deposit-credit /> {{ $t('bookings.deposit_credit') }}</label>
@@ -81,7 +81,7 @@ const doComplete = () => done.transform((d) => ({ ...d, customer_package_id: d.u
                 <p class="text-slate-400">{{ depositOnCancel.late ? $t('bookings.deposit_late') : $t('bookings.deposit_early') }}</p>
                 <p v-if="cancel.errors.deposit" class="text-rose-600 font-bold">{{ cancel.errors.deposit }}</p>
             </div>
-            <template #footer><button type="button" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold" @click="cancelling = false">رجوع</button><button type="button" :disabled="cancel.processing" class="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold" @click="doCancel" data-confirm-cancel>تأكيد الإلغاء</button></template>
+            <template #footer><button type="button" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold" @click="cancelling = false">{{ $t('bk2_bookings_show.back') }}</button><button type="button" :disabled="cancel.processing" class="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold" @click="doCancel" data-confirm-cancel>{{ $t('bk2_bookings_show.confirm_cancellation') }}</button></template>
         </Dialog>
     </AppLayout>
 </template>

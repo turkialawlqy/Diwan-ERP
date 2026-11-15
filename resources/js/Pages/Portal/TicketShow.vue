@@ -13,7 +13,7 @@ const sendRate = () => rate.post(p('customer-portal.tickets.rate'), { preserveSc
 </script>
 
 <template>
-    <Head :title="`تذكرة ${ticket.number}`" />
+    <Head :title="$t('por_portal_ticketshow.ticket_n', { n0: ticket.number })" />
     <PortalLayout :portal="portal" active="tickets">
         <div class="mb-3"><h1 class="text-lg font-black text-slate-900">{{ ticket.subject }}</h1><p class="text-xs text-slate-500"><span class="font-mono">{{ ticket.number }}</span> · {{ statuses[ticket.status] || ticket.status }}</p></div>
         <div class="bg-white border border-slate-200 rounded-2xl p-4 mb-3 text-xs whitespace-pre-line">{{ ticket.description }}</div>
@@ -24,15 +24,15 @@ const sendRate = () => rate.post(p('customer-portal.tickets.rate'), { preserveSc
             </div>
         </div>
         <form v-if="canReply" @submit.prevent="send" class="bg-white border border-slate-200 rounded-2xl p-4 space-y-2 text-xs">
-            <textarea v-model="reply.body" rows="3" required placeholder="اكتب ردك" class="w-full rounded-xl border-slate-200 text-xs" data-reply></textarea>
+            <textarea v-model="reply.body" rows="3" required :placeholder="$t('por_portal_ticketshow.write_your_reply')" class="w-full rounded-xl border-slate-200 text-xs" data-reply></textarea>
             <p v-if="reply.errors.body" class="text-rose-600 font-bold">{{ reply.errors.body }}</p>
-            <button type="submit" :disabled="reply.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-send-reply>إرسال الرد</button>
+            <button type="submit" :disabled="reply.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-send-reply>{{ $t('por_portal_ticketshow.send_the_reply') }}</button>
         </form>
         <form v-if="canRate" @submit.prevent="sendRate" class="bg-white border border-slate-200 rounded-2xl p-4 mt-3 space-y-2 text-xs" data-rate>
-            <p class="font-bold">قيّم الخدمة</p>
+            <p class="font-bold">{{ $t('por_portal_ticketshow.rate_the_service') }}</p>
             <div class="flex gap-1"><button v-for="n in 5" :key="n" type="button" class="text-2xl" :class="n <= rate.rating ? 'text-amber-400' : 'text-slate-300'" @click="rate.rating = n">★</button></div>
-            <textarea v-model="rate.comment" rows="2" placeholder="ملاحظات (اختياري)" class="w-full rounded-xl border-slate-200 text-xs"></textarea>
-            <button type="submit" :disabled="!rate.rating || rate.processing" class="px-5 py-2 rounded-xl border border-indigo-200 text-indigo-700 font-bold disabled:opacity-40">إرسال التقييم</button>
+            <textarea v-model="rate.comment" rows="2" :placeholder="$t('por_portal_ticketshow.notes_optional')" class="w-full rounded-xl border-slate-200 text-xs"></textarea>
+            <button type="submit" :disabled="!rate.rating || rate.processing" class="px-5 py-2 rounded-xl border border-indigo-200 text-indigo-700 font-bold disabled:opacity-40">{{ $t('por_portal_ticketshow.send_the_rating') }}</button>
         </form>
     </PortalLayout>
 </template>

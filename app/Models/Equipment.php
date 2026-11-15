@@ -46,6 +46,11 @@ class Equipment extends Model
         return $this->hasMany(EquipmentMaintenanceSchedule::class);
     }
 
+    public function preparations(): HasMany
+    {
+        return $this->hasMany(EquipmentPreparation::class);
+    }
+
     public function readings(): HasMany
     {
         return $this->hasMany(EquipmentReading::class);

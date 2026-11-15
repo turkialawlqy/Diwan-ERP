@@ -54,7 +54,7 @@ class LookupController extends Controller
     {
         $q = $this->term($request);
 
-        $columns = ['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'purchase_price', 'tax_rate', 'unit_id', 'category_id', 'description'];
+        $columns = ['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'purchase_price', 'tax_rate', 'unit_id', 'category_id', 'description', 'type', 'tracking'];
         // Average cost only for those who build bills of materials: their form shows it.
         if ($request->boolean('cost') && $this->mayUse($request, ['manufacturing.boms.create', 'manufacturing.boms.edit'])) {
             $columns[] = 'average_cost';

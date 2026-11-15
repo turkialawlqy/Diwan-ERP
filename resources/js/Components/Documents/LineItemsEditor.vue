@@ -14,7 +14,7 @@ import { TrashIcon } from '@heroicons/vue/24/outline';
 const props = defineProps({
     modelValue: { type: Array, required: true },
     priceField: { type: String, default: 'selling_price' },
-    priceLabel: { type: String, default: 'السعر' },
+    priceLabel: { type: String, default: '' },
     customerId: { type: [Number, String, null], default: null },
     priceRoute: { type: String, default: null },
     allowDiscount: { type: Boolean, default: true },
@@ -61,7 +61,7 @@ const importLines = (lines, replace) => {
     <div>
         <div class="flex gap-2 mb-2">
             <div class="relative flex-1">
-                <input v-model="term" @input="search" placeholder="ابحث عن صنف بالاسم أو الرمز أو الباركود..." class="w-full rounded-xl border-slate-200 text-xs" />
+                <input v-model="term" @input="search" :placeholder="$t('cmp.search_for_an_item_by_name_code')" class="w-full rounded-xl border-slate-200 text-xs" />
                 <div v-if="results.length" class="absolute z-20 mt-1 w-full bg-white border rounded-xl shadow max-h-56 overflow-y-auto">
                     <button v-for="p in results" :key="p.id" type="button" @mousedown.prevent="add(p)" @keydown.enter.prevent="add(p)" class="block w-full text-start px-3 py-2 text-xs hover:bg-indigo-50">
                         {{ p.name_ar }} <span class="text-slate-400 font-mono">{{ p.sku }}</span>
@@ -70,18 +70,18 @@ const importLines = (lines, replace) => {
                 <div v-else-if="status" class="absolute z-20 mt-1 w-full bg-white border rounded-xl shadow px-3 py-2 text-xs" :class="status === 'loading' || status === 'empty' ? 'text-slate-500' : 'text-rose-600'">{{ messages[status] }}</div>
             </div>
             <ImportLines :kind="priceField === 'purchase_price' ? 'purchase' : 'sales'" :customer-id="customerId" label="Excel" @imported="importLines" />
-            <button v-if="allowFreeText" type="button" @click="addFree" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">+ سطر حر</button>
+            <button v-if="allowFreeText" type="button" @click="addFree" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">{{ $t('cmp.free_line') }}</button>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-xs min-w-[640px]">
                 <thead class="bg-slate-50 text-slate-500">
                     <tr>
-                        <th class="text-start px-2 py-2">الصنف</th>
-                        <th class="px-2 py-2 w-24">الكمية</th>
-                        <th class="px-2 py-2 w-28">{{ priceLabel }}</th>
-                        <th v-if="allowDiscount" class="px-2 py-2 w-24">الخصم</th>
-                        <th class="px-2 py-2 w-20">الضريبة %</th>
-                        <th class="px-2 py-2 w-28 text-end">الإجمالي</th>
+                        <th class="text-start px-2 py-2">{{ $t('cmp.item') }}</th>
+                        <th class="px-2 py-2 w-24">{{ $t('cmp.quantity') }}</th>
+                        <th class="px-2 py-2 w-28">{{ priceLabel || $t('cmp.price') }}</th>
+                        <th v-if="allowDiscount" class="px-2 py-2 w-24">{{ $t('cmp.discount') }}</th>
+                        <th class="px-2 py-2 w-20">{{ $t('cmp.tax') }}</th>
+                        <th class="px-2 py-2 w-28 text-end">{{ $t('cmp.total') }}</th>
                         <th class="w-8"></th>
                     </tr>
                 </thead>
@@ -95,15 +95,15 @@ const importLines = (lines, replace) => {
                         <td class="px-2 py-1.5 text-end font-mono">{{ money(lineNet(l) + lineTax(l)) }}</td>
                         <td class="text-center"><button type="button" @click="items.splice(i, 1)" class="text-slate-400 hover:text-rose-600"><TrashIcon class="w-4 h-4" /></button></td>
                     </tr>
-                    <tr v-if="!items.length"><td colspan="7" class="py-6 text-center text-slate-400">أضف أصنافاً بالبحث أعلاه</td></tr>
+                    <tr v-if="!items.length"><td colspan="7" class="py-6 text-center text-slate-400">{{ $t('cmp.add_items_using_the_search_above') }}</td></tr>
                 </tbody>
             </table>
         </div>
         <div class="flex justify-end mt-3">
             <dl class="text-xs w-64 space-y-1">
-                <div class="flex justify-between"><dt class="text-slate-500">الصافي قبل الضريبة</dt><dd class="font-mono">{{ money(totals.net) }}</dd></div>
-                <div class="flex justify-between"><dt class="text-slate-500">ضريبة القيمة المضافة</dt><dd class="font-mono">{{ money(totals.tax) }}</dd></div>
-                <div class="flex justify-between border-t pt-1 font-black"><dt>الإجمالي</dt><dd class="font-mono">{{ money(totals.total) }}</dd></div>
+                <div class="flex justify-between"><dt class="text-slate-500">{{ $t('cmp.net_before_tax') }}</dt><dd class="font-mono">{{ money(totals.net) }}</dd></div>
+                <div class="flex justify-between"><dt class="text-slate-500">{{ $t('cmp.vat') }}</dt><dd class="font-mono">{{ money(totals.tax) }}</dd></div>
+                <div class="flex justify-between border-t pt-1 font-black"><dt>{{ $t('cmp.total') }}</dt><dd class="font-mono">{{ money(totals.total) }}</dd></div>
             </dl>
         </div>
     </div>

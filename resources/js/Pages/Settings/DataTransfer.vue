@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import { computed, ref } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
@@ -6,6 +7,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import ExportButtons from '@/Components/UI/ExportButtons.vue';
 import { today } from '@/utils/format';
+const { t } = useI18n();
 
 const props = defineProps({ types: Array });
 const forms = Object.fromEntries(props.types.map((t) => [t.key, useForm({ file: null, opening_date: null })]));
@@ -22,35 +24,35 @@ const upload = (key) => {
 };
 
 // Suggested order for a company moving onto the system.
-const steps = [
-    ['customers', 'العملاء بأرصدتهم (opening_balance: موجب = مدين لنا، سالب = دفعة مقدمة)'],
-    ['suppliers', 'الموردون بأرصدتهم (opening_balance: موجب = دائن لهم)'],
-    ['products', 'الأصناف بكمياتها (opening_quantity و opening_cost و warehouse_code)'],
-    ['opening_balances', 'ميزان المراجعة لباقي الحسابات (البنوك، الأصول، القروض، رأس المال...)'],
-];
-const openingSteps = computed(() => steps.map(([key, hint]) => ({ hint, type: props.types.find((t) => t.key === key) })).filter((s) => s.type?.can_import));
+const steps = computed(() => ([
+    ['customers', t('set2_settings_datatransfer.customers_with_their_balances_op')],
+    ['suppliers', t('set2_settings_datatransfer.suppliers_with_their_balances_op')],
+    ['products', t('set2_settings_datatransfer.items_with_quantities_opening_qu')],
+    ['opening_balances', t('set2_settings_datatransfer.trial_balance_for_the_remaining')],
+]));
+const openingSteps = computed(() => steps.value.map(([key, hint]) => ({ hint, type: props.types.find((t) => t.key === key) })).filter((s) => s.type?.can_import));
 // Transaction lists (xlsx / pdf) by date range.
 const txRange = ref({ start_date: today().slice(0, 4) + '-01-01', end_date: today() });
-const txReports = [
-    ['tx-sales-invoices', 'فواتير المبيعات', 'sales.invoices.export'], ['tx-purchase-invoices', 'فواتير المشتريات', 'purchases.invoices.export'],
-    ['tx-customer-payments', 'سندات القبض', 'sales.payments.export'], ['tx-supplier-payments', 'سندات الصرف للموردين', 'purchases.payments.export'],
-    ['tx-expenses', 'سندات المصروفات', 'finance.expenses.export'], ['tx-journal-lines', 'سطور القيود المرحّلة', 'accounting.journals.export'],
-];
+const txReports = computed(() => ([
+    ['tx-sales-invoices', t('set2_settings_datatransfer.sales_invoices'), 'sales.invoices.export'], ['tx-purchase-invoices', t('set2_settings_datatransfer.purchase_invoices'), 'purchases.invoices.export'],
+    ['tx-customer-payments', t('set2_settings_datatransfer.receipt_vouchers'), 'sales.payments.export'], ['tx-supplier-payments', t('set2_settings_datatransfer.supplier_payment_vouchers'), 'purchases.payments.export'],
+    ['tx-expenses', t('set2_settings_datatransfer.expense_vouchers'), 'finance.expenses.export'], ['tx-journal-lines', t('set2_settings_datatransfer.posted_journal_lines'), 'accounting.journals.export'],
+]));
 const masterTypes = computed(() => props.types.filter((t) => !t.opening));
 </script>
 
 <template>
     <AppLayout>
-        <Head title="استيراد وتصدير" />
-        <PageHeader title="استيراد وتصدير البيانات" subtitle="CSV أو Excel؛ يُتحقق من كل الصفوف قبل الحفظ، والسجلات الموجودة (بالرمز) تُحدّث" :crumbs="[{ label: 'الإعدادات' }, { label: 'استيراد وتصدير' }]" />
+        <Head :title="$t('set2_settings_datatransfer.import_and_export')" />
+        <PageHeader :title="$t('set2_settings_datatransfer.data_import_and_export')" :subtitle="$t('set2_settings_datatransfer.csv_or_excel_all_rows_are_valida')" :crumbs="[{ label: $t('set2_settings_datatransfer.settings') }, { label: $t('set2_settings_datatransfer.import_and_export') }]" />
 
         <section v-if="openingSteps.length" class="bg-indigo-50/60 border border-indigo-100 rounded-2xl p-4 mb-4 text-xs space-y-3">
             <div class="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h2 class="font-black text-indigo-900">الأرصدة الافتتاحية (بدء التشغيل)</h2>
-                    <p class="text-indigo-800/80 mt-1">تُرحَّل الأرصدة مقابل حساب «أرصدة افتتاحية» بتاريخ بدء التشغيل، وللسجلات الجديدة فقط. بعد الخطوات الأربع يجب أن يصبح رصيد حساب الأرصدة الافتتاحية مساوياً لحقوق الملكية الافتتاحية.</p>
+                    <h2 class="font-black text-indigo-900">{{ $t('set2_settings_datatransfer.opening_balances_go_live') }}</h2>
+                    <p class="text-indigo-800/80 mt-1">{{ $t('set2_settings_datatransfer.balances_are_posted_against_the') }}</p>
                 </div>
-                <label class="flex items-center gap-2 font-bold text-indigo-900">تاريخ بدء التشغيل
+                <label class="flex items-center gap-2 font-bold text-indigo-900">{{ $t('set2_settings_datatransfer.go_live_date') }}
                     <DatePicker v-model="openingDate" class="rounded-xl border-indigo-200 text-xs" />
                 </label>
             </div>
@@ -61,9 +63,9 @@ const masterTypes = computed(() => props.types.filter((t) => !t.opening));
                         <p class="font-bold text-slate-700">{{ s.type.label }}</p>
                         <p class="text-slate-500">{{ s.hint }}</p>
                     </div>
-                    <a :href="route('data-transfer.template', s.type.key)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">القالب</a>
+                    <a :href="route('data-transfer.template', s.type.key)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">{{ $t('set2_settings_datatransfer.template') }}</a>
                     <input type="file" accept=".csv,.txt,.xlsx,.xls" @input="formFor(s.type.key).file = $event.target.files[0]" class="text-xs max-w-[14rem]" />
-                    <button @click="upload(s.type.key)" :disabled="!formFor(s.type.key).file || formFor(s.type.key).processing" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-40">استيراد</button>
+                    <button @click="upload(s.type.key)" :disabled="!formFor(s.type.key).file || formFor(s.type.key).processing" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-40">{{ $t('set2_settings_datatransfer.import') }}</button>
                     <ul v-if="formFor(s.type.key).errors.file || formFor(s.type.key).errors.opening_date" class="basis-full text-rose-600 list-disc ps-4">
                         <li v-for="(e, j) in lines(formFor(s.type.key).errors.file, formFor(s.type.key).errors.opening_date)" :key="j">{{ e }}</li>
                     </ul>
@@ -76,12 +78,12 @@ const masterTypes = computed(() => props.types.filter((t) => !t.opening));
                 <h3 class="font-black text-slate-700">{{ t.label }}</h3>
                 <p class="text-slate-400 font-mono mt-1 break-words" dir="ltr">{{ t.columns.join(', ') }}</p>
                 <div class="flex flex-wrap gap-2 mt-3">
-                    <a v-if="t.can_export" :href="route('data-transfer.export', t.key)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">تصدير CSV</a>
-                    <a v-if="t.can_import" :href="route('data-transfer.template', t.key)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">قالب الاستيراد</a>
+                    <a v-if="t.can_export" :href="route('data-transfer.export', t.key)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">{{ $t('set2_settings_datatransfer.export_csv') }}</a>
+                    <a v-if="t.can_import" :href="route('data-transfer.template', t.key)" class="px-3 py-1.5 rounded-xl border border-slate-200 font-bold">{{ $t('set2_settings_datatransfer.import_template') }}</a>
                 </div>
                 <div v-if="t.can_import" class="flex flex-wrap items-center gap-2 mt-3">
                     <input type="file" accept=".csv,.txt,.xlsx,.xls" @input="formFor(t.key).file = $event.target.files[0]" class="text-xs max-w-full" />
-                    <button @click="upload(t.key)" :disabled="!formFor(t.key).file || formFor(t.key).processing" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-40">استيراد</button>
+                    <button @click="upload(t.key)" :disabled="!formFor(t.key).file || formFor(t.key).processing" class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-40">{{ $t('set2_settings_datatransfer.import') }}</button>
                 </div>
                 <ul v-if="formFor(t.key).errors.file" class="mt-2 text-rose-600 list-disc ps-4"><li v-for="(e, i) in lines(formFor(t.key).errors.file)" :key="i">{{ e }}</li></ul>
             </div>
@@ -90,8 +92,8 @@ const masterTypes = computed(() => props.types.filter((t) => !t.opening));
         <section class="bg-white border border-slate-200 rounded-2xl p-4 mt-4 text-xs" data-transaction-export>
             <div class="flex flex-wrap items-end justify-between gap-3 mb-3">
                 <div>
-                    <h2 class="font-black text-slate-700">تصدير الحركات</h2>
-                    <p class="text-slate-500 mt-1">قائمة مستندات الفترة بإجماليها، Excel أو PDF؛ لكل نوع صلاحية تصدير مستقلة.</p>
+                    <h2 class="font-black text-slate-700">{{ $t('set2_settings_datatransfer.export_transactions') }}</h2>
+                    <p class="text-slate-500 mt-1">{{ $t('set2_settings_datatransfer.the_period_s_documents_with_thei') }}</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <DatePicker v-model="txRange.start_date" class="rounded-xl border-slate-200 text-xs" />

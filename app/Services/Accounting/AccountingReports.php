@@ -358,6 +358,116 @@ class AccountingReports
         ];
     }
 
+    /** Leaf accounts under the given accounts: a leaf stands for itself, a parent for every leaf below it. */
+    public function leafIdsUnder(array $accountIds): array
+    {
+        $accounts = Account::query()->get(['id', 'parent_id', 'is_parent']);
+        $ids = [];
+        $frontier = array_map('intval', $accountIds);
+        $seen = [];
+        while ($frontier) {
+            $level = $accounts->whereIn('id', $frontier);
+            $next = [];
+            foreach ($level as $a) {
+                if (isset($seen[$a->id])) {
+                    continue;
+                }
+                $seen[$a->id] = true;
+                if ($a->is_parent) {
+                    $next = array_merge($next, $accounts->where('parent_id', $a->id)->pluck('id')->all());
+                } else {
+                    $ids[] = (int) $a->id;
+                }
+            }
+            $frontier = $next;
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * One statement over several accounts (a parent account stands for all the accounts below it): every
+     * line of the period in date order with a combined running balance (debit positive, credit negative),
+     * plus a summary row per account in that account's own nature.
+     *
+     * @param  int[]  $accountIds
+     */
+    public function consolidated(array $accountIds, Carbon $from, Carbon $to, int $perPage = 100, ?int $costCenterId = null): array
+    {
+        $leafIds = $this->leafIdsUnder($accountIds);
+        $accounts = Account::whereIn('id', $leafIds)->orderBy('code')->get(['id', 'code', 'name_ar', 'nature'])->keyBy('id');
+
+        $scope = fn () => DB::table('journal_entry_lines as l')
+            ->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
+            ->where('l.company_id', $this->companyId())
+            ->whereIn('l.account_id', $leafIds ?: [0])
+            ->whereIn('e.status', self::STATUSES)
+            ->when($this->branchIds(), fn ($q, $ids) => $q->whereIn('e.branch_id', $ids))
+            ->when($costCenterId, fn ($q) => $q->where('l.cost_center_id', $costCenterId));
+
+        $openingRows = $scope()->where('l.date', '<', $from->toDateString())
+            ->groupBy('l.account_id')->selectRaw('l.account_id, COALESCE(SUM(l.debit),0) as debit, COALESCE(SUM(l.credit),0) as credit')->get()->keyBy('account_id');
+        $periodRows = $scope()->whereBetween('l.date', [$from->toDateString(), $to->toDateString().' 23:59:59'])
+            ->groupBy('l.account_id')->selectRaw('l.account_id, COALESCE(SUM(l.debit),0) as debit, COALESCE(SUM(l.credit),0) as credit')->get()->keyBy('account_id');
+
+        $summary = [];
+        $total = ['opening' => 0.0, 'debit' => 0.0, 'credit' => 0.0, 'closing' => 0.0];
+        foreach ($accounts as $id => $account) {
+            $od = (float) ($openingRows[$id]->debit ?? 0);
+            $oc = (float) ($openingRows[$id]->credit ?? 0);
+            $pd = (float) ($periodRows[$id]->debit ?? 0);
+            $pc = (float) ($periodRows[$id]->credit ?? 0);
+            $opening = $account->signedBalance($od, $oc);
+            $summary[] = [
+                'id' => $id, 'code' => $account->code, 'name_ar' => $account->name_ar, 'nature' => $account->nature,
+                'opening' => round($opening, 2), 'debit' => round($pd, 2), 'credit' => round($pc, 2),
+                'closing' => round($opening + $account->signedBalance($pd, $pc), 2),
+            ];
+            $total['opening'] += $od - $oc;
+            $total['debit'] += $pd;
+            $total['credit'] += $pc;
+        }
+        // Combined balance is net debit (+) / credit (-) because the accounts may differ in nature.
+        $combinedOpening = round($total['opening'], 2);
+        $combinedClosing = round($total['opening'] + $total['debit'] - $total['credit'], 2);
+
+        $page = $scope()
+            ->whereBetween('l.date', [$from->toDateString(), $to->toDateString().' 23:59:59'])
+            ->join('accounts as a', 'a.id', '=', 'l.account_id')
+            ->orderBy('l.date')->orderBy('l.id')
+            ->select('l.id', 'l.date', 'l.debit', 'l.credit', 'l.description', 'l.account_id', 'a.code as account_code', 'a.name_ar as account_name', 'e.entry_number', 'e.reference', 'e.description as entry_description', 'e.source_type', 'e.source_id')
+            ->paginate($perPage)
+            ->withQueryString();
+
+        $before = 0.0;
+        if ($page->currentPage() > 1 && $page->count()) {
+            $first = $page->first();
+            $prior = $scope()->whereBetween('l.date', [$from->toDateString(), $to->toDateString().' 23:59:59'])
+                ->where(fn ($q) => $q->where('l.date', '<', $first->date)->orWhere(fn ($q) => $q->where('l.date', $first->date)->where('l.id', '<', $first->id)))
+                ->selectRaw('COALESCE(SUM(l.debit),0) as debit, COALESCE(SUM(l.credit),0) as credit')->first();
+            $before = (float) $prior->debit - (float) $prior->credit;
+        }
+        $running = $combinedOpening + $before;
+        $page->getCollection()->transform(function ($line) use (&$running) {
+            $running += (float) $line->debit - (float) $line->credit;
+            $line->balance = round($running, 2);
+            $line->debit = (float) $line->debit;
+            $line->credit = (float) $line->credit;
+            $line->date = substr((string) $line->date, 0, 10);
+
+            return $line;
+        });
+
+        return [
+            'accounts' => $summary,
+            'opening_balance' => $combinedOpening,
+            'period_debit' => round($total['debit'], 2),
+            'period_credit' => round($total['credit'], 2),
+            'closing_balance' => $combinedClosing,
+            'lines' => $page,
+        ];
+    }
+
     protected function partyOpening(int $accountId, Carbon $from, ?string $partyType, ?int $partyId, ?int $costCenterId): array
     {
         $row = DB::table('journal_entry_lines as l')

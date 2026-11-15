@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import ImportButton from '@/Components/UI/ImportButton.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import ImportLines from '@/Components/Documents/ImportLines.vue';
@@ -11,6 +12,7 @@ import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
 import { money } from '@/utils/format';
 import { PlusIcon, TrashIcon } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 defineProps({ lists: Array });
 
@@ -36,48 +38,48 @@ const add = (p) => { form.items.push({ product_id: p.id, name: p.name_ar, base: 
 const save = () => editing.value
     ? form.put(route('sales.price-lists.update', editing.value.id), { onSuccess: () => (open.value = false) })
     : form.post(route('sales.price-lists.store'), { onSuccess: () => (open.value = false) });
-const destroy = (list) => { if (confirm(`حذف قائمة "${list.name}"؟`)) router.delete(route('sales.price-lists.destroy', list.id)); };
+const destroy = (list) => { if (confirm(t('s_pricelists.confirm_delete', { name: list.name }))) router.delete(route('sales.price-lists.destroy', list.id)); };
 </script>
 
 <template>
     <AppLayout>
-        <Head title="قوائم الأسعار" />
-        <PageHeader title="قوائم الأسعار" subtitle="أسعار خاصة لكل فئة عملاء مع شرائح كميات؛ تُطبّق تلقائياً في أوامر البيع" :crumbs="[{ label: 'المبيعات' }, { label: 'قوائم الأسعار' }]">
-            <template #actions><button v-if="$can('sales.price_lists.create')" @click="create" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> قائمة جديدة</button>
-                <ImportButton v-if="$can('sales.price_lists.create')" type="price_lists" title="استيراد قوائم الأسعار من Excel" />
+        <Head :title="$t('s_pricelists.price_lists')" />
+        <PageHeader :title="$t('s_pricelists.price_lists')" :subtitle="$t('s_pricelists.special_prices_per_customer_clas')" :crumbs="[{ label: 'المبيعات' }, { label: 'قوائم الأسعار' }]">
+            <template #actions><button v-if="$can('sales.price_lists.create')" @click="create" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> {{ $t('s_pricelists.new_list') }}</button>
+                <ImportButton v-if="$can('sales.price_lists.create')" type="price_lists" :title="$t('s_pricelists.import_price_lists_from_excel')" />
 </template>
         </PageHeader>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div v-for="list in lists" :key="list.id" class="bg-white border border-slate-200 rounded-2xl p-4 text-xs">
                 <div class="flex justify-between items-start">
-                    <h3 class="font-black text-slate-800">{{ list.name }} <span v-if="list.is_default" class="text-indigo-600">(افتراضية)</span></h3>
-                    <span :class="list.is_active ? 'text-emerald-600' : 'text-slate-400'" class="font-bold">{{ list.is_active ? 'فعالة' : 'موقوفة' }}</span>
+                    <h3 class="font-black text-slate-800">{{ list.name }} <span v-if="list.is_default" class="text-indigo-600">{{ $t('s_pricelists.default') }}</span></h3>
+                    <span :class="list.is_active ? 'text-emerald-600' : 'text-slate-400'" class="font-bold">{{ list.is_active ? $t('s_pricelists.active') : $t('s_pricelists.suspended') }}</span>
                 </div>
-                <p class="text-slate-500 mt-1">{{ list.items_count }} صنف · {{ list.customers_count }} عميل</p>
+                <p class="text-slate-500 mt-1">{{ $t('s_pricelists.counts', { items: list.items_count, customers: list.customers_count }) }}</p>
                 <div class="flex gap-3 mt-3">
-                    <button v-if="$can('sales.price_lists.edit')" @click="edit(list)" class="text-indigo-600 font-bold">تعديل</button>
-                    <button v-if="$can('sales.price_lists.delete')" @click="destroy(list)" class="text-rose-600 font-bold">حذف</button>
+                    <button v-if="$can('sales.price_lists.edit')" @click="edit(list)" class="text-indigo-600 font-bold">{{ $t('s_pricelists.edit') }}</button>
+                    <button v-if="$can('sales.price_lists.delete')" @click="destroy(list)" class="text-rose-600 font-bold">{{ $t('s_pricelists.delete') }}</button>
                 </div>
             </div>
-            <p v-if="!lists.length" class="text-xs text-slate-400">لا توجد قوائم أسعار.</p>
+            <p v-if="!lists.length" class="text-xs text-slate-400">{{ $t('s_pricelists.no_price_lists') }}</p>
         </div>
-        <Dialog :show="open" :title="editing ? 'تعديل قائمة الأسعار' : 'قائمة أسعار جديدة'" size="lg" @close="open = false">
+        <Dialog :show="open" :title="editing ? $t('s_pricelists.edit') : $t('s_pricelists.new')" size="lg" @close="open = false">
             <div class="grid grid-cols-4 gap-3 mb-3">
-                <Field label="الاسم" :error="form.errors.name" class="col-span-2"><input v-model="form.name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="من"><DatePicker v-model="form.valid_from" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="إلى"><DatePicker v-model="form.valid_to" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <label class="text-xs flex items-center gap-2"><input v-model="form.is_default" type="checkbox" class="rounded" /> افتراضية لكل العملاء</label>
-                <label class="text-xs flex items-center gap-2"><input v-model="form.is_active" type="checkbox" class="rounded" /> فعالة</label>
+                <Field :label="$t('s_pricelists.name')" :error="form.errors.name" class="col-span-2"><input v-model="form.name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('s_pricelists.from')"><DatePicker v-model="form.valid_from" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('s_pricelists.to')"><DatePicker v-model="form.valid_to" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <label class="text-xs flex items-center gap-2"><input v-model="form.is_default" type="checkbox" class="rounded" /> {{ $t('s_pricelists.default_for_all_customers') }}</label>
+                <label class="text-xs flex items-center gap-2"><input v-model="form.is_active" type="checkbox" class="rounded" /> {{ $t('s_pricelists.active') }}</label>
             </div>
             <div class="relative mb-2">
-                <div class="mb-2"><ImportLines kind="sales" label="استيراد الأسعار من Excel" @imported="importPrices" /> <span class="text-3xs text-slate-400">رمز الصنف، السعر، والكمية = الحد الأدنى للكمية</span></div>
-                <input v-model="term" @input="search" placeholder="أضف صنفاً..." class="w-full rounded-xl border-slate-200 text-xs" />
+                <div class="mb-2"><ImportLines kind="sales" :label="$t('s_pricelists.import_prices_from_excel')" @imported="importPrices" /> <span class="text-3xs text-slate-400">{{ $t('s_pricelists.item_code_price_and_quantity_min') }}</span></div>
+                <input v-model="term" @input="search" :placeholder="$t('s_pricelists.add_an_item')" class="w-full rounded-xl border-slate-200 text-xs" />
                 <div v-if="results.length" class="absolute z-10 mt-1 w-full bg-white border rounded-xl shadow max-h-48 overflow-y-auto">
                     <button type="button" v-for="p in results" :key="p.id" @mousedown.prevent="add(p)" @keydown.enter.prevent="add(p)" class="block w-full text-start px-3 py-2 text-xs hover:bg-indigo-50">{{ p.name_ar }}</button>
                 </div>
             </div>
             <div class="overflow-x-auto"><table class="w-full text-xs">
-                <tr class="text-slate-500"><th class="text-start">الصنف</th><th>السعر الأساسي</th><th class="w-28">من كمية</th><th class="w-28">السعر</th><th></th></tr>
+                <tr class="text-slate-500"><th class="text-start">{{ $t('s_pricelists.item') }}</th><th>{{ $t('s_pricelists.base_price') }}</th><th class="w-28">{{ $t('s_pricelists.from_quantity') }}</th><th class="w-28">{{ $t('s_pricelists.price') }}</th><th></th></tr>
                 <tr v-for="(i, idx) in form.items" :key="idx" class="border-t border-slate-100">
                     <td class="py-1.5">{{ i.name }}</td>
                     <td class="text-center font-mono">{{ money(i.base) }}</td>

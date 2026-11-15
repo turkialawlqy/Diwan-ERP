@@ -1,18 +1,20 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import { computed, reactive } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { money, qty } from '@/utils/format';
+const { t } = useI18n();
 
 const props = defineProps({ type: String, filters: Object, report: Object, columns: Object });
-const types = {
-    profitability: ['ربحية المعدات', 'الإيراد والتحميل على المشاريع مقابل الصيانة والإيجار والإهلاك'],
-    utilization: ['نسبة التشغيل', 'ساعات العمل الفعلية مقابل المتاحة، وأيام التوقف والصيانة'],
-    compliance: ['الالتزام بالصيانة', 'البنود المنفذة في موعدها مقابل المتأخرة، وتكلفة الصيانة لكل ساعة وكيلومتر'],
-    parts: ['استهلاك قطع الغيار', 'الأصناف المصروفة للصيانة حسب الصنف والمعدة'],
-};
+const types = computed(() => ({
+    profitability: [t('eq2_equipment_reports.equipment_profitability'), t('eq2_equipment_reports.revenue_and_charges_to_projects')],
+    utilization: [t('eq2_equipment_reports.utilization_rate'), t('eq2_equipment_reports.actual_working_hours_against_ava')],
+    compliance: [t('eq2_equipment_reports.maintenance_compliance'), t('eq2_equipment_reports.items_done_on_time_against_late')],
+    parts: [t('eq2_equipment_reports.spare_parts_consumption'), t('eq2_equipment_reports.items_issued_for_maintenance_by')],
+}));
 const f = reactive({ ...props.filters });
 const go = (type = props.type) => router.get(route('equipment.reports.index'), { type, ...f }, { preserveState: false });
 const exportUrl = computed(() => route('equipment.reports.export', { type: props.type, ...f }));
@@ -42,31 +44,31 @@ const insights = computed(() => {
     if (props.type === 'profitability') {
         const losing = rows.filter((r) => r.net < 0);
         const best = [...rows].sort((a, b) => b.net - a.net)[0];
-        return [`صافي ربح الأسطول: ${money(props.report.totals.net)}`, best && `الأعلى ربحاً: ${best.code} — ${best.name} (${money(best.net)})`,
-            losing.length && `معدات خاسرة: ${losing.map((r) => r.code).join('، ')} — راجع أسعارها أو تكاليف صيانتها`].filter(Boolean);
+        return [t('eq2_equipment_reports.fleet_net_profit_n', { n0: money(props.report.totals.net) }), best && t('eq2_equipment_reports.most_profitable_n_n_n', { n0: best.code, n1: best.name, n2: money(best.net) }),
+            losing.length && t('eq2_equipment_reports.loss_making_equipment_n_review_t', { n0: losing.map((r) => r.code).join(t('z_equipment_reports.text')) })].filter(Boolean);
     }
     if (props.type === 'utilization') {
-        const t = props.report.totals;
+        const tot = props.report.totals;
         const idle = rows.filter((r) => r.utilization < 40);
-        return [`متوسط التشغيل: ${t.available_hours ? ((t.worked_hours / t.available_hours) * 100).toFixed(1) : 0}% (${props.report.standard_hours} ساعات/يوم، ${props.report.days} يوماً)`,
-            idle.length && `معدات تشغيلها أقل من 40%: ${idle.map((r) => r.code).join('، ')} — فرصة للتأجير أو البيع`].filter(Boolean);
+        return [t('eq2_equipment_reports.average_utilization_n_n_hours_da', { n0: tot.available_hours ? ((tot.worked_hours / tot.available_hours) * 100).toFixed(1) : 0, n1: props.report.standard_hours, n2: props.report.days }),
+            idle.length && t('eq2_equipment_reports.equipment_utilized_under_40_n_an', { n0: idle.map((r) => r.code).join(t('z_equipment_reports.text')) })].filter(Boolean);
     }
     if (props.type === 'compliance') {
-        const t = props.report.totals;
-        return [`نُفذ ${t.serviced} بند، منها ${t.late} بعد موعدها (${t.serviced ? Math.round(((t.serviced - t.late) / t.serviced) * 100) : 100}% التزام)`,
-            t.overdue_now && `${t.overdue_now} بند متأخر الآن`, `أوامر إصلاح أعطال: ${t.corrective} مقابل ${t.preventive} صيانة وقائية`].filter(Boolean);
+        const tot = props.report.totals;
+        return [t('eq2_equipment_reports.n_items_done_n_of_them_late_n_co', { n0: tot.serviced, n1: tot.late, n2: tot.serviced ? Math.round(((tot.serviced - tot.late) / tot.serviced) * 100) : 100 }),
+            tot.overdue_now && t('eq2_equipment_reports.n_items_overdue_now', { n0: tot.overdue_now }), t('eq2_equipment_reports.breakdown_repair_orders_n_agains', { n0: tot.corrective, n1: tot.preventive })].filter(Boolean);
     }
     const top = props.report.by_product?.[0];
-    return [`إجمالي قطع الغيار: ${money(props.report.totals.amount)}`, top && `الأعلى تكلفة: ${top.product} (${money(top.amount)})`].filter(Boolean);
+    return [t('eq2_equipment_reports.total_spare_parts_n', { n0: money(props.report.totals.amount) }), top && t('eq2_equipment_reports.highest_cost_n_n', { n0: top.product, n1: money(top.amount) })].filter(Boolean);
 });
 </script>
 
 <template>
     <AppLayout>
-        <Head title="تقارير المعدات" />
-        <PageHeader title="تقارير المعدات" :subtitle="types[type][1]" :crumbs="[{ label: 'المعدات', href: route('equipment.index') }, { label: 'التقارير' }]">
+        <Head :title="$t('eq2_equipment_reports.equipment_reports')" />
+        <PageHeader :title="$t('eq2_equipment_reports.equipment_reports')" :subtitle="types[type][1]" :crumbs="[{ label: $t('eq2_equipment_reports.equipment'), href: route('equipment.index') }, { label: $t('eq2_equipment_reports.reports') }]">
             <template #actions>
-                <a v-if="$can('equipment.reports.export')" :href="exportUrl" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">تصدير Excel (CSV)</a>
+                <a v-if="$can('equipment.reports.export')" :href="exportUrl" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('eq2_equipment_reports.export_excel_csv') }}</a>
             </template>
         </PageHeader>
 
@@ -75,10 +77,10 @@ const insights = computed(() => {
         </div>
 
         <form @submit.prevent="go()" class="flex flex-wrap items-end gap-3 mb-4 text-xs">
-            <label class="font-bold text-slate-600">من <DatePicker v-model="f.from" class="block rounded-xl border-slate-200 text-xs" /></label>
-            <label class="font-bold text-slate-600">إلى <DatePicker v-model="f.to" class="block rounded-xl border-slate-200 text-xs" /></label>
-            <label v-if="type === 'utilization'" class="font-bold text-slate-600">ساعات اليوم القياسية <input v-model.number="f.standard_hours" type="text" inputmode="decimal" data-num min="1" max="24" class="block rounded-xl border-slate-200 text-xs w-24" /></label>
-            <button class="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold">عرض</button>
+            <label class="font-bold text-slate-600">{{ $t('eq2_equipment_reports.from') }} <DatePicker v-model="f.from" class="block rounded-xl border-slate-200 text-xs" /></label>
+            <label class="font-bold text-slate-600">{{ $t('eq2_equipment_reports.to') }} <DatePicker v-model="f.to" class="block rounded-xl border-slate-200 text-xs" /></label>
+            <label v-if="type === 'utilization'" class="font-bold text-slate-600">{{ $t('eq2_equipment_reports.standard_hours_per_day') }} <input v-model.number="f.standard_hours" type="text" inputmode="decimal" data-num min="1" max="24" class="block rounded-xl border-slate-200 text-xs w-24" /></label>
+            <button class="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold">{{ $t('eq2_equipment_reports.view') }}</button>
         </form>
 
         <ul v-if="insights.length" class="mb-4 rounded-2xl bg-indigo-50 border border-indigo-100 p-4 text-xs text-indigo-900 space-y-1 list-disc ps-8">
@@ -98,19 +100,19 @@ const insights = computed(() => {
                             <template v-else>{{ cell(k, row[k]) }}</template>
                         </td>
                     </tr>
-                    <tr v-if="!report.rows.length"><td :colspan="Object.keys(columns).length" class="px-3 py-10 text-center text-slate-400">لا توجد بيانات في هذه الفترة.</td></tr>
+                    <tr v-if="!report.rows.length"><td :colspan="Object.keys(columns).length" class="px-3 py-10 text-center text-slate-400">{{ $t('eq2_equipment_reports.no_data_in_this_period') }}</td></tr>
                 </tbody>
                 <tfoot v-if="report.rows.length && report.totals" class="bg-slate-50 font-bold">
-                    <tr><td v-for="(l, k) in columns" :key="k" class="px-3 py-2 font-mono whitespace-nowrap">{{ k in report.totals ? cell(k, report.totals[k]) : (k === Object.keys(columns)[0] ? 'الإجمالي' : '') }}</td></tr>
+                    <tr><td v-for="(l, k) in columns" :key="k" class="px-3 py-2 font-mono whitespace-nowrap">{{ k in report.totals ? cell(k, report.totals[k]) : (k === Object.keys(columns)[0] ? $t('eq2_equipment_reports.total') : '') }}</td></tr>
                 </tfoot>
             </table>
         </div>
 
         <section v-if="type === 'parts' && report.by_product?.length" class="mt-4 text-xs">
-            <h3 class="font-black text-slate-700 mb-2">حسب الصنف</h3>
+            <h3 class="font-black text-slate-700 mb-2">{{ $t('eq2_equipment_reports.by_item') }}</h3>
             <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
                 <table class="w-full">
-                    <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 text-start">الصنف</th><th class="px-3 py-2 text-start">الكمية</th><th class="px-3 py-2 text-start">التكلفة</th><th class="px-3 py-2 text-start">عدد المعدات</th></tr></thead>
+                    <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 text-start">{{ $t('eq2_equipment_reports.item') }}</th><th class="px-3 py-2 text-start">{{ $t('eq2_equipment_reports.quantity') }}</th><th class="px-3 py-2 text-start">{{ $t('eq2_equipment_reports.cost') }}</th><th class="px-3 py-2 text-start">{{ $t('eq2_equipment_reports.number_of_equipment') }}</th></tr></thead>
                     <tbody><tr v-for="p in report.by_product" :key="p.product" class="border-t border-slate-100"><td class="px-3 py-2">{{ p.product }} <span class="text-slate-400 font-mono">{{ p.sku }}</span></td><td class="px-3 py-2 font-mono">{{ qty(p.quantity) }}</td><td class="px-3 py-2 font-mono">{{ money(p.amount) }}</td><td class="px-3 py-2">{{ p.equipment_count }}</td></tr></tbody>
                 </table>
             </div>

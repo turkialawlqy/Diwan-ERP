@@ -22,6 +22,7 @@ use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\ActiveBranch;
+use App\Services\AttachmentService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Purchases\PurchaseCycleService;
 use App\Services\Purchases\PurchaseInvoiceChanges;
@@ -348,6 +349,8 @@ class PurchaseInvoiceController extends Controller
             return $purchaseInvoice;
         });
 
+        app(AttachmentService::class)->claim($request, $invoice, 'purchase-invoice');
+
         return redirect()->route('purchases.invoices.show', $invoice->id)
             ->with($budgetWarning ? ['warning' => $budgetWarning] : [])
             ->with('success', $replace ? 'تم تعديل فاتورة الشراء وإعادة ترحيلها' : 'تم إنشاء فاتورة الشراء وتحديث كميات المخزون بنجاح');
@@ -403,6 +406,7 @@ class PurchaseInvoiceController extends Controller
         ]);
 
         $invoice = app(PurchaseCycleService::class)->invoiceReceipts($validated, $validated['lines']);
+        app(AttachmentService::class)->claim($request, $invoice, 'purchase-invoice');
 
         return redirect()->route('purchases.invoices.show', $invoice->id)->with('success', "تم تسجيل فاتورة المورد {$invoice->invoice_number} مقابل الاستلامات");
     }

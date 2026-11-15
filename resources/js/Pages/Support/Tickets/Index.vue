@@ -20,34 +20,34 @@ const due = (t) => (t.status === 'open' || t.status === 'pending' ? t.resolution
 
 <template>
     <AppLayout>
-        <Head title="تذاكر الدعم" />
-        <PageHeader title="تذاكر الدعم" subtitle="طلبات العملاء وشكاواهم وما بعد البيع" :crumbs="[{ label: 'خدمة العملاء' }, { label: 'التذاكر' }]">
+        <Head :title="$t('x_support_tickets_index.support_tickets')" />
+        <PageHeader :title="$t('x_support_tickets_index.support_tickets')" :subtitle="$t('x_support_tickets_index.customer_requests_complaints_and')" :crumbs="[{ label: $t('x_support_tickets_index.customer_service') }, { label: $t('x_support_tickets_index.tickets') }]">
             <template #actions>
-                <Link v-if="$can('support.tickets.create')" :href="route('support.tickets.create')" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold" data-new-ticket><PlusIcon class="w-4 h-4" /> تذكرة جديدة</Link>
+                <Link v-if="$can('support.tickets.create')" :href="route('support.tickets.create')" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold" data-new-ticket><PlusIcon class="w-4 h-4" /> {{ $t('x_support_tickets_index.new_ticket') }}</Link>
             </template>
         </PageHeader>
 
         <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4" data-metrics>
-            <StatCard label="تذاكر مفتوحة" :value="metrics.open" tone="indigo" />
-            <StatCard label="بلا مسؤول" :value="metrics.unassigned" :tone="metrics.unassigned ? 'amber' : 'slate'" />
-            <StatCard label="متأخرة عن المهلة" :value="metrics.overdue" :tone="metrics.overdue ? 'rose' : 'slate'" />
-            <StatCard label="متوسط الحل (ساعة)" :value="metrics.avg_resolution_hours ?? '—'" />
-            <StatCard label="الالتزام بالمهلة / التقييم" :value="`${metrics.sla_compliance != null ? metrics.sla_compliance + '%' : '—'} · ${metrics.avg_rating ?? '—'}★`" tone="emerald" />
+            <StatCard :label="$t('x_support_tickets_index.open_tickets')" :value="metrics.open" tone="indigo" />
+            <StatCard :label="$t('x_support_tickets_index.unassigned')" :value="metrics.unassigned" :tone="metrics.unassigned ? 'amber' : 'slate'" />
+            <StatCard :label="$t('x_support_tickets_index.past_the_deadline')" :value="metrics.overdue" :tone="metrics.overdue ? 'rose' : 'slate'" />
+            <StatCard :label="$t('x_support_tickets_index.average_resolution_hours')" :value="metrics.avg_resolution_hours ?? '—'" />
+            <StatCard :label="$t('x_support_tickets_index.deadline_compliance_rating')" :value="`${metrics.sla_compliance != null ? metrics.sla_compliance + '%' : '—'} · ${metrics.avg_rating ?? '—'}★`" tone="emerald" />
         </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl p-3 mb-4 flex flex-wrap gap-2 text-xs">
-            <input v-model="f.search" @input="apply" placeholder="بحث برقم التذكرة أو الموضوع أو العميل..." class="flex-1 min-w-[12rem] rounded-xl border-slate-200 text-xs" />
-            <select v-model="f.status" @change="apply" class="rounded-xl border-slate-200 text-xs"><option value="active">المفتوحة وبانتظار العميل</option><option v-for="(l, k) in statuses" :key="k" :value="k">{{ l }}</option><option value="all">الكل</option></select>
-            <select v-model="f.priority" @change="apply" class="rounded-xl border-slate-200 text-xs"><option value="">كل الأولويات</option><option v-for="(l, k) in priorities" :key="k" :value="k">{{ l }}</option></select>
-            <select v-model="f.assignee" @change="apply" class="rounded-xl border-slate-200 text-xs"><option value="">كل المسؤولين</option><option value="me">تذاكري</option><option value="none">بلا مسؤول</option><option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option></select>
-            <label class="flex items-center gap-1 font-bold text-slate-600"><input type="checkbox" v-model="f.overdue" @change="apply" class="rounded" /> المتأخرة فقط</label>
+            <input v-model="f.search" @input="apply" :placeholder="$t('x_support_tickets_index.search_by_ticket_number_subject')" class="flex-1 min-w-[12rem] rounded-xl border-slate-200 text-xs" />
+            <select v-model="f.status" @change="apply" class="rounded-xl border-slate-200 text-xs"><option value="active">{{ $t('x_support_tickets_index.open_and_awaiting_the_customer') }}</option><option v-for="(l, k) in statuses" :key="k" :value="k">{{ l }}</option><option value="all">{{ $t('x_support_tickets_index.all') }}</option></select>
+            <select v-model="f.priority" @change="apply" class="rounded-xl border-slate-200 text-xs"><option value="">{{ $t('x_support_tickets_index.all_priorities') }}</option><option v-for="(l, k) in priorities" :key="k" :value="k">{{ l }}</option></select>
+            <select v-model="f.assignee" @change="apply" class="rounded-xl border-slate-200 text-xs"><option value="">{{ $t('x_support_tickets_index.all_owners') }}</option><option value="me">{{ $t('x_support_tickets_index.my_tickets') }}</option><option value="none">{{ $t('x_support_tickets_index.unassigned') }}</option><option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option></select>
+            <label class="flex items-center gap-1 font-bold text-slate-600"><input type="checkbox" v-model="f.overdue" @change="apply" class="rounded" /> {{ $t('x_support_tickets_index.overdue_only') }}</label>
         </div>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
             <table class="w-full text-xs">
                 <thead class="bg-slate-50 text-slate-500"><tr>
-                    <th class="px-4 py-2 text-start">التذكرة</th><th class="px-4 py-2 text-start">الموضوع</th><th class="px-4 py-2 text-start">العميل</th><th class="px-4 py-2 text-start">الأولوية</th>
-                    <th class="px-4 py-2 text-start">الحالة</th><th class="px-4 py-2 text-start">المسؤول</th><th class="px-4 py-2 text-start">مهلة الحل</th><th class="px-4 py-2 w-12"></th>
+                    <th class="px-4 py-2 text-start">{{ $t('x_support_tickets_index.ticket') }}</th><th class="px-4 py-2 text-start">{{ $t('x_support_tickets_index.subject') }}</th><th class="px-4 py-2 text-start">{{ $t('x_support_tickets_index.customer') }}</th><th class="px-4 py-2 text-start">{{ $t('x_support_tickets_index.priority') }}</th>
+                    <th class="px-4 py-2 text-start">{{ $t('x_support_tickets_index.status') }}</th><th class="px-4 py-2 text-start">{{ $t('x_support_tickets_index.owner') }}</th><th class="px-4 py-2 text-start">{{ $t('x_support_tickets_index.resolution_deadline') }}</th><th class="px-4 py-2 w-12"></th>
                 </tr></thead>
                 <tbody>
                     <tr v-for="t in tickets.data" :key="t.id" class="border-t border-slate-100" :class="t.overdue ? 'bg-rose-50/40' : ''" :data-ticket="t.number">
@@ -57,10 +57,10 @@ const due = (t) => (t.status === 'open' || t.status === 'pending' ? t.resolution
                         <td class="px-4 py-2"><span class="px-2 py-0.5 rounded-full font-bold" :class="prio[t.priority]">{{ priorities[t.priority] }}</span></td>
                         <td class="px-4 py-2"><span class="px-2 py-0.5 rounded-full font-bold" :class="stat[t.status]">{{ statuses[t.status] }}</span></td>
                         <td class="px-4 py-2">{{ t.assignee?.name || '—' }}</td>
-                        <td class="px-4 py-2 font-mono" :class="t.overdue ? 'text-rose-600 font-bold' : 'text-slate-500'">{{ due(t) }}<span v-if="t.overdue" class="block text-3xs">متأخرة</span></td>
+                        <td class="px-4 py-2 font-mono" :class="t.overdue ? 'text-rose-600 font-bold' : 'text-slate-500'">{{ due(t) }}<span v-if="t.overdue" class="block text-3xs">{{ $t('x_support_tickets_index.overdue') }}</span></td>
                         <td class="px-4 py-2 text-end"><RowActions :view="route('support.tickets.show', t.id)" /></td>
                     </tr>
-                    <tr v-if="!tickets.data.length"><td colspan="8" class="py-10 text-center text-slate-400">لا توجد تذاكر.</td></tr>
+                    <tr v-if="!tickets.data.length"><td colspan="8" class="py-10 text-center text-slate-400">{{ $t('x_support_tickets_index.no_tickets') }}</td></tr>
                 </tbody>
             </table>
         </div>

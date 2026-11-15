@@ -33,16 +33,16 @@ const book = (r, m) => router.get(route('bookings.create'), { resource: r.id, st
 
 <template>
     <AppLayout>
-        <Head title="تقويم الحجوزات" />
-        <PageHeader title="تقويم الحجوزات" :crumbs="[{ label: 'الحجوزات' }, { label: 'التقويم' }]">
+        <Head :title="$t('bk2_bookings_calendar.bookings_calendar')" />
+        <PageHeader :title="$t('bk2_bookings_calendar.bookings_calendar')" :crumbs="[{ label: $t('bk2_bookings_calendar.bookings') }, { label: $t('bk2_bookings_calendar.calendar') }]">
             <template #actions>
-                <button type="button" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold" @click="shift(-1)">‹ اليوم السابق</button>
+                <button type="button" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold" @click="shift(-1)">{{ $t('bk2_bookings_calendar.previous_day') }}</button>
                 <DatePicker :model-value="date" @update:model-value="go" />
-                <button type="button" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold" @click="shift(1)">اليوم التالي ›</button>
-                <Link v-if="$can('bookings.bookings.create')" :href="route('bookings.create')" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold" data-new-booking><PlusIcon class="w-4 h-4" /> حجز جديد</Link>
+                <button type="button" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold" @click="shift(1)">{{ $t('bk2_bookings_calendar.next_day') }}</button>
+                <Link v-if="$can('bookings.bookings.create')" :href="route('bookings.create')" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold" data-new-booking><PlusIcon class="w-4 h-4" /> {{ $t('bk2_bookings_calendar.new_booking') }}</Link>
             </template>
         </PageHeader>
-        <p v-if="!resources.length" class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-xs text-slate-500">أضف موردًا بساعات عمل أولًا من «الموارد».</p>
+        <p v-if="!resources.length" class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-xs text-slate-500">{{ $t('bk2_bookings_calendar.first_add_a_resource_with_workin') }}</p>
         <div v-else class="bg-white border border-slate-200 rounded-2xl overflow-x-auto" data-calendar>
             <div class="flex min-w-max">
                 <div class="w-14 shrink-0 border-e border-slate-100">

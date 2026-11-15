@@ -23,25 +23,25 @@ const input = 'w-full text-xs rounded-xl border-slate-200 focus:border-indigo-60
 
 <template>
     <AppLayout>
-        <Head :title="editing ? 'تعديل مسار' : 'مسار تشغيل جديد'" />
-        <PageHeader :title="editing ? 'تعديل مسار تشغيل' : 'مسار تشغيل جديد'" :crumbs="[{ label: 'التصنيع' }, { label: 'مسارات التشغيل', href: route('manufacturing.routings.index') }, { label: editing ? 'تعديل' : 'جديد' }]" />
+        <Head :title="editing ? $t('mfg_manufacturing_routings_form.edit_a_routing') : $t('mfg_manufacturing_routings_form.new_routing')" />
+        <PageHeader :title="editing ? $t('mfg_manufacturing_routings_form.edit_a_routing_2') : $t('mfg_manufacturing_routings_form.new_routing')" :crumbs="[{ label: $t('mfg_manufacturing_routings_form.manufacturing') }, { label: $t('mfg_manufacturing_routings_form.routings'), href: route('manufacturing.routings.index') }, { label: editing ? $t('mfg_manufacturing_routings_form.edit') : $t('mfg_manufacturing_routings_form.new') }]" />
         <form @submit.prevent="submit" class="space-y-5">
             <div class="bg-white border border-slate-200/80 rounded-2xl p-6 grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                <Field label="الرمز *" :error="form.errors.code"><input v-model="form.code" :class="input" class="font-mono" required /></Field>
-                <Field label="الاسم *" :error="form.errors.name"><input v-model="form.name" :class="input" required /></Field>
-                <Field label="المنتج (اختياري)"><SelectCreate v-model="form.product_id" :options="products" :search="{ route: 'lookup.products', params: { stockable: 1 } }" entity="product" label="name_ar" placeholder="—" /></Field>
-                <label class="inline-flex items-center gap-2 text-xs"><input v-model="form.is_active" type="checkbox" class="rounded" /> نشط</label>
+                <Field :label="$t('mfg_manufacturing_routings_form.code')" :error="form.errors.code"><input v-model="form.code" :class="input" class="font-mono" required /></Field>
+                <Field :label="$t('mfg_manufacturing_routings_form.name')" :error="form.errors.name"><input v-model="form.name" :class="input" required /></Field>
+                <Field :label="$t('mfg_manufacturing_routings_form.product_optional')"><SelectCreate v-model="form.product_id" :options="products" :search="{ route: 'lookup.products', params: { stockable: 1 } }" entity="product" label="name_ar" placeholder="—" /></Field>
+                <label class="inline-flex items-center gap-2 text-xs"><input v-model="form.is_active" type="checkbox" class="rounded" /> {{ $t('mfg_manufacturing_routings_form.active') }}</label>
             </div>
             <div class="bg-white border border-slate-200/80 rounded-2xl p-6">
-                <div class="flex items-center justify-between mb-3"><h2 class="font-black text-slate-800 text-sm">العمليات</h2><button type="button" @click="add" class="text-xs font-bold text-indigo-600 inline-flex items-center gap-1"><PlusIcon class="w-4 h-4" /> إضافة عملية</button></div>
+                <div class="flex items-center justify-between mb-3"><h2 class="font-black text-slate-800 text-sm">{{ $t('mfg_manufacturing_routings_form.operations') }}</h2><button type="button" @click="add" class="text-xs font-bold text-indigo-600 inline-flex items-center gap-1"><PlusIcon class="w-4 h-4" /> {{ $t('mfg_manufacturing_routings_form.add_an_operation') }}</button></div>
                 <p v-if="form.errors.operations" class="text-xs text-rose-600 mb-2">{{ form.errors.operations }}</p>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs">
-                        <thead class="text-slate-500"><tr><th class="text-start p-2 w-20">التسلسل</th><th class="text-start p-2">العملية</th><th class="text-start p-2">مركز العمل</th><th class="text-start p-2 w-32">تجهيز (دقيقة)</th><th class="text-start p-2 w-32">تشغيل/وحدة (دقيقة)</th><th class="w-10"></th></tr></thead>
+                        <thead class="text-slate-500"><tr><th class="text-start p-2 w-20">{{ $t('mfg_manufacturing_routings_form.sequence') }}</th><th class="text-start p-2">{{ $t('mfg_manufacturing_routings_form.operation') }}</th><th class="text-start p-2">{{ $t('mfg_manufacturing_routings_form.work_center') }}</th><th class="text-start p-2 w-32">{{ $t('mfg_manufacturing_routings_form.setup_min') }}</th><th class="text-start p-2 w-32">{{ $t('mfg_manufacturing_routings_form.run_unit_min') }}</th><th class="w-10"></th></tr></thead>
                         <tbody>
                             <tr v-for="(op, i) in form.operations" :key="i" class="border-t border-slate-100">
                                 <td class="p-2"><input v-model.number="op.seq" type="text" inputmode="decimal" data-num :class="input" /></td>
-                                <td class="p-2"><input v-model="op.name" :class="input" placeholder="قص، كبس، طلاء..." required /></td>
+                                <td class="p-2"><input v-model="op.name" :class="input" :placeholder="$t('mfg_manufacturing_routings_form.cutting_pressing_coating')" required /></td>
                                 <td class="p-2"><SelectCreate v-model="op.work_center_id" :options="workCenters" entity="work_center" :label="(w) => `${w.code} — ${w.name}`" :allow-empty="false" /></td>
                                 <td class="p-2"><input v-model.number="op.setup_minutes" type="text" inputmode="decimal" data-num step="0.01" :class="input" /></td>
                                 <td class="p-2"><input v-model.number="op.run_minutes" type="text" inputmode="decimal" data-num step="0.0001" :class="input" /></td>
@@ -52,8 +52,8 @@ const input = 'w-full text-xs rounded-xl border-slate-200 focus:border-indigo-60
                 </div>
             </div>
             <div class="flex gap-2">
-                <button type="submit" :disabled="form.processing" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold disabled:opacity-50">حفظ</button>
-                <Link :href="route('manufacturing.routings.index')" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">إلغاء</Link>
+                <button type="submit" :disabled="form.processing" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold disabled:opacity-50">{{ $t('mfg_manufacturing_routings_form.save') }}</button>
+                <Link :href="route('manufacturing.routings.index')" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">{{ $t('mfg_manufacturing_routings_form.cancel') }}</Link>
             </div>
         </form>
     </AppLayout>

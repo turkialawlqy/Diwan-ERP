@@ -35,15 +35,15 @@ const overdue = (d) => d && new Date(d) <= new Date();
 
 <template>
     <AppLayout>
-        <Head title="العملاء المحتملون" />
-        <PageHeader title="العملاء المحتملون والفرص" subtitle="اسحب البطاقة لتغيير المرحلة" :crumbs="[{ label: 'CRM' }, { label: 'العملاء المحتملون' }]">
-            <template #actions><button v-if="$can('crm.leads.create')" @click="open = true" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> عميل محتمل</button>
-                <ImportButton v-if="$can('crm.leads.create')" type="leads" title="استيراد العملاء المحتملين من Excel" /></template>
+        <Head :title="$t('x_crm_leads.leads')" />
+        <PageHeader :title="$t('x_crm_leads.leads_and_opportunities')" :subtitle="$t('x_crm_leads.drag_the_card_to_change_the_stag')" :crumbs="[{ label: 'CRM' }, { label: $t('x_crm_leads.leads') }]">
+            <template #actions><button v-if="$can('crm.leads.create')" @click="open = true" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> {{ $t('x_crm_leads.lead') }}</button>
+                <ImportButton v-if="$can('crm.leads.create')" type="leads" :title="$t('x_crm_leads.import_leads_from_excel')" /></template>
         </PageHeader>
         <div class="grid grid-cols-3 gap-3 mb-4">
-            <StatCard label="قيمة الفرص المفتوحة" :value="money(stats.open_value)" tone="indigo" />
-            <StatCard label="تم كسبها هذا الشهر" :value="stats.won_this_month" tone="emerald" />
-            <StatCard label="متابعات مستحقة" :value="stats.due_follow_ups" tone="amber" />
+            <StatCard :label="$t('x_crm_leads.value_of_open_opportunities')" :value="money(stats.open_value)" tone="indigo" />
+            <StatCard :label="$t('x_crm_leads.won_this_month')" :value="stats.won_this_month" tone="emerald" />
+            <StatCard :label="$t('x_crm_leads.follow_ups_due')" :value="stats.due_follow_ups" tone="amber" />
         </div>
         <div class="flex gap-3 overflow-x-auto pb-3 text-xs">
             <div v-for="col in board" :key="col.status" class="min-w-60 w-60 bg-slate-100 rounded-2xl p-2" @dragover.prevent @drop="drop(col.status)">
@@ -55,17 +55,17 @@ const overdue = (d) => d && new Date(d) <= new Date();
                 </Link>
             </div>
         </div>
-        <Dialog :show="open" title="عميل محتمل جديد" @close="open = false">
+        <Dialog :show="open" :title="$t('x_crm_leads.new_lead')" @close="open = false">
             <div class="grid grid-cols-2 gap-3">
-                <Field label="الاسم" :error="form.errors.name"><input v-model="form.name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="الشركة"><input v-model="form.company_name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="الجوال"><input v-model="form.phone" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="البريد" :error="form.errors.email"><input v-model="form.email" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="المصدر"><select v-model="form.source" class="w-full rounded-xl border-slate-200 text-xs"><option v-for="(l, k) in sources" :key="k" :value="k">{{ l }}</option></select></Field>
-                <Field label="القيمة المتوقعة"><input v-model.number="form.expected_value" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
-                <Field label="موعد المتابعة"><DatePicker v-model="form.next_follow_up" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field label="المسؤول"><select v-model="form.assigned_to" class="w-full rounded-xl border-slate-200 text-xs"><option value="">—</option><option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option></select></Field>
-                <Field label="ملاحظات" class="col-span-2"><textarea v-model="form.notes" rows="2" class="w-full rounded-xl border-slate-200 text-xs"></textarea></Field>
+                <Field :label="$t('x_crm_leads.name')" :error="form.errors.name"><input v-model="form.name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('x_crm_leads.company')"><input v-model="form.company_name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('x_crm_leads.mobile')"><input v-model="form.phone" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('x_crm_leads.email')" :error="form.errors.email"><input v-model="form.email" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('x_crm_leads.source')"><select v-model="form.source" class="w-full rounded-xl border-slate-200 text-xs"><option v-for="(l, k) in sources" :key="k" :value="k">{{ l }}</option></select></Field>
+                <Field :label="$t('x_crm_leads.expected_value')"><input v-model.number="form.expected_value" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
+                <Field :label="$t('x_crm_leads.follow_up_date')"><DatePicker v-model="form.next_follow_up" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('x_crm_leads.owner')"><select v-model="form.assigned_to" class="w-full rounded-xl border-slate-200 text-xs"><option value="">—</option><option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option></select></Field>
+                <Field :label="$t('x_crm_leads.notes')" class="col-span-2"><textarea v-model="form.notes" rows="2" class="w-full rounded-xl border-slate-200 text-xs"></textarea></Field>
             </div>
             <template #footer><button @click="form.post(route('crm.leads.store'))" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('ui.save') }}</button></template>
         </Dialog>

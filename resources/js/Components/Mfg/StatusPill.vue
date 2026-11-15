@@ -1,32 +1,34 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { computed } from 'vue';
+const { t } = useI18n();
 
 const props = defineProps({ status: String });
 
 const map = {
-    draft: ['مسودة', 'bg-slate-100 text-slate-600'],
-    released: ['مُفرَج عنه', 'bg-sky-50 text-sky-700'],
-    in_progress: ['قيد التنفيذ', 'bg-amber-50 text-amber-700'],
-    completed: ['مكتمل', 'bg-emerald-50 text-emerald-700'],
-    closed: ['مغلق', 'bg-slate-200 text-slate-700'],
-    cancelled: ['ملغى', 'bg-rose-50 text-rose-600'],
-    sent: ['أُرسلت المواد', 'bg-sky-50 text-sky-700'],
-    partially_received: ['استلام جزئي', 'bg-amber-50 text-amber-700'],
-    pending: ['بانتظار الفحص', 'bg-amber-50 text-amber-700'],
-    pass: ['مطابق', 'bg-emerald-50 text-emerald-700'],
-    fail: ['غير مطابق', 'bg-rose-50 text-rose-600'],
-    partial: ['مطابق جزئياً', 'bg-amber-50 text-amber-700'],
-    open: ['مفتوحة', 'bg-sky-50 text-sky-700'],
-    closed_period: ['مغلقة', 'bg-slate-200 text-slate-700'],
-    posted: ['مرحّل', 'bg-emerald-50 text-emerald-700'],
-    pending_qc: ['بانتظار الجودة', 'bg-amber-50 text-amber-700'],
-    rejected: ['مرفوض', 'bg-rose-50 text-rose-600'],
-    new: ['جديد', 'bg-sky-50 text-sky-700'],
-    converted: ['حُوّل', 'bg-emerald-50 text-emerald-700'],
-    dismissed: ['مُهمَل', 'bg-slate-100 text-slate-500'],
-    done: ['منجز', 'bg-emerald-50 text-emerald-700'],
+    draft: ['st_draft', 'bg-slate-100 text-slate-600'],
+    released: ['st_released', 'bg-sky-50 text-sky-700'],
+    in_progress: ['st_in_progress', 'bg-amber-50 text-amber-700'],
+    completed: ['st_completed', 'bg-emerald-50 text-emerald-700'],
+    closed: ['st_closed', 'bg-slate-200 text-slate-700'],
+    cancelled: ['st_cancelled', 'bg-rose-50 text-rose-600'],
+    sent: ['st_materials_sent', 'bg-sky-50 text-sky-700'],
+    partially_received: ['st_partially_received', 'bg-amber-50 text-amber-700'],
+    pending: ['st_awaiting_inspection', 'bg-amber-50 text-amber-700'],
+    pass: ['st_pass', 'bg-emerald-50 text-emerald-700'],
+    fail: ['st_fail', 'bg-rose-50 text-rose-600'],
+    partial: ['st_partial_pass', 'bg-amber-50 text-amber-700'],
+    open: ['st_open', 'bg-sky-50 text-sky-700'],
+    closed_period: ['st_closed_2', 'bg-slate-200 text-slate-700'],
+    posted: ['st_posted', 'bg-emerald-50 text-emerald-700'],
+    pending_qc: ['st_awaiting_quality', 'bg-amber-50 text-amber-700'],
+    rejected: ['st_rejected', 'bg-rose-50 text-rose-600'],
+    new: ['st_new', 'bg-sky-50 text-sky-700'],
+    converted: ['st_converted', 'bg-emerald-50 text-emerald-700'],
+    dismissed: ['st_dismissed', 'bg-slate-100 text-slate-500'],
+    done: ['st_done', 'bg-emerald-50 text-emerald-700'],
 };
-const item = computed(() => map[props.status] || [props.status, 'bg-slate-100 text-slate-600']);
+const item = computed(() => { const m = map[props.status]; return m ? [t(m[0]), m[1]] : [props.status, 'bg-slate-100 text-slate-600']; });
 </script>
 
 <template>

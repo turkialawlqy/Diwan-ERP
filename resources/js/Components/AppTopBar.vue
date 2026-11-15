@@ -11,10 +11,12 @@ import {
     ArrowRightOnRectangleIcon,
     Cog6ToothIcon,
     ShieldCheckIcon,
-    GlobeAltIcon
+    GlobeAltIcon,
+    RectangleGroupIcon
 } from '@heroicons/vue/24/outline';
 import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/vue';
 import { useLanguage } from '@/composables/useLanguage';
+import { splitOpen, toggleSplit } from '@/composables/useSplitScreen';
 
 // The company, branch and fiscal year are chosen in the sidebar («سياق العمل»).
 defineEmits(['toggleSidebar']);
@@ -59,6 +61,19 @@ const logout = () => {
                 <DeviceTabletIcon class="w-4 h-4" />
                 <span class="hidden xl:inline">{{ $t('topbar.pos') }}</span>
             </Link>
+
+            <!-- Split screen: a second page beside this one (not on the cashier screens) -->
+            <button
+                v-if="!$page.url.startsWith('/pos')"
+                type="button"
+                class="hidden md:flex w-9 h-9 items-center justify-center rounded-lg transition-colors"
+                :class="splitOpen ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'"
+                :title="$t('split.button')"
+                data-split-toggle
+                @click="toggleSplit"
+            >
+                <RectangleGroupIcon class="w-5 h-5" />
+            </button>
 
             <!-- Notifications Icon -->
             <Link

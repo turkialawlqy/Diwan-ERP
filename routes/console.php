@@ -43,3 +43,5 @@ Schedule::command('erp:backup --verify')->weeklyOn(0, '04:20')->withoutOverlappi
 
 // Heartbeat read by /health and erp:preflight: proves the scheduler is running.
 Schedule::call(fn () => Cache::put('scheduler:heartbeat', now()->timestamp, 3600))->everyMinute()->name('scheduler-heartbeat')->onOneServer();
+
+Schedule::command('attachments:prune-staged')->hourly()->withoutOverlapping();

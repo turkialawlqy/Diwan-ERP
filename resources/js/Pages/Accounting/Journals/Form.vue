@@ -92,46 +92,46 @@ const importLines = (lines, replace) => {
 
 <template>
     <AppLayout own-errors>
-        <Head title="قيد يومية جديد" />
-        <PageHeader title="قيد يومية جديد" :crumbs="[{ label: 'المحاسبة' }, { label: 'القيود اليومية', href: route('accounting.journals.index') }, { label: 'جديد' }]" />
+        <Head :title="$t('a_journal_form.new_journal_entry')" />
+        <PageHeader :title="$t('a_journal_form.new_journal_entry')" :crumbs="[{ label: 'المحاسبة' }, { label: 'القيود اليومية', href: route('accounting.journals.index') }, { label: 'جديد' }]" />
 
         <div class="bg-white border border-slate-200/80 rounded-2xl p-6">
                     <form @submit.prevent="submitEntry('posted')" class="space-y-4 text-xs ">
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block font-medium text-slate-700 mb-1">تاريخ القيد <span class="text-rose-500">*</span></label>
+                                <label class="block font-medium text-slate-700 mb-1">{{ $t('a_journal_form.entry_date') }} <span class="text-rose-500">*</span></label>
                                 <DatePicker 
                                     v-model="form.date" 
                                     required 
                                     class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500" />
                             </div>
                             <div>
-                                <label class="block font-medium text-slate-700 mb-1">الرقم المرجعي (اختياري)</label>
+                                <label class="block font-medium text-slate-700 mb-1">{{ $t('a_journal_form.reference_number_optional') }}</label>
                                 <input 
                                     v-model="form.reference" 
                                     type="text" 
-                                    placeholder="رقم شيك، إشعار، عقد..."
+                                    :placeholder="$t('a_journal_form.cheque_number_notice_contract')"
                                     class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500" 
                                 />
                             </div>
                         </div>
             
                         <div>
-                            <label class="block font-medium text-slate-700 mb-1">نوع القيد</label>
+                            <label class="block font-medium text-slate-700 mb-1">{{ $t('a_journal_form.entry_type') }}</label>
                             <select v-model="form.entry_type" class="w-full py-2 bg-slate-50 border border-slate-200 rounded-xl">
-                                <option value="manual">قيد يومية عادي</option>
-                                <option value="opening">قيد أرصدة افتتاحية</option>
-                                <option value="adjustment">قيد تسوية</option>
+                                <option value="manual">{{ $t('a_journal_form.regular_journal_entry') }}</option>
+                                <option value="opening">{{ $t('a_journal_form.opening_balances_entry') }}</option>
+                                <option value="adjustment">{{ $t('a_journal_form.adjustment_entry') }}</option>
                             </select>
                         </div>
             
                         <div>
-                            <label class="block font-medium text-slate-700 mb-1">بيان القيد العام <span class="text-rose-500">*</span></label>
+                            <label class="block font-medium text-slate-700 mb-1">{{ $t('a_journal_form.general_entry_description') }} <span class="text-rose-500">*</span></label>
                             <input 
                                 v-model="form.description" 
                                 type="text" 
                                 required 
-                                placeholder="شرح القيد المحاسبي..."
+                                :placeholder="$t('a_journal_form.entry_explanation')"
                                 class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500" 
                             />
                         </div>
@@ -141,31 +141,31 @@ const importLines = (lines, replace) => {
                             <table class="w-full text-3xs">
                                 <thead>
                                     <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 font-bold">
-                                        <th class="py-2.5 px-3 text-start">الحساب المحاسبي</th>
-                                        <th class="py-2.5 px-3 text-start">الحساب المساعد</th>
-                                        <th class="py-2.5 px-3 text-start">مركز التكلفة</th>
-                                        <th class="py-2.5 px-3 text-start">المشروع</th>
-                                        <th class="py-2.5 px-3 text-start">شرح البند</th>
-                                        <th class="py-2.5 px-3 text-end w-28">مدين (Debit)</th>
-                                        <th class="py-2.5 px-3 text-end w-28">دائن (Credit)</th>
+                                        <th class="py-2.5 px-3 text-start">{{ $t('a_journal_form.ledger_account') }}</th>
+                                        <th class="py-2.5 px-3 text-start">{{ $t('a_journal_form.sub_ledger_account') }}</th>
+                                        <th class="py-2.5 px-3 text-start">{{ $t('a_journal_form.cost_center') }}</th>
+                                        <th class="py-2.5 px-3 text-start">{{ $t('a_journal_form.project') }}</th>
+                                        <th class="py-2.5 px-3 text-start">{{ $t('a_journal_form.line_description') }}</th>
+                                        <th class="py-2.5 px-3 text-end w-28">{{ $t('a_journal_form.debit') }}</th>
+                                        <th class="py-2.5 px-3 text-end w-28">{{ $t('a_journal_form.credit') }}</th>
                                         <th class="py-2.5 px-2 text-center w-10"></th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
                                     <tr v-for="(line, idx) in form.lines" :key="idx" class="bg-white">
                                         <td class="p-2">
-                                            <SelectCreate v-model="line.account_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar}`" placeholder="اختر الحساب" :allow-empty="false" required @update:modelValue="$nextTick(() => syncParty(line))" />
+                                            <SelectCreate v-model="line.account_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :placeholder="$t('a_journal_form.choose_the_account')" :allow-empty="false" required @update:modelValue="$nextTick(() => syncParty(line))" />
                                         </td>
                                         <td class="p-2">
-                                            <SelectCreate v-if="partyType(line)" v-model="line.party_id" :options="auxOptions(line)" :search="auxSearch(line)" :entity="partyType(line) === 'bank' ? '' : partyType(line)" :label="partyType(line) === 'supplier' ? supplierLabel : auxLabel" :placeholder="partyType(line) === 'customer' ? 'اختر العميل' : partyType(line) === 'supplier' ? 'اختر المورد' : 'اختر الحساب المساعد'" :allow-empty="partyType(line) === 'bank'" :required="partyType(line) !== 'bank'" />
+                                            <SelectCreate v-if="partyType(line)" v-model="line.party_id" :options="auxOptions(line)" :search="auxSearch(line)" :entity="partyType(line) === 'bank' ? '' : partyType(line)" :label="partyType(line) === 'supplier' ? supplierLabel : auxLabel" :placeholder="partyType(line) === 'customer' ? $t('a_journal_form.pick_customer') : partyType(line) === 'supplier' ? $t('a_journal_form.pick_supplier') : $t('a_journal_form.pick_aux')" :allow-empty="partyType(line) === 'bank'" :required="partyType(line) !== 'bank'" />
                                             <span v-else class="text-slate-300 px-2">—</span>
                                         </td>
                                         <td class="p-2">
-                                            <SelectCreate v-model="line.cost_center_id" :options="costCenters" entity="cost_center" :label="(cc) => `${cc.code} - ${cc.name_ar}`" :placeholder="needs(line, 'cost_center') ? 'مطلوب *' : '—'" :allow-empty="!needs(line, 'cost_center')" />
+                                            <SelectCreate v-model="line.cost_center_id" :options="costCenters" entity="cost_center" :label="(cc) => `${cc.code} - ${cc.name_ar}`" :placeholder="needs(line, 'cost_center') ? $t('a_common.required_star') : '—'" :allow-empty="!needs(line, 'cost_center')" />
                                         </td>
                                         <td class="p-2">
                                             <select v-model="line.project_id" class="w-full py-1 ps-2 pe-8 bg-slate-50 border rounded-lg text-3xs" :class="needs(line, 'project') && !line.project_id ? 'border-rose-300' : 'border-slate-200'">
-                                                <option value="">{{ needs(line, 'project') ? 'مطلوب *' : '—' }}</option>
+                                                <option value="">{{ needs(line, 'project') ? $t('a_common.required_star') : '—' }}</option>
                                                 <option v-for="pr in projects" :key="pr.id" :value="pr.id">{{ pr.name }}</option>
                                             </select>
                                         </td>
@@ -173,7 +173,7 @@ const importLines = (lines, replace) => {
                                             <input 
                                                 v-model="line.description" 
                                                 type="text" 
-                                                placeholder="بيان تفصيلي"
+                                                :placeholder="$t('a_journal_form.detailed_description')"
                                                 class="w-full py-1 px-2 bg-slate-50 border border-slate-200 rounded-lg text-3xs"
                                             />
                                         </td>
@@ -212,14 +212,14 @@ const importLines = (lines, replace) => {
                                 <tfoot>
                                     <tr class="bg-slate-50 font-bold border-t border-slate-200">
                                         <td colspan="3" class="p-2 text-start">
-                                            <ImportLines kind="journal" label="استيراد الأطراف من Excel" @imported="importLines" />
+                                            <ImportLines kind="journal" :label="$t('a_journal_form.import_lines_from_excel')" @imported="importLines" />
                                             <button 
                                                 type="button" 
                                                 @click="addLine" 
                                                 class="text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
                                             >
                                                 <PlusIcon class="w-3.5 h-3.5" />
-                                                <span>إضافة طرف قيد</span>
+                                                <span>{{ $t('a_journal_form.add_an_entry_line') }}</span>
                                             </button>
                                         </td>
                                         <td class="p-2 text-end font-mono font-black text-xs text-slate-900">
@@ -248,20 +248,20 @@ const importLines = (lines, replace) => {
                             <div class="flex items-center gap-2">
                                 <CheckCircleIcon v-if="isBalanced" class="w-5 h-5 text-emerald-600" />
                                 <ExclamationTriangleIcon v-else class="w-5 h-5 text-amber-600" />
-                                <span v-if="isBalanced" class="font-bold">القيد متوازن وجاهز للترحيل مباشرة.</span>
-                                <span v-else class="font-bold">القيد غير متوازن! الفرق بين المدين والدائن: {{ formatCurrency(Math.abs(totalDebit - totalCredit)) }} ﷼</span>
+                                <span v-if="isBalanced" class="font-bold">{{ $t('a_journal_form.the_entry_is_balanced_and_ready') }}</span>
+                                <span v-else class="font-bold">{{ $t('a_journal_form.unbalanced', { diff: formatCurrency(Math.abs(totalDebit - totalCredit)) }) }}</span>
                             </div>
                         </div>
             
                         <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                            <Link :href="route('accounting.journals.index')" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium">إلغاء</Link>
+                            <Link :href="route('accounting.journals.index')" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium">{{ $t('a_journal_form.cancel') }}</Link>
                             <button
                                 type="button"
                                 @click="submitEntry('draft')"
                                 :disabled="!isBalanced || form.processing"
                                 class="px-4 py-2 border border-amber-300 text-amber-700 rounded-xl font-bold disabled:opacity-50"
                             >
-                                حفظ كمسودة
+                                {{ $t('a_journal_form.save_as_draft') }}
                             </button>
                             <button 
                                 v-if="$can('accounting.journals.post')"
@@ -269,7 +269,7 @@ const importLines = (lines, replace) => {
                                 :disabled="!isBalanced || form.processing"
                                 class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-xs hover:shadow-indigo-500/20 disabled:opacity-50"
                             >
-                                ترحيل القيد اليومي
+                                {{ $t('a_journal_form.post_the_journal_entry') }}
                             </button>
                         </div>
                     </form>

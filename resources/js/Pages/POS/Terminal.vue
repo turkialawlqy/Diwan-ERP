@@ -313,7 +313,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
 <template>
     <div class="h-screen flex flex-col bg-slate-100 text-slate-800 font-sans select-none overflow-hidden">
-        <Head title="نقطة البيع" />
+        <Head :title="$t('pos_terminal.point_of_sale')" />
 
         <!-- 1. Top Navbar Header -->
         <header class="bg-indigo-700 text-white px-4 py-2.5 flex items-center justify-between shadow-md z-20 flex-shrink-0">
@@ -324,13 +324,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                         OS
                     </span>
                     <div>
-                        <h1 class="text-sm font-black leading-tight">نقطة البيع (POS)</h1>
-                        <p class="text-3xs text-indigo-200">{{ $page.props.brand?.name }} - {{ props.session.register?.name || 'جهاز افتراضي' }}</p>
+                        <h1 class="text-sm font-black leading-tight">{{ $t('pos_terminal.point_of_sale_pos') }}</h1>
+                        <p class="text-3xs text-indigo-200">{{ $page.props.brand?.name }} - {{ props.session.register?.name || $t('pos_terminal.default_device') }}</p>
                     </div>
                 </div>
                 <div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-2xs font-bold border border-emerald-400/30">
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span>الجلسة نشطة</span>
+                    <span>{{ $t('pos_terminal.session_active') }}</span>
                 </div>
             </div>
 
@@ -340,7 +340,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                     v-model="selectedCustomerId" 
                     class="w-full text-xs rounded-xl bg-indigo-800/80 border-indigo-600 text-white py-1.5 focus:ring-1 focus:ring-white"
                 >
-                    <option :value="null">عميل نقدي (عام)</option>
+                    <option :value="null">{{ $t('pos_terminal.cash_customer_general') }}</option>
                     <option v-for="c in customers" :key="c.id" :value="c.id">
                         {{ c.name }}
                     </option>
@@ -352,17 +352,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                 <Link 
                     :href="route('dashboard')"
                     class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold transition-colors flex items-center gap-1.5"
-                    title="العودة للوحة التحكم"
+                    :title="$t('pos_terminal.back_to_the_dashboard')"
                 >
                     <ArrowLeftOnRectangleIcon class="w-4 h-4 rtl:rotate-180" />
-                    <span class="hidden md:inline">لوحة التحكم</span>
+                    <span class="hidden md:inline">{{ $t('pos_terminal.dashboard') }}</span>
                 </Link>
 
                 <button 
                     @click="isCloseSessionModalOpen = true"
                     class="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold shadow-xs transition-colors"
                 >
-                    إغلاق الجلسة
+                    {{ $t('pos_terminal.close_the_session') }}
                 </button>
             </div>
         </header>
@@ -380,7 +380,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                             v-model="searchQuery"
                             @keyup.enter="handleBarcodeEnter"
                             type="text" 
-                            placeholder="امسح الباركود أو ابحث (5*باركود لعدة قطع، + و - للكمية)" 
+                            :placeholder="$t('pos_terminal.scan_the_barcode_or_search_5_bar')" 
                             class="w-full text-xs sm:text-sm ps-10 pe-4 py-2 rounded-xl border-none focus:ring-0 text-slate-800 font-medium placeholder-slate-400"
                         />
                     </div>
@@ -397,7 +397,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                                 : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
                         ]"
                     >
-                        الكل ({{ products.length }})
+                        {{ $t('s_clients.all') }} ({{ products.length }})
                     </button>
                     <button 
                         v-for="cat in categories" 
@@ -439,10 +439,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                                             p.total_stock <= 5 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'
                                         ]"
                                     >
-                                        {{ Number(p.total_stock) }} متوفر
+                                        {{ Number(p.total_stock) }} {{ $t('pos_terminal.in_stock') }}
                                     </span>
                                     <span v-else class="px-1.5 py-0.5 rounded text-3xs font-bold bg-amber-50 text-amber-700">
-                                        خدمة
+                                        {{ $t('pos_terminal.service') }}
                                     </span>
                                 </div>
                                 <h3 class="text-xs font-bold text-slate-800 line-clamp-2 group-hover:text-indigo-600 transition-colors leading-relaxed">
@@ -468,9 +468,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                 <!-- Cart Header -->
                 <div class="p-3.5 border-b border-slate-100 flex items-center justify-between">
                     <div class="flex items-center gap-2">
-                        <h2 class="text-xs font-bold text-slate-800">سلة المبيعات</h2>
+                        <h2 class="text-xs font-bold text-slate-800">{{ $t('pos_terminal.sales_cart') }}</h2>
                         <span class="px-2 py-0.5 rounded-full text-2xs font-bold bg-indigo-50 text-indigo-700">
-                            {{ cart.length }} عناصر
+                            {{ $t('pos_terminal.items_n', { n: cart.length }) }}
                         </span>
                     </div>
                     <button 
@@ -478,7 +478,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                         @click="clearCart"
                         class="text-2xs font-bold text-rose-500 hover:text-rose-700 transition-colors"
                     >
-                        تفريغ السلة
+                        {{ $t('pos_terminal.clear_the_cart') }}
                     </button>
                 </div>
 
@@ -530,8 +530,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
                     <div v-if="cart.length === 0" class="h-full flex flex-col items-center justify-center text-slate-400 py-16">
                         <CubeIcon class="w-12 h-12 text-slate-200 mb-2 stroke-1" />
-                        <p class="text-xs font-medium">السلة فارغة</p>
-                        <p class="text-2xs text-slate-300">انقر على أي منتج أو امسح الباركود لإضافته</p>
+                        <p class="text-xs font-medium">{{ $t('pos_terminal.the_cart_is_empty') }}</p>
+                        <p class="text-2xs text-slate-300">{{ $t('pos_terminal.tap_any_product_or_scan_the_barc') }}</p>
                     </div>
                 </div>
 
@@ -539,7 +539,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                 <div class="p-4 border-t border-slate-200 bg-slate-50/70 space-y-3">
                     <div class="space-y-1.5 text-xs text-slate-600">
                         <div class="flex items-center justify-between">
-                            <span>المجموع غير شامل الضريبة</span>
+                            <span>{{ $t('pos_terminal.total_excluding_tax') }}</span>
                             <span class="font-mono font-bold text-slate-800">{{ formatCurrency(cartSubtotal) }} ﷼</span>
                         </div>
                         <div class="flex items-center justify-between">
@@ -547,7 +547,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                             <span class="font-mono font-bold text-slate-800">{{ formatCurrency(cartTax) }} ﷼</span>
                         </div>
                         <div class="border-t border-slate-200 pt-2 flex items-center justify-between text-slate-900 font-black">
-                            <span class="text-sm">المجموع الكلي</span>
+                            <span class="text-sm">{{ $t('pos_terminal.grand_total') }}</span>
                             <span class="text-lg text-indigo-700 font-mono">{{ formatCurrency(cartTotal) }} ﷼</span>
                         </div>
                     </div>
@@ -561,7 +561,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                             class="py-3 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-40"
                         >
                             <BanknotesIcon class="w-4 h-4 stroke-2" />
-                            <span>نقداً (Cash)</span>
+                            <span>{{ $t('pos_terminal.cash') }}</span>
                         </button>
 
                         <!-- Card Button -->
@@ -571,14 +571,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                             class="py-3 px-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-40"
                         >
                             <CreditCardIcon class="w-4 h-4 stroke-2" />
-                            <span>مدى / بطاقة</span>
+                            <span>{{ $t('pos_terminal.mada_card') }}</span>
                         </button>
                         <button
                             @click="openSplitCheckout"
                             :disabled="cart.length === 0"
                             class="col-span-2 py-2 px-2 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs disabled:opacity-40"
                         >
-                            دفع مجزأ (نقد + بطاقة)
+                            {{ $t('pos_terminal.split_payment_cash_card') }}
                         </button>
                         <button
                             v-if="allowCredit"
@@ -587,7 +587,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                             class="col-span-2 py-2 px-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 font-bold text-xs disabled:opacity-40"
                             data-pos-credit
                         >
-                            بيع آجل (على حساب العميل)
+                            {{ $t('pos_terminal.credit_sale_on_the_customer_s_ac') }}
                         </button>
                     </div>
                 </div>
@@ -603,7 +603,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                     <h3 class="text-sm font-black text-slate-800 flex items-center gap-2">
                         <BanknotesIcon class="w-5 h-5 text-emerald-600" />
-                        <span>الدفع نقداً</span>
+                        <span>{{ $t('pos_terminal.pay_in_cash') }}</span>
                     </h3>
                     <button @click="isCashModalOpen = false" class="text-slate-400 hover:text-slate-600">
                         <XMarkIcon class="w-5 h-5" />
@@ -612,13 +612,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
                 <!-- Total Amount Due -->
                 <div class="bg-indigo-50 rounded-2xl p-4 text-center">
-                    <p class="text-2xs font-bold text-indigo-600 mb-1">المبلغ المطلوب سداده</p>
+                    <p class="text-2xs font-bold text-indigo-600 mb-1">{{ $t('pos_terminal.amount_due') }}</p>
                     <p class="text-2xl font-black text-indigo-900 font-mono">{{ formatCurrency(cartTotal) }} <span class="text-xs font-normal">﷼</span></p>
                 </div>
 
                 <!-- Tender Amount Input -->
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1.5">المبلغ المستلم من العميل</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('pos_terminal.amount_received_from_the_custome') }}</label>
                     <input 
                         v-model.number="tenderAmount"
                         type="text" inputmode="decimal" data-num 
@@ -646,12 +646,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                         @click="setExactTender"
                         class="text-xs font-bold text-indigo-600 hover:underline"
                     >
-                        المبلغ بالتحديد
+                        {{ $t('pos_terminal.exact_amount') }}
                     </button>
 
                     <!-- Change Due -->
                     <div class="text-end">
-                        <span class="text-2xs text-slate-400">المتبقي للعميل: </span>
+                        <span class="text-2xs text-slate-400">{{ $t('pos_terminal.change_due_to_the_customer') }} </span>
                         <span class="text-sm font-black font-mono text-emerald-600">{{ formatCurrency(changeDue) }} ﷼</span>
                     </div>
                 </div>
@@ -662,7 +662,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                     :disabled="tenderAmount < cartTotal"
                     class="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm shadow-xs transition-all disabled:opacity-50"
                 >
-                    تأكيد الدفع وإصدار الفاتورة
+                    {{ $t('pos_terminal.confirm_payment_and_issue_the_in') }}
                 </button>
             </div>
         </div>
@@ -671,12 +671,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
         <div v-if="isCreditModalOpen" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4" data-credit-modal>
             <div class="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-100">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h3 class="text-sm font-black text-slate-800">بيع آجل</h3>
+                    <h3 class="text-sm font-black text-slate-800">{{ $t('pos_terminal.credit_sale') }}</h3>
                     <button @click="isCreditModalOpen = false" class="text-slate-400 hover:text-slate-600"><XMarkIcon class="w-5 h-5" /></button>
                 </div>
 
                 <div v-if="!selectedCustomer" class="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold p-3" data-credit-need-customer>
-                    اختر العميل من القائمة أعلى الشاشة أولًا: البيع الآجل لا يكون للعميل النقدي.
+                    {{ $t('pos_terminal.choose_the_customer_from_the_lis') }}
                 </div>
                 <template v-else>
                     <div class="bg-amber-50 rounded-2xl p-4 text-center space-y-1">
@@ -684,18 +684,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                         <p class="text-2xl font-black text-amber-900 font-mono">{{ formatCurrency(cartTotal) }} <span class="text-xs font-normal">﷼</span></p>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1.5">دفعة مقدّمة نقدًا (اختياري)</label>
+                        <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('pos_terminal.cash_down_payment_optional') }}</label>
                         <input v-model.number="downPayment" type="text" inputmode="decimal" data-num class="w-full text-center text-xl font-black font-mono rounded-xl border border-slate-200 py-3" data-credit-down />
                     </div>
                     <div class="text-xs space-y-1 rounded-xl border border-slate-100 p-3">
-                        <div class="flex justify-between"><span>المتبقي على العميل</span><b class="font-mono">{{ formatCurrency(creditRemaining) }} ﷼</b></div>
-                        <div class="flex justify-between"><span>رصيده الحالي</span><b class="font-mono">{{ formatCurrency(selectedCustomer.current_balance) }} ﷼</b></div>
-                        <div class="flex justify-between"><span>رصيده بعد البيع</span><b class="font-mono" :class="overLimit ? 'text-rose-600' : ''">{{ formatCurrency(balanceAfter) }} ﷼</b></div>
-                        <div v-if="Number(selectedCustomer.credit_limit) > 0" class="flex justify-between"><span>الحد الائتماني</span><b class="font-mono">{{ formatCurrency(selectedCustomer.credit_limit) }} ﷼</b></div>
-                        <p v-if="overLimit" class="text-rose-600 font-bold pt-1" data-credit-over-limit>يتجاوز الحد الائتماني، وقد يمنع النظام إتمام البيع.</p>
+                        <div class="flex justify-between"><span>{{ $t('pos_terminal.remaining_on_the_customer') }}</span><b class="font-mono">{{ formatCurrency(creditRemaining) }} ﷼</b></div>
+                        <div class="flex justify-between"><span>{{ $t('pos_terminal.their_current_balance') }}</span><b class="font-mono">{{ formatCurrency(selectedCustomer.current_balance) }} ﷼</b></div>
+                        <div class="flex justify-between"><span>{{ $t('pos_terminal.their_balance_after_the_sale') }}</span><b class="font-mono" :class="overLimit ? 'text-rose-600' : ''">{{ formatCurrency(balanceAfter) }} ﷼</b></div>
+                        <div v-if="Number(selectedCustomer.credit_limit) > 0" class="flex justify-between"><span>{{ $t('pos_terminal.credit_limit') }}</span><b class="font-mono">{{ formatCurrency(selectedCustomer.credit_limit) }} ﷼</b></div>
+                        <p v-if="overLimit" class="text-rose-600 font-bold pt-1" data-credit-over-limit>{{ $t('pos_terminal.exceeds_the_credit_limit_and_the') }}</p>
                     </div>
                     <button @click="submitCredit" :disabled="creditRemaining <= 0" class="w-full py-3.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-sm disabled:opacity-50" data-credit-confirm>
-                        تأكيد البيع الآجل وإصدار الفاتورة
+                        {{ $t('pos_terminal.confirm_the_credit_sale_and_issu') }}
                     </button>
                 </template>
             </div>
@@ -711,7 +711,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                 <div class="flex items-center justify-between pb-3 border-b border-slate-100 print:hidden">
                     <span class="text-xs font-bold text-emerald-700 flex items-center gap-1">
                         <CheckCircleIcon class="w-4 h-4" />
-                        <span>تم إصدار الفاتورة بنجاح</span>
+                        <span>{{ $t('pos_terminal.invoice_issued_successfully') }}</span>
                     </span>
                     <button @click="isReceiptModalOpen = false" class="text-slate-400 hover:text-slate-600">
                         <XMarkIcon class="w-4 h-4" />
@@ -787,13 +787,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                         class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs"
                     >
                         <PrinterIcon class="w-4 h-4" />
-                        <span>طباعة الإيصال</span>
+                        <span>{{ $t('pos_terminal.print_receipt') }}</span>
                     </button>
                     <button 
                         @click="isReceiptModalOpen = false"
                         class="py-2.5 px-4 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold text-xs"
                     >
-                        طلب جديد
+                        {{ $t('pos_terminal.new_order') }}
                     </button>
                 </div>
             </div>
@@ -803,15 +803,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
         <div v-if="isSplitModalOpen" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
             <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-100 text-xs">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h3 class="text-sm font-black text-slate-800">دفع مجزأ — الإجمالي {{ formatCurrency(cartTotal) }} ﷼</h3>
+                    <h3 class="text-sm font-black text-slate-800">{{ $t('pos_terminal.split_title', { total: formatCurrency(cartTotal) }) }}</h3>
                     <button @click="isSplitModalOpen = false" class="text-slate-400 hover:text-slate-600"><XMarkIcon class="w-4 h-4" /></button>
                 </div>
-                <label class="block font-bold text-slate-700">بطاقة / مدى</label>
+                <label class="block font-bold text-slate-700">{{ $t('pos_terminal.card_mada') }}</label>
                 <input v-model.number="splitCard" type="text" inputmode="decimal" data-num step="0.01" min="0" :max="cartTotal" @input="splitCash = Math.max(0, Math.round((cartTotal - (Number(splitCard) || 0)) * 100) / 100)" class="w-full text-center text-lg font-mono font-bold rounded-xl border border-slate-200 py-2" />
-                <label class="block font-bold text-slate-700">نقداً</label>
+                <label class="block font-bold text-slate-700">{{ $t('pos_terminal.cash_2') }}</label>
                 <input v-model.number="splitCash" type="text" inputmode="decimal" data-num step="0.01" min="0" class="w-full text-center text-lg font-mono font-bold rounded-xl border border-slate-200 py-2" />
-                <p class="text-slate-500">الباقي للعميل: <strong class="font-mono">{{ formatCurrency(Math.max(0, (Number(splitCash) || 0) + (Number(splitCard) || 0) - cartTotal)) }}</strong> ﷼</p>
-                <button @click="submitSplit" :disabled="(Number(splitCash) || 0) + (Number(splitCard) || 0) < cartTotal - 0.001 || (Number(splitCard) || 0) > cartTotal" class="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-40">إتمام الدفع</button>
+                <p class="text-slate-500">{{ $t('pos_terminal.change_for_the_customer') }} <strong class="font-mono">{{ formatCurrency(Math.max(0, (Number(splitCash) || 0) + (Number(splitCard) || 0) - cartTotal)) }}</strong> ﷼</p>
+                <button @click="submitSplit" :disabled="(Number(splitCash) || 0) + (Number(splitCard) || 0) < cartTotal - 0.001 || (Number(splitCard) || 0) > cartTotal" class="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-40">{{ $t('pos_terminal.complete_payment') }}</button>
             </div>
         </div>
 
@@ -822,7 +822,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
         >
             <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-100">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h3 class="text-sm font-black text-slate-800">إغلاق جلسة الكاشير</h3>
+                    <h3 class="text-sm font-black text-slate-800">{{ $t('pos_terminal.close_the_cashier_session') }}</h3>
                     <button @click="isCloseSessionModalOpen = false" class="text-slate-400 hover:text-slate-600">
                         <XMarkIcon class="w-4 h-4" />
                     </button>
@@ -830,7 +830,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
                 <form @submit.prevent="submitCloseSession" class="space-y-4 text-xs">
                     <div>
-                        <label class="block font-bold text-slate-700 mb-1">المبلغ الفعلي الموجود في الدرج ({{ $cur() }})</label>
+                        <label class="block font-bold text-slate-700 mb-1">{{ $t('pos_terminal.actual_cash', { cur: $cur() }) }}</label>
                         <input 
                             v-model.number="closeSessionForm.closing_cash"
                             type="text" inputmode="decimal" data-num 
@@ -841,17 +841,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                     </div>
 
                     <div>
-                        <label class="block font-bold text-slate-700 mb-1">توريد النقدية إلى (اختياري)</label>
+                        <label class="block font-bold text-slate-700 mb-1">{{ $t('pos_terminal.deposit_the_cash_to_optional') }}</label>
                         <select v-model="closeSessionForm.deposit_bank_account_id" class="w-full rounded-xl border border-slate-200 py-2 ps-2 pe-8 text-xs">
-                            <option value="">تبقى في درج نقطة البيع</option>
+                            <option value="">{{ $t('pos_terminal.stays_in_the_pos_drawer') }}</option>
                             <option v-for="b in boxes" :key="b.id" :value="b.id">{{ b.name }}</option>
                         </select>
                         <p v-if="closeSessionForm.errors.deposit_bank_account_id" class="text-rose-600 mt-1">{{ closeSessionForm.errors.deposit_bank_account_id }}</p>
-                        <p class="text-3xs text-slate-500 mt-1">أي عجز أو زيادة عن المتوقع يُقيَّد تلقائياً في حساب «عجز وزيادة الصندوق».</p>
+                        <p class="text-3xs text-slate-500 mt-1">{{ $t('pos_terminal.any_shortage_or_surplus_against') }}</p>
                     </div>
 
                     <div>
-                        <label class="block font-bold text-slate-700 mb-1">ملاحظات الإغلاق</label>
+                        <label class="block font-bold text-slate-700 mb-1">{{ $t('pos_terminal.closing_notes') }}</label>
                         <textarea 
                             v-model="closeSessionForm.notes"
                             rows="2"
@@ -865,14 +865,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                             @click="isCloseSessionModalOpen = false"
                             class="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold"
                         >
-                            إلغاء
+                            {{ $t('pos_terminal.cancel') }}
                         </button>
                         <button 
                             type="submit" 
                             :disabled="closeSessionForm.processing"
                             class="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-xs disabled:opacity-50"
                         >
-                            إغلاق وتسوية
+                            {{ $t('pos_terminal.close_and_settle') }}
                         </button>
                     </div>
                 </form>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Sales;
 use App\Http\Controllers\Controller;
 use App\Models\DebitNote;
 use App\Models\Invoice;
+use App\Services\AttachmentService;
 use App\Services\Sales\SalesCycleService;
 use App\Services\Tax\TaxProfile;
 use Illuminate\Http\Request;
@@ -45,6 +46,7 @@ class DebitNoteController extends Controller
         }
 
         $note = $this->cycle->debitNote($validated);
+        app(AttachmentService::class)->claim($request, $note, 'debit-note');
 
         return back()->with('success', "تم إصدار الإشعار المدين {$note->debit_note_number}");
     }

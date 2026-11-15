@@ -14,27 +14,27 @@ const start = () => form.post(route('accounting.reconciliations.store'));
 
 <template>
     <AppLayout>
-        <Head title="التسويات البنكية" />
-        <PageHeader title="التسويات البنكية" subtitle="مطابقة حركات البنك في الدفاتر مع كشف حساب البنك" :crumbs="[{ label: 'المحاسبة' }, { label: 'التسويات البنكية' }]" />
+        <Head :title="$t('a_recs.bank_reconciliations')" />
+        <PageHeader :title="$t('a_recs.bank_reconciliations')" :subtitle="$t('a_recs.match_the_bank_movements_in_the')" :crumbs="[{ label: 'المحاسبة' }, { label: 'التسويات البنكية' }]" />
 
         <form v-if="$can('accounting.reconciliation.create')" @submit.prevent="start" class="bg-white border border-slate-200 rounded-2xl p-4 grid grid-cols-1 md:grid-cols-4 gap-3 text-xs mb-4">
-            <Field label="الحساب البنكي" :error="form.errors.bank_account_id"><select v-model="form.bank_account_id" required class="w-full rounded-xl border-slate-200 text-xs"><option v-for="b in bankAccounts" :key="b.id" :value="b.id">{{ b.name }}</option></select></Field>
-            <Field label="تاريخ كشف البنك"><DatePicker v-model="form.statement_date" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-            <Field label="الرصيد حسب كشف البنك" :error="form.errors.statement_balance"><input v-model.number="form.statement_balance" type="text" inputmode="decimal" data-num step="0.01" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-            <div class="flex items-end"><button class="w-full rounded-xl bg-indigo-600 text-white font-bold py-2">بدء تسوية</button></div>
+            <Field :label="$t('a_recs.bank_account')" :error="form.errors.bank_account_id"><select v-model="form.bank_account_id" required class="w-full rounded-xl border-slate-200 text-xs"><option v-for="b in bankAccounts" :key="b.id" :value="b.id">{{ b.name }}</option></select></Field>
+            <Field :label="$t('a_recs.bank_statement_date')"><DatePicker v-model="form.statement_date" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+            <Field :label="$t('a_recs.balance_per_bank_statement')" :error="form.errors.statement_balance"><input v-model.number="form.statement_balance" type="text" inputmode="decimal" data-num step="0.01" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+            <div class="flex items-end"><button class="w-full rounded-xl bg-indigo-600 text-white font-bold py-2">{{ $t('a_recs.start_a_reconciliation') }}</button></div>
         </form>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <table class="w-full text-xs">
-                <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-4 py-2">الحساب</th><th class="px-4 py-2">تاريخ الكشف</th><th class="text-end px-4 py-2">رصيد الكشف</th><th class="text-end px-4 py-2">المسوّى</th><th class="px-4 py-2">{{ $t('ui.status') }}</th><th></th></tr></thead>
+                <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-4 py-2">{{ $t('a_recs.account') }}</th><th class="px-4 py-2">{{ $t('a_recs.statement_date') }}</th><th class="text-end px-4 py-2">{{ $t('a_recs.statement_balance') }}</th><th class="text-end px-4 py-2">{{ $t('a_recs.reconciled') }}</th><th class="px-4 py-2">{{ $t('ui.status') }}</th><th></th></tr></thead>
                 <tbody>
                     <tr v-for="r in reconciliations.data" :key="r.id" class="border-t border-slate-100">
                         <td class="px-4 py-2 font-semibold">{{ r.bank_account?.name }}</td>
                         <td class="px-4 py-2 text-center font-mono">{{ date(r.statement_date) }}</td>
                         <td class="px-4 py-2 text-end font-mono">{{ money(r.statement_balance) }}</td>
                         <td class="px-4 py-2 text-end font-mono">{{ money(r.reconciled_total) }}</td>
-                        <td class="px-4 py-2 text-center"><span :class="r.status === 'completed' ? 'text-emerald-600' : 'text-amber-600'" class="font-bold">{{ r.status === 'completed' ? 'مكتملة' : 'قيد العمل' }}</span></td>
-                        <td class="px-4 py-2 text-end"><Link :href="route('accounting.reconciliations.show', r.id)" class="text-indigo-600 font-bold">فتح</Link></td>
+                        <td class="px-4 py-2 text-center"><span :class="r.status === 'completed' ? 'text-emerald-600' : 'text-amber-600'" class="font-bold">{{ r.status === 'completed' ? $t('a_recs.completed') : $t('a_recs.in_progress') }}</span></td>
+                        <td class="px-4 py-2 text-end"><Link :href="route('accounting.reconciliations.show', r.id)" class="text-indigo-600 font-bold">{{ $t('a_recs.open') }}</Link></td>
                     </tr>
                     <tr v-if="!reconciliations.data.length"><td colspan="6" class="py-10 text-center text-slate-400">{{ $t('ui.no_data') }}</td></tr>
                 </tbody>

@@ -25,25 +25,25 @@ const save = (complete) => {
 
 <template>
     <AppLayout>
-        <Head title="تسوية بنكية" />
-        <PageHeader :title="`تسوية ${reconciliation.bank_account.name}`" :subtitle="`كشف البنك بتاريخ ${reconciliation.statement_date.substring(0, 10)} · الحساب ${account.code} - ${account.name_ar}`" :crumbs="[{ label: 'التسويات البنكية', href: route('accounting.reconciliations.index') }, { label: 'تسوية' }]">
+        <Head :title="$t('a_rec.bank_reconciliation')" />
+        <PageHeader :title="`${$t('a_rec.reconciliation')} ${reconciliation.bank_account.name}`" :subtitle="$t('a_rec.subtitle', { date: reconciliation.statement_date.substring(0, 10), account: `${account.code} - ${account.name_ar}` })" :crumbs="[{ label: 'التسويات البنكية', href: route('accounting.reconciliations.index') }, { label: 'تسوية' }]">
             <template #actions v-if="!locked">
-                <button @click="save(false)" :disabled="form.processing" class="px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">حفظ</button>
-                <button @click="save(true)" :disabled="form.processing || difference !== 0" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold disabled:opacity-40">إكمال التسوية</button>
+                <button @click="save(false)" :disabled="form.processing" class="px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold">{{ $t('a_rec.save') }}</button>
+                <button @click="save(true)" :disabled="form.processing || difference !== 0" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold disabled:opacity-40">{{ $t('a_rec.complete_the_reconciliation') }}</button>
             </template>
         </PageHeader>
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <StatCard label="رصيد كشف البنك" :value="amount(reconciliation.statement_balance)" />
-            <StatCard label="الرصيد الدفتري" :value="amount(bookBalance)" tone="indigo" />
-            <StatCard label="الرصيد المسوّى" :value="amount(cleared)" tone="emerald" />
-            <StatCard label="الفرق" :value="amount(difference)" :tone="difference === 0 ? 'emerald' : 'rose'" />
+            <StatCard :label="$t('a_rec.bank_statement_balance')" :value="amount(reconciliation.statement_balance)" />
+            <StatCard :label="$t('a_rec.book_balance')" :value="amount(bookBalance)" tone="indigo" />
+            <StatCard :label="$t('a_rec.reconciled_balance')" :value="amount(cleared)" tone="emerald" />
+            <StatCard :label="$t('a_rec.difference')" :value="amount(difference)" :tone="difference === 0 ? 'emerald' : 'rose'" />
         </div>
         <p v-if="form.errors.line_ids" class="text-xs text-rose-600 mb-3">{{ form.errors.line_ids }}</p>
 
         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
             <table class="w-full text-xs">
-                <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 w-10"></th><th class="px-3 py-2">{{ $t('ui.date') }}</th><th class="text-start px-3 py-2">القيد</th><th class="text-start px-3 py-2">{{ $t('ui.description') }}</th><th class="text-end px-3 py-2">إيداع</th><th class="text-end px-3 py-2">سحب</th></tr></thead>
+                <thead class="bg-slate-50 text-slate-500"><tr><th class="px-3 py-2 w-10"></th><th class="px-3 py-2">{{ $t('ui.date') }}</th><th class="text-start px-3 py-2">{{ $t('a_rec.entry') }}</th><th class="text-start px-3 py-2">{{ $t('ui.description') }}</th><th class="text-end px-3 py-2">{{ $t('a_rec.deposit') }}</th><th class="text-end px-3 py-2">{{ $t('a_rec.withdrawal') }}</th></tr></thead>
                 <tbody>
                     <tr v-for="l in lines" :key="l.id" @click="toggle(l.id)" :class="[selected.has(l.id) ? 'bg-emerald-50/60' : '', 'border-t border-slate-100 cursor-pointer']">
                         <td class="px-3 py-2 text-center"><input type="checkbox" :checked="selected.has(l.id)" :disabled="locked" class="rounded border-slate-300 text-emerald-600" @click.stop="toggle(l.id)" /></td>
@@ -53,7 +53,7 @@ const save = (complete) => {
                         <td class="px-3 py-2 text-end font-mono text-emerald-700">{{ l.debit ? money(l.debit) : '' }}</td>
                         <td class="px-3 py-2 text-end font-mono text-rose-700">{{ l.credit ? money(l.credit) : '' }}</td>
                     </tr>
-                    <tr v-if="!lines.length"><td colspan="6" class="py-10 text-center text-slate-400">لا توجد حركات غير مسوّاة</td></tr>
+                    <tr v-if="!lines.length"><td colspan="6" class="py-10 text-center text-slate-400">{{ $t('a_rec.no_unreconciled_movements') }}</td></tr>
                 </tbody>
             </table>
         </div>

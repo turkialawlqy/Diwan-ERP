@@ -12,7 +12,7 @@ const page = usePage();
         <header class="sticky top-0 z-10 bg-indigo-700 text-white px-4 py-3 flex items-center gap-3 shadow">
             <Link v-if="back" :href="back" class="p-1 -ms-1"><ArrowRightIcon class="w-5 h-5" /></Link>
             <h1 class="font-black text-sm truncate flex-1">{{ title }}</h1>
-            <Link :href="route('dashboard')" class="text-3xs text-indigo-200">النظام</Link>
+            <Link :href="route('dashboard')" class="text-3xs text-indigo-200">{{ $t('z_resources_js_layouts_mobilelayout.system') }}</Link>
         </header>
         <main class="max-w-xl mx-auto p-3 space-y-3 pb-24">
             <div v-if="page.props.flash?.success" class="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-bold px-4 py-3" data-mobile-flash>{{ page.props.flash.success }}</div>

@@ -1,5 +1,7 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { computed } from 'vue';
+const { t } = useI18n();
 
 /**
  * Wear bar for one periodic item: green → amber (due soon) → red (overdue),
@@ -8,14 +10,14 @@ import { computed } from 'vue';
 const props = defineProps({ status: { type: Object, required: true }, compact: { type: Boolean, default: false } });
 
 const colors = { ok: 'bg-emerald-500', due_soon: 'bg-amber-500', overdue: 'bg-rose-600' };
-const labels = { ok: 'سليم', due_soon: 'يستحق قريباً', overdue: 'متأخر' };
+const labels = computed(() => ({ ok: t('cmp.mt_ok'), due_soon: t('cmp.mt_due_soon'), overdue: t('cmp.mt_overdue') }));
 const badge = { ok: 'bg-emerald-50 text-emerald-700', due_soon: 'bg-amber-50 text-amber-700', overdue: 'bg-rose-50 text-rose-700' };
-const units = { hours: 'ساعة', km: 'كم', days: 'يوم' };
+const units = computed(() => ({ hours: t('cmp.u_hours'), km: t('cmp.u_km'), days: t('cmp.u_days') }));
 
 const width = computed(() => `${Math.min(100, props.status.percent)}%`);
 const parts = computed(() => Object.entries(props.status.checks || {}).map(([k, c]) => {
     const n = Number(c.remaining);
-    return { key: k, state: c.state, text: n > 0 ? `متبقٍ ${n.toLocaleString('en-US')} ${units[k]}` : `متأخر ${Math.abs(n).toLocaleString('en-US')} ${units[k]}` };
+    return { key: k, state: c.state, text: n > 0 ? t('cmp.mt_remaining', { n: n.toLocaleString('en-US'), u: units.value[k] }) : t('cmp.mt_late_by', { n: Math.abs(n).toLocaleString('en-US'), u: units.value[k] }) };
 }));
 </script>
 

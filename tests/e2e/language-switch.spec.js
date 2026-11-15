@@ -68,11 +68,171 @@ test('converted page bodies follow the language: dashboard, insights and the inv
     await expect(page.getByText('Social insurance').first()).toBeVisible();
     await page.goto('/zatca');
     await expect(page.getByText('Invoicing devices (EGS)').first()).toBeVisible();
+    await page.goto('/settings');
+    await expect(page.getByText('Company identity and official data').first()).toBeVisible();
 
     // Back to Arabic for the other specs.
     await header.locator('[data-user-menu]').click();
     await page.locator('[data-language-toggle]').click();
     await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
-    await expect(page.getByText('أجهزة الفوترة (EGS)').first()).toBeVisible();
+    await expect(page.getByText('الهوية والبيانات الرسمية للمنشأة').first()).toBeVisible();
+    expect(errors).toEqual([]);
+});
+
+test('the quick add and view menus and the shared components follow the language', async ({ page }) => {
+    const errors = watchErrors(page);
+    await signIn(page);
+    await page.goto('/sales/invoices');
+    const header = page.locator('header');
+    await header.locator('[data-user-menu]').click();
+    await page.locator('[data-language-toggle]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+    const arabic = /[؀-ۿ]/;
+    await page.locator('[data-quick-add]').click();
+    const add = page.locator('[data-quick-add-panel]');
+    await expect(add.getByText('Sales invoice')).toBeVisible();
+    expect(await add.innerText()).not.toMatch(arabic);
+    await page.keyboard.press('Escape');
+
+    await page.locator('[data-quick-view]').click();
+    const view = page.locator('[data-quick-view-panel]');
+    await expect(view).toBeVisible();
+    expect(await view.innerText()).not.toMatch(arabic);
+
+    // Back to Arabic for the other specs.
+    await header.locator('[data-user-menu]').click();
+    await page.locator('[data-language-toggle]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+    await page.locator('[data-quick-add]').click();
+    await expect(page.locator('[data-quick-add-panel]').getByText('فاتورة مبيعات')).toBeVisible();
+    expect(errors).toEqual([]);
+});
+
+test('sales list and form pages follow the language', async ({ page }) => {
+    const errors = watchErrors(page);
+    await signIn(page);
+    await page.goto('/sales/invoices');
+    const header = page.locator('header');
+    await header.locator('[data-user-menu]').click();
+    await page.locator('[data-language-toggle]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+    const arabic = /[؀-ۿ]/;
+    for (const [url, text] of [
+        ['/sales/invoices', 'Total invoices'],
+        ['/sales/clients', 'Total customers'],
+        ['/sales/payments', 'Total receipt vouchers'],
+        ['/sales/recurring', 'Recurring invoices'],
+        ['/sales/returns/create', 'Credit note details'],
+        ['/sales/quotations/create', 'Quotation details'],
+        ['/sales/orders', 'Sales orders'],
+        ['/sales/quotations', 'Total quotations'],
+        ['/sales/subscriptions', 'Customer subscriptions'],
+        ['/sales/commissions', 'Sales commissions'],
+        ['/sales/promotions', 'Promotions and discounts'],
+        ['/sales/price-lists', 'Price lists'],
+        ['/sales/customer-groups', 'Customer groups'],
+        ['/sales/deliveries', 'Delivery notes'],
+        ['/accounting/cheques', 'Cheque management'],
+        ['/accounting/accounts', 'Chart of accounts'],
+        ['/accounting/journals', 'Total journal entries'],
+        ['/accounting/journals/create', 'Journal entry'],
+        ['/accounting/mappings', 'Automatic account mapping'],
+        ['/accounting/fixed-assets', 'Post monthly depreciation'],
+        ['/accounting/period-end', 'Revaluation of foreign currency balances'],
+        ['/accounting/fiscal-years', 'Fiscal years and periods'],
+        ['/accounting/recurring', 'Recurring entries'],
+        ['/accounting/reconciliations', 'Bank reconciliations'],
+        ['/accounting/cost-centers', 'Cost centers'],
+        ['/accounting/budgets', 'Budgets'],
+        ['/accounting/reports/vat-return', 'VAT return'],
+        ['/accounting/trial-balance', 'Trial balance'],
+        ['/purchases/invoices', 'Total purchases'],
+        ['/purchases/orders', 'Total purchase orders'],
+        ['/purchases/suppliers', 'Total suppliers'],
+        ['/purchases/payments', 'Supplier payment vouchers'],
+        ['/purchases/landed-costs', 'Landed costs'],
+        ['/purchases/receipts', 'Goods receipt'],
+        ['/purchases/requests', 'Purchase requests'],
+        ['/purchases/returns', 'Purchase returns'],
+        ['/inventory/products', 'Total products'],
+        ['/inventory/warehouses', 'Total warehouses'],
+        ['/inventory/counts', 'Stock counting'],
+        ['/inventory/stock-transfers', 'Stock transfers'],
+        ['/inventory/operations', 'Stock movements'],
+        ['/inventory/categories', 'Categories'],
+        ['/inventory/assembly', 'Assembly and bills of materials (BOM)'],
+        ['/pos/history', 'Go to the point of sale'],
+        ['/pos/registers', 'Cashier devices'],
+    ]) {
+        await page.goto(url);
+        await expect(page.getByText(text).first()).toBeVisible();
+        // The breadcrumb follows the language too.
+        expect(await page.locator('nav[aria-label], nav').first().innerText()).not.toMatch(arabic);
+    }
+
+    await header.locator('[data-user-menu]').click();
+    await page.locator('[data-language-toggle]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+    expect(errors).toEqual([]);
+});
+
+test('module pages (HR, manufacturing, equipment, finance, projects, contracts, bookings, work orders, support, settings) follow the language', async ({ page }) => {
+    const errors = watchErrors(page);
+    await signIn(page);
+    await page.goto('/hr/employees');
+    await page.locator('header [data-user-menu]').click();
+    await page.locator('[data-language-toggle]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+    const arabic = /[؀-ۿ]/;
+    for (const [url, text] of [
+        ['/hr/employees', 'Employee files, documents, salaries and allowances'],
+        ['/hr/payroll', 'Payroll runs'],
+        ['/hr/leaves', 'Leave types'],
+        ['/hr/loans', 'Employee advances'],
+        ['/hr/attendance', 'Save attendance'],
+        ['/hr/organization', 'Organization and shifts'],
+        ['/hr/settlements', 'End-of-service awards and settlements'],
+        ['/hr/nationalities', 'Nationalities'],
+        ['/manufacturing', 'Manufacturing dashboard'],
+        ['/manufacturing/boms', 'Bills of materials (BOM)'],
+        ['/manufacturing/orders', 'Production orders'],
+        ['/manufacturing/mrp', 'Material requirements planning (MRP)'],
+        ['/manufacturing/quality/inspections', 'Quality inspections'],
+        ['/manufacturing/work-centers', 'Work centers'],
+        ['/equipment', 'Equipment'],
+        ['/equipment/rentals', 'Equipment rental contracts'],
+        ['/equipment/maintenance/dashboard', 'Maintenance dashboard'],
+        ['/equipment/reports', 'Equipment reports'],
+        ['/finance/expenses', 'Expense vouchers'],
+        ['/finance/revenues', 'Record new revenue'],
+        ['/finance/banks', 'Cash boxes and banks'],
+        ['/finance/transfers', 'Money transfers'],
+        ['/projects', 'Projects and contracts'],
+        ['/projects/guarantees', 'Bank guarantees'],
+        ['/contracts', 'Customer and supplier contracts with their texts, versions and obligations'],
+        ['/bookings', 'All booked appointments'],
+        ['/bookings/services', 'Booking services'],
+        ['/work-orders', 'Field technicians’ tasks'],
+        ['/support/tickets', 'Customer requests, complaints and after-sales'],
+        ['/crm/leads', 'Leads and opportunities'],
+        ['/branches', 'Branches'],
+        ['/users', 'Add a user'],
+        ['/settings/currencies', 'Currencies and exchange rates'],
+        ['/settings/numbering', 'Numbering guide'],
+        ['/settings/messaging', 'Messaging settings'],
+        ['/settings/modules', 'Enable and disable modules'],
+        ['/reports/sales', 'Sales reports'],
+    ]) {
+        await page.goto(url);
+        await expect(page.getByText(text).first()).toBeVisible();
+        expect(await page.locator('nav[aria-label], nav').first().innerText()).not.toMatch(arabic);
+    }
+
+    await page.locator('header [data-user-menu]').click();
+    await page.locator('[data-language-toggle]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
     expect(errors).toEqual([]);
 });
