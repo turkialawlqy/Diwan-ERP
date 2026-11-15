@@ -29,13 +29,16 @@ test('ledger shows the source document and offers Excel / PDF', async ({ page })
     await page.goto('/accounting/journals');
     // From a posted entry's line to the ledger of one of its accounts.
     await page.goto('/accounting/ledger?start_date=2020-01-01&end_date=2030-12-31');
-    const options = await page.locator('select').first().locator('option').allTextContents();
+    // The account picker is a searchable list: try the first accounts until one has a posted entry with a source document.
     let found = false;
-    for (const label of options.slice(0, 40)) {
-        await page.locator('select').first().selectOption({ label });
+    for (let i = 0; i < 25 && !found; i++) {
+        await page.locator('[data-ledger-account]').first().click();
+        const option = page.locator('[data-select-list] button').nth(i);
+        if (!(await option.count())) break;
+        await option.click();
         await page.getByRole('button', { name: 'عرض' }).first().click().catch(() => {});
         await page.waitForLoadState('networkidle');
-        if (await page.locator('[data-source-link]').count()) { found = true; break; }
+        if (await page.locator('[data-source-link]').count()) found = true;
     }
     expect(found).toBe(true);
     await expect(page.locator('[data-export-xlsx]')).toBeVisible();
@@ -45,7 +48,7 @@ test('ledger shows the source document and offers Excel / PDF', async ({ page })
 test('customer statement: period filter and open invoices only', async ({ page }) => {
     const errors = watchErrors(page);
     await page.goto('/sales/clients');
-    const link = page.locator('a[href*="/statement"]').first();
+    const link = page.locator('main a[href*="/statement"]').first();
     await link.click();
     await expect(page.locator('[data-statement-filters]')).toBeVisible();
     await page.locator('[data-open-only]').check();

@@ -33,8 +33,8 @@ const usable = computed(() => allTemplates.value.filter((t) => t.kind === form.k
 const template = ref('');
 const applyTemplate = (id) => {
     template.value = id;
-    const t = allTemplates.value.find((x) => String(x.id) === String(id));
-    if (t && (!form.body || window.confirm(t('con2_contracts_form.replace_the_contract_text_with_t')))) { form.body = t.body; form.template_id = t.id; }
+    const tpl = allTemplates.value.find((x) => String(x.id) === String(id));
+    if (tpl && (!form.body || window.confirm(t('con2_contracts_form.replace_the_contract_text_with_t')))) { form.body = tpl.body; form.template_id = tpl.id; }
 };
 const addObligation = () => form.obligations.push({ id: null, title: '', kind: 'payment', due_date: form.start_date, amount: '', notes: '', done: false });
 

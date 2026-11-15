@@ -20,7 +20,7 @@ const totals = computed(() => form.lines.reduce((t, l) => ({ d: t.d + Number(l.d
 const balanced = computed(() => Math.abs(totals.value.d - totals.value.c) < 0.01 && totals.value.d > 0);
 const save = () => form.post(route('accounting.recurring.store'), { preserveScroll: true, onSuccess: () => { open.value = false; form.reset(); } });
 const toggle = (t) => router.put(route('accounting.recurring.update', t.id), { is_active: !t.is_active }, { preserveScroll: true });
-const remove = (t) => confirm(t('a_recurring.confirm_delete')) && router.delete(route('accounting.recurring.destroy', t.id), { preserveScroll: true });
+const remove = (row) => confirm(t('a_recurring.confirm_delete')) && router.delete(route('accounting.recurring.destroy', row.id), { preserveScroll: true });
 const freq = computed(() => ({ monthly: t('s_recurring.f_monthly'), quarterly: t('s_recurring.f_quarterly'), yearly: t('s_recurring.f_yearly') }));
 </script>
 

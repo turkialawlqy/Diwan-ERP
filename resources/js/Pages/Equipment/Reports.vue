@@ -48,15 +48,15 @@ const insights = computed(() => {
             losing.length && t('eq2_equipment_reports.loss_making_equipment_n_review_t', { n0: losing.map((r) => r.code).join(t('z_equipment_reports.text')) })].filter(Boolean);
     }
     if (props.type === 'utilization') {
-        const t = props.report.totals;
+        const tot = props.report.totals;
         const idle = rows.filter((r) => r.utilization < 40);
-        return [t('eq2_equipment_reports.average_utilization_n_n_hours_da', { n0: t.available_hours ? ((t.worked_hours / t.available_hours) * 100).toFixed(1) : 0, n1: props.report.standard_hours, n2: props.report.days }),
+        return [t('eq2_equipment_reports.average_utilization_n_n_hours_da', { n0: tot.available_hours ? ((tot.worked_hours / tot.available_hours) * 100).toFixed(1) : 0, n1: props.report.standard_hours, n2: props.report.days }),
             idle.length && t('eq2_equipment_reports.equipment_utilized_under_40_n_an', { n0: idle.map((r) => r.code).join(t('z_equipment_reports.text')) })].filter(Boolean);
     }
     if (props.type === 'compliance') {
-        const t = props.report.totals;
-        return [t('eq2_equipment_reports.n_items_done_n_of_them_late_n_co', { n0: t.serviced, n1: t.late, n2: t.serviced ? Math.round(((t.serviced - t.late) / t.serviced) * 100) : 100 }),
-            t.overdue_now && t('eq2_equipment_reports.n_items_overdue_now', { n0: t.overdue_now }), t('eq2_equipment_reports.breakdown_repair_orders_n_agains', { n0: t.corrective, n1: t.preventive })].filter(Boolean);
+        const tot = props.report.totals;
+        return [t('eq2_equipment_reports.n_items_done_n_of_them_late_n_co', { n0: tot.serviced, n1: tot.late, n2: tot.serviced ? Math.round(((tot.serviced - tot.late) / tot.serviced) * 100) : 100 }),
+            tot.overdue_now && t('eq2_equipment_reports.n_items_overdue_now', { n0: tot.overdue_now }), t('eq2_equipment_reports.breakdown_repair_orders_n_agains', { n0: tot.corrective, n1: tot.preventive })].filter(Boolean);
     }
     const top = props.report.by_product?.[0];
     return [t('eq2_equipment_reports.total_spare_parts_n', { n0: money(props.report.totals.amount) }), top && t('eq2_equipment_reports.highest_cost_n_n', { n0: top.product, n1: money(top.amount) })].filter(Boolean);
