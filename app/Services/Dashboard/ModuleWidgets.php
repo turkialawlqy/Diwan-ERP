@@ -10,6 +10,7 @@ use App\Models\ContractObligation;
 use App\Models\CustomerSubscription;
 use App\Models\CustomerVehicle;
 use App\Models\EmployeeLoan;
+use App\Models\Equipment;
 use App\Models\EquipmentRental;
 use App\Models\Lead;
 use App\Models\Lease;
@@ -106,6 +107,7 @@ class ModuleWidgets
             'equipment' => ['title' => 'المعدات', 'permission' => ['equipment.assets.view', 'equipment.rentals.view'], 'link' => 'equipment.index', 'metrics' => fn () => [
                 ['تأجير جارٍ', EquipmentRental::where('status', 'active')->count(), 'equipment.rentals.index', 'good'],
                 ['أوامر صيانة مفتوحة', MaintenanceOrder::where('status', 'open')->count(), 'equipment.maintenance.index', 'warn'],
+                ['معدات لم تُحضَّر اليوم', Equipment::whereNotIn('status', ['out_of_service'])->whereDoesntHave('preparations', fn ($q) => $q->whereDate('prep_date', now()->toDateString()))->count(), 'equipment.preparations.index', 'warn'],
             ]],
             'manufacturing' => ['title' => 'المصانع', 'permission' => 'manufacturing.orders.view', 'link' => 'manufacturing.dashboard', 'metrics' => fn () => [
                 ['أوامر قيد التنفيذ', ProductionOrder::whereIn('status', ['released', 'in_progress'])->count(), 'manufacturing.orders.index', 'good'],

@@ -185,7 +185,8 @@
         "accounting_controls": "تقارير الرقابة المحاسبية",
         "project_allocations": "توزيع التكاليف غير المباشرة",
         "payment_requests": "طلبات الصرف",
-        "consolidated_statement": "كشف حساب مجمع"
+        "consolidated_statement": "كشف حساب مجمع",
+        "equipment_preparations": "تحضير المعدات"
     },
     "common": {
         "search": "بحث...",
@@ -4038,5 +4039,30 @@
         "hint": "اسحب العنصر وأفلته، أو استعمل الأسهم لتحريكه.",
         "up": "أعلى",
         "down": "أسفل"
+    },
+    "eq_prep": {
+        "title": "تحضير المعدات اليومي",
+        "subtitle": "كل معدة تُحضَّر قبل بدء العمل، وتُرفق كروت التحضير (ملف أو عدة ملفات)",
+        "new": "تحضير معدة جديد",
+        "total": "المعدات",
+        "ready": "جاهزة",
+        "needs_attention": "تحتاج متابعة",
+        "missing": "لم تُحضَّر",
+        "equipment": "المعدة",
+        "operator": "المشغّل",
+        "cards": "الكروت المرفقة",
+        "not_prepared": "لم تُحضَّر",
+        "ready_one": "جاهزة",
+        "needs_attention_one": "تحتاج متابعة",
+        "prepare": "تحضير",
+        "confirm_delete": "حذف التحضير {number}؟ تُحذف كروته المرفقة أيضًا.",
+        "no_equipment": "لا توجد معدات نشطة.",
+        "edit_title": "تعديل التحضير {number}",
+        "expected_number": "الرقم المتوقع: {n}",
+        "pick_equipment": "اختر المعدة (بالرمز أو الاسم)...",
+        "hours_reading": "قراءة عداد الساعات",
+        "km_reading": "قراءة الكيلومترات",
+        "save": "حفظ التحضير",
+        "notes": "ملاحظات"
     }
 }

@@ -59,6 +59,7 @@ return [
         'project' => ['table' => 'projects', 'column' => 'code', 'prefix' => 'PRJ-', 'pad' => 4, 'yearly' => false, 'label' => 'كود المشروع', 'area' => 'work', 'module' => 'projects'],
         'subcontract' => ['table' => 'subcontracts', 'column' => 'number', 'prefix' => 'SUB-', 'pad' => 5, 'yearly' => true, 'label' => 'عقد مقاول باطن', 'area' => 'work', 'module' => 'projects'],
         'equipment_rental' => ['table' => 'equipment_rentals', 'column' => 'number', 'prefix' => 'ER-', 'pad' => 5, 'yearly' => true, 'label' => 'تأجير معدة', 'area' => 'work', 'module' => 'equipment'],
+        'equipment_preparation' => ['table' => 'equipment_preparations', 'column' => 'number', 'prefix' => 'PRP-', 'pad' => 5, 'yearly' => true, 'label' => 'تحضير معدة', 'area' => 'work', 'module' => 'equipment'],
         'maintenance_order' => ['table' => 'maintenance_orders', 'column' => 'number', 'prefix' => 'MO-', 'pad' => 5, 'yearly' => true, 'label' => 'أمر صيانة', 'area' => 'work', 'module' => 'equipment'],
         'product' => ['table' => 'products', 'column' => 'sku', 'prefix' => 'PRD-', 'pad' => 5, 'yearly' => false, 'label' => 'كود الصنف', 'area' => 'inventory'],
     ],

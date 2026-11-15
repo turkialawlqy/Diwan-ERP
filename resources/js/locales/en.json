@@ -185,7 +185,8 @@
         "accounting_controls": "Accounting Controls",
         "project_allocations": "Overhead allocation",
         "payment_requests": "Payment requests",
-        "consolidated_statement": "Consolidated statement"
+        "consolidated_statement": "Consolidated statement",
+        "equipment_preparations": "Equipment preparation"
     },
     "common": {
         "search": "Search...",
@@ -4038,5 +4039,30 @@
         "hint": "Drag an item and drop it, or use the arrows to move it.",
         "up": "Up",
         "down": "Down"
+    },
+    "eq_prep": {
+        "title": "Daily equipment preparation",
+        "subtitle": "Each piece of equipment is prepared before work starts, and the preparation cards are attached (one file or several)",
+        "new": "New equipment preparation",
+        "total": "Equipment",
+        "ready": "Ready",
+        "needs_attention": "Need attention",
+        "missing": "Not prepared",
+        "equipment": "Equipment",
+        "operator": "Operator",
+        "cards": "Attached cards",
+        "not_prepared": "Not prepared",
+        "ready_one": "Ready",
+        "needs_attention_one": "Needs attention",
+        "prepare": "Prepare",
+        "confirm_delete": "Delete preparation {number}? Its attached cards are deleted too.",
+        "no_equipment": "No active equipment.",
+        "edit_title": "Edit preparation {number}",
+        "expected_number": "Expected number: {n}",
+        "pick_equipment": "Choose the equipment (by code or name)...",
+        "hours_reading": "Hour meter reading",
+        "km_reading": "Kilometers reading",
+        "save": "Save the preparation",
+        "notes": "Notes"
     }
 }

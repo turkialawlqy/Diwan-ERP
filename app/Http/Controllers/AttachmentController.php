@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attachment;
+use App\Models\EquipmentPreparation;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
@@ -34,6 +35,7 @@ class AttachmentController extends Controller
         'sales-order' => [SalesOrder::class, 'sales.orders.view'],
         'purchase-order' => [PurchaseOrder::class, 'purchases.orders.view'],
         'payment-request' => [PaymentRequest::class, 'finance.payment_requests.view'],
+        'equipment-preparation' => [EquipmentPreparation::class, 'equipment.preparations.view'],
     ];
 
     /** kind => permission that lets a user attach files while still writing such a document. */
@@ -47,6 +49,7 @@ class AttachmentController extends Controller
         'sales-order' => 'sales.orders.create',
         'purchase-order' => 'purchases.orders.create',
         'payment-request' => 'finance.payment_requests.create',
+        'equipment-preparation' => 'equipment.preparations.create',
     ];
 
     public const MAX_KB = 10240;

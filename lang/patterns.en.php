@@ -110,4 +110,5 @@ return [
     'يجب إقفال السنة المالية السابقة ({}) أولاً.' => 'The previous fiscal year ({}) must be closed first.',
     'يجب تحديد {} رقم تسلسلي للصنف «{}».' => '{} serial numbers must be specified for item “{}”.',
     'يوجد قيود مسودة داخل السنة المالية في: {}. يجب ترحيلها أو حذفها قبل الإقفال.' => 'There are draft entries inside the fiscal year in: {}. Post or delete them before closing.',
+    'تم تسجيل تحضير المعدة {}' => 'Equipment preparation {} recorded',
 ];

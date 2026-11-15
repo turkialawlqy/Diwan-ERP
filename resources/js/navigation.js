@@ -149,6 +149,7 @@ export default [
         children: [
             { label: 'nav.equipment_list', route: 'equipment.index', path: '/equipment', exact: true },
             { label: 'nav.equipment_readings', route: 'equipment.readings.index', path: '/equipment/readings' },
+            { label: 'nav.equipment_preparations', route: 'equipment.preparations.index', path: '/equipment/preparations' },
             { label: 'nav.equipment_rentals', route: 'equipment.rentals.index', path: '/equipment/rentals' },
             { label: 'nav.maintenance_dashboard', route: 'equipment.maintenance.dashboard', path: '/equipment/maintenance/dashboard' },
             { label: 'nav.maintenance_orders', route: 'equipment.maintenance.index', path: '/equipment/maintenance', exact: true },

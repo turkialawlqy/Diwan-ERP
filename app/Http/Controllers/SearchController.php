@@ -11,6 +11,7 @@ use App\Models\CustomerPackage;
 use App\Models\CustomerSubscription;
 use App\Models\CustomerVehicle;
 use App\Models\Employee;
+use App\Models\EquipmentPreparation;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\JournalEntry;
@@ -95,6 +96,13 @@ class SearchController extends Controller
                     ->where(fn ($q) => $q->where('request_number', 'like', $like)->orWhere('purpose', 'like', $like)->orWhere('payee_name', 'like', $like)->orWhereHas('supplier', fn ($c) => $c->where('name', 'like', $like)))
                     ->latest('id')->select('id', 'request_number', 'purpose', 'amount', 'status', 'supplier_id', 'employee_id', 'payee_name'),
                 'present' => fn ($r) => ['title' => $r->purpose, 'code' => (string) $r->request_number, 'subtitle' => $r->payeeLabel().' · '.number_format((float) $r->amount, 2).' · '.$r->status, 'url' => route('finance.payment-requests.show', $r->id)],
+            ],
+            'equipment_preparations' => [
+                'label' => 'تحضير المعدات', 'permission' => 'equipment.preparations.view',
+                'query' => fn ($like) => EquipmentPreparation::query()->with('equipment:id,code,name')
+                    ->where(fn ($q) => $q->where('number', 'like', $like)->orWhere('operator', 'like', $like)->orWhereHas('equipment', fn ($c) => $c->where('code', 'like', $like)->orWhere('name', 'like', $like)))
+                    ->latest('prep_date')->select('id', 'number', 'equipment_id', 'prep_date', 'status', 'operator'),
+                'present' => fn ($r) => ['title' => $r->number.' — '.($r->equipment?->name ?? ''), 'code' => (string) $r->number, 'subtitle' => $r->prep_date->format('Y-m-d').' · '.(EquipmentPreparation::STATUSES[$r->status] ?? $r->status), 'url' => route('equipment.preparations.edit', $r->id)],
             ],
             'customers' => [
                 'label' => 'العملاء', 'permission' => 'sales.clients.view',

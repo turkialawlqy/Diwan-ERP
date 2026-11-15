@@ -606,6 +606,12 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::get('/readings', [EQ\ReadingController::class, 'index'])->name('readings.index');
         Route::post('/readings', [EQ\ReadingController::class, 'store'])->name('readings.store');
         Route::delete('/readings/{reading}', [EQ\ReadingController::class, 'destroy'])->name('readings.destroy');
+        Route::get('/preparations', [EQ\PreparationController::class, 'index'])->name('preparations.index');
+        Route::get('/preparations/create', [EQ\PreparationController::class, 'create'])->name('preparations.create');
+        Route::post('/preparations', [EQ\PreparationController::class, 'store'])->name('preparations.store');
+        Route::get('/preparations/{preparation}/edit', [EQ\PreparationController::class, 'edit'])->name('preparations.edit');
+        Route::put('/preparations/{preparation}', [EQ\PreparationController::class, 'update'])->name('preparations.update');
+        Route::delete('/preparations/{preparation}', [EQ\PreparationController::class, 'destroy'])->name('preparations.destroy');
         Route::get('/rentals', [EQ\RentalController::class, 'index'])->name('rentals.index');
         Route::post('/rentals', [EQ\RentalController::class, 'store'])->name('rentals.store');
         Route::get('/rentals/{rental}', [EQ\RentalController::class, 'show'])->name('rentals.show');

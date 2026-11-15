@@ -758,5 +758,8 @@
     "يُضاف إصدار جديد للعقد المعتمد أو الساري فقط.": "A new version can be added to an approved or active contract only.",
     "يُعاد فتح الأمر المنجز غير المفوتر فقط.": "Only a completed, uninvoiced order is reopened.",
     "يُعلَّق الأمر الجاري فقط.": "Only a running order can be put on hold.",
-    "يُفعَّل العقد المعتمد فقط.": "Only an approved contract is activated."
+    "يُفعَّل العقد المعتمد فقط.": "Only an approved contract is activated.",
+    "تم تحديث التحضير": "Preparation updated",
+    "تم حذف التحضير": "Preparation deleted",
+    "هذه المعدة محضَّرة في هذا اليوم؛ عدّل تحضيرها بدل إضافة آخر.": "This equipment is already prepared on this day; edit its preparation instead of adding another."
 }
