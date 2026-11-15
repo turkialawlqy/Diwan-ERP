@@ -99,5 +99,6 @@ export const viewMenu = [
     { label: 'طلبات الصرف', route: 'finance.payment-requests.index', icon: CreditCardIcon },
     { label: 'القيود اليومية', route: 'accounting.journals.index', icon: BookOpenIcon },
     { label: 'دليل الحسابات', route: 'accounting.accounts.index', icon: ListBulletIcon },
+    { label: 'كشف حساب مجمع', route: 'accounting.statements.consolidated', icon: DocumentTextIcon },
     { label: 'الجرد', route: 'inventory.counts.index', icon: ClipboardDocumentCheckIcon },
 ];

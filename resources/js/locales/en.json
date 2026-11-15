@@ -184,7 +184,8 @@
         "equipment_reports": "Equipment Reports",
         "accounting_controls": "Accounting Controls",
         "project_allocations": "Overhead allocation",
-        "payment_requests": "Payment requests"
+        "payment_requests": "Payment requests",
+        "consolidated_statement": "Consolidated statement"
     },
     "common": {
         "search": "Search...",
@@ -3058,7 +3059,10 @@
         "opening_balance_2": "Opening balance",
         "total_debit": "Total debit",
         "total_credit": "Total credit",
-        "closing_balance": "Closing balance"
+        "closing_balance": "Closing balance",
+        "search_account": "Search by account number or name...",
+        "cost_center": "Cost center",
+        "all_centers": "All centers"
     },
     "a_wht": {
         "date": "Date",
@@ -4015,5 +4019,15 @@
     },
     "p_invoices_from_receipts": {
         "credit": "Credit"
+    },
+    "a_consol": {
+        "consolidated_statement": "Consolidated statement",
+        "subtitle": "Several accounts (or a parent account with everything below it) in one statement, in date order",
+        "accounts": "Accounts",
+        "remove": "Remove",
+        "add_account": "Add an account (by number or name)...",
+        "parent_hint": "▸ A parent account includes all the accounts below it automatically.",
+        "pick_accounts": "Choose at least one account, then press Apply.",
+        "balance_note": "Combined balance: debit is positive and credit negative, because accounts may differ in nature. Each account’s summary uses its own nature."
     }
 }

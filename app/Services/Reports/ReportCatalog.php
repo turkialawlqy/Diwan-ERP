@@ -44,6 +44,7 @@ class ReportCatalog
         'supplier-statement' => 'purchases.suppliers.export',
         'withholding' => 'accounting.vat_return.export',
         'ledger' => 'accounting.ledger.export',
+        'consolidated-statement' => 'accounting.ledger.export',
         // Control reports (AccountingControls).
         'controls-exceptions' => 'accounting.controls.export',
         'party-reconciliation' => 'accounting.controls.export',
@@ -95,6 +96,7 @@ class ReportCatalog
             'supplier-statement' => $this->supplierStatement($request),
             'withholding' => $this->withholding($request),
             'ledger' => $this->ledger($request),
+            'consolidated-statement' => $this->consolidatedStatement($request),
             'controls-exceptions' => $this->controlExceptions(),
             'party-reconciliation' => $this->controlReconciliation(),
             'customer-balances' => $this->controlBalances($request, 'customer'),
@@ -580,6 +582,31 @@ class ReportCatalog
         return $this->table('دفتر الأستاذ: '.$account->code.' - '.$account->name_ar, $this->period($from, $to), [
             ['date', 'التاريخ'], ['entry', 'القيد'], ['description', 'البيان'], ['source', 'المستند المصدر'], ['debit', 'مدين', 'money'], ['credit', 'دائن', 'money'], ['balance', 'الرصيد', 'money'],
         ], $rows, [0, count($rows) - 1]);
+    }
+
+    /** Several accounts in one statement (a parent account stands for everything below it). */
+    protected function consolidatedStatement(Request $request): array
+    {
+        $request->validate(['account_ids' => 'required|array|max:100', 'account_ids.*' => 'integer|tenant_exists:accounts,id', 'cost_center_id' => 'nullable|tenant_exists:cost_centers,id']);
+        [$from, $to] = $this->range($request);
+        $statement = $this->reports->consolidated($request->input('account_ids'), $from, $to, 20000, $request->integer('cost_center_id') ?: null);
+        $sources = app(SourceDocument::class);
+
+        $rows = [];
+        foreach ($statement['accounts'] as $a) {
+            $rows[] = ['date' => '', 'account' => $a['code'].' - '.$a['name_ar'], 'entry' => 'ملخص الحساب', 'description' => 'افتتاحي '.$a['opening'], 'source' => '', 'debit' => $a['debit'], 'credit' => $a['credit'], 'balance' => $a['closing']];
+        }
+        $summary = count($rows);
+        $rows[] = ['date' => '', 'account' => '', 'entry' => 'رصيد أول المدة', 'description' => '', 'source' => '', 'debit' => null, 'credit' => null, 'balance' => $statement['opening_balance']];
+        foreach ($statement['lines']->items() as $l) {
+            $rows[] = ['date' => $l->date, 'account' => $l->account_code.' - '.$l->account_name, 'entry' => $l->entry_number, 'description' => trim(($l->description ?: $l->entry_description).($l->reference ? ' · '.$l->reference : '')),
+                'source' => $sources->describe($l->source_type, $l->source_id)['label'] ?? '', 'debit' => $l->debit ?: null, 'credit' => $l->credit ?: null, 'balance' => $l->balance];
+        }
+        $rows[] = ['date' => '', 'account' => '', 'entry' => 'الإجمالي', 'description' => '', 'source' => '', 'debit' => $statement['period_debit'], 'credit' => $statement['period_credit'], 'balance' => $statement['closing_balance']];
+
+        return $this->table('كشف حساب مجمع', $this->period($from, $to), [
+            ['date', 'التاريخ'], ['account', 'الحساب'], ['entry', 'القيد'], ['description', 'البيان'], ['source', 'المستند المصدر'], ['debit', 'مدين', 'money'], ['credit', 'دائن', 'money'], ['balance', 'الرصيد', 'money'],
+        ], $rows, [...($summary ? range(0, $summary - 1) : []), count($rows) - 1]);
     }
 
     protected function period(Carbon $from, Carbon $to): string

@@ -203,6 +203,7 @@ export default [
             { label: 'nav.chart_of_accounts', route: 'accounting.accounts.index', path: '/accounting/accounts' },
             { label: 'nav.journal_entries', route: 'accounting.journals.index', path: '/accounting/journals' },
             { label: 'nav.general_ledger', route: 'accounting.ledger.index', path: '/accounting/ledger' },
+            { label: 'nav.consolidated_statement', route: 'accounting.statements.consolidated', path: '/accounting/statements/consolidated' },
             { label: 'nav.trial_balance', route: 'accounting.trial-balance.index', path: '/accounting/trial-balance' },
             { label: 'nav.accounting_controls', route: 'accounting.controls.index', path: '/accounting/controls' },
             { label: 'nav.recurring_journals', route: 'accounting.recurring.index', path: '/accounting/recurring' },

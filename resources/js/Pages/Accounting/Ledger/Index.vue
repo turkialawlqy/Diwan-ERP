@@ -4,6 +4,7 @@ import { reactive } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
+import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import Pagination from '@/Components/UI/Pagination.vue';
 import StatCard from '@/Components/UI/StatCard.vue';
 import ExportButtons from '@/Components/UI/ExportButtons.vue';
@@ -37,11 +38,12 @@ const apply = () => {
             <template #actions><ExportButtons v-if="selectedAccount" report="ledger" :params="{ account_id: filters.account_id, start_date: filters.start_date, end_date: filters.end_date, cost_center_id: filters.cost_center_id }" permission="accounting.ledger.export" /></template>
         </PageHeader>
 
-        <form @submit.prevent="apply" class="bg-white border border-slate-200 rounded-2xl p-4 grid grid-cols-1 md:grid-cols-5 gap-3 text-xs mb-4">
+        <form @submit.prevent="apply" class="bg-white border border-slate-200 rounded-2xl p-4 grid grid-cols-1 md:grid-cols-6 gap-3 text-xs mb-4">
             <label class="md:col-span-2"><span class="block font-bold text-slate-600 mb-1">{{ $t('ui.account') }}</span>
-                <select v-model="form.account_id" class="w-full rounded-xl border-slate-200 text-xs">
-                    <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.code }} - {{ a.name_ar }}</option>
-                </select>
+                <SelectCreate v-model="form.account_id" :options="accounts" :label="(a) => `${a.code} - ${a.name_ar}`" :allow-empty="false" :placeholder="$t('a_ledger.search_account')" data-ledger-account />
+            </label>
+            <label v-if="costCenters?.length"><span class="block font-bold text-slate-600 mb-1">{{ $t('a_ledger.cost_center') }}</span>
+                <SelectCreate v-model="form.cost_center_id" :options="costCenters" :label="(c) => `${c.code} - ${c.name_ar}`" :empty-label="$t('a_ledger.all_centers')" />
             </label>
             <label><span class="block font-bold text-slate-600 mb-1">{{ $t('ui.from') }}</span><DatePicker v-model="form.start_date" class="w-full rounded-xl border-slate-200 text-xs" /></label>
             <label><span class="block font-bold text-slate-600 mb-1">{{ $t('ui.to') }}</span><DatePicker v-model="form.end_date" class="w-full rounded-xl border-slate-200 text-xs" /></label>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import BrandLogo from './BrandLogo.vue';
 import WorkspaceContext from './WorkspaceContext.vue';
@@ -23,8 +23,14 @@ const unreadNotes = useUnreadNotes();
 // The text direction the page was actually rendered with (the drawer slides off the start side).
 const isRtl = computed(() => (typeof document !== 'undefined' ? document.documentElement.dir : 'rtl') === 'rtl' || (!document?.documentElement?.dir && (page.props.locale || 'ar') === 'ar'));
 
+const currentPath = () => {
+    // Inertia's page url (path + query) is what the server rendered; fall back to the address bar.
+    const url = String(page.url || '');
+    return (url ? url.split('?')[0].split('#')[0] : window.location.pathname) || window.location.pathname;
+};
+
 const isCurrent = (path, exact = false) => {
-    const current = window.location.pathname;
+    const current = currentPath();
     if (exact) return current === path;
     return current === path || current.startsWith(path + '/');
 };
@@ -38,19 +44,51 @@ const visibleItems = computed(() => navigation
         : item)
     .filter((item) => item.children ? item.children.length > 0 : canRoute(item.route)));
 
-// Collapsible menus: open the group containing the current page.
+// Collapsible menus: the group containing the current page is always open, and the groups the user
+// opened by hand stay open (remembered in this browser) because every page remounts the sidebar.
+const OPEN_KEY = 'diwan.sidebar.open';
+const SCROLL_KEY = 'diwan.sidebar.scroll';
+const readOpen = () => {
+    try { return JSON.parse(localStorage.getItem(OPEN_KEY) || '[]'); } catch { return []; }
+};
+const saveOpen = () => {
+    try { localStorage.setItem(OPEN_KEY, JSON.stringify(Object.keys(openMenus.value).filter((k) => openMenus.value[k]))); } catch { /* private mode */ }
+};
+const remembered = readOpen();
 const openMenus = ref(Object.fromEntries(navigation
     .filter((item) => item.children)
-    .map((item) => [item.key, item.children.some((child) => isCurrent(child.path, child.exact))])));
+    .map((item) => [item.key, remembered.includes(item.key) || item.children.some((child) => isCurrent(child.path, child.exact))])));
 
 const toggleMenu = (menuKey) => {
     // On the icon rail a group has no room for its links: widen the rail first.
     if (sidebarCollapsed.value) {
         sidebarCollapsed.value = false;
         openMenus.value[menuKey] = true;
+        saveOpen();
         return;
     }
     openMenus.value[menuKey] = !openMenus.value[menuKey];
+    saveOpen();
+};
+
+// Keep the selected page in view: restore the menu's scroll position, then bring the current link
+// into view when it sits outside the visible part of a long menu.
+const navEl = ref(null);
+onMounted(() => {
+    nextTick(() => {
+        const nav = navEl.value;
+        if (!nav) return;
+        try { nav.scrollTop = Number(sessionStorage.getItem(SCROLL_KEY)) || 0; } catch { /* ignore */ }
+        const active = nav.querySelector('[data-nav-current]');
+        if (active) {
+            const box = nav.getBoundingClientRect();
+            const rect = active.getBoundingClientRect();
+            if (rect.top < box.top || rect.bottom > box.bottom) active.scrollIntoView({ block: 'center' });
+        }
+    });
+});
+const rememberScroll = () => {
+    try { sessionStorage.setItem(SCROLL_KEY, String(navEl.value?.scrollTop || 0)); } catch { /* ignore */ }
 };
 
 // The rail is a desktop feature: the mobile drawer is always full width.
@@ -105,13 +143,14 @@ const slim = computed(() => sidebarCollapsed.value);
         </div>
 
         <!-- Navigation (the only part that scrolls, permission aware) -->
-        <nav class="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1 text-sm select-none custom-scrollbar">
+        <nav ref="navEl" @scroll.passive="rememberScroll" class="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1 text-sm select-none custom-scrollbar">
             <template v-for="item in visibleItems" :key="item.key">
                 <!-- Single link -->
                 <Link
                     v-if="!item.children"
                     :href="route(item.route)"
                     :title="slim ? $t(item.label) : ''"
+                    :data-nav-current="isCurrent(item.path) ? '' : null"
                     :class="[
                         isCurrent(item.path)
                             ? 'bg-gradient-to-l from-brand-600 to-brand-700 text-white font-semibold shadow-lg shadow-brand-900/40'
@@ -130,7 +169,7 @@ const slim = computed(() => sidebarCollapsed.value);
                         @click="toggleMenu(item.key)"
                         :title="slim ? $t(item.label) : ''"
                         :class="[
-                            item.children.some((c) => isCurrent(c.path, c.exact)) ? 'text-white' : 'text-slate-400 hover:text-slate-200',
+                            item.children.some((c) => isCurrent(c.path, c.exact)) ? 'text-white' + (slim ? ' bg-white/10 ring-1 ring-brand-500/60' : '') : 'text-slate-400 hover:text-slate-200',
                             slim ? 'lg:justify-center' : 'justify-between',
                             'w-full flex items-center px-3.5 py-3 rounded-xl hover:bg-slate-800/60 transition-colors group'
                         ]"
@@ -150,6 +189,7 @@ const slim = computed(() => sidebarCollapsed.value);
                             v-for="child in item.children"
                             :key="child.route"
                             :href="route(child.route)"
+                            :data-nav-current="isCurrent(child.path, child.exact) ? '' : null"
                             :class="[
                                 isCurrent(child.path, child.exact)
                                     ? 'text-white font-bold bg-white/10'

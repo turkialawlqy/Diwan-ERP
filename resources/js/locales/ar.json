@@ -184,7 +184,8 @@
         "equipment_reports": "تقارير المعدات",
         "accounting_controls": "تقارير الرقابة المحاسبية",
         "project_allocations": "توزيع التكاليف غير المباشرة",
-        "payment_requests": "طلبات الصرف"
+        "payment_requests": "طلبات الصرف",
+        "consolidated_statement": "كشف حساب مجمع"
     },
     "common": {
         "search": "بحث...",
@@ -3058,7 +3059,10 @@
         "opening_balance_2": "الرصيد الافتتاحي",
         "total_debit": "إجمالي المدين",
         "total_credit": "إجمالي الدائن",
-        "closing_balance": "الرصيد الختامي"
+        "closing_balance": "الرصيد الختامي",
+        "search_account": "ابحث برقم الحساب أو اسمه...",
+        "cost_center": "مركز التكلفة",
+        "all_centers": "كل المراكز"
     },
     "a_wht": {
         "date": "التاريخ",
@@ -4015,5 +4019,15 @@
     },
     "p_invoices_from_receipts": {
         "credit": "آجل"
+    },
+    "a_consol": {
+        "consolidated_statement": "كشف حساب مجمع",
+        "subtitle": "عدة حسابات (أو حساب رئيسي بكل فروعه) في كشف واحد مرتب بالتاريخ",
+        "accounts": "الحسابات",
+        "remove": "إزالة",
+        "add_account": "أضف حسابًا (بالرقم أو الاسم)...",
+        "parent_hint": "▸ حساب رئيسي: يدخل كل الحسابات التابعة له تلقائيًا.",
+        "pick_accounts": "اختر حسابًا واحدًا على الأقل ثم اضغط تطبيق.",
+        "balance_note": "الرصيد المجمع: المدين موجب والدائن سالب، لأن الحسابات قد تختلف طبيعتها. ملخص كل حساب بطبيعته."
     }
 }

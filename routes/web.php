@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Accounting\AccountController;
 use App\Http\Controllers\Accounting as A;
+use App\Http\Controllers\Accounting\ConsolidatedStatementController;
 use App\Http\Controllers\Accounting\GeneralLedgerController;
 use App\Http\Controllers\Accounting\JournalEntryController;
 use App\Http\Controllers\Accounting\TrialBalanceController;
@@ -761,6 +762,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
 
         // General Ledger
         Route::get('/ledger', [GeneralLedgerController::class, 'index'])->name('ledger.index');
+        Route::get('/statements/consolidated', [ConsolidatedStatementController::class, 'index'])->name('statements.consolidated');
 
         // Control reports (exceptions, sub-ledger reconciliation, party balances, cash movement, dormant accounts)
         Route::get('/controls', [A\ControlReportsController::class, 'index'])->name('controls.index');
