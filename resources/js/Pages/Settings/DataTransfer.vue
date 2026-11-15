@@ -30,7 +30,7 @@ const steps = computed(() => ([
     ['products', t('set2_settings_datatransfer.items_with_quantities_opening_qu')],
     ['opening_balances', t('set2_settings_datatransfer.trial_balance_for_the_remaining')],
 ]));
-const openingSteps = computed(() => steps.map(([key, hint]) => ({ hint, type: props.types.find((t) => t.key === key) })).filter((s) => s.type?.can_import));
+const openingSteps = computed(() => steps.value.map(([key, hint]) => ({ hint, type: props.types.find((t) => t.key === key) })).filter((s) => s.type?.can_import));
 // Transaction lists (xlsx / pdf) by date range.
 const txRange = ref({ start_date: today().slice(0, 4) + '-01-01', end_date: today() });
 const txReports = computed(() => ([

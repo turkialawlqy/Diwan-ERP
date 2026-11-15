@@ -17,7 +17,7 @@ const issues = `https://github.com/${props.repo}/issues`;
 // Opens GitHub's "new issue" page pre-filled; the user reviews and submits it there.
 const send = () => {
     const body = [
-        t('x_featurerequests_index.type_n', { n0: kinds[form.kind] }),
+        t('x_featurerequests_index.type_n', { n0: kinds.value[form.kind] }),
         form.area ? t('x_featurerequests_index.screen_or_section_n', { n0: form.area }) : '',
         t('x_featurerequests_index.diwan_version_n', { n0: page.props.brand?.version }),
         '',

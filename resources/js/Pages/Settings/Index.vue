@@ -95,7 +95,7 @@ const findDefaultAccountId = (role) => {
     return '';
 };
 
-const form = computed(() => (useForm({
+const form = useForm({
     name: props.company?.name || '',
     email: props.company?.email || '',
     phone: props.company?.phone || '',
@@ -132,7 +132,7 @@ const form = computed(() => (useForm({
     acc_payables_id: findDefaultAccountId('payables'),
     acc_default_cash_id: findDefaultAccountId('default_cash'),
     acc_default_bank_id: findDefaultAccountId('default_bank'),
-})));
+});
 useUnsavedGuard(form);
 
 const onboardForm = useForm({

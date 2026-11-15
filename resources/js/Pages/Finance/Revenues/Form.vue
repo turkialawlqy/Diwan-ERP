@@ -16,7 +16,7 @@ const { t } = useI18n();
 const props = defineProps({ revenueAccounts: Array, bankAccounts: Array, costCenters: Array, projects: Array, dimensionPolicy: Object, revenue: { type: Object, default: null } });
 const editing = props.revenue;
 
-const form = computed(() => (useForm({
+const form = useForm({
     title: '',
     category: t('fin_finance_revenues_form.general_revenue'),
     account_id: props.revenueAccounts?.[0]?.id || '',
@@ -31,7 +31,7 @@ const form = computed(() => (useForm({
     reference_number: '',
     customer_name: '',
     notes: '',
-})));
+});
 // Editing: the voucher as saved (same number; saving reverses and re-posts it).
 if (editing) {
     Object.assign(form.value, {

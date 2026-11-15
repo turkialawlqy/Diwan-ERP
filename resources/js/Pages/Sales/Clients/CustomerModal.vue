@@ -41,7 +41,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'saved']);
 
 // Form State
-const form = computed(() => (ref({
+const form = ref({
     customer_type: 'commercial', // 'commercial' or 'individual'
     customer_group_id: '',
     code: '',
@@ -68,7 +68,7 @@ const form = computed(() => (ref({
     notes: '',
     additional_contacts: [],
     attachments: [],
-})));
+});
 
 // Section visibility toggles matching checkboxes in screenshot
 const showPhoneSection = ref(true);

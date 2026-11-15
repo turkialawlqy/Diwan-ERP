@@ -16,7 +16,7 @@ const { t } = useI18n();
 const props = defineProps({ expenseAccounts: Array, bankAccounts: Array, costCenters: Array, projects: Array, dimensionPolicy: Object, expense: { type: Object, default: null }, prefill: { type: Object, default: null } });
 const editing = props.expense;
 
-const form = computed(() => (useForm({
+const form = useForm({
     title: '',
     category: t('fin_finance_expenses_form.general_expenses'),
     account_id: props.expenseAccounts?.[0]?.id || '',
@@ -33,7 +33,7 @@ const form = computed(() => (useForm({
     vendor_name: '',
     notes: '',
     payment_request_id: '',
-})));
+});
 // Carrying out an approved payment request: its data fills the voucher and the request is tied to it.
 if (props.prefill) {
     const p = props.prefill;
