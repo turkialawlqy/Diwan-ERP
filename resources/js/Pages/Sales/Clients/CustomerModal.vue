@@ -223,7 +223,7 @@ const uploadFile = async (file) => {
 
     try {
         const res = await axios.post(route('sales.clients.upload-attachment'), data, {
-            headers: { 'Content-Type': 'multipart/form.value-data' },
+            headers: { 'Content-Type': 'multipart/form-data' },
         });
         if (res.data?.success && res.data?.file) {
             form.value.attachments.push(res.data.file);

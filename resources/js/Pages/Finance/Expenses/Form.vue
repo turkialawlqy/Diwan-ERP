@@ -37,13 +37,13 @@ const form = useForm({
 // Carrying out an approved payment request: its data fills the voucher and the request is tied to it.
 if (props.prefill) {
     const p = props.prefill;
-    Object.assign(form.value, { title: p.title || '', account_id: p.account_id || form.value.account_id, amount: p.amount, cost_center_id: p.cost_center_id || '', project_id: p.project_id || '',
-        bank_account_id: p.bank_account_id || form.value.bank_account_id, payment_method: p.payment_method || form.value.payment_method, vendor_name: p.vendor_name || '', notes: p.notes || '', payment_request_id: p.payment_request_id });
-    form.value.defaults();
+    Object.assign(form, { title: p.title || '', account_id: p.account_id || form.account_id, amount: p.amount, cost_center_id: p.cost_center_id || '', project_id: p.project_id || '',
+        bank_account_id: p.bank_account_id || form.bank_account_id, payment_method: p.payment_method || form.payment_method, vendor_name: p.vendor_name || '', notes: p.notes || '', payment_request_id: p.payment_request_id });
+    form.defaults();
 }
 // Editing: the voucher as saved (same number; saving reverses and re-posts it).
 if (editing) {
-    Object.assign(form.value, {
+    Object.assign(form, {
         title: editing.title, category: editing.category, account_id: editing.account_id || '', cost_center_id: editing.cost_center_id || '',
         project_id: editing.project_id || '', bank_account_id: editing.bank_account_id || '', amount: Number(editing.amount),
         tax_amount: Number(editing.tax_amount) || '', taxable: Number(editing.tax_amount) > 0,
@@ -51,21 +51,21 @@ if (editing) {
         expense_date: String(editing.expense_date).substring(0, 10), payment_method: editing.payment_method,
         reference_number: editing.reference_number || '', vendor_name: editing.vendor_name || '', notes: editing.notes || '',
     });
-    form.value.defaults();
+    form.defaults();
 }
-useUnsavedGuard(form.value);
+useUnsavedGuard(form);
 
 const onAmountChange = () => {
-    if (form.value.amount && form.value.taxable) {
-        form.value.tax_amount = (parseFloat(form.value.amount) * taxRate() / 100).toFixed(2);
+    if (form.amount && form.taxable) {
+        form.tax_amount = (parseFloat(form.amount) * taxRate() / 100).toFixed(2);
     } else {
-        form.value.tax_amount = '0.00';
+        form.tax_amount = '0.00';
     }
 };
 
 const formatCurrency = (val) => Number(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const submitExpense = () => (editing ? form.value.put(route('finance.expenses.update', editing.id)) : form.value.post(route('finance.expenses.store')));
+const submitExpense = () => (editing ? form.put(route('finance.expenses.update', editing.id)) : form.post(route('finance.expenses.store')));
 </script>
 
 <template>

@@ -147,7 +147,7 @@ const saveSettings = () => {
 };
 
 const triggerOnboard = () => {
-    onboardForm.environment = form.value.zatca_environment;
+    onboardForm.environment = form.zatca_environment;
     onboardForm.post(route('settings.zatca.onboard'), {
         preserveScroll: true,
         onSuccess: () => {
@@ -183,7 +183,7 @@ const handleLogoUpload = async (event) => {
 
     try {
         const response = await axios.post(route('settings.logo.upload'), formData, {
-            headers: { 'Content-Type': 'multipart/form.value-data' }
+            headers: { 'Content-Type': 'multipart/form-data' }
         });
         if (response.data.success) {
             currentLogo.value = response.data.logo;

@@ -34,28 +34,28 @@ const form = useForm({
 });
 // Editing: the voucher as saved (same number; saving reverses and re-posts it).
 if (editing) {
-    Object.assign(form.value, {
+    Object.assign(form, {
         title: editing.title, category: editing.category, account_id: editing.account_id || '', cost_center_id: editing.cost_center_id || '',
         project_id: editing.project_id || '', bank_account_id: editing.bank_account_id || '', amount: Number(editing.amount),
         tax_amount: Number(editing.tax_amount) || '', taxable: Number(editing.tax_amount) > 0,
         revenue_date: String(editing.revenue_date).substring(0, 10), payment_method: editing.payment_method,
         reference_number: editing.reference_number || '', customer_name: editing.customer_name || '', notes: editing.notes || '',
     });
-    form.value.defaults();
+    form.defaults();
 }
-useUnsavedGuard(form.value);
+useUnsavedGuard(form);
 
 const onAmountChange = () => {
-    if (form.value.amount && form.value.taxable) {
-        form.value.tax_amount = (parseFloat(form.value.amount) * taxRate() / 100).toFixed(2);
+    if (form.amount && form.taxable) {
+        form.tax_amount = (parseFloat(form.amount) * taxRate() / 100).toFixed(2);
     } else {
-        form.value.tax_amount = '0.00';
+        form.tax_amount = '0.00';
     }
 };
 
 const formatCurrency = (val) => Number(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const submitRevenue = () => (editing ? form.value.put(route('finance.revenues.update', editing.id)) : form.value.post(route('finance.revenues.store')));
+const submitRevenue = () => (editing ? form.put(route('finance.revenues.update', editing.id)) : form.post(route('finance.revenues.store')));
 </script>
 
 <template>
