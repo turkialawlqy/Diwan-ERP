@@ -40,6 +40,7 @@ const props = defineProps({
     currencies: { type: Array, default: () => [] },
     countryLocked: { type: Boolean, default: false },
     localAccess: { type: Array, default: null },
+    remoteAccess: { type: Object, default: null },
 });
 
 const activeTab = ref('general');
@@ -240,7 +241,7 @@ const removeLogo = async () => {
 </template>
 </PageHeader>
 
-            <LocalAccessCard v-if="localAccess" :urls="localAccess" />
+            <LocalAccessCard v-if="localAccess" :urls="localAccess" :remote="remoteAccess" />
 
             <!-- Settings Layout: Tabs + Content -->
             <div class="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-5 gap-6 items-start">

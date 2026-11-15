@@ -75,6 +75,30 @@ sudo bash -c "$(curl -fsSL https://github.com/turkialawlqy/Diwan-ERP/releases/la
 cd /opt/diwan/current && sudo -u diwan php artisan optimize && sudo systemctl restart diwan-web diwan-queue diwan-scheduler
 ```
 
+## الوصول من الإنترنت (بدون IP ثابت)
+
+افتراضيًا يعمل النظام على شبكة المكتب فقط. للوصول إليه من البيت أو من فرع آخر دون IP ثابت ودون فتح منافذ في الراوتر، افتح **الإعدادات ← الوصول من الإنترنت** (لمدير المنشأة فقط) واختر:
+
+| الطريقة | ماذا تعطيك | ماذا تحتاج |
+|---|---|---|
+| **Cloudflare Tunnel** | رابط `https://erp.شركتك.com` عام يعمل من أي مكان | نطاق (Domain) مضاف إلى حساب Cloudflare مجاني |
+| **Tailscale** | شبكة خاصة: يصل من ثبّت تطبيق Tailscale ودخل حسابك فقط، بلا رابط عام | حساب Tailscale وتثبيت التطبيق على كل جهاز |
+
+**Cloudflare Tunnel:** في لوحة Cloudflare Zero Trust ← Networks ← Tunnels ← Create a tunnel (Cloudflared)؛ أضف Public hostname (مثل `erp.example.com`) بنوع الخدمة HTTP والعنوان `localhost:8000`؛ انسخ **الرمز (Token)** من خطوة التثبيت، والصقه مع النطاق في صفحة الإعدادات، واضغط «تطبيق».
+
+**Tailscale:** من Settings ← Keys أنشئ **Auth key** (يُنصح بمفتاح لمرة واحدة) والصقه في صفحة الإعدادات. بعد التطبيق يظهر عنوان Tailscale للجهاز، وتفتح النظام عليه من أجهزتك المسجّلة.
+
+ما يحدث عند «تطبيق»: الصفحة لا تملك صلاحيات الجذر؛ تسلّم الطلب لمساعد الخادم (`deploy/linux/remote-access.sh`) عبر مجلد تراقبه خدمة systemd (`diwan-remote-access.path`)، فيثبّت `cloudflared` أو `tailscale`، ويضبط `.env` (في Cloudflare: `APP_URL` و`FORCE_HTTPS=true` و`SESSION_SECURE_COOKIE=true` و`TRUSTED_PROXIES=127.0.0.1`)، ويجعل الخدمة تستمع على `127.0.0.1` فقط خلف النفق، ثم يعيد تشغيل الخدمات ويحذف الملف الذي فيه الرمز. **الرمز/المفتاح لا يُحفظ في قاعدة البيانات ولا يعود للمتصفح.** للتراجع اختر «شبكة المكتب فقط».
+
+**قبل التفعيل:**
+- أكمل صفحة الإعداد الأول (إنشاء المنشأة والمدير) أولًا: قبلها يستطيع أي زائر للرابط العام إنشاءها.
+- فعّل **التحقق بخطوتين** للمستخدمين (الإعدادات العامة ← الأمان: إلزامه لأدوار محددة) فالرابط العام معرّض لتخمين كلمات المرور.
+- خذ نسخة احتياطية **خارج الجهاز** (`BACKUP_OFFSITE_DISK`)؛ الجهاز المكتبي ينقطع بانقطاع الكهرباء أو الإنترنت وقد يتعطل قرصه.
+- الخادم المدمج (`artisan serve` بأربعة عمال) يكفي مكتبًا صغيرًا؛ لعدد كبير من المستخدمين على الرابط العام اضبط nginx وphp-fpm بدلًا منه ([SERVER-SETUP.md](SERVER-SETUP.md)).
+- المساعد صُمّم واختُبر بسكربت تجريبي (dry-run) فقط؛ **لم يُجرَّب مع حساب Cloudflare أو Tailscale حقيقي** من طرفنا، فجرّبه أولًا على جهاز غير مهم. إن فشل التطبيق تظهر الرسالة في الصفحة، وتفاصيلها: `journalctl -u diwan-remote-access -n 50`.
+
+لتثبيت يستمع على الجهاز نفسه فقط من البداية: `DIWAN_BIND=127.0.0.1` مع أمر التثبيت.
+
 ## حل المشكلات
 
 | المشكلة | الحل |
@@ -82,6 +106,7 @@ cd /opt/diwan/current && sudo -u diwan php artisan optimize && sudo systemctl re
 | `This installer is for Ubuntu, Debian and Mint` | نظامك يستخدم مدير حزم آخر. استخدم [دليل الخادم](SERVER-SETUP.md) كمرجع للحزم المطلوبة. |
 | `Could not download Diwan` | تحقق من الإنترنت، ثم أعد لصق الأمر. إعادة التشغيل آمنة. |
 | أجهزة المكتب لا تفتح العنوان | تأكد أنها على نفس الراوتر. إن كان لديك جدار حماية غير `ufw`، اسمح بالمنفذ 8000. |
+| الوصول من الإنترنت لا يعمل | راجع حالة الطلب في **الإعدادات ← الوصول من الإنترنت**، ثم `journalctl -u diwan-remote-access -n 50` و`systemctl status cloudflared` أو `tailscale status`. |
 | النظام لا يفتح | `sudo systemctl restart diwan-web`، ثم راجع: `journalctl -u diwan-web -n 50`. |
 
 لأي مشكلة أخرى: صوّر الطرفية وافتح طلباً في [صفحة المشروع](https://github.com/turkialawlqy/Diwan-ERP/issues).

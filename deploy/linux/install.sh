@@ -14,6 +14,7 @@
 #
 # Options (environment variables): DIWAN_PORT=8000  DIWAN_DIR=/opt/diwan
 #   DIWAN_PACKAGE=path-or-url-of-the-zip   DIWAN_NO_SERVICES=1 (no services, for testing)
+#   DIWAN_BIND=0.0.0.0 (127.0.0.1 = only this computer, for use behind a tunnel)
 
 set -Eeuo pipefail
 
@@ -23,6 +24,7 @@ DIR=${DIWAN_DIR:-/opt/diwan}
 PORT=${DIWAN_PORT:-8000}
 APP_USER=diwan
 NO_SERVICES=${DIWAN_NO_SERVICES:-0}
+BIND=${DIWAN_BIND:-0.0.0.0}
 
 c_info=$'\e[36m'; c_ok=$'\e[32m'; c_warn=$'\e[33m'; c_err=$'\e[31m'; c_off=$'\e[0m'
 step() { echo; echo "${c_info}==> $*${c_off}"; }
@@ -174,7 +176,7 @@ ok "Database ready. Passwords saved in $DIR/secrets.txt"
 step "4/6 Starting Diwan automatically with the computer"
 if [[ $NO_SERVICES == 1 ]] || ! [[ -d /run/systemd/system ]]; then
     warn "No automatic services (systemd not found). To start Diwan by hand:"
-    echo "    cd $DIR/current && sudo -u $APP_USER env PHP_CLI_SERVER_WORKERS=4 php artisan serve --host=0.0.0.0 --port=$PORT --no-reload"
+    echo "    cd $DIR/current && sudo -u $APP_USER env PHP_CLI_SERVER_WORKERS=4 php artisan serve --host=$BIND --port=$PORT --no-reload"
 else
     unit() { # name, description, command
         cat > "/etc/systemd/system/$1.service" <<UNIT
@@ -194,7 +196,7 @@ RestartSec=3
 WantedBy=multi-user.target
 UNIT
     }
-    unit diwan-web "Diwan ERP web" "/usr/bin/php $DIR/current/artisan serve --host=0.0.0.0 --port=$PORT --no-reload"
+    unit diwan-web "Diwan ERP web" "/usr/bin/php $DIR/current/artisan serve --host=$BIND --port=$PORT --no-reload"
     unit diwan-queue "Diwan ERP queue" "/usr/bin/php $DIR/current/artisan queue:work database --queue=zatca,default,webhooks,exports --sleep=3 --tries=3 --max-time=3600"
     unit diwan-scheduler "Diwan ERP scheduler" "/usr/bin/php $DIR/current/artisan schedule:work"
     cat > /etc/systemd/system/diwan-update.service <<UNIT
@@ -223,7 +225,26 @@ Unit=diwan-update.service
 [Install]
 WantedBy=multi-user.target
 UNIT
+    # Internet access (Cloudflare Tunnel / Tailscale) is applied by a root helper when the dashboard asks (Settings -> Internet access).
+    mkdir -p "$DIR/shared/storage/app/remote-access-queue" && chown "$APP_USER:$APP_USER" "$DIR/shared/storage/app/remote-access-queue" 2> /dev/null || true
+    cat > /etc/systemd/system/diwan-remote-access.service <<UNIT
+[Unit]
+Description=Diwan ERP internet access
+[Service]
+Type=oneshot
+ExecStart=/bin/bash $DIR/current/deploy/linux/remote-access.sh
+UNIT
+    cat > /etc/systemd/system/diwan-remote-access.path <<UNIT
+[Unit]
+Description=Diwan ERP internet access requested from the dashboard
+[Path]
+PathExistsGlob=$DIR/shared/storage/app/remote-access-queue/*
+Unit=diwan-remote-access.service
+[Install]
+WantedBy=multi-user.target
+UNIT
     systemctl daemon-reload
+    systemctl enable --now diwan-remote-access.path > /dev/null 2>&1 || true
     systemctl enable --now diwan-update.path > /dev/null 2>&1 || true
     systemctl enable --now diwan-web diwan-queue diwan-scheduler diwan-update.timer > /dev/null 2>&1
     systemctl restart diwan-web diwan-queue diwan-scheduler
@@ -263,6 +284,7 @@ echo "  On this computer:            http://localhost:$PORT"
 echo "  First time: enter your company details and the manager account."
 echo "  Passwords:                   $DIR/secrets.txt (copy it somewhere safe)"
 echo "  Update by hand:              sudo bash $DIR/current/deploy/linux/update.sh"
+echo "  From the internet:           Settings -> Internet access (Cloudflare Tunnel or Tailscale)"
 echo "${c_ok}══════════════════════════════════════════════════════${c_off}"
 command -v xdg-open > /dev/null && [[ -n ${SUDO_USER:-} ]] && [[ $NO_SERVICES != 1 ]] && sudo -u "$SUDO_USER" xdg-open "http://localhost:$PORT" > /dev/null 2>&1 &
 exit 0

@@ -47,6 +47,28 @@ UNIT
     systemctl daemon-reload && systemctl enable --now diwan-update.path > /dev/null 2>&1 || true
 fi
 
+# Installs made before "Internet access" get its units too (the helper script ships with every release).
+if [[ -d /run/systemd/system && ! -f /etc/systemd/system/diwan-remote-access.path ]]; then
+    mkdir -p "$DIR/shared/storage/app/remote-access-queue" && chown "$APP_USER:$APP_USER" "$DIR/shared/storage/app/remote-access-queue"
+    cat > /etc/systemd/system/diwan-remote-access.service <<UNIT
+[Unit]
+Description=Diwan ERP internet access
+[Service]
+Type=oneshot
+ExecStart=/bin/bash $DIR/current/deploy/linux/remote-access.sh
+UNIT
+    cat > /etc/systemd/system/diwan-remote-access.path <<UNIT
+[Unit]
+Description=Diwan ERP internet access requested from the dashboard
+[Path]
+PathExistsGlob=$DIR/shared/storage/app/remote-access-queue/*
+Unit=diwan-remote-access.service
+[Install]
+WantedBy=multi-user.target
+UNIT
+    systemctl daemon-reload && systemctl enable --now diwan-remote-access.path > /dev/null 2>&1 || true
+fi
+
 # Queue workers set up by earlier installers served only the "default" queue: tax-authority
 # submissions (zatca), webhooks and data exports waited in the jobs table for good.
 QUEUE_ARG=--queue=zatca,default,webhooks,exports

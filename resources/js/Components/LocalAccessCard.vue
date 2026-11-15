@@ -1,13 +1,14 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
+import { Link } from '@inertiajs/vue3';
 import { ComputerDesktopIcon, DevicePhoneMobileIcon } from '@heroicons/vue/24/outline';
 
 /**
  * Local install: how the office's other computers and phones reach the
  * system (same network), with a QR code for phones.
  */
-const props = defineProps({ urls: { type: Array, default: () => [] } });
+const props = defineProps({ urls: { type: Array, default: () => [] }, remote: { type: Object, default: null } });
 const qr = ref('');
 
 onMounted(async () => {
@@ -25,6 +26,10 @@ onMounted(async () => {
                 <p class="text-xs text-slate-500">{{ $t('cmp.this_device_must_stay_on_if_the') }}</p>
             </template>
             <p v-else class="text-sm text-slate-600">{{ $t('cmp.this_device_is_not_on_a_local_ne') }}</p>
+            <template v-if="remote">
+                <p v-if="remote.url" class="text-sm text-slate-600">{{ $t('remote.from_internet') }}: <span class="font-mono font-black text-emerald-700" dir="ltr">{{ remote.url }}</span></p>
+                <Link :href="route('settings.remote-access')" class="text-xs font-bold text-indigo-600 underline" data-remote-link>{{ $t('remote.title') }}</Link>
+            </template>
         </div>
         <div v-if="qr" class="text-center">
             <img :src="qr" alt="QR" class="w-36 h-36 rounded-xl border border-slate-100" />

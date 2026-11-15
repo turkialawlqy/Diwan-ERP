@@ -390,6 +390,10 @@ return [
         'context.branch' => '@authenticated',
         'system.update.status' => '@authenticated',
         'system.update.apply' => '@authenticated',
+        // Owner-only (checked in the controller): it changes how the whole system is exposed.
+        'settings.remote-access' => '@authenticated',
+        'settings.remote-access.status' => '@authenticated',
+        'settings.remote-access.apply' => '@authenticated',
         'context.fiscal-year' => '@authenticated',
         'files.show' => '@authenticated',
         'attachments.index' => 'admin.attachments.view',

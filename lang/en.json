@@ -768,5 +768,11 @@
     "إذن الاستلام لم يعد قابلًا للفوترة.": "The goods receipt can no longer be invoiced.",
     "أحد البنود لا يخص هذه المسودة.": "One of the lines does not belong to this draft.",
     "لا تُحذف إلا المسودة التي بانتظار الفوترة.": "Only a draft awaiting invoicing can be deleted.",
-    "حُذفت المسودة وخرجت الكميات من المستودع": "Draft deleted and the quantities left the warehouse"
+    "حُذفت المسودة وخرجت الكميات من المستودع": "Draft deleted and the quantities left the warehouse",
+    "اختر طريقة الوصول.": "Choose how to connect.",
+    "اكتب اسم النطاق كما ضبطته في Cloudflare، مثل erp.example.com.": "Enter the domain as you set it in Cloudflare, e.g. erp.example.com.",
+    "رمز النفق غير صالح: انسخه كاملًا من لوحة Cloudflare (Zero Trust ← Networks ← Tunnels).": "The tunnel token is not valid: copy it in full from the Cloudflare dashboard (Zero Trust → Networks → Tunnels).",
+    "مفتاح Tailscale غير صالح: يبدأ بـ tskey- ويُنشأ من Settings ← Keys في لوحة Tailscale.": "The Tailscale key is not valid: it starts with tskey- and is created under Settings → Keys in the Tailscale dashboard.",
+    "هناك تطبيق جارٍ بالفعل، انتظر حتى ينتهي.": "A change is already being applied, wait until it finishes.",
+    "أُرسل الطلب إلى الخادم؛ يستغرق التطبيق دقيقة أو دقيقتين.": "The request was sent to the server; applying takes a minute or two."
 }
