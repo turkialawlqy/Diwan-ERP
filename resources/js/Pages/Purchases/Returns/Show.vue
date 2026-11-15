@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Head, Link } from '@inertiajs/vue3';
@@ -41,5 +42,6 @@ const printPage = () => window.print();
             </table>
             <p v-if="purchaseReturn.reason" class="p-3 text-xs text-slate-500">{{ $t('s_sub.reason') }}: {{ purchaseReturn.reason }}</p>
         </div>
+        <AttachmentsPanel kind="purchase-return" :id="purchaseReturn.id" class="mt-4 print:hidden" />
     </AppLayout>
 </template>

@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\Invoice;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
+use App\Services\AttachmentService;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\SalesCycleService;
 use App\Services\Tax\TaxProfile;
@@ -130,6 +131,7 @@ class CreditNoteController extends Controller
 
             $creditNote = app(SalesCycleService::class)->returnInvoice($invoice, $validated, $validated['items']);
             app(InvoiceService::class)->stampCreditNote($creditNote);
+            app(AttachmentService::class)->claim($request, $creditNote, 'credit-note');
 
             return redirect()->route('sales.returns.show', $creditNote->id)
                 ->with('success', 'تم إصدار مرتجع المبيعات وإعادة الأصناف للمخزون');
@@ -220,6 +222,8 @@ class CreditNoteController extends Controller
 
             return $creditNote;
         });
+
+        app(AttachmentService::class)->claim($request, $creditNote, 'credit-note');
 
         return redirect()->route('sales.returns.show', $creditNote->id)
             ->with('success', 'تم إصدار الإشعار الدائن / المرتجع بنجاح');

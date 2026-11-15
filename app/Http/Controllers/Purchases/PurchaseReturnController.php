@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseReturn;
+use App\Services\AttachmentService;
 use App\Services\Purchases\PurchaseCycleService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -61,6 +62,8 @@ class PurchaseReturnController extends Controller
         ]);
 
         $return = $this->cycle->returnInvoice(PurchaseInvoice::findOrFail($validated['purchase_invoice_id']), $validated, $validated['items']);
+
+        app(AttachmentService::class)->claim($request, $return, 'purchase-return');
 
         return redirect()->route('purchases.returns.show', $return->id)->with('success', "تم تسجيل مرتجع المشتريات {$return->return_number}");
     }

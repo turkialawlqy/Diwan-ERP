@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Services\Accounting\ChequeService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
+use App\Services\AttachmentService;
 use App\Services\Saas\WebhookDispatcher;
 use App\Services\Sales\SalesCycleService;
 use Illuminate\Http\Request;
@@ -94,7 +95,7 @@ class CustomerPaymentController extends Controller
         [$validated['currency_code'], $validated['exchange_rate']] = app(ExchangeRates::class)
             ->resolve($validated['currency_code'] ?? null, $validated['exchange_rate'] ?? null, $validated['payment_date']);
 
-        DB::transaction(function () use ($validated) {
+        DB::transaction(function () use ($validated, $request) {
             $payment = CustomerPayment::create(array_merge(
                 collect($validated)->except(['allocations', 'auto_allocate'])->all(),
                 ['payment_number' => $this->nextNumber('customer_payment', $validated['payment_date'])],
@@ -128,6 +129,7 @@ class CustomerPaymentController extends Controller
             Customer::where('id', $validated['customer_id'])->decrement('current_balance', ExchangeRates::toBase((float) $validated['amount'], $payment->exchange_rate));
 
             app(DocumentPoster::class)->customerPayment($payment);
+            app(AttachmentService::class)->claim($request, $payment, 'customer-payment');
             if ($payment->payment_method === 'cheque') {
                 app(ChequeService::class)->track([
                     'direction' => 'incoming', 'cheque_number' => $payment->reference_number ?: $payment->payment_number, 'bank_account_id' => $payment->bank_account_id,

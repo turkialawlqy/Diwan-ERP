@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
@@ -26,6 +27,7 @@ const form = useForm({
     allocations: [],
     payment_request_id: '',
     bank_account_id: '',
+    attachment_ids: [],
 });
 // Carrying out an approved payment request: its data fills the voucher and the request is tied to it.
 if (props.prefill) {
@@ -195,6 +197,8 @@ const submitPayment = () => form.transform((d) => {
                                 />
                             </div>
             
+                            <AttachmentsPanel kind="supplier-payment" v-model="form.attachment_ids" />
+
                             <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                                 <Link :href="route('purchases.payments.index')" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium">{{ $t('p_payments_form.cancel') }}</Link>
                                 <button 

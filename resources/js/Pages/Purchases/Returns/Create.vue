@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
@@ -18,6 +19,7 @@ const form = useForm({
     reason: '',
     settlement: 'credit',
     bank_account_id: '',
+    attachment_ids: [],
     items: (props.invoice?.items ?? []).map((i) => ({ purchase_invoice_item_id: i.id, name: i.item_name, returnable: i.returnable_quantity, unit_net: Number(i.quantity) ? (Number(i.quantity) * Number(i.unit_price) - Number(i.discount)) / Number(i.quantity) : 0, tax_rate: Number(i.tax_rate), quantity: 0 })),
 });
 useUnsavedGuard(form);
@@ -56,6 +58,7 @@ const save = () => form.transform((d) => ({ ...d, items: d.items.filter((i) => N
                     </tr>
                 </tbody>
             </table></div>
+            <AttachmentsPanel kind="purchase-return" v-model="form.attachment_ids" />
             <p v-for="(msg, key) in form.errors" :key="key" class="text-xs text-rose-600">{{ msg }}</p>
             <div class="flex justify-between items-center">
                 <span class="text-xs">{{ $t('p_returns_create.total_returned_including_tax') }} <b class="font-mono">{{ money(total) }}</b></span>

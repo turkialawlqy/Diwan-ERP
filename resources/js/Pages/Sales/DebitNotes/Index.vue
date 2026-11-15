@@ -1,4 +1,6 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
+import AttachmentsButton from '@/Components/Documents/AttachmentsButton.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import { taxRate } from '@/utils/tax';
 import ShareDocument from '@/Components/Documents/ShareDocument.vue';
@@ -23,7 +25,7 @@ const columns = [
     { key: 'total', label: 'الإجمالي', type: 'money' },
 ];
 const open = ref(false);
-const form = useForm({ customer_id: null, invoice_id: '', debit_note_date: today(), reason: '', subtotal: 0, tax_rate: taxRate() });
+const form = useForm({ customer_id: null, invoice_id: '', debit_note_date: today(), reason: '', subtotal: 0, tax_rate: taxRate(), attachment_ids: [] });
 const save = () => form.post(route('sales.debit-notes.store'), { onSuccess: () => { open.value = false; form.reset(); } });
 </script>
 
@@ -34,7 +36,7 @@ const save = () => form.post(route('sales.debit-notes.store'), { onSuccess: () =
             <template #actions><button v-if="$can('sales.debit_notes.create')" @click="open = true" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> {{ $t('s_debit.debit_note') }}</button></template>
         </PageHeader>
         <DocumentTable :paginator="notes" :columns="columns" :filters="filters" search-route="sales.debit-notes.index">
-            <template #actions="{ row }"><ShareDocument v-if="$can('sales.debit_notes.print')" type="debit_note" :id="row.id" compact /></template>
+            <template #actions="{ row }"><AttachmentsButton kind="debit-note" :id="row.id" /><ShareDocument v-if="$can('sales.debit_notes.print')" type="debit_note" :id="row.id" compact /></template>
         </DocumentTable>
         <Dialog :show="open" :title="$t('s_debit.debit_note')" @close="open = false">
             <div class="grid grid-cols-2 gap-3">
@@ -45,6 +47,7 @@ const save = () => form.post(route('sales.debit-notes.store'), { onSuccess: () =
                 <Field :label="$t('s_debit.tax_rate')"><input v-model.number="form.tax_rate" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
                 <Field :label="$t('s_debit.reason')" :error="form.errors.reason" class="col-span-2"><input v-model="form.reason" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
             </div>
+            <AttachmentsPanel v-if="open" kind="debit-note" v-model="form.attachment_ids" class="mt-3" />
             <p class="text-xs mt-3">{{ $t('s_debit.total') }} <b class="font-mono">{{ money(Number(form.subtotal) * (1 + Number(form.tax_rate) / 100)) }}</b></p>
             <template #footer><button @click="save" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('ui.save') }}</button></template>
         </Dialog>

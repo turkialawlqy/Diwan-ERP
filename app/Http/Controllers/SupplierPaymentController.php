@@ -9,6 +9,7 @@ use App\Models\SupplierPayment;
 use App\Services\Accounting\ChequeService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
+use App\Services\AttachmentService;
 use App\Services\Finance\PaymentRequestService;
 use App\Services\Purchases\SupplierPaymentAllocator;
 use App\Services\Tax\WithholdingTax;
@@ -145,7 +146,7 @@ class SupplierPaymentController extends Controller
             abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
         }
 
-        DB::transaction(function () use ($validated, $companyId, $allocations, $autoAllocate, $whtRate, $whtAmount, $whtCategory, $requests, $requestId) {
+        DB::transaction(function () use ($validated, $companyId, $allocations, $autoAllocate, $whtRate, $whtAmount, $whtCategory, $requests, $requestId, $request) {
             $paymentNumber = $this->nextNumber('supplier_payment', $validated['payment_date']);
 
             $payment = SupplierPayment::create([
@@ -208,6 +209,7 @@ class SupplierPaymentController extends Controller
             }
 
             app(DocumentPoster::class)->supplierPayment($payment);
+            app(AttachmentService::class)->claim($request, $payment, 'supplier-payment');
             if ($paid = $requests->covering($requestId, 'supplier_payment', (float) $validated['amount'], (int) $validated['supplier_id'])) {
                 $requests->markPaid($paid, $payment);
             }

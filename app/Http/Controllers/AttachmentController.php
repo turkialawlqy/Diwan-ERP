@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attachment;
+use App\Models\CreditNote;
+use App\Models\CustomerPayment;
+use App\Models\DebitNote;
 use App\Models\EquipmentPreparation;
 use App\Models\Expense;
 use App\Models\Invoice;
@@ -10,9 +13,11 @@ use App\Models\JournalEntry;
 use App\Models\PaymentRequest;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseReturn;
 use App\Models\Quotation;
 use App\Models\Revenue;
 use App\Models\SalesOrder;
+use App\Models\SupplierPayment;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -36,6 +41,11 @@ class AttachmentController extends Controller
         'purchase-order' => [PurchaseOrder::class, 'purchases.orders.view'],
         'payment-request' => [PaymentRequest::class, 'finance.payment_requests.view'],
         'equipment-preparation' => [EquipmentPreparation::class, 'equipment.preparations.view'],
+        'credit-note' => [CreditNote::class, 'sales.returns.view'],
+        'debit-note' => [DebitNote::class, 'sales.debit_notes.view'],
+        'customer-payment' => [CustomerPayment::class, 'sales.payments.view'],
+        'supplier-payment' => [SupplierPayment::class, 'purchases.payments.view'],
+        'purchase-return' => [PurchaseReturn::class, 'purchases.returns.view'],
     ];
 
     /** kind => permission that lets a user attach files while still writing such a document. */
@@ -50,6 +60,11 @@ class AttachmentController extends Controller
         'purchase-order' => 'purchases.orders.create',
         'payment-request' => 'finance.payment_requests.create',
         'equipment-preparation' => 'equipment.preparations.create',
+        'credit-note' => 'sales.returns.create',
+        'debit-note' => 'sales.debit_notes.create',
+        'customer-payment' => 'sales.payments.create',
+        'supplier-payment' => 'purchases.payments.create',
+        'purchase-return' => 'purchases.returns.create',
     ];
 
     public const MAX_KB = 10240;

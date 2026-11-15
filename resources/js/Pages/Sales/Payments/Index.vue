@@ -1,4 +1,6 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
+import AttachmentsButton from '@/Components/Documents/AttachmentsButton.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -33,7 +35,7 @@ const showForm = ref(false);
 const openInvoices = ref([]);
 const form = useForm({
     customer_id: null, invoice_id: '', amount: '', payment_date: today(),
-    payment_method: 'bank_transfer', bank_account_id: '', reference_number: '', cheque_due_date: '', notes: '', currency_code: '', exchange_rate: '', auto_allocate: true,
+    payment_method: 'bank_transfer', bank_account_id: '', reference_number: '', cheque_due_date: '', notes: '', currency_code: '', exchange_rate: '', auto_allocate: true, attachment_ids: [],
 });
 const loadInvoices = async (customerId) => {
     form.invoice_id = '';
@@ -129,7 +131,7 @@ const formatCurrency = (val) => {
                                     {{ p.payment_method === 'cash' ? $t('s_payments.cash') : p.payment_method === 'card' ? $t('s_payments.card_mada') : $t('s_payments.bank_transfer') }}
                                 </td>
                                 <td class="py-4 px-6 text-slate-500">{{ p.payment_date }}</td>
-                                <td class="py-4 px-6"><div class="flex items-center gap-3"><ShareDocument v-if="$can('sales.payments.print') && p.status !== 'cancelled'" type="receipt" :id="p.id" compact /><CancelDocument v-if="$can('sales.payments.cancel') || p.status === 'cancelled'" :url="route('sales.payments.cancel', p.id)" :label="$t('s_payments.receipt_voucher')" :status="p.status" /></div></td>
+                                <td class="py-4 px-6"><div class="flex items-center gap-3"><AttachmentsButton kind="customer-payment" :id="p.id" /><ShareDocument v-if="$can('sales.payments.print') && p.status !== 'cancelled'" type="receipt" :id="p.id" compact /><CancelDocument v-if="$can('sales.payments.cancel') || p.status === 'cancelled'" :url="route('sales.payments.cancel', p.id)" :label="$t('s_payments.receipt_voucher')" :status="p.status" /></div></td>
                             </tr>
                             <tr v-if="!payments.data || payments.data.length === 0">
                                 <td colspan="6" class="py-12 text-center text-slate-400">
@@ -190,6 +192,7 @@ const formatCurrency = (val) => {
                 <Field v-if="form.payment_method === 'cheque'" :label="$t('s_payments.cheque_due_date_leave_empty_if_p')" :error="form.errors.cheque_due_date"><DatePicker v-model="form.cheque_due_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field :label="$t('s_payments.notes')"><input v-model="form.notes" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <p v-if="form.errors.allocations" class="text-rose-600">{{ form.errors.allocations }}</p>
+                <AttachmentsPanel v-if="showForm" kind="customer-payment" v-model="form.attachment_ids" />
             </div>
             <template #footer>
                 <button type="button" @click="showForm = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('s_payments.cancel') }}</button>

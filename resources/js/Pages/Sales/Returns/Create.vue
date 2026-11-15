@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
@@ -39,6 +40,7 @@ const form = useForm({
     reason: '',
     status: 'approved',
     refund_method: 'credit',
+    attachment_ids: [],
     // Item level return (goods back to stock) when the invoice is known.
     items: (props.selectedInvoice?.items || []).map((i) => ({
         invoice_item_id: i.id, name: i.item_name, returnable: Number(i.returnable_quantity ?? i.quantity),
@@ -326,6 +328,8 @@ const submit = () => {
                         </div>
                     </div>
                 </div>
+
+                <AttachmentsPanel kind="credit-note" v-model="form.attachment_ids" />
 
                 <!-- Submit Action Buttons -->
                 <div class="flex justify-end gap-3 pt-2">
