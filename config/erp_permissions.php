@@ -79,6 +79,7 @@ return [
                 'warehouses' => ['ar' => 'المستودعات', 'en' => 'Warehouses', 'actions' => ['view', 'create', 'edit', 'delete']],
                 'operations' => ['ar' => 'التحويلات والتسويات', 'en' => 'Transfers & Adjustments', 'actions' => ['view', 'create', 'approve']],
                 'counts' => ['ar' => 'الجرد', 'en' => 'Stock Counts', 'actions' => ['view', 'create', 'approve']],
+                'stock_in' => ['ar' => 'إدخال مواد للمستودع', 'en' => 'Stock-in Requests', 'actions' => ['view', 'create']],
                 'transfers' => ['ar' => 'التحويلات المخزنية', 'en' => 'Stock Transfers', 'actions' => ['view', 'create', 'approve']],
                 'assembly' => ['ar' => 'التجميع وقوائم المواد', 'en' => 'Assembly & BOM', 'actions' => ['view', 'create']],
                 'reports' => ['ar' => 'تقارير المستودعات', 'en' => 'Inventory Reports', 'actions' => ['view', 'export']],
@@ -92,6 +93,7 @@ return [
                 'requests' => ['ar' => 'طلبات الشراء', 'en' => 'Purchase Requests', 'actions' => ['view', 'create', 'approve', 'convert']],
                 'orders' => ['ar' => 'أوامر الشراء', 'en' => 'Purchase Orders', 'actions' => ['view', 'create', 'edit', 'approve', 'cancel', 'convert', 'print']],
                 'receipts' => ['ar' => 'استلام البضاعة', 'en' => 'Goods Receipts', 'actions' => ['view', 'create', 'cancel', 'print']],
+                'drafts' => ['ar' => 'مسودات الفواتير من المستودع', 'en' => 'Purchase Drafts from Stock-in', 'actions' => ['view', 'complete', 'delete']],
                 'landed_costs' => ['ar' => 'التكاليف الإضافية للمشتريات', 'en' => 'Landed Costs', 'actions' => ['view', 'create']],
                 'invoices' => ['ar' => 'فواتير المشتريات', 'en' => 'Purchase Invoices', 'actions' => ['view', 'create', 'edit', 'delete', 'post', 'print', 'export']],
                 'returns' => ['ar' => 'مرتجعات المشتريات', 'en' => 'Purchase Returns', 'actions' => ['view', 'create', 'print']],
@@ -330,7 +332,7 @@ return [
         'admin' => ['ar' => 'مدير المنشأة', 'en' => 'Owner / Administrator', 'permissions' => '*'],
         'accountant' => [
             'ar' => 'محاسب', 'en' => 'Accountant',
-            'permissions' => ['dashboard.*', 'accounting.*', 'finance.*', 'reports.*', 'projects.projects.view', 'projects.billings.*', 'projects.finance.*', 'projects.subcontracts.*', 'projects.costs.view', 'projects.guarantees.*', 'sales.invoices.view', 'sales.invoices.print', 'sales.clients.view', 'sales.payments.*', 'sales.returns.view', 'sales.debit_notes.*', 'sales.deliveries.view', 'admin.zatca.view', 'admin.zatca.export', 'purchases.invoices.view', 'purchases.landed_costs.*', 'purchases.receipts.view', 'purchases.returns.view', 'purchases.suppliers.view', 'purchases.payments.*', 'hr.payroll.view', 'hr.payroll.post', 'hr.payroll.export', 'hr.settlements.view', 'hr.loans.view', 'inventory.costs.view', 'inventory.products.view', 'equipment.assets.view', 'equipment.rentals.view', 'equipment.rentals.bill', 'equipment.reports.*'],
+            'permissions' => ['dashboard.*', 'accounting.*', 'finance.*', 'reports.*', 'projects.projects.view', 'projects.billings.*', 'projects.finance.*', 'projects.subcontracts.*', 'projects.costs.view', 'projects.guarantees.*', 'sales.invoices.view', 'sales.invoices.print', 'sales.clients.view', 'sales.payments.*', 'sales.returns.view', 'sales.debit_notes.*', 'sales.deliveries.view', 'admin.zatca.view', 'admin.zatca.export', 'purchases.invoices.view', 'purchases.drafts.*', 'purchases.landed_costs.*', 'purchases.receipts.view', 'purchases.returns.view', 'purchases.suppliers.view', 'purchases.payments.*', 'hr.payroll.view', 'hr.payroll.post', 'hr.payroll.export', 'hr.settlements.view', 'hr.loans.view', 'inventory.costs.view', 'inventory.products.view', 'equipment.assets.view', 'equipment.rentals.view', 'equipment.rentals.bill', 'equipment.reports.*'],
         ],
         'sales' => [
             'ar' => 'مندوب مبيعات', 'en' => 'Sales',
@@ -342,12 +344,12 @@ return [
         ],
         'warehouse_keeper' => [
             'ar' => 'أمين مستودع', 'en' => 'Warehouse Keeper',
-            'permissions' => ['dashboard.*', 'inventory.products.view', 'inventory.products.create', 'inventory.products.edit', 'inventory.categories.*', 'inventory.warehouses.view', 'inventory.operations.view', 'inventory.operations.create', 'inventory.counts.view', 'inventory.counts.create', 'inventory.transfers.*', 'inventory.assembly.*', 'inventory.reports.*', 'reports.inventory.view', 'sales.deliveries.*', 'sales.orders.view', 'purchases.receipts.*', 'purchases.orders.view', 'purchases.requests.view', 'purchases.requests.create',
+            'permissions' => ['dashboard.*', 'inventory.products.view', 'inventory.products.create', 'inventory.products.edit', 'inventory.categories.*', 'inventory.warehouses.view', 'inventory.operations.view', 'inventory.operations.create', 'inventory.counts.view', 'inventory.counts.create', 'inventory.stock_in.*', 'inventory.transfers.*', 'inventory.assembly.*', 'inventory.reports.*', 'reports.inventory.view', 'sales.deliveries.*', 'sales.orders.view', 'purchases.receipts.*', 'purchases.orders.view', 'purchases.requests.view', 'purchases.requests.create',
                 'equipment.assets.view', 'equipment.maintenance.view', 'equipment.maintenance.issue'],
         ],
         'purchasing' => [
             'ar' => 'مسؤول مشتريات', 'en' => 'Purchasing',
-            'permissions' => ['dashboard.*', 'purchases.suppliers.*', 'purchases.orders.*', 'purchases.requests.*', 'purchases.receipts.*', 'purchases.landed_costs.*', 'purchases.invoices.view', 'purchases.invoices.create', 'purchases.invoices.print', 'purchases.returns.*', 'inventory.products.view', 'inventory.costs.view'],
+            'permissions' => ['dashboard.*', 'purchases.suppliers.*', 'purchases.orders.*', 'purchases.requests.*', 'purchases.receipts.*', 'purchases.drafts.*', 'purchases.landed_costs.*', 'purchases.invoices.view', 'purchases.invoices.create', 'purchases.invoices.print', 'purchases.returns.*', 'inventory.products.view', 'inventory.costs.view'],
         ],
         'project_manager' => [
             'ar' => 'مدير مشاريع', 'en' => 'Project Manager',
@@ -843,6 +845,13 @@ return [
         'inventory.categories.update' => 'inventory.categories.edit',
         'inventory.categories.destroy' => 'inventory.categories.delete',
         'inventory.counts.index' => 'inventory.counts.view',
+        'inventory.stock-in.index' => 'inventory.stock_in.view',
+        'inventory.stock-in.create' => 'inventory.stock_in.create',
+        'inventory.stock-in.store' => 'inventory.stock_in.create',
+        'purchases.drafts.index' => 'purchases.drafts.view',
+        'purchases.drafts.complete-form' => 'purchases.drafts.complete',
+        'purchases.drafts.complete' => 'purchases.drafts.complete',
+        'purchases.drafts.destroy' => 'purchases.drafts.delete',
         'inventory.counts.store' => 'inventory.counts.create',
         'inventory.counts.show' => 'inventory.counts.view',
         'inventory.counts.update' => 'inventory.counts.create',

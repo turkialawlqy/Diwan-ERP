@@ -492,5 +492,7 @@
  "الخطة": "Plan",
  "كشف حساب مجمع": "Consolidated statement",
  "تحضير معدة": "Prepare equipment",
- "تحضير المعدات": "Equipment preparation"
+ "تحضير المعدات": "Equipment preparation",
+ "إدخال مواد للمستودع": "Stock-in to the warehouse",
+ "مسودات فواتير المشتريات": "Purchase invoice drafts"
 }

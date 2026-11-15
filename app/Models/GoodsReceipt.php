@@ -8,6 +8,7 @@ use App\Traits\BranchScoped;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class GoodsReceipt extends Model
 {
@@ -30,6 +31,11 @@ class GoodsReceipt extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    public function draft(): HasOne
+    {
+        return $this->hasOne(PurchaseDraft::class);
     }
 
     public function purchaseOrder(): BelongsTo

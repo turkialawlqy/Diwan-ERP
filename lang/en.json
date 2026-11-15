@@ -761,5 +761,12 @@
     "يُفعَّل العقد المعتمد فقط.": "Only an approved contract is activated.",
     "تم تحديث التحضير": "Preparation updated",
     "تم حذف التحضير": "Preparation deleted",
-    "هذه المعدة محضَّرة في هذا اليوم؛ عدّل تحضيرها بدل إضافة آخر.": "This equipment is already prepared on this day; edit its preparation instead of adding another."
+    "هذه المعدة محضَّرة في هذا اليوم؛ عدّل تحضيرها بدل إضافة آخر.": "This equipment is already prepared on this day; edit its preparation instead of adding another.",
+    "مواد دخلت المستودع بانتظار الفاتورة": "Items entered the warehouse, invoice pending",
+    "المسودة فُوترت مسبقًا.": "The draft was already invoiced.",
+    "المسودة أُلغيت.": "The draft was cancelled.",
+    "إذن الاستلام لم يعد قابلًا للفوترة.": "The goods receipt can no longer be invoiced.",
+    "أحد البنود لا يخص هذه المسودة.": "One of the lines does not belong to this draft.",
+    "لا تُحذف إلا المسودة التي بانتظار الفوترة.": "Only a draft awaiting invoicing can be deleted.",
+    "حُذفت المسودة وخرجت الكميات من المستودع": "Draft deleted and the quantities left the warehouse"
 }

@@ -16,7 +16,7 @@ const printPage = () => window.print();
         <PageHeader :title="`استلام بضاعة ${receipt.receipt_number}`" :crumbs="[{ label: 'المشتريات' }, { label: 'الاستلامات', href: route('purchases.receipts.index') }, { label: receipt.receipt_number }]">
             <template #actions>
                 <StatusBadge :status="receipt.status" />
-                <Link v-if="receipt.status === 'received' && $can('purchases.invoices.create')" :href="route('purchases.invoices.from-receipts', { supplier_id: receipt.supplier_id })" class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('p_receipts_show.supplier_invoice') }}</Link>
+                <Link v-if="receipt.status === 'received' && receipt.supplier_id && $can('purchases.invoices.create')" :href="route('purchases.invoices.from-receipts', { supplier_id: receipt.supplier_id })" class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('p_receipts_show.supplier_invoice') }}</Link>
                 <button @click="printPage" class="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('p_receipts_show.print') }}</button>
                 <CancelDocument v-if="receipt.status === 'received' && $can('purchases.receipts.cancel')" :url="route('purchases.receipts.cancel', receipt.id)" :label="$t('p_receipts_show.goods_receipt_note')" />
                 <p v-if="receipt.cancel_reason" class="text-3xs text-rose-600">{{ $t('p_receipts_show.cancel_reason') }}: {{ receipt.cancel_reason }}</p>

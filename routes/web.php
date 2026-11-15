@@ -72,6 +72,7 @@ use App\Http\Controllers\PosRegisterController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Projects as PR;
+use App\Http\Controllers\PurchaseDraftController;
 use App\Http\Controllers\PurchaseInvoiceController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\Purchases as P;
@@ -96,6 +97,7 @@ use App\Http\Controllers\SectorPackController;
 use App\Http\Controllers\SelfUpdateController;
 use App\Http\Controllers\SidebarPreferenceController;
 use App\Http\Controllers\StockCountController;
+use App\Http\Controllers\StockInController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SuperAdmin\ImpersonationController;
 use App\Http\Controllers\SuperAdmin\PlatformController;
@@ -490,6 +492,9 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/warehouses', [WarehouseController::class, 'store'])->name('warehouses.store');
         Route::put('/warehouses/{warehouse}', [WarehouseController::class, 'update'])->name('warehouses.update');
         Route::delete('/warehouses/{warehouse}', [WarehouseController::class, 'destroy'])->name('warehouses.destroy');
+        Route::get('/stock-in', [StockInController::class, 'index'])->name('stock-in.index');
+        Route::get('/stock-in/create', [StockInController::class, 'create'])->name('stock-in.create');
+        Route::post('/stock-in', [StockInController::class, 'store'])->name('stock-in.store');
         Route::get('/counts', [StockCountController::class, 'index'])->name('counts.index');
         Route::post('/counts', [StockCountController::class, 'store'])->name('counts.store');
         Route::get('/counts/{count}', [StockCountController::class, 'show'])->name('counts.show');
@@ -512,6 +517,10 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         // Purchase Invoices
         Route::get('/invoices', [PurchaseInvoiceController::class, 'index'])->name('invoices.index');
         Route::get('/invoices/create', [PurchaseInvoiceController::class, 'create'])->name('invoices.create');
+        Route::get('/drafts', [PurchaseDraftController::class, 'index'])->name('drafts.index');
+        Route::get('/drafts/{draft}/complete', [PurchaseDraftController::class, 'completeForm'])->name('drafts.complete-form');
+        Route::post('/drafts/{draft}/complete', [PurchaseDraftController::class, 'complete'])->name('drafts.complete');
+        Route::delete('/drafts/{draft}', [PurchaseDraftController::class, 'destroy'])->name('drafts.destroy');
         Route::get('/invoices/from-receipts', [PurchaseInvoiceController::class, 'fromReceipts'])->name('invoices.from-receipts');
         Route::post('/invoices/from-receipts', [PurchaseInvoiceController::class, 'storeFromReceipts'])->name('invoices.store-from-receipts');
         Route::post('/invoices', [PurchaseInvoiceController::class, 'store'])->name('invoices.store');

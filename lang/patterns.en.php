@@ -111,4 +111,7 @@ return [
     'يجب تحديد {} رقم تسلسلي للصنف «{}».' => '{} serial numbers must be specified for item “{}”.',
     'يوجد قيود مسودة داخل السنة المالية في: {}. يجب ترحيلها أو حذفها قبل الإقفال.' => 'There are draft entries inside the fiscal year in: {}. Post or delete them before closing.',
     'تم تسجيل تحضير المعدة {}' => 'Equipment preparation {} recorded',
+    'دخلت المواد المستودع وفُتحت المسودة {} بانتظار فاتورة المورد' => 'The items entered the warehouse and draft {} is open awaiting the supplier invoice',
+    'تمت فوترة المسودة {}: فاتورة المورد {}' => 'Draft {} invoiced: supplier invoice {}',
+    'الصنف «{}» ليس صنفًا مخزنيًا فلا يدخل المستودع.' => 'Item “{}” is not a stock item, so it cannot enter the warehouse.',
 ];

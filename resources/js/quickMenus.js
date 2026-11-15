@@ -56,6 +56,7 @@ export const addMenu = [
         { label: 'صنف', route: 'inventory.products.create', icon: CubeIcon },
         { label: 'مستودع', route: 'inventory.warehouses.create', icon: BuildingStorefrontIcon },
         { label: 'تحويل مخزني', route: 'inventory.operations.transfer.create', icon: ArchiveBoxIcon },
+        { label: 'إدخال مواد للمستودع', route: 'inventory.stock-in.create', icon: ArchiveBoxIcon },
     ] },
     { label: 'التصنيع والمشاريع', items: [
         { label: 'أمر إنتاج', route: 'manufacturing.orders.create', icon: Cog6ToothIcon },
@@ -72,6 +73,7 @@ export const viewMenu = [
     { label: 'طلبات المميزات', route: 'feature-requests.index', icon: LightBulbIcon },
     { label: 'توزيع التكاليف غير المباشرة', route: 'projects.allocations.index', icon: BriefcaseIcon },
     { label: 'تحضير المعدات', route: 'equipment.preparations.index', icon: WrenchScrewdriverIcon },
+    { label: 'مسودات فواتير المشتريات', route: 'purchases.drafts.index', icon: DocumentPlusIcon },
     { label: 'العملاء', route: 'sales.clients.index', icon: BuildingOffice2Icon },
     { label: 'الموردون', route: 'purchases.suppliers.index', icon: TruckIcon },
     { label: 'الموظفون', route: 'hr.employees.index', icon: UserCircleIcon },
