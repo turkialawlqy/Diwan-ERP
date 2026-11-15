@@ -14,7 +14,7 @@ REPO=turkialawlqy/Diwan-ERP
 PACKAGE_URL=${DIWAN_PACKAGE:-https://github.com/$REPO/releases/latest/download/diwan-erp.zip}
 DIR=${DIWAN_DIR:-/opt/diwan}
 APP_USER=diwan
-KEEP=3
+KEEP=1  # only the running release: older ones are deleted after a successful update
 
 c_ok=$'\e[32m'; c_err=$'\e[31m'; c_off=$'\e[0m'
 ok()  { echo "${c_ok}✓ $*${c_off}"; }

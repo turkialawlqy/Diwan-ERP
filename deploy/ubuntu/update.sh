@@ -14,7 +14,7 @@
 # answer after the switch, it goes back to the previous release by itself.
 #
 #   /var/www/diwan            -> link to the running release
-#   /var/www/diwan-releases/  releases (the last 3 are kept)
+#   /var/www/diwan-releases/  releases (only the running one is kept)
 #   /var/www/diwan-shared/    what releases share: .env and storage
 
 set -Eeuo pipefail
@@ -22,7 +22,7 @@ set -Eeuo pipefail
 APP_DIR=/var/www/diwan
 RELEASES=/var/www/diwan-releases
 SHARED=/var/www/diwan-shared
-KEEP=3
+KEEP=1  # only the running release: older ones are deleted after a successful update
 APP_USER=www-data
 APP_HOME=/var/www
 

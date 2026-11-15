@@ -23,7 +23,7 @@ $Php = Join-Path $Root 'bin\php\php.exe'
 $Current = Join-Path $Root 'current'
 $Releases = Join-Path $Root 'releases'
 $Shared = Join-Path $Root 'shared'
-$Keep = 3
+$Keep = 1  # only the running release: older ones are deleted after a successful update
 
 New-Item -ItemType Directory -Force -Path (Join-Path $Root 'logs') | Out-Null
 Start-Transcript -Path (Join-Path $Root 'logs\update.log') -Append | Out-Null
