@@ -68,3 +68,40 @@ test('consolidated statement: two accounts in one statement', async ({ page }) =
     await expect(page.locator('[data-consolidated-lines]')).toBeVisible();
     expect(errors).toEqual([]);
 });
+
+test('each user orders the side menu with the arrows, and it stays after a refresh', async ({ page }) => {
+    const errors = watchErrors(page);
+    await page.goto('/dashboard');
+    const firstGroup = () => page.locator('[data-sidebar] nav > button, [data-sidebar] nav > div > button').first();
+    await page.locator('[data-sidebar-edit]').click();
+    const rows = page.locator('[data-sidebar-group-row]');
+    const before = await rows.allInnerTexts();
+    expect(before.length).toBeGreaterThan(2);
+    // Move the second group above the first with its arrow.
+    await rows.nth(1).locator('[data-sidebar-group-up]').click();
+    const moved = await rows.allInnerTexts();
+    expect(moved[0]).toBe(before[1]);
+    await page.locator('[data-sidebar-save]').click();
+    await expect(page.locator('[data-sidebar-edit-bar]')).toHaveCount(0);
+    await page.reload();
+    await page.locator('[data-sidebar-edit]').click();
+    const after = await page.locator('[data-sidebar-group-row]').allInnerTexts();
+    expect(after[0]).toBe(before[1]);
+    // Back to the default order so other specs see the usual menu.
+    await page.locator('[data-sidebar-reset]').click();
+    await expect(page.locator('[data-sidebar-edit-bar]')).toHaveCount(0);
+    expect(errors).toEqual([]);
+});
+
+test('drag and drop reorders the links inside a group', async ({ page }) => {
+    await page.goto('/dashboard');
+    await page.locator('[data-sidebar-edit]').click();
+    const group = page.locator('[data-sidebar-group-row]').filter({ has: page.locator('[data-sidebar-child-row]') }).first();
+    const children = group.locator('[data-sidebar-child-row]');
+    const before = await children.allInnerTexts();
+    expect(before.length).toBeGreaterThan(1);
+    await children.nth(0).dragTo(children.nth(1));
+    const after = await children.allInnerTexts();
+    expect(after[1]).toBe(before[0]);
+    await page.locator('[data-sidebar-cancel]').click();
+});

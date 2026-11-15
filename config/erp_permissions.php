@@ -542,6 +542,8 @@ return [
         'whats-new.index' => '@authenticated',
         'feature-requests.index' => '@authenticated',
         'dashboard.widgets' => '@authenticated',
+        'preferences.sidebar.update' => '@authenticated',
+        'preferences.sidebar.reset' => '@authenticated',
         'notifications.index' => '@authenticated',
         'notifications.read' => '@authenticated',
         'notifications.read-all' => '@authenticated',

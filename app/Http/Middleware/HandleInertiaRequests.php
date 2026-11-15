@@ -55,6 +55,8 @@ class HandleInertiaRequests extends Middleware
                     'phone' => $user->phone,
                     'avatar' => $user->avatar,
                     'is_super_admin' => (bool) $user->is_super_admin,
+                    // The user's own order of the side menu (null: the default order).
+                    'sidebar_order' => $user->sidebar_order,
                     'roles' => $currentTenant ? $user->getRoleNames() : [],
                     // Owners (and impersonating super admins) can do everything; the
                     // frontend checks is_owner before the permission list.

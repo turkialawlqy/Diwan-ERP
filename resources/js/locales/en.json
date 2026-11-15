@@ -4029,5 +4029,14 @@
         "parent_hint": "▸ A parent account includes all the accounts below it automatically.",
         "pick_accounts": "Choose at least one account, then press Apply.",
         "balance_note": "Combined balance: debit is positive and credit negative, because accounts may differ in nature. Each account’s summary uses its own nature."
+    },
+    "sidebar_edit": {
+        "edit": "Edit the side menu",
+        "save": "Save order",
+        "cancel": "Cancel",
+        "reset": "Default order",
+        "hint": "Drag an item and drop it, or use the arrows to move it.",
+        "up": "Up",
+        "down": "Down"
     }
 }

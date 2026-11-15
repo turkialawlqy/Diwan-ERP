@@ -94,6 +94,7 @@ use App\Http\Controllers\Sales\SubscriptionController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SectorPackController;
 use App\Http\Controllers\SelfUpdateController;
+use App\Http\Controllers\SidebarPreferenceController;
 use App\Http\Controllers\StockCountController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SuperAdmin\ImpersonationController;
@@ -260,6 +261,8 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     // 1. Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/dashboard/widgets', [DashboardWidgetController::class, 'update'])->name('dashboard.widgets');
+    Route::post('/preferences/sidebar', [SidebarPreferenceController::class, 'update'])->name('preferences.sidebar.update');
+    Route::delete('/preferences/sidebar', [SidebarPreferenceController::class, 'reset'])->name('preferences.sidebar.reset');
     Route::get('/search', SearchController::class)->name('search');
 
     // Working branch and fiscal year (sidebar «سياق العمل» card).
