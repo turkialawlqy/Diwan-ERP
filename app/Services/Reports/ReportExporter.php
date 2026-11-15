@@ -81,8 +81,23 @@ class ReportExporter
         return Excel::raw($export, ExcelWriter::XLSX);
     }
 
+    /** A PDF page set past this many rows takes too long to draw; the complete list is the Excel file. */
+    public const PDF_MAX_ROWS = 4000;
+
     public function pdf(array $table): string
     {
+        @set_time_limit(180);
+        $rows = $table['rows'];
+        if (count($rows) > self::PDF_MAX_ROWS) {
+            // Keep the first rows and the closing (totals) row; say so in the subtitle.
+            $last = array_pop($rows);
+            $rows = array_slice($rows, 0, self::PDF_MAX_ROWS - 1);
+            $rows[] = $last;
+            $table['bold'] = array_values(array_unique([...array_filter($table['bold'] ?? [], fn ($i) => $i < self::PDF_MAX_ROWS - 1), count($rows) - 1]));
+            $table['rows'] = $rows;
+            $table['subtitle'] .= ' — اقتُطع الجدول عند '.self::PDF_MAX_ROWS.' سطر، والكشف الكامل في ملف Excel';
+        }
+
         $company = app(TenantManager::class)->getCompany() ?? Company::first();
 
         return app(PdfRenderer::class)->render('pdf.report', ['table' => $table, 'companyName' => $company?->name, 'taxNumber' => $company?->tax_number], [], $table['title']);
