@@ -1,10 +1,18 @@
 <script setup>
 import { useI18n } from 'vue-i18n';
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { PaperClipIcon, TrashIcon, ArrowUpTrayIcon } from '@heroicons/vue/24/outline';
 
 /** Files attached to a document: list, upload (10 MB, documents/images/sheets) and delete. */
-const props = defineProps({ kind: { type: String, required: true }, id: { type: [Number, String], required: true } });
+const props = defineProps({
+    kind: { type: String, required: true },
+    // A saved document: its id. Without it the panel works in «staged» mode: files are uploaded now and the
+    // document claims them when it is saved (v-model carries the staged file ids, sent as attachment_ids).
+    id: { type: [Number, String], default: null },
+    modelValue: { type: Array, default: () => [] },
+});
+const emit = defineEmits(['update:modelValue']);
+const staged = computed(() => props.id === null || props.id === undefined || props.id === '');
 
 const { t } = useI18n();
 const items = ref([]);
@@ -12,29 +20,44 @@ const busy = ref(false);
 const error = ref('');
 
 const load = async () => {
+    if (staged.value) return;
     try { items.value = (await axios.get(route('attachments.index', { kind: props.kind, id: props.id }))).data.data; } catch { items.value = []; }
 };
 const upload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    for (const file of files) await uploadOne(file, event);
+    event.target.value = '';
+};
+const uploadOne = async (file, event) => {
     error.value = '';
     busy.value = true;
     const body = new FormData();
     body.append('file', file);
     try {
-        await axios.post(route('attachments.store', { kind: props.kind, id: props.id }), body);
-        await load();
+        if (staged.value) {
+            const { data } = await axios.post(route('attachments.stage', { kind: props.kind }), body);
+            items.value = [data.data, ...items.value];
+            emit('update:modelValue', items.value.map((a) => a.id));
+        } else {
+            await axios.post(route('attachments.store', { kind: props.kind, id: props.id }), body);
+            await load();
+        }
     } catch (e) {
         error.value = e.response?.data?.errors?.file?.[0] || e.response?.data?.message || t('shared.upload_failed');
     } finally {
         busy.value = false;
-        event.target.value = '';
     }
 };
 const remove = async (a) => {
     if (!window.confirm(t('shared.confirm_delete_attachment', { name: a.original_name }))) return;
     await axios.delete(route('attachments.destroy', a.id));
-    await load();
+    if (staged.value) {
+        items.value = items.value.filter((x) => x.id !== a.id);
+        emit('update:modelValue', items.value.map((x) => x.id));
+    } else {
+        await load();
+    }
 };
 const size = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 onMounted(load);
@@ -46,7 +69,7 @@ onMounted(load);
             <h3 class="font-black text-slate-700 inline-flex items-center gap-1.5"><PaperClipIcon class="w-4 h-4" /> {{ $t('shared.attachments') }}</h3>
             <label v-if="$can('admin.attachments.create')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 font-bold cursor-pointer hover:bg-slate-50">
                 <ArrowUpTrayIcon class="w-4 h-4" /> {{ busy ? $t('shared.uploading') : $t('shared.attach_file') }}
-                <input type="file" class="hidden" data-attachment-input accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.xls,.xlsx,.csv,.txt" :disabled="busy" @change="upload" />
+                <input type="file" multiple class="hidden" data-attachment-input accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.xls,.xlsx,.csv,.txt" :disabled="busy" @change="upload" />
             </label>
         </div>
         <p v-if="error" class="text-rose-600 font-bold mb-2" data-attachment-error>{{ error }}</p>

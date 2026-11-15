@@ -36,6 +36,19 @@ class AttachmentController extends Controller
         'payment-request' => [PaymentRequest::class, 'finance.payment_requests.view'],
     ];
 
+    /** kind => permission that lets a user attach files while still writing such a document. */
+    public const STAGE_PERMISSIONS = [
+        'invoice' => 'sales.invoices.create',
+        'purchase-invoice' => 'purchases.invoices.create',
+        'expense' => 'finance.expenses.create',
+        'revenue' => 'finance.revenues.create',
+        'journal' => 'accounting.journals.create',
+        'quotation' => 'sales.quotations.create',
+        'sales-order' => 'sales.orders.create',
+        'purchase-order' => 'purchases.orders.create',
+        'payment-request' => 'finance.payment_requests.create',
+    ];
+
     public const MAX_KB = 10240;
 
     /** Extensions accepted: documents, images and spreadsheets only (no html / svg / scripts). */
@@ -74,6 +87,23 @@ class AttachmentController extends Controller
         return response()->json(['data' => $attachment->only(['id', 'original_name', 'mime', 'size', 'created_at']) + ['url' => route('attachments.download', $attachment->id)]], 201);
     }
 
+    /** Upload a file for a document that is not saved yet; the document claims it on save (AttachmentService::claim). */
+    public function stage(Request $request, string $kind)
+    {
+        abort_unless(isset(self::STAGE_PERMISSIONS[$kind]), 404);
+        abort_unless($request->user()->can(self::STAGE_PERMISSIONS[$kind]) && $request->user()->can('admin.attachments.create'), 403);
+        $request->validate(['file' => 'required|file|max:'.self::MAX_KB.'|mimes:'.self::MIMES]);
+
+        $file = $request->file('file');
+        $stored = FileController::storeForTenant($file, 'attachments');
+        $attachment = Attachment::create([
+            'stage_kind' => $kind, 'path' => $stored['path'],
+            'original_name' => mb_substr($file->getClientOriginalName(), 0, 255), 'mime' => $file->getClientMimeType(), 'size' => $file->getSize(), 'uploaded_by' => auth()->id(),
+        ]);
+
+        return response()->json(['data' => $attachment->only(['id', 'original_name', 'mime', 'size', 'created_at']) + ['url' => route('attachments.download', $attachment->id)]], 201);
+    }
+
     public function download(Request $request, Attachment $attachment): StreamedResponse
     {
         $this->authorizeDocument($request, $attachment);
@@ -95,6 +125,13 @@ class AttachmentController extends Controller
     /** The user must be able to see the document the file hangs on. */
     protected function authorizeDocument(Request $request, Attachment $attachment): void
     {
+        // A staged file (its document is not saved yet) belongs to the user who uploaded it.
+        if ($attachment->attachable_id === null) {
+            abort_unless($attachment->uploaded_by === $request->user()->id, 403);
+
+            return;
+        }
+
         $kind = collect(self::KINDS)->search(fn ($k) => (new $k[0])->getMorphClass() === $attachment->attachable_type);
         abort_unless($kind !== false, 404);
         [$model, $permission] = self::KINDS[$kind];

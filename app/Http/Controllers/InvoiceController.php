@@ -16,6 +16,7 @@ use App\Models\Warehouse;
 use App\Rules\AllowedBranch;
 use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\ExchangeRates;
+use App\Services\AttachmentService;
 use App\Services\Documents\FreeformTemplates;
 use App\Services\Sales\InvoiceChanges;
 use App\Services\Sales\InvoiceService;
@@ -252,6 +253,7 @@ class InvoiceController extends Controller
             $validated['items'],
             ['dimensions' => true],
         );
+        app(AttachmentService::class)->claim($request, $invoice, 'invoice');
 
         return redirect()->route('sales.invoices.show', $invoice->id)->with('success', 'تم إنشاء الفاتورة الضريبية بنجاح وفق متطلبات هيئة الزكاة'.($promotions ? ' (طُبِّق عرض: '.implode('، ', $promotions).')' : ''));
     }

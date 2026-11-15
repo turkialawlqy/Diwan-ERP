@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import { computed } from 'vue';
@@ -13,6 +14,7 @@ const props = defineProps({ supplier: Object, openItems: Array, bankAccounts: Ar
 const pickSupplier = (id) => id && router.get(route('purchases.invoices.from-receipts'), { supplier_id: id });
 
 const form = useForm({
+    attachment_ids: [],
     supplier_id: props.supplier?.id ?? null,
     supplier_invoice_number: '',
     invoice_date: today(),
@@ -54,6 +56,7 @@ const save = () => form.transform((d) => ({ ...d, lines: selected.value.map(({ g
                 <Field v-if="form.payment_status === 'partially_paid'" :label="$t('p_invoices_fromreceipts.amount_paid')"><input v-model.number="form.paid_amount" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
                 <Field v-if="form.payment_status !== 'unpaid'" :label="$t('p_invoices_fromreceipts.bank_account_cash_box')"><SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('p_invoices_fromreceipts.default')" /></Field>
             </div>
+            <AttachmentsPanel kind="purchase-invoice" v-model="form.attachment_ids" />
             <div v-if="!supplier" class="text-xs text-slate-400 py-8 text-center">{{ $t('p_invoices_fromreceipts.choose_the_supplier_to_see_uninv') }}</div>
             <div v-else class="overflow-x-auto">
                 <table class="w-full text-xs min-w-[760px]">

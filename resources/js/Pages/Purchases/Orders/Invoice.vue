@@ -1,4 +1,5 @@
 <script setup>
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import { computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -14,6 +15,7 @@ const form = useForm({
     supplier_invoice_number: '',
     due_date: '',
     payments: [],
+    attachment_ids: [],
 });
 useUnsavedGuard(form);
 
@@ -75,6 +77,8 @@ const input = 'rounded-lg border border-slate-200 px-2 py-1.5 text-xs';
                 </div>
                 <p v-if="form.errors.payments" class="text-rose-600 font-bold">{{ form.errors.payments }}</p>
             </div>
+
+            <AttachmentsPanel kind="purchase-invoice" v-model="form.attachment_ids" />
 
             <div class="flex gap-2">
                 <button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold">{{ $t('p_orders_invoice.issue_the_invoice') }}</button>

@@ -284,6 +284,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     });
 
     // Files attached to documents (invoices, bills, vouchers, journals, quotations, orders).
+    Route::post('/attachments/stage/{kind}', [AttachmentController::class, 'stage'])->name('attachments.stage');
     Route::get('/attachments/file/{attachment}', [AttachmentController::class, 'download'])->name('attachments.download');
     Route::delete('/attachments/{attachment}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
     Route::get('/attachments/{kind}/{id}', [AttachmentController::class, 'index'])->name('attachments.index')->whereNumber('id');

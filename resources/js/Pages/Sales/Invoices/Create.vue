@@ -36,6 +36,7 @@ import {
 } from '@heroicons/vue/24/outline';
 import CustomerModal from '../Clients/CustomerModal.vue';
 import { today } from '@/utils/format';
+import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -77,6 +78,7 @@ const unitsList = ref([...(props.units || [])]);
 
 // Main Invoice Form
 const form = useForm({
+    attachment_ids: [],
     customer_id: customersList.value[0]?.id || '',
     branch_id: selectedBranchId.value,
     invoice_number: props.suggestedNumber || 'INV-26-1-000001',
@@ -944,6 +946,9 @@ const importLines = (lines, replace) => {
                     <div v-if="costCenters.length || projects.length" class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs" data-invoice-dimensions>
                         <DimensionFields v-model:cost-center="form.cost_center_id" v-model:project="form.project_id" :policy="dimensionPolicy" :cost-centers="costCenters" :projects="projects" :errors="form.errors" />
                     </div>
+
+                    <!-- Attached documents (uploaded now, kept with the invoice when it is saved) -->
+                    <AttachmentsPanel v-if="!editing" kind="invoice" v-model="form.attachment_ids" />
 
                     <!-- Notes & Terms -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

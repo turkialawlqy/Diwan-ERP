@@ -392,6 +392,7 @@ return [
         'attachments.index' => 'admin.attachments.view',
         'attachments.download' => 'admin.attachments.view',
         'attachments.store' => 'admin.attachments.create',
+        'attachments.stage' => 'admin.attachments.create',
         'attachments.destroy' => 'admin.attachments.delete',
         'company.logo' => '@authenticated',
         // Each document type re-checks its own permission in DocumentShareController.

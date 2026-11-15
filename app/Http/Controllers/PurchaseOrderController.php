@@ -12,6 +12,7 @@ use App\Rules\AllowedBranch;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\BudgetService;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\AttachmentService;
 use App\Services\Inventory\DocumentStock;
 use App\Services\Purchases\PurchaseCycleService;
 use App\Services\RecycleBin;
@@ -242,6 +243,8 @@ class PurchaseOrderController extends Controller
 
             return $purchaseInvoice;
         });
+
+        app(AttachmentService::class)->claim($request, $invoice, 'purchase-invoice');
 
         return redirect()->route('purchases.invoices.show', $invoice->id)
             ->with('success', $order->fresh()->status === 'converted_to_invoice'
