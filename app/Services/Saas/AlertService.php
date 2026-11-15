@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeLoan;
 use App\Models\Equipment;
+use App\Models\EquipmentPreparation;
 use App\Models\EquipmentRental;
 use App\Models\InventoryStock;
 use App\Models\Invoice;
@@ -157,8 +158,25 @@ class AlertService
         }
 
         array_push($alerts, ...$this->equipment($today));
+        array_push($alerts, ...$this->equipmentPreparation());
 
         return $alerts;
+    }
+
+    /**
+     * Working equipment that was not prepared yesterday. The daily digest runs in the early morning, so the gap it can
+     * report is the previous day's; it only speaks for companies that already use the daily preparation.
+     */
+    protected function equipmentPreparation(): array
+    {
+        $yesterday = now()->subDay()->toDateString();
+        if (! EquipmentPreparation::whereDate('prep_date', '>=', now()->subDays(30)->toDateString())->exists()) {
+            return [];
+        }
+        $missed = Equipment::whereIn('status', ['rented', 'internal'])
+            ->whereDoesntHave('preparations', fn ($q) => $q->whereDate('prep_date', $yesterday))->count();
+
+        return $missed ? [$this->alert('equipment_not_prepared', 'equipment.preparations.view', 'معدات لم تُحضَّر أمس', "{$missed} معدة عاملة بلا تحضير يومي أمس ({$yesterday})", route('equipment.preparations.index', ['date' => $yesterday], false), 'warning')] : [];
     }
 
     /** Fleet: maintenance due, contracts ending, rented equipment without readings, parts short. */

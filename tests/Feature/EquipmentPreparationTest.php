@@ -6,6 +6,7 @@ use App\Models\Attachment;
 use App\Models\Company;
 use App\Models\Equipment;
 use App\Models\EquipmentPreparation;
+use App\Services\Saas\AlertService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -98,5 +99,25 @@ class EquipmentPreparationTest extends TestCase
         $this->actingAs($this->userWithRole($this->company, 'sales'));
         $this->get(route('equipment.preparations.index'))->assertForbidden();
         $this->get(route('equipment.preparations.edit', $prep->id))->assertForbidden();
+    }
+
+    public function test_the_morning_alert_names_working_equipment_not_prepared_yesterday(): void
+    {
+        $a = $this->equipment('A', 'internal');
+        $b = $this->equipment('B', 'rented');
+        $this->equipment('C', 'available');
+        $kinds = fn () => collect(app(AlertService::class)->collect())->firstWhere('kind', 'equipment_not_prepared');
+
+        // A company that never prepares equipment is not nagged.
+        $this->assertNull($kinds());
+
+        $yesterday = now()->subDay()->toDateString();
+        EquipmentPreparation::create(['company_id' => $this->company->id, 'number' => 'PRP-T1', 'equipment_id' => $a->id, 'prep_date' => $yesterday, 'status' => 'ready']);
+        $alert = $kinds();
+        $this->assertNotNull($alert);
+        $this->assertStringContainsString('1 معدة', $alert['body']); // only B (rented): A was prepared, C is not working
+
+        EquipmentPreparation::create(['company_id' => $this->company->id, 'number' => 'PRP-T2', 'equipment_id' => $b->id, 'prep_date' => $yesterday, 'status' => 'ready']);
+        $this->assertNull($kinds());
     }
 }
