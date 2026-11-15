@@ -177,3 +177,62 @@ test('sales list and form pages follow the language', async ({ page }) => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
     expect(errors).toEqual([]);
 });
+
+test('module pages (HR, manufacturing, equipment, finance, projects, contracts, bookings, work orders, support, settings) follow the language', async ({ page }) => {
+    const errors = watchErrors(page);
+    await signIn(page);
+    await page.goto('/hr/employees');
+    await page.locator('header [data-user-menu]').click();
+    await page.locator('[data-language-toggle]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+    const arabic = /[؀-ۿ]/;
+    for (const [url, text] of [
+        ['/hr/employees', 'Employee files, documents, salaries and allowances'],
+        ['/hr/payroll', 'Payroll runs'],
+        ['/hr/leaves', 'Leave types'],
+        ['/hr/loans', 'Employee advances'],
+        ['/hr/attendance', 'Save attendance'],
+        ['/hr/organization', 'Organization and shifts'],
+        ['/hr/settlements', 'End-of-service awards and settlements'],
+        ['/hr/nationalities', 'Nationalities'],
+        ['/manufacturing', 'Manufacturing dashboard'],
+        ['/manufacturing/boms', 'Bills of materials (BOM)'],
+        ['/manufacturing/orders', 'Production orders'],
+        ['/manufacturing/mrp', 'Material requirements planning (MRP)'],
+        ['/manufacturing/quality/inspections', 'Quality inspections'],
+        ['/manufacturing/work-centers', 'Work centers'],
+        ['/equipment', 'Equipment'],
+        ['/equipment/rentals', 'Equipment rental contracts'],
+        ['/equipment/maintenance/dashboard', 'Maintenance dashboard'],
+        ['/equipment/reports', 'Equipment reports'],
+        ['/finance/expenses', 'Expense vouchers'],
+        ['/finance/revenues', 'Other revenue vouchers'],
+        ['/finance/banks', 'Cash boxes and bank accounts'],
+        ['/finance/transfers', 'Money transfers'],
+        ['/projects', 'Projects and contracts'],
+        ['/projects/guarantees', 'Bank guarantees'],
+        ['/contracts', 'Customer and supplier contracts with their texts, versions and obligations'],
+        ['/bookings', 'All booked appointments'],
+        ['/bookings/services', 'Booking services'],
+        ['/work-orders', 'Field technicians’ tasks'],
+        ['/support/tickets', 'Customer requests, complaints and after-sales'],
+        ['/crm/leads', 'Leads and opportunities'],
+        ['/branches', 'Branches'],
+        ['/users', 'User management'],
+        ['/settings/currencies', 'Currencies and exchange rates'],
+        ['/settings/numbering', 'Numbering guide'],
+        ['/settings/messaging', 'Messaging settings'],
+        ['/settings/modules', 'Enable and disable modules'],
+        ['/reports/sales', 'Sales reports'],
+    ]) {
+        await page.goto(url);
+        await expect(page.getByText(text).first()).toBeVisible();
+        expect(await page.locator('nav[aria-label], nav').first().innerText()).not.toMatch(arabic);
+    }
+
+    await page.locator('header [data-user-menu]').click();
+    await page.locator('[data-language-toggle]').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+    expect(errors).toEqual([]);
+});

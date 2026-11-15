@@ -18,7 +18,7 @@ const remove = (p) => route('equipment.preparations.destroy', p.id);
 <template>
     <AppLayout>
         <Head :title="$t('eq_prep.title')" />
-        <PageHeader :title="$t('eq_prep.title')" :subtitle="$t('eq_prep.subtitle')" :crumbs="[{ label: 'المعدات', href: route('equipment.index') }, { label: $t('eq_prep.title') }]">
+        <PageHeader :title="$t('eq_prep.title')" :subtitle="$t('eq_prep.subtitle')" :crumbs="[{ label: $t('eq2_equipment_preparations_index.equipment'), href: route('equipment.index') }, { label: $t('eq_prep.title') }]">
             <template #actions>
                 <label class="text-xs font-bold text-slate-600 flex items-center gap-2">{{ $t('ui.date') }} <DatePicker :model-value="date" :max="today()" @change="changeDate($event.target.value)" class="rounded-xl border-slate-200 text-xs" /></label>
                 <Link v-if="$can('equipment.preparations.create')" :href="route('equipment.preparations.create', { date })" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700" data-prep-new>+ {{ $t('eq_prep.new') }}</Link>

@@ -36,18 +36,18 @@ const submitUser = () => (editingUser
 
 <template>
     <AppLayout>
-        <Head :title="props.user?.id ? 'تعديل مستخدم' : 'مستخدم جديد'" />
-        <PageHeader :title="props.user?.id ? 'تعديل مستخدم' : 'مستخدم جديد'" :crumbs="[{ label: 'الإدارة' }, { label: 'المستخدمون', href: route('users.index') }, { label: props.user?.id ? 'تعديل' : 'جديد' }]" />
+        <Head :title="props.user?.id ? $t('x_users_form.edit_a_user') : $t('x_users_form.new_user')" />
+        <PageHeader :title="props.user?.id ? $t('x_users_form.edit_a_user') : $t('x_users_form.new_user')" :crumbs="[{ label: $t('x_users_form.department') }, { label: $t('x_users_form.users'), href: route('users.index') }, { label: props.user?.id ? $t('x_users_form.edit') : $t('x_users_form.new') }]" />
 
         <div class="bg-white border border-slate-200/80 rounded-2xl p-6">
             <form @submit.prevent="submitUser" class="form-grid text-xs">
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">الاسم الكامل *</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('x_users_form.full_name') }}</label>
                                 <input 
                                     v-model="form.name" 
                                     type="text" 
                                     required
-                                    placeholder="مثال: أحمد محمد السعيد"
+                                    :placeholder="$t('x_users_form.example_ahmed_mohammed_al_saeed')"
                                     class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600"
                                 />
                                 <p v-if="form.errors.name" class="text-[11px] text-rose-600 mt-1">{{ form.errors.name }}</p>
@@ -55,7 +55,7 @@ const submitUser = () => (editingUser
             
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">البريد الإلكتروني *</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('x_users_form.email') }}</label>
                                     <input 
                                         v-model="form.email" 
                                         type="email" 
@@ -68,7 +68,7 @@ const submitUser = () => (editingUser
                                 </div>
             
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('x_users_form.phone_number') }}</label>
                                     <input 
                                         v-model="form.phone" 
                                         type="text" 
@@ -81,7 +81,7 @@ const submitUser = () => (editingUser
             
                             <div>
                                 <label class="block text-xs font-bold text-slate-700 mb-1">
-                                    {{ editingUser ? 'كلمة المرور (اتركها فارغة إذا لم ترغب بالتغيير)' : 'كلمة المرور *' }}
+                                    {{ editingUser ? $t('x_users_form.password_leave_empty_to_keep_it') : $t('x_users_form.password') }}
                                 </label>
                                 <input 
                                     v-model="form.password" 
@@ -96,7 +96,7 @@ const submitUser = () => (editingUser
             
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-slate-700 mb-1">الدور الوظيفي *</label>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('x_users_form.role') }}</label>
                                     <select 
                                         v-model="form.role"
                                         required
@@ -109,21 +109,21 @@ const submitUser = () => (editingUser
             
                             <!-- Branches the user works in -->
                             <div class="rounded-xl border border-slate-200 p-3 space-y-3">
-                                <p v-if="isOwnerRole" class="text-xs text-slate-600">مدير المنشأة يعمل على <b>كل الفروع</b> ويرى مستنداتها جميعاً.</p>
+                                <p v-if="isOwnerRole" class="text-xs text-slate-600">{{ $t('x_users_form.the_company_manager_works_on') }} <b>{{ $t('x_users_form.all_branches') }}</b> {{ $t('x_users_form.and_sees_all_their_documents') }}</p>
                                 <template v-else>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-700 mb-1.5">الفروع المسموح بها *</label>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('x_users_form.allowed_branches') }}</label>
                                         <div class="grid grid-cols-2 gap-2">
                                             <label v-for="b in branches" :key="b.id" class="flex items-center gap-2 text-xs rounded-lg border border-slate-100 px-2 py-1.5 cursor-pointer hover:bg-slate-50">
                                                 <input type="checkbox" :value="b.id" v-model="form.branch_ids" class="rounded border-slate-300 text-indigo-600" data-branch-option />
                                                 <span>{{ b.name_ar }}</span>
                                             </label>
                                         </div>
-                                        <p class="text-[11px] text-slate-500 mt-1">ينشئ المستندات ويرى مستندات وتقارير هذه الفروع فقط. لرؤية كل الفروع امنحه صلاحية «الوصول لكل الفروع». ولا يرى ولا يفتح إلا الأنشطة المفعّلة في هذه الفروع (تُضبط من «الفروع»)، ولا بيانات فرع غير مختار.</p>
+                                        <p class="text-[11px] text-slate-500 mt-1">{{ $t('x_users_form.they_create_documents_and_see_th') }}</p>
                                         <p v-if="form.errors.branch_ids" class="text-[11px] text-rose-600 mt-1">{{ form.errors.branch_ids }}</p>
                                     </div>
                                     <div v-if="allowedBranches.length > 1">
-                                        <label class="block text-xs font-bold text-slate-700 mb-1">الفرع الافتراضي للمستندات الجديدة</label>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('x_users_form.default_branch_for_new_documents') }}</label>
                                         <select v-model="form.branch_id" class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600">
                                             <option v-for="b in allowedBranches" :key="b.id" :value="b.id">{{ b.name_ar }}</option>
                                         </select>
@@ -133,24 +133,24 @@ const submitUser = () => (editingUser
                             </div>
             
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">حالة الحساب *</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('x_users_form.account_status') }}</label>
                                 <select 
                                     v-model="form.status"
                                     class="w-full text-xs rounded-xl border-slate-200 focus:border-indigo-600 focus:ring-indigo-600 font-bold"
                                 >
-                                    <option value="active">نشط (يمكنه تسجيل الدخول)</option>
-                                    <option value="inactive">معطل (موقوف مؤقتاً)</option>
+                                    <option value="active">{{ $t('x_users_form.active_can_sign_in') }}</option>
+                                    <option value="inactive">{{ $t('x_users_form.disabled_temporarily_suspended') }}</option>
                                 </select>
                             </div>
             
                             <div class="mt-6 flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
-                                <Link :href="route('users.index')" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium">إلغاء</Link>
+                                <Link :href="route('users.index')" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium">{{ $t('x_users_form.cancel') }}</Link>
                                 <button 
                                     type="submit" 
                                     :disabled="form.processing"
                                     class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition disabled:opacity-50"
                                 >
-                                    {{ editingUser ? 'حفظ التعديلات' : 'إنشاء المستخدم' }}
+                                    {{ editingUser ? $t('x_users_form.save_changes') : $t('x_users_form.create_the_user') }}
                                 </button>
                             </div>
                         </form>

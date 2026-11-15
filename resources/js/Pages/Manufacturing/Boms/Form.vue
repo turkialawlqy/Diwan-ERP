@@ -31,28 +31,28 @@ const input = 'w-full text-xs rounded-xl border-slate-200 focus:border-indigo-60
 
 <template>
     <AppLayout>
-        <Head :title="editing ? 'تعديل قائمة مواد' : 'قائمة مواد جديدة'" />
-        <PageHeader :title="editing ? 'تعديل قائمة مواد' : 'قائمة مواد جديدة'" :crumbs="[{ label: 'التصنيع' }, { label: 'قوائم المواد', href: route('manufacturing.boms.index') }, { label: editing ? 'تعديل' : 'جديدة' }]" />
+        <Head :title="editing ? $t('mfg_manufacturing_boms_form.edit_a_bill_of_materials') : $t('mfg_manufacturing_boms_form.new_bill_of_materials')" />
+        <PageHeader :title="editing ? $t('mfg_manufacturing_boms_form.edit_a_bill_of_materials') : $t('mfg_manufacturing_boms_form.new_bill_of_materials')" :crumbs="[{ label: $t('mfg_manufacturing_boms_form.manufacturing') }, { label: $t('mfg_manufacturing_boms_form.bills_of_materials'), href: route('manufacturing.boms.index') }, { label: editing ? $t('mfg_manufacturing_boms_form.edit') : $t('mfg_manufacturing_boms_form.new') }]" />
         <form @submit.prevent="submit" class="space-y-5">
             <div class="bg-white border border-slate-200/80 rounded-2xl p-6 grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                <Field label="المنتج النهائي *" :error="form.errors.product_id"><SelectCreate v-model="form.product_id" :options="products" :search="productSearch" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" placeholder="— اختر —" required /></Field>
-                <Field label="اسم القائمة *" :error="form.errors.name"><input v-model="form.name" :class="input" required /></Field>
-                <Field label="الرمز"><input v-model="form.code" :class="input" class="font-mono" /></Field>
-                <Field label="الإصدار *"><input v-model="form.version" :class="input" class="font-mono" /></Field>
-                <Field label="كمية الناتج لكل دفعة *" :error="form.errors.output_quantity"><input v-model.number="form.output_quantity" type="text" inputmode="decimal" data-num step="0.0001" :class="input" /></Field>
-                <Field label="هالك القائمة %" hint="يُضاف على كل المكونات"><input v-model.number="form.scrap_percent" type="text" inputmode="decimal" data-num step="0.01" :class="input" /></Field>
-                <Field label="مسار التشغيل"><select v-model="form.routing_id" :class="input"><option value="">— بلا مسار —</option><option v-for="r in routings" :key="r.id" :value="r.id">{{ r.code }} — {{ r.name }}</option></select></Field>
-                <div class="flex items-center gap-6"><label class="inline-flex items-center gap-2 text-xs"><input v-model="form.is_default" type="checkbox" class="rounded" /> الإصدار الافتراضي للمنتج</label><label class="inline-flex items-center gap-2 text-xs"><input v-model="form.is_active" type="checkbox" class="rounded" /> نشطة</label></div>
+                <Field :label="$t('mfg_manufacturing_boms_form.finished_product')" :error="form.errors.product_id"><SelectCreate v-model="form.product_id" :options="products" :search="productSearch" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" :placeholder="$t('mfg_manufacturing_boms_form.choose')" required /></Field>
+                <Field :label="$t('mfg_manufacturing_boms_form.list_name')" :error="form.errors.name"><input v-model="form.name" :class="input" required /></Field>
+                <Field :label="$t('mfg_manufacturing_boms_form.code')"><input v-model="form.code" :class="input" class="font-mono" /></Field>
+                <Field :label="$t('mfg_manufacturing_boms_form.version')"><input v-model="form.version" :class="input" class="font-mono" /></Field>
+                <Field :label="$t('mfg_manufacturing_boms_form.output_quantity_per_batch')" :error="form.errors.output_quantity"><input v-model.number="form.output_quantity" type="text" inputmode="decimal" data-num step="0.0001" :class="input" /></Field>
+                <Field :label="$t('mfg_manufacturing_boms_form.list_scrap')" :hint="$t('mfg_manufacturing_boms_form.added_to_all_components')"><input v-model.number="form.scrap_percent" type="text" inputmode="decimal" data-num step="0.01" :class="input" /></Field>
+                <Field :label="$t('mfg_manufacturing_boms_form.routing')"><select v-model="form.routing_id" :class="input"><option value="">{{ $t('mfg_manufacturing_boms_form.no_routing') }}</option><option v-for="r in routings" :key="r.id" :value="r.id">{{ r.code }} — {{ r.name }}</option></select></Field>
+                <div class="flex items-center gap-6"><label class="inline-flex items-center gap-2 text-xs"><input v-model="form.is_default" type="checkbox" class="rounded" /> {{ $t('mfg_manufacturing_boms_form.default_version_of_the_product') }}</label><label class="inline-flex items-center gap-2 text-xs"><input v-model="form.is_active" type="checkbox" class="rounded" /> {{ $t('mfg_manufacturing_boms_form.active') }}</label></div>
             </div>
             <div class="bg-white border border-slate-200/80 rounded-2xl p-6">
-                <div class="flex items-center justify-between mb-3"><h2 class="font-black text-slate-800 text-sm">المكونات</h2><button type="button" @click="form.items.push({ component_id: '', quantity: 1, scrap_percent: 0 })" class="text-xs font-bold text-indigo-600 inline-flex items-center gap-1"><PlusIcon class="w-4 h-4" /> إضافة مكوّن</button></div>
+                <div class="flex items-center justify-between mb-3"><h2 class="font-black text-slate-800 text-sm">{{ $t('mfg_manufacturing_boms_form.components') }}</h2><button type="button" @click="form.items.push({ component_id: '', quantity: 1, scrap_percent: 0 })" class="text-xs font-bold text-indigo-600 inline-flex items-center gap-1"><PlusIcon class="w-4 h-4" /> {{ $t('mfg_manufacturing_boms_form.add_a_component') }}</button></div>
                 <p v-if="form.errors.items" class="text-xs text-rose-600 mb-2">{{ form.errors.items }}</p>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs">
-                        <thead class="text-slate-500"><tr><th class="text-start p-2">المكوّن</th><th class="text-start p-2 w-36">الكمية لكل دفعة</th><th class="text-start p-2 w-32">هالك %</th><th class="w-10"></th></tr></thead>
+                        <thead class="text-slate-500"><tr><th class="text-start p-2">{{ $t('mfg_manufacturing_boms_form.component') }}</th><th class="text-start p-2 w-36">{{ $t('mfg_manufacturing_boms_form.quantity_per_batch') }}</th><th class="text-start p-2 w-32">{{ $t('mfg_manufacturing_boms_form.scrap') }}</th><th class="w-10"></th></tr></thead>
                         <tbody>
                             <tr v-for="(it, i) in form.items" :key="i" class="border-t border-slate-100">
-                                <td class="p-2"><SelectCreate v-model="it.component_id" :options="products" :search="productSearch" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" placeholder="— اختر —" required @picked="rememberCost" /></td>
+                                <td class="p-2"><SelectCreate v-model="it.component_id" :options="products" :search="productSearch" entity="product" :label="(p) => `${p.name_ar} (${p.sku})`" :placeholder="$t('mfg_manufacturing_boms_form.choose')" required @picked="rememberCost" /></td>
                                 <td class="p-2"><input v-model.number="it.quantity" type="text" inputmode="decimal" data-num step="0.0001" :class="input" /></td>
                                 <td class="p-2"><input v-model.number="it.scrap_percent" type="text" inputmode="decimal" data-num step="0.01" :class="input" /></td>
                                 <td class="p-2"><button type="button" :disabled="form.items.length <= 1" @click="form.items.splice(i, 1)" class="p-1 text-slate-400 hover:text-rose-600 disabled:opacity-20"><TrashIcon class="w-4 h-4" /></button></td>
@@ -60,11 +60,11 @@ const input = 'w-full text-xs rounded-xl border-slate-200 focus:border-indigo-60
                         </tbody>
                     </table>
                 </div>
-                <p class="text-xs text-slate-500 mt-3">تكلفة مواد الوحدة بمتوسط التكلفة الحالي: <b class="font-mono">{{ cost.toFixed(4) }}</b></p>
+                <p class="text-xs text-slate-500 mt-3">{{ $t('mfg_manufacturing_boms_form.unit_material_cost_at_the_curren') }} <b class="font-mono">{{ cost.toFixed(4) }}</b></p>
             </div>
             <div class="flex gap-2">
-                <button type="submit" :disabled="form.processing" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold disabled:opacity-50">حفظ</button>
-                <Link :href="route('manufacturing.boms.index')" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">إلغاء</Link>
+                <button type="submit" :disabled="form.processing" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold disabled:opacity-50">{{ $t('mfg_manufacturing_boms_form.save') }}</button>
+                <Link :href="route('manufacturing.boms.index')" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">{{ $t('mfg_manufacturing_boms_form.cancel') }}</Link>
             </div>
         </form>
     </AppLayout>

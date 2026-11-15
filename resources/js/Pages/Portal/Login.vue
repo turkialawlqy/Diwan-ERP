@@ -7,16 +7,16 @@ const submit = () => form.post(route('customer-portal.send-code', { company: pro
 </script>
 
 <template>
-    <Head :title="`دخول — ${company.name}`" />
+    <Head :title="$t('por_portal_login.sign_in_n', { n0: company.name })" />
     <div class="min-h-screen bg-slate-50 flex items-center justify-center p-4" dir="rtl">
         <div class="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-sm">
-            <div><h1 class="font-black text-lg text-slate-900">{{ company.name }}</h1><p class="text-xs text-slate-500">بوابة العملاء: فواتيرك وتذاكرك وعقودك</p></div>
+            <div><h1 class="font-black text-lg text-slate-900">{{ company.name }}</h1><p class="text-xs text-slate-500">{{ $t('por_portal_login.customer_portal_your_invoices_ti') }}</p></div>
             <form @submit.prevent="submit" class="space-y-3 text-xs">
-                <label class="block"><span class="font-bold text-slate-700">بريدك الإلكتروني</span>
+                <label class="block"><span class="font-bold text-slate-700">{{ $t('por_portal_login.your_email') }}</span>
                     <input v-model="form.email" type="email" required autocomplete="email" class="mt-1 w-full rounded-xl border-slate-200 text-sm" dir="ltr" data-portal-email /></label>
                 <p v-if="form.errors.email" class="text-rose-600 font-bold">{{ form.errors.email }}</p>
-                <button type="submit" :disabled="form.processing" class="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-50" data-portal-send>إرسال رمز الدخول</button>
-                <p class="text-slate-400">يصلك رمز من 6 أرقام على بريدك، بلا كلمة مرور.</p>
+                <button type="submit" :disabled="form.processing" class="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-50" data-portal-send>{{ $t('por_portal_login.send_the_sign_in_code') }}</button>
+                <p class="text-slate-400">{{ $t('por_portal_login.a_6_digit_code_arrives_in_your_e') }}</p>
             </form>
         </div>
     </div>

@@ -48,11 +48,11 @@ const fillDemo = (account) => {
 
 <template>
     <AuthLayout>
-        <Head title="تسجيل الدخول" />
+        <Head :title="$t('x_auth_login.sign_in')" />
 
         <div class="text-center mb-6">
-            <h2 class="text-xl font-black text-slate-900 tracking-tight">تسجيل الدخول</h2>
-            <p class="text-xs text-slate-500 mt-1">أدخل بريدك الإلكتروني وكلمة المرور للمتابعة إلى حسابك</p>
+            <h2 class="text-xl font-black text-slate-900 tracking-tight">{{ $t('x_auth_login.sign_in') }}</h2>
+            <p class="text-xs text-slate-500 mt-1">{{ $t('x_auth_login.enter_your_email_and_password_to') }}</p>
         </div>
 
         <div v-if="status" class="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700">
@@ -61,7 +61,7 @@ const fillDemo = (account) => {
 
         <!-- Demo accounts: only when the server enables DEMO_LOGIN -->
         <div v-if="demoAccounts.length" class="mb-6 p-3 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex items-center justify-between gap-2 text-xs">
-            <span class="text-slate-500 text-[11px] font-medium">حسابات تجريبية سريعة:</span>
+            <span class="text-slate-500 text-[11px] font-medium">{{ $t('x_auth_login.quick_demo_accounts') }}</span>
             <div class="flex gap-2">
                 <button
                     v-for="account in demoAccounts"
@@ -79,7 +79,7 @@ const fillDemo = (account) => {
             <!-- Email Field -->
             <div>
                 <label for="email" class="block text-xs font-bold text-slate-700 mb-1">
-                    البريد الإلكتروني
+                    {{ $t('x_auth_login.email') }}
                 </label>
                 <div class="relative">
                     <div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-slate-400">
@@ -104,14 +104,14 @@ const fillDemo = (account) => {
             <div>
                 <div class="flex items-center justify-between mb-1">
                     <label for="password" class="block text-xs font-bold text-slate-700">
-                        كلمة المرور
+                        {{ $t('x_auth_login.password') }}
                     </label>
                     <Link
                         v-if="canResetPassword"
                         :href="route('password.request')"
                         class="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold transition"
                     >
-                        نسيت كلمة المرور؟
+                        {{ $t('x_auth_login.forgot_your_password') }}
                     </Link>
                 </div>
                 <div class="relative">
@@ -149,7 +149,7 @@ const fillDemo = (account) => {
                     class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
                 />
                 <label for="remember" class="ms-2 text-xs font-medium text-slate-600 select-none">
-                    تذكر بيانات الدخول
+                    {{ $t('x_auth_login.remember_me') }}
                 </label>
             </div>
 
@@ -161,7 +161,7 @@ const fillDemo = (account) => {
                     class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl shadow-md hover:shadow-lg transition duration-150 disabled:opacity-50"
                 >
                     <ArrowRightEndOnRectangleIcon class="w-4 h-4" />
-                    <span>{{ form.processing ? 'جاري التحقق...' : 'تسجيل الدخول' }}</span>
+                    <span>{{ form.processing ? $t('x_auth_login.verifying') : $t('x_auth_login.sign_in') }}</span>
                 </button>
             </div>
         </form>
@@ -170,7 +170,7 @@ const fillDemo = (account) => {
         <div class="mt-6">
             <div class="relative flex py-2 items-center">
                 <div class="flex-grow border-t border-slate-200"></div>
-                <span class="flex-shrink mx-4 text-xs font-medium text-slate-400">أو</span>
+                <span class="flex-shrink mx-4 text-xs font-medium text-slate-400">{{ $t('x_auth_login.or') }}</span>
                 <div class="flex-grow border-t border-slate-200"></div>
             </div>
 
@@ -185,19 +185,19 @@ const fillDemo = (account) => {
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                 </svg>
-                <span>تسجيل الدخول بواسطة Google</span>
+                <span>{{ $t('x_auth_login.sign_in_with_google') }}</span>
             </a>
         </div>
 
         <!-- Register Company Link -->
         <div class="mt-6 pt-4 border-t border-slate-100 text-center">
-            <span class="text-xs text-slate-500">ليس لديك حساب منشأة؟ </span>
+            <span class="text-xs text-slate-500">{{ $t('x_auth_login.don_t_have_a_company_account') }} </span>
             <Link :href="route('register')" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition">
-                سجل منشأتك الآن واحصل على تجربة مجانية
+                {{ $t('x_auth_login.register_your_company_now_and_ge') }}
             </Link>
             <div class="mt-3 text-3xs text-slate-400">
-                <a :href="route('legal.show', 'terms')" class="hover:text-indigo-600">الشروط والأحكام</a> ·
-                <a :href="route('legal.show', 'privacy')" class="hover:text-indigo-600">سياسة الخصوصية</a>
+                <a :href="route('legal.show', 'terms')" class="hover:text-indigo-600">{{ $t('x_auth_login.terms_and_conditions') }}</a> ·
+                <a :href="route('legal.show', 'privacy')" class="hover:text-indigo-600">{{ $t('x_auth_login.privacy_policy') }}</a>
             </div>
         </div>
     </AuthLayout>

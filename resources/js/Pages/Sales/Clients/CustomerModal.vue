@@ -41,7 +41,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'saved']);
 
 // Form State
-const form = ref({
+const form = computed(() => (ref({
     customer_type: 'commercial', // 'commercial' or 'individual'
     customer_group_id: '',
     code: '',
@@ -61,14 +61,14 @@ const form = ref({
     province: '',
     postal_code: '',
     additional_details: '',
-    country: 'المملكة العربية السعودية',
+    country: t('z_sales_clients_customermodal.saudi_arabia'),
     opening_balance: 0,
     credit_limit: 0,
     status: 'active',
     notes: '',
     additional_contacts: [],
     attachments: [],
-});
+})));
 
 // Section visibility toggles matching checkboxes in screenshot
 const showPhoneSection = ref(true);
@@ -88,16 +88,16 @@ const formErrors = ref({});
 const isDraggingFile = ref(false);
 const fileInput = ref(null);
 
-const countries = [
-    'المملكة العربية السعودية',
-    'الإمارات العربية المتحدة',
-    'الكويت',
-    'قطر',
-    'مملكة البحرين',
-    'سلطنة عمان',
-    'مصر',
-    'الأردن',
-];
+const countries = computed(() => ([
+    t('z_sales_clients_customermodal.saudi_arabia'),
+    t('z_sales_clients_customermodal.united_arab_emirates'),
+    t('z_sales_clients_customermodal.kuwait'),
+    t('z_sales_clients_customermodal.qatar'),
+    t('z_sales_clients_customermodal.bahrain'),
+    t('z_sales_clients_customermodal.oman'),
+    t('z_sales_clients_customermodal.egypt'),
+    t('z_sales_clients_customermodal.jordan'),
+]));
 
 // Initialize / Sync form data
 watch(
@@ -123,11 +123,11 @@ watch(
                 building_number: cust.building_number || '',
                 street_name: cust.street_name || '',
                 district: cust.district || '',
-                city: cust.city || 'الرياض',
+                city: cust.city || t('z_sales_clients_customermodal.riyadh'),
                 province: cust.province || '',
                 postal_code: cust.postal_code || '',
                 additional_details: cust.additional_details || '',
-                country: cust.country || 'المملكة العربية السعودية',
+                country: cust.country || t('z_sales_clients_customermodal.saudi_arabia'),
                 opening_balance: cust.opening_balance ?? 0,
                 credit_limit: cust.credit_limit ?? 0,
                 status: cust.status || 'active',
@@ -161,7 +161,7 @@ watch(
                 province: '',
                 postal_code: '',
                 additional_details: '',
-                country: 'المملكة العربية السعودية',
+                country: t('z_sales_clients_customermodal.saudi_arabia'),
                 opening_balance: 0,
                 credit_limit: 0,
                 status: 'active',
@@ -223,7 +223,7 @@ const uploadFile = async (file) => {
 
     try {
         const res = await axios.post(route('sales.clients.upload-attachment'), data, {
-            headers: { 'Content-Type': 'multipart/form-data' },
+            headers: { 'Content-Type': 'multipart/form.value-data' },
         });
         if (res.data?.success && res.data?.file) {
             form.value.attachments.push(res.data.file);

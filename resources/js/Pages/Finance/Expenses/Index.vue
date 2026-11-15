@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import ImportButton from '@/Components/UI/ImportButton.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { taxRate } from '@/utils/tax';
@@ -20,6 +21,7 @@ import {
     FunnelIcon,
     ArrowTrendingDownIcon,
 } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 const props = defineProps({
     expenses: Object,
@@ -34,7 +36,7 @@ const search = ref(props.filters?.search || '');
 const selectedCategory = ref(props.filters?.category || '');
 
 const deleteExpense = (id, number) => {
-    if (confirm(`هل أنت متأكد من حذف سند المصروف رقم "${number}"؟`)) {
+    if (confirm(t('fin_finance_expenses_index.are_you_sure_you_want_to_delete', { n0: number }))) {
         router.delete(route('finance.expenses.destroy', id));
     }
 };
@@ -56,15 +58,15 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="سندات المصروفات" />
+        <Head :title="$t('fin_finance_expenses_index.expense_vouchers')" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
-            <PageHeader year-scoped title="المصروفات" :crumbs="[{ label: 'المالية' }, { label: 'المصروفات' }]">
+            <PageHeader year-scoped :title="$t('fin_finance_expenses_index.expenses')" :crumbs="[{ label: $t('fin_finance_expenses_index.finance') }, { label: $t('fin_finance_expenses_index.expenses') }]">
 <template #actions>
 <button 
                         @click="handleSearch"
-                        title="تحديث البيانات"
+                        :title="$t('fin_finance_expenses_index.refresh_data')"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-xs transition-all"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
@@ -79,14 +81,14 @@ const formatCurrency = (val) => {
                         ]"
                     >
                         <MagnifyingGlassIcon class="w-4 h-4 text-indigo-600" />
-                        <span>البحث والتصفية</span>
+                        <span>{{ $t('fin_finance_expenses_index.search_and_filter') }}</span>
                     </button>
 
                     <Link v-if="$can('finance.expenses.create')" :href="route('finance.expenses.create')" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150">
                         <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>تسجيل مصروف جديد</span>
+                        <span>{{ $t('fin_finance_expenses_index.record_a_new_expense') }}</span>
                     </Link>
-<ImportButton v-if="$can('finance.expenses.create')" type="expenses" title="استيراد المصروفات من Excel" hint="تُرحَّل بتواريخها دون أي حركة مخزون." />
+<ImportButton v-if="$can('finance.expenses.create')" type="expenses" :title="$t('fin_finance_expenses_index.import_expenses_from_excel')" :hint="$t('fin_finance_expenses_index.posted_on_their_own_dates_with_n')" />
 </template>
 </PageHeader>
 
@@ -102,23 +104,23 @@ const formatCurrency = (val) => {
                 <div v-if="isFilterOpen" class="bg-white rounded-2xl border border-indigo-100/80 p-5 shadow-sm space-y-4">
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">بحث برقم السند، البيان، المستفيد</label>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">{{ $t('fin_finance_expenses_index.search_by_voucher_number_descrip') }}</label>
                             <input 
                                 v-model="search"
                                 @keyup.enter="handleSearch"
                                 type="text" 
-                                placeholder="اكتب للبحث..."
+                                :placeholder="$t('fin_finance_expenses_index.type_to_search')"
                                 class="w-full text-xs rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                             />
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">التصنيف</label>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">{{ $t('fin_finance_expenses_index.category') }}</label>
                             <select 
                                 v-model="selectedCategory"
                                 @change="handleSearch"
                                 class="w-full text-xs rounded-xl border border-slate-200 py-2.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                             >
-                                <option value="">جميع التصنيفات</option>
+                                <option value="">{{ $t('fin_finance_expenses_index.all_categories') }}</option>
                                 <option v-for="cat in stats?.categories || []" :key="cat" :value="cat">{{ cat }}</option>
                             </select>
                         </div>
@@ -127,13 +129,13 @@ const formatCurrency = (val) => {
                                 @click="handleSearch"
                                 class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
                             >
-                                تطبيق التصفية
+                                {{ $t('fin_finance_expenses_index.apply_filter') }}
                             </button>
                             <button 
                                 @click="search = ''; selectedCategory = ''; handleSearch()"
                                 class="px-4 py-2.5 text-xs font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
                             >
-                                إعادة ضبط
+                                {{ $t('fin_finance_expenses_index.reset') }}
                             </button>
                         </div>
                     </div>
@@ -143,7 +145,7 @@ const formatCurrency = (val) => {
             <!-- KPI Cards -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي المصروفات</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('fin_finance_expenses_index.total_expenses') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-rose-600">
                         {{ formatCurrency(stats?.total_expenses) }} <span class="text-xs font-normal text-slate-500">{{ $cur() }}</span>
                     </p>
@@ -155,7 +157,7 @@ const formatCurrency = (val) => {
                     </p>
                 </div>
                 <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">عدد سندات المصروف</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('fin_finance_expenses_index.number_of_expense_vouchers') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-slate-800">{{ stats?.count || 0 }}</p>
                 </div>
             </div>
@@ -166,16 +168,16 @@ const formatCurrency = (val) => {
                     <table class="w-full text-start text-xs">
                         <thead>
                             <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <th class="py-4 px-6 text-start">رقم السند</th>
-                                <th class="py-4 px-6 text-start">البيان / الوصف</th>
-                                <th class="py-4 px-6 text-start">التصنيف</th>
-                                <th class="py-4 px-6 text-start">المدفوع له / المستفيد</th>
-                                <th class="py-4 px-6 text-start">الحساب / الخزينة</th>
-                                <th class="py-4 px-6 text-start">التاريخ</th>
-                                <th class="py-4 px-6 text-end">المبلغ</th>
-                                <th class="py-4 px-6 text-end">الضريبة {{ $taxRate() }}%</th>
-                                <th class="py-4 px-6 text-end">الإجمالي</th>
-                                <th class="py-4 px-6 text-center">إجراءات</th>
+                                <th class="py-4 px-6 text-start">{{ $t('fin_finance_expenses_index.voucher_number') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('fin_finance_expenses_index.description') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('fin_finance_expenses_index.category') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('fin_finance_expenses_index.paid_to_payee') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('fin_finance_expenses_index.account_cash_box') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('fin_finance_expenses_index.date') }}</th>
+                                <th class="py-4 px-6 text-end">{{ $t('fin_finance_expenses_index.amount') }}</th>
+                                <th class="py-4 px-6 text-end">{{ $t('fin_finance_expenses_index.tax_n', { n0: $taxRate() }) }}</th>
+                                <th class="py-4 px-6 text-end">{{ $t('fin_finance_expenses_index.total') }}</th>
+                                <th class="py-4 px-6 text-center">{{ $t('fin_finance_expenses_index.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -195,7 +197,7 @@ const formatCurrency = (val) => {
                                     {{ exp.vendor_name || '-' }}
                                 </td>
                                 <td class="py-4 px-6 text-slate-600 text-xs">
-                                    {{ exp.bank_account?.name || 'خزينة' }}
+                                    {{ exp.bank_account?.name || $t('fin_finance_expenses_index.cash_box') }}
                                 </td>
                                 <td class="py-4 px-6 font-mono text-xs text-slate-500">
                                     {{ exp.expense_date ? exp.expense_date.substring(0, 10) : '-' }}
@@ -210,12 +212,12 @@ const formatCurrency = (val) => {
                                     {{ formatCurrency(exp.total_amount) }} <span class="text-3xs font-normal">﷼</span>
                                 </td>
                                 <td class="py-4 px-6 text-center whitespace-nowrap">
-                                    <a :href="route('documents.pdf', { type: 'expense', id: exp.id })" target="_blank" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition inline-block" title="طباعة السند" data-row-print><PrinterIcon class="w-4 h-4" /></a>
-                                    <Link v-if="$can('finance.expenses.edit')" :href="route('finance.expenses.edit', exp.id)" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition inline-block" title="تعديل" data-row-edit><PencilSquareIcon class="w-4 h-4" /></Link>
+                                    <a :href="route('documents.pdf', { type: 'expense', id: exp.id })" target="_blank" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition inline-block" :title="$t('fin_finance_expenses_index.print_the_voucher')" data-row-print><PrinterIcon class="w-4 h-4" /></a>
+                                    <Link v-if="$can('finance.expenses.edit')" :href="route('finance.expenses.edit', exp.id)" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition inline-block" :title="$t('fin_finance_expenses_index.edit')" data-row-edit><PencilSquareIcon class="w-4 h-4" /></Link>
                                     <button 
                                         @click="deleteExpense(exp.id, exp.expense_number)"
                                         class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
-                                        title="حذف"
+                                        :title="$t('fin_finance_expenses_index.delete')"
                                     >
                                         <TrashIcon class="w-4 h-4" />
                                     </button>
@@ -223,7 +225,7 @@ const formatCurrency = (val) => {
                             </tr>
                             <tr v-if="!expenses.data || expenses.data.length === 0">
                                 <td colspan="10" class="py-12 text-center text-slate-400">
-                                    لا توجد سندات مصروفات مسجلة.
+                                    {{ $t('fin_finance_expenses_index.no_expense_vouchers_recorded') }}
                                 </td>
                             </tr>
                         </tbody>
@@ -233,8 +235,8 @@ const formatCurrency = (val) => {
                 <!-- Pagination Footer -->
                 <div v-if="expenses?.total > 0" class="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-medium">
                     <div class="flex items-center gap-2">
-                        <span>الإجمالي {{ expenses.total || 0 }}.</span>
-                        <span>لكل صفحة:</span>
+                        <span>{{ $t('fin_finance_expenses_index.total_n', { n0: expenses.total || 0 }) }}</span>
+                        <span>{{ $t('fin_finance_expenses_index.per_page') }}</span>
                         <select 
                             :value="expenses.per_page"
                             @change="router.get(route('finance.expenses.index'), { per_page: $event.target.value }, { preserveState: true })"
@@ -246,7 +248,7 @@ const formatCurrency = (val) => {
                         </select>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span>الصفحة {{ expenses.current_page }} من {{ expenses.last_page || 1 }}.</span>
+                        <span>{{ $t('fin_finance_expenses_index.page_n_of_n', { n0: expenses.current_page, n1: expenses.last_page || 1 }) }}</span>
                         <div class="flex items-center gap-1">
                             <Link 
                                 v-if="expenses.prev_page_url" 

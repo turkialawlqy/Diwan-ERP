@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { ask } from '@/composables/useDialog';
 import { ref, watch } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -14,6 +15,7 @@ import {
     ArrowTopRightOnSquareIcon
 } from '@heroicons/vue/24/outline';
 import { timeZone } from '@/utils/format';
+const { t } = useI18n();
 
 const props = defineProps({
     companies: Object,
@@ -33,7 +35,7 @@ const handleFilter = () => {
 };
 
 const impersonate = async (companyId) => {
-    const reason = await ask('سبب الدخول على بيانات المنشأة (يُسجّل في سجل التدقيق):', { title: 'الدخول كمدير المنشأة', type: 'textarea', required: true, minLength: 5 });
+    const reason = await ask(t('z_superadmin_dashboard.reason_for_accessing_the_company'), { title: t('z_superadmin_dashboard.sign_in_as_the_company_manager'), type: 'textarea', required: true, minLength: 5 });
     if (!reason) return;
     router.post(route('super-admin.impersonate.enter', companyId), { reason });
 };
@@ -41,14 +43,14 @@ const impersonate = async (companyId) => {
 
 <template>
     <SuperAdminLayout>
-        <Head title="لوحة التحكم العامة - إدارة الشركات والمنشآت" />
+        <Head :title="$t('z_superadmin_dashboard.platform_dashboard_managing_comp')" />
 
         <!-- Header Title -->
         <div class="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-                <h1 class="text-2xl font-black text-slate-900 tracking-tight">إدارة الشركات والمنشآت المشتركة</h1>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">{{ $t('z_superadmin_dashboard.managing_subscribed_companies') }}</h1>
                 <p class="text-xs sm:text-sm text-slate-500 mt-1">
-                    يمكنك استعراض كافة الشركات المشتركة والدخول على حساب أي شركة لحل المشاكل وتقديم الدعم والتدريب
+                    {{ $t('z_superadmin_dashboard.you_can_browse_all_subscribed_co') }}
                 </p>
             </div>
         </div>
@@ -57,7 +59,7 @@ const impersonate = async (companyId) => {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
                 <div>
-                    <span class="text-xs font-semibold text-slate-500">إجمالي المنشآت</span>
+                    <span class="text-xs font-semibold text-slate-500">{{ $t('z_superadmin_dashboard.total_companies') }}</span>
                     <p class="text-2xl font-black text-slate-900 mt-1">{{ stats.total_companies }}</p>
                 </div>
                 <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -67,7 +69,7 @@ const impersonate = async (companyId) => {
 
             <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
                 <div>
-                    <span class="text-xs font-semibold text-slate-500">المنشآت النشطة</span>
+                    <span class="text-xs font-semibold text-slate-500">{{ $t('z_superadmin_dashboard.active_companies') }}</span>
                     <p class="text-2xl font-black text-emerald-600 mt-1">{{ stats.active_companies }}</p>
                 </div>
                 <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -77,7 +79,7 @@ const impersonate = async (companyId) => {
 
             <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
                 <div>
-                    <span class="text-xs font-semibold text-slate-500">فترة تجريبية (Trial)</span>
+                    <span class="text-xs font-semibold text-slate-500">{{ $t('z_superadmin_dashboard.trial_period') }}</span>
                     <p class="text-2xl font-black text-amber-600 mt-1">{{ stats.trial_companies }}</p>
                 </div>
                 <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
@@ -87,7 +89,7 @@ const impersonate = async (companyId) => {
 
             <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
                 <div>
-                    <span class="text-xs font-semibold text-slate-500">إجمالي المستخدمين</span>
+                    <span class="text-xs font-semibold text-slate-500">{{ $t('z_superadmin_dashboard.total_users') }}</span>
                     <p class="text-2xl font-black text-purple-600 mt-1">{{ stats.total_users }}</p>
                 </div>
                 <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
@@ -106,7 +108,7 @@ const impersonate = async (companyId) => {
                     v-model="search"
                     @input="handleFilter"
                     type="search"
-                    placeholder="ابحث بالاسم، النطاق الفرعي، أو البريد..."
+                    :placeholder="$t('z_superadmin_dashboard.search_by_name_subdomain_or_emai')"
                     class="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl ps-9 pe-4 py-2.5 focus:bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 />
             </div>
@@ -117,10 +119,10 @@ const impersonate = async (companyId) => {
                     @change="handleFilter"
                     class="bg-slate-50 border border-slate-200 text-xs rounded-xl py-2.5 focus:ring-purple-500 focus:border-purple-500 font-medium text-slate-700"
                 >
-                    <option value="">جميع الحالات</option>
-                    <option value="active">نشطة</option>
-                    <option value="trial">فترة تجريبية</option>
-                    <option value="suspended">معلقة</option>
+                    <option value="">{{ $t('z_superadmin_dashboard.all_statuses') }}</option>
+                    <option value="active">{{ $t('z_superadmin_dashboard.active') }}</option>
+                    <option value="trial">{{ $t('z_superadmin_dashboard.trial_period_2') }}</option>
+                    <option value="suspended">{{ $t('z_superadmin_dashboard.pending') }}</option>
                 </select>
             </div>
         </div>
@@ -131,13 +133,13 @@ const impersonate = async (companyId) => {
                 <table class="w-full text-start text-xs">
                     <thead class="bg-slate-50/75 border-b border-slate-200 text-slate-500 font-bold">
                         <tr>
-                            <th class="px-6 py-3.5 text-start">المنشأة</th>
-                            <th class="px-6 py-3.5 text-start">النطاق الفرعي (Subdomain)</th>
-                            <th class="px-6 py-3.5 text-start">الباقة</th>
-                            <th class="px-6 py-3.5 text-start">الحالة</th>
-                            <th class="px-6 py-3.5 text-start">المستخدمين</th>
-                            <th class="px-6 py-3.5 text-start">تاريخ الانضمام</th>
-                            <th class="px-6 py-3.5 text-center">الدخول والتحكم</th>
+                            <th class="px-6 py-3.5 text-start">{{ $t('z_superadmin_dashboard.company') }}</th>
+                            <th class="px-6 py-3.5 text-start">{{ $t('z_superadmin_dashboard.subdomain') }}</th>
+                            <th class="px-6 py-3.5 text-start">{{ $t('z_superadmin_dashboard.plan') }}</th>
+                            <th class="px-6 py-3.5 text-start">{{ $t('z_superadmin_dashboard.status') }}</th>
+                            <th class="px-6 py-3.5 text-start">{{ $t('z_superadmin_dashboard.users') }}</th>
+                            <th class="px-6 py-3.5 text-start">{{ $t('z_superadmin_dashboard.join_date') }}</th>
+                            <th class="px-6 py-3.5 text-center">{{ $t('z_superadmin_dashboard.sign_in_and_control') }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -168,7 +170,7 @@ const impersonate = async (companyId) => {
 
                             <!-- Plan -->
                             <td class="px-6 py-4 font-medium text-slate-700">
-                                {{ company.plan ? company.plan.name_ar : 'بدون باقة' }}
+                                {{ company.plan ? company.plan.name_ar : $t('z_superadmin_dashboard.no_plan') }}
                             </td>
 
                             <!-- Status Badge -->
@@ -191,17 +193,17 @@ const impersonate = async (companyId) => {
                                 <button
                                     @click="impersonate(company.id)"
                                     class="inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold px-3 py-1.5 rounded-xl shadow-xs hover:shadow text-xs transition active:scale-95"
-                                    title="الدخول على النظام لحل المشاكل أو عمل التعديلات والتدريب"
+                                    :title="$t('z_superadmin_dashboard.sign_in_to_the_system_to_solve_p')"
                                 >
                                     <ArrowRightOnRectangleIcon class="w-4 h-4" />
-                                    <span>دخول كمسؤول عام</span>
+                                    <span>{{ $t('z_superadmin_dashboard.sign_in_as_super_admin') }}</span>
                                 </button>
                             </td>
                         </tr>
 
                         <tr v-if="!companies.data || companies.data.length === 0">
                             <td colspan="7" class="px-6 py-12 text-center text-slate-400">
-                                لا توجد شركات مطابقة لمعايير البحث
+                                {{ $t('z_superadmin_dashboard.no_companies_match_the_search') }}
                             </td>
                         </tr>
                     </tbody>

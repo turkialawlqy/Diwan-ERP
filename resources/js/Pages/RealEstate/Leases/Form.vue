@@ -20,20 +20,20 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
 
 <template>
     <AppLayout>
-        <Head title="عقد إيجار جديد" />
-        <PageHeader title="عقد إيجار جديد" :crumbs="[{ label: 'العقارات', href: route('real-estate.properties.index') }, { label: 'عقود الإيجار', href: route('real-estate.leases.index') }, { label: 'جديد' }]" />
+        <Head :title="$t('x_realestate_leases_form.new_lease')" />
+        <PageHeader :title="$t('x_realestate_leases_form.new_lease')" :crumbs="[{ label: $t('x_realestate_leases_form.properties'), href: route('real-estate.properties.index') }, { label: $t('x_realestate_leases_form.leases'), href: route('real-estate.leases.index') }, { label: $t('x_realestate_leases_form.new') }]" />
         <form @submit.prevent="form.post(route('real-estate.leases.store'))" class="bg-white border border-slate-200 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <Field label="الوحدة (الشاغرة) *" :error="form.errors.property_unit_id"><SelectCreate v-model="form.property_unit_id" required :options="rentalUnits" entity="property_unit" :label="(u) => u.label" placeholder="اختر الوحدة" data-lease-unit /></Field>
-            <Field label="المستأجر *" :error="form.errors.customer_id" class="md:col-span-2"><PartyPicker v-model="form.customer_id" /></Field>
-            <Field label="بداية العقد *" :error="form.errors.start_date"><DatePicker v-model="form.start_date" required /></Field>
-            <Field label="نهاية العقد *" :error="form.errors.end_date"><DatePicker v-model="form.end_date" required /></Field>
-            <Field label="دورة الإيجار *" :error="form.errors.cycle"><select v-model="form.cycle" :class="input"><option v-for="(l, k) in cycles" :key="k" :value="k">{{ l }}</option></select></Field>
-            <Field label="قيمة الإيجار لكل دورة *" :error="form.errors.rent_amount"><input v-model.number="form.rent_amount" type="text" inputmode="decimal" data-num :class="input" class="font-mono" data-lease-rent /></Field>
-            <label class="flex items-center gap-2 text-xs font-bold text-slate-600 md:col-span-2"><input type="checkbox" v-model="form.residential" data-residential /> إيجار سكني (معفى من ضريبة القيمة المضافة — VATEX-SA-30)؛ ألغِ التحديد للإيجار التجاري</label>
-            <Field label="مبلغ التأمين" :error="form.errors.security_deposit"><input v-model.number="form.security_deposit" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
-            <Field label="نموذج العقد" :error="form.errors.template_id"><SelectCreate v-model="form.template_id" :options="templates" entity="contract_template" :label="(t) => t.name" placeholder="بدون نص جاهز" /></Field>
-            <p class="md:col-span-3 text-slate-500">يُنشأ عقد إيجار واشتراك إيجار تُصدر فواتيره تلقائيًا في مواعيدها، وتصبح الوحدة «مؤجَّرة».</p>
-            <div class="md:col-span-3 flex gap-2 pt-2 border-t border-slate-100"><button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-save-lease>إبرام العقد</button><Link :href="route('real-estate.leases.index')" class="px-5 py-2 rounded-xl border border-slate-200 font-bold text-slate-600">إلغاء</Link></div>
+            <Field :label="$t('x_realestate_leases_form.unit_vacant')" :error="form.errors.property_unit_id"><SelectCreate v-model="form.property_unit_id" required :options="rentalUnits" entity="property_unit" :label="(u) => u.label" :placeholder="$t('x_realestate_leases_form.choose_the_unit')" data-lease-unit /></Field>
+            <Field :label="$t('x_realestate_leases_form.tenant')" :error="form.errors.customer_id" class="md:col-span-2"><PartyPicker v-model="form.customer_id" /></Field>
+            <Field :label="$t('x_realestate_leases_form.lease_start')" :error="form.errors.start_date"><DatePicker v-model="form.start_date" required /></Field>
+            <Field :label="$t('x_realestate_leases_form.lease_end')" :error="form.errors.end_date"><DatePicker v-model="form.end_date" required /></Field>
+            <Field :label="$t('x_realestate_leases_form.rent_cycle')" :error="form.errors.cycle"><select v-model="form.cycle" :class="input"><option v-for="(l, k) in cycles" :key="k" :value="k">{{ l }}</option></select></Field>
+            <Field :label="$t('x_realestate_leases_form.rent_per_cycle')" :error="form.errors.rent_amount"><input v-model.number="form.rent_amount" type="text" inputmode="decimal" data-num :class="input" class="font-mono" data-lease-rent /></Field>
+            <label class="flex items-center gap-2 text-xs font-bold text-slate-600 md:col-span-2"><input type="checkbox" v-model="form.residential" data-residential /> {{ $t('x_realestate_leases_form.residential_rent_exempt_from_vat') }}</label>
+            <Field :label="$t('x_realestate_leases_form.deposit_amount')" :error="form.errors.security_deposit"><input v-model.number="form.security_deposit" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
+            <Field :label="$t('x_realestate_leases_form.contract_template')" :error="form.errors.template_id"><SelectCreate v-model="form.template_id" :options="templates" entity="contract_template" :label="(t) => t.name" :placeholder="$t('x_realestate_leases_form.no_ready_text')" /></Field>
+            <p class="md:col-span-3 text-slate-500">{{ $t('x_realestate_leases_form.a_lease_and_a_rent_subscription') }}</p>
+            <div class="md:col-span-3 flex gap-2 pt-2 border-t border-slate-100"><button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-save-lease>{{ $t('x_realestate_leases_form.sign_the_lease') }}</button><Link :href="route('real-estate.leases.index')" class="px-5 py-2 rounded-xl border border-slate-200 font-bold text-slate-600">{{ $t('x_realestate_leases_form.cancel') }}</Link></div>
         </form>
     </AppLayout>
 </template>

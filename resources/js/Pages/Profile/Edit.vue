@@ -18,12 +18,12 @@ const mustEnrol = props.twoFactor.required && !props.twoFactor.enabled;
 
 <template>
     <AppLayout own-errors>
-        <Head title="الملف الشخصي" />
-        <PageHeader title="الملف الشخصي" subtitle="بيانات حسابك وكلمة المرور والتحقق الثنائي" :crumbs="[{ label: 'حسابي' }, { label: 'الملف الشخصي' }]" />
+        <Head :title="$t('x_profile_edit.profile')" />
+        <PageHeader :title="$t('x_profile_edit.profile')" :subtitle="$t('x_profile_edit.your_account_details_password_an')" :crumbs="[{ label: $t('x_profile_edit.my_account') }, { label: $t('x_profile_edit.profile') }]" />
 
         <div v-if="mustEnrol" class="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2" data-2fa-required>
             <ShieldExclamationIcon class="w-5 h-5 shrink-0" />
-            <p><span class="font-bold">التحقق الثنائي إلزامي لحسابك.</span> فعّله من البطاقة أدناه لتفتح بقية شاشات النظام.</p>
+            <p><span class="font-bold">{{ $t('x_profile_edit.two_factor_authentication_is_man') }}</span> {{ $t('x_profile_edit.enable_it_from_the_card_below_to') }}</p>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">

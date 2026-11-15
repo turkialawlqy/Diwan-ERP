@@ -15,7 +15,7 @@ const props = defineProps({ groups: Object, leaveTypes: Array, bankFormats: Obje
 const holiday = useForm({ name: '', start_date: '', end_date: '' });
 const year = today().substring(0, 4);
 // Fixed-date holidays; the two Eids follow the Hijri calendar, so their dates are entered each year.
-const presets = [['اليوم الوطني', `${year}-09-23`, `${year}-09-23`], ['يوم التأسيس', `${year}-02-22`, `${year}-02-22`], ['عطلة عيد الفطر', '', ''], ['عطلة عيد الأضحى', '', '']];
+const presets = computed(() => ([[t('hr2_hr_settings.national_day'), `${year}-09-23`, `${year}-09-23`], [t('hr2_hr_settings.founding_day'), `${year}-02-22`, `${year}-02-22`], [t('hr2_hr_settings.eid_al_fitr_holiday'), '', ''], [t('hr2_hr_settings.eid_al_adha_holiday'), '', '']]));
 const usePreset = ([name, start, end]) => Object.assign(holiday, { name, start_date: start, end_date: end });
 const removeHoliday = async (h) => { if (await confirmAction(t('hrset.del_q', { name: h.name }), { danger: true, confirmText: t('hrset.del') })) router.delete(route('hr.holidays.destroy', h.id), { preserveScroll: true }); };
 

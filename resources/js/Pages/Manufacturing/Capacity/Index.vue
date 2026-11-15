@@ -10,12 +10,12 @@ const num = (v) => Number(v || 0).toLocaleString('en-US', { maximumFractionDigit
 
 <template>
     <AppLayout>
-        <Head title="الطاقة الإنتاجية" />
-        <PageHeader title="الطاقة الإنتاجية" subtitle="حمل كل مركز عمل مقابل طاقته الأسبوعية (الأوامر المُفرَج عنها وقيد التنفيذ)" :crumbs="[{ label: 'التصنيع' }, { label: 'الطاقة' }]" />
-        <p v-if="!rows.length" class="bg-white border border-slate-200/80 rounded-2xl p-10 text-center text-slate-400 text-sm">لا توجد مراكز عمل.</p>
+        <Head :title="$t('mfg_manufacturing_capacity_index.production_capacity')" />
+        <PageHeader :title="$t('mfg_manufacturing_capacity_index.production_capacity')" :subtitle="$t('mfg_manufacturing_capacity_index.each_work_center_s_load_against')" :crumbs="[{ label: $t('mfg_manufacturing_capacity_index.manufacturing') }, { label: $t('mfg_manufacturing_capacity_index.capacity') }]" />
+        <p v-if="!rows.length" class="bg-white border border-slate-200/80 rounded-2xl p-10 text-center text-slate-400 text-sm">{{ $t('mfg_manufacturing_capacity_index.no_work_centers') }}</p>
         <div v-else class="bg-white border border-slate-200/80 rounded-2xl overflow-x-auto">
             <table class="w-full text-xs">
-                <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-4 py-3">مركز العمل</th><th class="text-start px-4 py-3">الطاقة الأسبوعية (د)</th><th v-for="w in rows[0].weeks" :key="w.start" class="px-3 py-3 font-mono">{{ w.start.slice(5) }}</th></tr></thead>
+                <thead class="bg-slate-50 text-slate-500"><tr><th class="text-start px-4 py-3">{{ $t('mfg_manufacturing_capacity_index.work_center') }}</th><th class="text-start px-4 py-3">{{ $t('mfg_manufacturing_capacity_index.weekly_capacity_min') }}</th><th v-for="w in rows[0].weeks" :key="w.start" class="px-3 py-3 font-mono">{{ w.start.slice(5) }}</th></tr></thead>
                 <tbody class="divide-y divide-slate-100">
                     <tr v-for="r in rows" :key="r.id">
                         <td class="px-4 py-3 font-bold text-slate-800">{{ r.name }}<span class="block text-3xs font-mono text-slate-400">{{ r.code }}</span></td><td class="px-4 py-3 font-mono">{{ num(r.weekly_capacity) }}</td>

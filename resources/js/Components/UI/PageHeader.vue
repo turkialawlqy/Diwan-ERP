@@ -34,7 +34,7 @@ const activeYear = computed(() => {
             <h1 class="text-lg font-black text-slate-800">{{ title }}</h1>
             <p v-if="subtitle" class="text-xs text-slate-500 mt-0.5">{{ subtitle }}</p>
             <p v-if="yearScoped && activeYear" class="inline-flex items-center gap-1.5 mt-1 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 text-[11px] font-bold" data-year-chip>
-                السنة المالية {{ activeYear.name }} فقط · غيّرها من «سياق العمل» في القائمة الجانبية أو بفلتر التاريخ
+                {{ $t('z_resources_js_components_ui_pageheader.fiscal_year_n_only_change_it_fro', { n0: activeYear.name }) }}
             </p>
         </div>
         <div class="flex flex-wrap items-center gap-2 print:hidden">

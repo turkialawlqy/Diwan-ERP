@@ -29,7 +29,7 @@ defineProps({
             </tbody>
             <tfoot>
                 <tr class="font-black text-slate-900">
-                    <td class="px-4 py-2">{{ totalLabel || ('إجمالي ' + title) }}</td>
+                    <td class="px-4 py-2">{{ totalLabel || ($t('z_resources_js_components_ui_statementsection.total') + title) }}</td>
                     <td class="px-4 py-2 text-end font-mono border-t-2 border-slate-300">{{ amount(total) }}</td>
                 </tr>
             </tfoot>

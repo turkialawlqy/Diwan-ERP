@@ -20,22 +20,22 @@ const input = 'w-full text-xs rounded-xl border-slate-200 focus:border-indigo-60
 
 <template>
     <AppLayout>
-        <Head :title="editing ? 'تعديل مرحلة' : 'مرحلة جديدة'" />
-        <PageHeader :title="editing ? 'تعديل مرحلة' : 'مرحلة تصنيع جديدة'" :crumbs="[{ label: 'التصنيع' }, { label: 'المراحل', href: route('manufacturing.stages.index') }, { label: editing ? 'تعديل' : 'جديدة' }]" />
+        <Head :title="editing ? $t('mfg_manufacturing_process_stages_form.edit_a_stage') : $t('mfg_manufacturing_process_stages_form.new_stage')" />
+        <PageHeader :title="editing ? $t('mfg_manufacturing_process_stages_form.edit_a_stage') : $t('mfg_manufacturing_process_stages_form.new_manufacturing_stage')" :crumbs="[{ label: $t('mfg_manufacturing_process_stages_form.manufacturing') }, { label: $t('mfg_manufacturing_process_stages_form.stages'), href: route('manufacturing.stages.index') }, { label: editing ? $t('mfg_manufacturing_process_stages_form.edit') : $t('mfg_manufacturing_process_stages_form.new') }]" />
         <form @submit.prevent="submit" class="bg-white border border-slate-200/80 rounded-2xl p-6 space-y-5">
             <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                <Field label="الرمز *" :error="form.errors.code"><input v-model="form.code" :class="input" class="font-mono" required /></Field>
-                <Field label="الاسم *" :error="form.errors.name"><input v-model="form.name" :class="input" required /></Field>
-                <Field label="التسلسل *"><input v-model.number="form.sequence" type="text" inputmode="decimal" data-num :class="input" /></Field>
-                <Field label="ناتج المرحلة *" hint="للمرحلة الأخيرة: المنتج التام الذي يدخل المخزون" :error="form.errors.product_id"><SelectCreate v-model="form.product_id" :options="products" :search="{ route: 'lookup.products', params: { stockable: 1 } }" entity="product" label="name_ar" placeholder="— اختر —" required /></Field>
-                <Field label="تستلم من مرحلة" hint="تنتقل تكلفة المرحلة السابقة إليها"><select v-model="form.previous_stage_id" :class="input"><option value="">— أول مرحلة —</option><option v-for="x in stages" :key="x.id" :value="x.id">{{ x.code }} — {{ x.name }}</option></select></Field>
-                <Field label="المستودع *" :error="form.errors.warehouse_id"><SelectCreate v-model="form.warehouse_id" :options="warehouses" entity="warehouse" label="name_ar" :allow-empty="false" required /></Field>
-                <Field label="مركز العمل"><SelectCreate v-model="form.work_center_id" :options="workCenters" entity="work_center" :label="(w) => `${w.code} — ${w.name}`" placeholder="—" /></Field>
+                <Field :label="$t('mfg_manufacturing_process_stages_form.code')" :error="form.errors.code"><input v-model="form.code" :class="input" class="font-mono" required /></Field>
+                <Field :label="$t('mfg_manufacturing_process_stages_form.name')" :error="form.errors.name"><input v-model="form.name" :class="input" required /></Field>
+                <Field :label="$t('mfg_manufacturing_process_stages_form.sequence')"><input v-model.number="form.sequence" type="text" inputmode="decimal" data-num :class="input" /></Field>
+                <Field :label="$t('mfg_manufacturing_process_stages_form.stage_output')" :hint="$t('mfg_manufacturing_process_stages_form.for_the_last_stage_the_finished')" :error="form.errors.product_id"><SelectCreate v-model="form.product_id" :options="products" :search="{ route: 'lookup.products', params: { stockable: 1 } }" entity="product" label="name_ar" :placeholder="$t('mfg_manufacturing_process_stages_form.choose')" required /></Field>
+                <Field :label="$t('mfg_manufacturing_process_stages_form.receives_from_stage')" :hint="$t('mfg_manufacturing_process_stages_form.the_previous_stage_s_cost_moves')"><select v-model="form.previous_stage_id" :class="input"><option value="">{{ $t('mfg_manufacturing_process_stages_form.first_stage') }}</option><option v-for="x in stages" :key="x.id" :value="x.id">{{ x.code }} — {{ x.name }}</option></select></Field>
+                <Field :label="$t('mfg_manufacturing_process_stages_form.warehouse')" :error="form.errors.warehouse_id"><SelectCreate v-model="form.warehouse_id" :options="warehouses" entity="warehouse" label="name_ar" :allow-empty="false" required /></Field>
+                <Field :label="$t('mfg_manufacturing_process_stages_form.work_center')"><SelectCreate v-model="form.work_center_id" :options="workCenters" entity="work_center" :label="(w) => `${w.code} — ${w.name}`" placeholder="—" /></Field>
             </div>
-            <label class="inline-flex items-center gap-2 text-xs"><input v-model="form.is_active" type="checkbox" class="rounded" /> نشطة</label>
+            <label class="inline-flex items-center gap-2 text-xs"><input v-model="form.is_active" type="checkbox" class="rounded" /> {{ $t('mfg_manufacturing_process_stages_form.active') }}</label>
             <div class="flex gap-2 pt-2 border-t border-slate-100">
-                <button type="submit" :disabled="form.processing" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold disabled:opacity-50">حفظ</button>
-                <Link :href="route('manufacturing.stages.index')" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">إلغاء</Link>
+                <button type="submit" :disabled="form.processing" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold disabled:opacity-50">{{ $t('mfg_manufacturing_process_stages_form.save') }}</button>
+                <Link :href="route('manufacturing.stages.index')" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">{{ $t('mfg_manufacturing_process_stages_form.cancel') }}</Link>
             </div>
         </form>
     </AppLayout>

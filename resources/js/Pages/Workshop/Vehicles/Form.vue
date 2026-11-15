@@ -20,21 +20,21 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
 
 <template>
     <AppLayout>
-        <Head :title="v ? `تعديل ${v.plate}` : 'مركبة جديدة'" />
-        <PageHeader :title="v ? `تعديل المركبة ${v.plate}` : 'مركبة عميل جديدة'" :crumbs="[{ label: 'الورشة' }, { label: 'المركبات', href: route('workshop.vehicles.index') }, { label: v ? v.plate : 'جديدة' }]" />
+        <Head :title="v ? $t('x_workshop_vehicles_form.edit_n', { n0: v.plate }) : $t('x_workshop_vehicles_form.new_vehicle')" />
+        <PageHeader :title="v ? $t('x_workshop_vehicles_form.edit_vehicle_n', { n0: v.plate }) : $t('x_workshop_vehicles_form.new_customer_vehicle')" :crumbs="[{ label: $t('x_workshop_vehicles_form.workshop') }, { label: $t('x_workshop_vehicles_form.vehicles'), href: route('workshop.vehicles.index') }, { label: v ? v.plate : $t('x_workshop_vehicles_form.new') }]" />
         <form @submit.prevent="submit" class="bg-white border border-slate-200 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <Field label="العميل *" :error="form.errors.customer_id" class="md:col-span-2"><PartyPicker v-model="form.customer_id" :initial="customer" /></Field>
-            <Field label="رقم اللوحة *" :error="form.errors.plate"><input v-model="form.plate" required :class="input" class="font-mono" data-plate /></Field>
-            <Field label="الماركة" :error="form.errors.make"><input v-model="form.make" :class="input" /></Field>
-            <Field label="الموديل" :error="form.errors.model"><input v-model="form.model" :class="input" /></Field>
-            <Field label="سنة الصنع" :error="form.errors.year"><input v-model="form.year" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
-            <Field label="رقم الهيكل (VIN)" :error="form.errors.vin"><input v-model="form.vin" :class="input" class="font-mono" dir="ltr" /></Field>
-            <Field label="اللون" :error="form.errors.color"><input v-model="form.color" :class="input" /></Field>
-            <Field label="قراءة العداد (كم)" :error="form.errors.odometer"><input v-model="form.odometer" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
-            <Field label="الصيانة القادمة (تاريخ)" :error="form.errors.next_service_date"><DatePicker v-model="form.next_service_date" /></Field>
-            <Field label="الصيانة القادمة (كم)" :error="form.errors.next_service_km"><input v-model="form.next_service_km" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
-            <Field label="ملاحظات" :error="form.errors.notes" class="md:col-span-3"><textarea v-model="form.notes" rows="2" :class="input"></textarea></Field>
-            <div class="md:col-span-3 flex gap-2 pt-2 border-t border-slate-100"><button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-save-vehicle>حفظ</button><Link :href="route('workshop.vehicles.index')" class="px-5 py-2 rounded-xl border border-slate-200 font-bold text-slate-600">إلغاء</Link></div>
+            <Field :label="$t('x_workshop_vehicles_form.customer')" :error="form.errors.customer_id" class="md:col-span-2"><PartyPicker v-model="form.customer_id" :initial="customer" /></Field>
+            <Field :label="$t('x_workshop_vehicles_form.plate_number')" :error="form.errors.plate"><input v-model="form.plate" required :class="input" class="font-mono" data-plate /></Field>
+            <Field :label="$t('x_workshop_vehicles_form.make')" :error="form.errors.make"><input v-model="form.make" :class="input" /></Field>
+            <Field :label="$t('x_workshop_vehicles_form.model')" :error="form.errors.model"><input v-model="form.model" :class="input" /></Field>
+            <Field :label="$t('x_workshop_vehicles_form.year')" :error="form.errors.year"><input v-model="form.year" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
+            <Field :label="$t('x_workshop_vehicles_form.chassis_number_vin')" :error="form.errors.vin"><input v-model="form.vin" :class="input" class="font-mono" dir="ltr" /></Field>
+            <Field :label="$t('x_workshop_vehicles_form.color')" :error="form.errors.color"><input v-model="form.color" :class="input" /></Field>
+            <Field :label="$t('x_workshop_vehicles_form.odometer_km')" :error="form.errors.odometer"><input v-model="form.odometer" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
+            <Field :label="$t('x_workshop_vehicles_form.next_service_date')" :error="form.errors.next_service_date"><DatePicker v-model="form.next_service_date" /></Field>
+            <Field :label="$t('x_workshop_vehicles_form.next_service_km')" :error="form.errors.next_service_km"><input v-model="form.next_service_km" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
+            <Field :label="$t('x_workshop_vehicles_form.notes')" :error="form.errors.notes" class="md:col-span-3"><textarea v-model="form.notes" rows="2" :class="input"></textarea></Field>
+            <div class="md:col-span-3 flex gap-2 pt-2 border-t border-slate-100"><button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-save-vehicle>{{ $t('x_workshop_vehicles_form.save') }}</button><Link :href="route('workshop.vehicles.index')" class="px-5 py-2 rounded-xl border border-slate-200 font-bold text-slate-600">{{ $t('x_workshop_vehicles_form.cancel') }}</Link></div>
         </form>
     </AppLayout>
 </template>

@@ -1,9 +1,11 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { Head, router } from '@inertiajs/vue3';
 import { reactive, ref, watch } from 'vue';
 import { LockClosedIcon, PlusIcon, TrashIcon, CheckIcon } from '@heroicons/vue/24/outline';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
+const { t } = useI18n();
 
 const props = defineProps({ groups: Array, year: Number });
 
@@ -31,7 +33,7 @@ const save = (t, r) => {
     });
 };
 const remove = (t, r) => {
-    if (!confirm('حذف قاعدة الترقيم المستقبلية؟')) return;
+    if (!confirm(t('set2_settings_numbering.delete_the_future_numbering_rule'))) return;
     router.delete(route('settings.numbering.destroy', { type: t.type, year: r.valid_from_year }), { preserveScroll: true });
 };
 
@@ -55,9 +57,9 @@ const errors = (e) => Object.values(e || {}).join(' ');
 
 <template>
     <AppLayout>
-        <Head title="دليل الترميز" />
-        <PageHeader title="دليل الترميز" subtitle="بادئة وعدد خانات وبداية الترقيم لكل مستند وسجل. البادئة التي استُخدمت في مستند تُقفل، ويمكن بدء بادئة جديدة من سنة لاحقة."
-            :crumbs="[{ label: 'الإعدادات' }, { label: 'دليل الترميز' }]" />
+        <Head :title="$t('set2_settings_numbering.numbering_guide')" />
+        <PageHeader :title="$t('set2_settings_numbering.numbering_guide')" :subtitle="$t('set2_settings_numbering.a_prefix_digit_count_and_numberi')"
+            :crumbs="[{ label: $t('set2_settings_numbering.settings') }, { label: $t('set2_settings_numbering.numbering_guide') }]" />
 
         <div v-if="$page.props.errors && Object.keys($page.props.errors).length" class="mb-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs font-bold px-4 py-3" data-numbering-errors>
             {{ errors($page.props.errors) }}
@@ -69,13 +71,13 @@ const errors = (e) => Object.values(e || {}).join(' ');
                 <table class="w-full text-xs">
                     <thead class="bg-slate-50 text-slate-500">
                         <tr>
-                            <th class="py-3 px-4 text-start">المستند</th>
-                            <th class="py-3 px-4 text-start">البادئة</th>
-                            <th class="py-3 px-4 text-start">الخانات</th>
-                            <th class="py-3 px-4 text-start">يبدأ من</th>
-                            <th class="py-3 px-4 text-center">سنة في الرقم</th>
-                            <th class="py-3 px-4 text-start">المثال</th>
-                            <th class="py-3 px-4 text-start">الحالة</th>
+                            <th class="py-3 px-4 text-start">{{ $t('set2_settings_numbering.document') }}</th>
+                            <th class="py-3 px-4 text-start">{{ $t('set2_settings_numbering.prefix') }}</th>
+                            <th class="py-3 px-4 text-start">{{ $t('set2_settings_numbering.digits') }}</th>
+                            <th class="py-3 px-4 text-start">{{ $t('set2_settings_numbering.starts_from') }}</th>
+                            <th class="py-3 px-4 text-center">{{ $t('set2_settings_numbering.year_in_the_number') }}</th>
+                            <th class="py-3 px-4 text-start">{{ $t('set2_settings_numbering.example') }}</th>
+                            <th class="py-3 px-4 text-start">{{ $t('set2_settings_numbering.status') }}</th>
                             <th class="py-3 px-4"></th>
                         </tr>
                     </thead>
@@ -84,7 +86,7 @@ const errors = (e) => Object.values(e || {}).join(' ');
                             <tr v-for="r in t.rules" :key="key(t, r)" class="border-t border-slate-100" :data-type="t.type" :data-year="r.valid_from_year">
                                 <td class="py-3 px-4 font-bold text-slate-900">
                                     {{ t.label }}
-                                    <span v-if="r.valid_from_year" class="block text-3xs text-indigo-600 font-bold">من سنة {{ r.valid_from_year }}</span>
+                                    <span v-if="r.valid_from_year" class="block text-3xs text-indigo-600 font-bold">{{ $t('set2_settings_numbering.from_year_n', { n0: r.valid_from_year }) }}</span>
                                 </td>
                                 <template v-if="!r.used">
                                     <td class="py-2 px-4"><input v-model="draft(t, r).prefix" maxlength="10" class="w-28 rounded-lg border-slate-200 text-xs font-mono" dir="ltr" data-prefix /></td>
@@ -99,33 +101,33 @@ const errors = (e) => Object.values(e || {}).join(' ');
                                     <td class="py-3 px-4 font-mono font-bold" dir="ltr">{{ r.prefix }}</td>
                                     <td class="py-3 px-4 font-mono">{{ r.pad }}</td>
                                     <td class="py-3 px-4 font-mono">{{ r.start_number }}</td>
-                                    <td class="py-3 px-4 text-center">{{ t.yearly ? (r.with_year ? 'نعم' : 'لا') : '—' }}</td>
+                                    <td class="py-3 px-4 text-center">{{ t.yearly ? (r.with_year ? $t('set2_settings_numbering.yes') : $t('set2_settings_numbering.no')) : '—' }}</td>
                                 </template>
                                 <td class="py-3 px-4 font-mono text-slate-500" dir="ltr">{{ r.used ? r.sample : sample(draft(t, r)) }}</td>
                                 <td class="py-3 px-4">
-                                    <span v-if="r.used" class="inline-flex items-center gap-1 text-amber-700 font-bold" data-locked><LockClosedIcon class="w-3.5 h-3.5" />مستخدمة</span>
-                                    <span v-else class="text-emerald-600 font-bold">متاحة للتعديل</span>
+                                    <span v-if="r.used" class="inline-flex items-center gap-1 text-amber-700 font-bold" data-locked><LockClosedIcon class="w-3.5 h-3.5" />{{ $t('set2_settings_numbering.used') }}</span>
+                                    <span v-else class="text-emerald-600 font-bold">{{ $t('set2_settings_numbering.editable') }}</span>
                                 </td>
                                 <td class="py-2 px-4 text-end whitespace-nowrap">
-                                    <button v-if="!r.used" type="button" @click="save(t, r)" :disabled="!dirty(t, r) || busy === key(t, r)" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold disabled:opacity-40" data-save><CheckIcon class="w-3.5 h-3.5" />حفظ</button>
-                                    <button v-if="!r.used && r.valid_from_year" type="button" @click="remove(t, r)" class="ms-1 p-1.5 rounded-lg text-rose-600 hover:bg-rose-50" title="حذف"><TrashIcon class="w-4 h-4" /></button>
-                                    <button v-if="r === lastRule(t) && r.used && t.yearly && r.with_year && !adding[t.type]" type="button" @click="open(t)" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 font-bold" data-new-year><PlusIcon class="w-3.5 h-3.5" />بادئة جديدة من سنة</button>
+                                    <button v-if="!r.used" type="button" @click="save(t, r)" :disabled="!dirty(t, r) || busy === key(t, r)" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold disabled:opacity-40" data-save><CheckIcon class="w-3.5 h-3.5" />{{ $t('set2_settings_numbering.save') }}</button>
+                                    <button v-if="!r.used && r.valid_from_year" type="button" @click="remove(t, r)" class="ms-1 p-1.5 rounded-lg text-rose-600 hover:bg-rose-50" :title="$t('set2_settings_numbering.delete')"><TrashIcon class="w-4 h-4" /></button>
+                                    <button v-if="r === lastRule(t) && r.used && t.yearly && r.with_year && !adding[t.type]" type="button" @click="open(t)" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 font-bold" data-new-year><PlusIcon class="w-3.5 h-3.5" />{{ $t('set2_settings_numbering.new_prefix_from_a_year') }}</button>
                                 </td>
                             </tr>
                             <tr v-if="adding[t.type]" class="border-t border-indigo-100 bg-indigo-50/40" :data-adding="t.type">
-                                <td class="py-2 px-4 font-bold text-indigo-700">{{ t.label }} — جديدة</td>
-                                <td class="py-2 px-4"><input v-model="adding[t.type].prefix" maxlength="10" placeholder="بادئة" class="w-28 rounded-lg border-slate-200 text-xs font-mono" dir="ltr" data-add-prefix /></td>
+                                <td class="py-2 px-4 font-bold text-indigo-700">{{ $t('set2_settings_numbering.n_new', { n0: t.label }) }}</td>
+                                <td class="py-2 px-4"><input v-model="adding[t.type].prefix" maxlength="10" :placeholder="$t('set2_settings_numbering.prefix_2')" class="w-28 rounded-lg border-slate-200 text-xs font-mono" dir="ltr" data-add-prefix /></td>
                                 <td class="py-2 px-4"><input v-model="adding[t.type].pad" type="text" inputmode="decimal" data-num class="w-16 rounded-lg border-slate-200 text-xs font-mono" /></td>
                                 <td class="py-2 px-4"><input v-model="adding[t.type].start_number" type="text" inputmode="decimal" data-num class="w-24 rounded-lg border-slate-200 text-xs font-mono" /></td>
                                 <td class="py-2 px-4 text-center"><input v-model="adding[t.type].with_year" type="checkbox" class="rounded border-slate-300 text-indigo-600" /></td>
                                 <td class="py-2 px-4" colspan="2">
-                                    <label class="text-slate-600 font-bold">من سنة
+                                    <label class="text-slate-600 font-bold">{{ $t('set2_settings_numbering.from_year') }}
                                         <input v-model="adding[t.type].year" type="text" inputmode="decimal" data-num class="w-20 rounded-lg border-slate-200 text-xs font-mono ms-1" data-add-year />
                                     </label>
                                 </td>
                                 <td class="py-2 px-4 text-end whitespace-nowrap">
-                                    <button type="button" @click="add(t)" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold" data-add-save>إضافة</button>
-                                    <button type="button" @click="delete adding[t.type]" class="ms-1 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-bold">إلغاء</button>
+                                    <button type="button" @click="add(t)" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold" data-add-save>{{ $t('set2_settings_numbering.add') }}</button>
+                                    <button type="button" @click="delete adding[t.type]" class="ms-1 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-bold">{{ $t('set2_settings_numbering.cancel') }}</button>
                                 </td>
                             </tr>
                         </template>

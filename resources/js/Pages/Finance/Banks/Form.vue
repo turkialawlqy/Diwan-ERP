@@ -31,36 +31,36 @@ const submitAccount = () => (editing ? form.put(route('finance.banks.update', ed
 
 <template>
     <AppLayout>
-        <Head :title="editing ? `تعديل ${editing.name}` : 'حساب بنك أو صندوق جديد'" />
-        <PageHeader :title="editing ? `تعديل ${editing.name}` : 'حساب بنك أو صندوق جديد'" :crumbs="[{ label: 'المالية' }, { label: 'البنوك والصناديق', href: route('finance.banks.index') }, { label: editing ? 'تعديل' : 'جديد' }]" />
+        <Head :title="editing ? $t('fin_finance_banks_form.edit_n', { n0: editing.name }) : $t('fin_finance_banks_form.new_bank_or_cash_box_account')" />
+        <PageHeader :title="editing ? $t('fin_finance_banks_form.edit_n', { n0: editing.name }) : $t('fin_finance_banks_form.new_bank_or_cash_box_account')" :crumbs="[{ label: $t('fin_finance_banks_form.finance') }, { label: $t('fin_finance_banks_form.banks_and_cash_boxes'), href: route('finance.banks.index') }, { label: editing ? $t('fin_finance_banks_form.edit') : $t('fin_finance_banks_form.new') }]" />
 
         <div class="bg-white border border-slate-200/80 rounded-2xl p-6">
             <form @submit.prevent="submitAccount" class="form-grid text-xs">
                             <div>
-                                <label class="block font-medium text-slate-700 mb-1">اسم الحساب / الخزينة <span class="text-rose-500">*</span></label>
+                                <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_banks_form.account_cash_box_name') }} <span class="text-rose-500">*</span></label>
                                 <input 
                                     v-model="form.name" 
                                     type="text" 
                                     required 
-                                    placeholder="مثال: حساب مصرف الراجحي الرئيسي أو خزينة الرياض"
+                                    :placeholder="$t('fin_finance_banks_form.example_al_rajhi_main_account_or')"
                                     class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500" 
                                 />
                             </div>
             
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block font-medium text-slate-700 mb-1">النوع <span class="text-rose-500">*</span></label>
+                                    <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_banks_form.type') }} <span class="text-rose-500">*</span></label>
                                     <select 
                                         v-model="form.type" 
                                         :disabled="!!editing"
                                         class="w-full py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500"
                                     >
-                                        <option value="bank">حساب بنكي</option>
-                                        <option value="cash">خزينة نقدية (درج كاش)</option>
+                                        <option value="bank">{{ $t('fin_finance_banks_form.bank_account') }}</option>
+                                        <option value="cash">{{ $t('fin_finance_banks_form.cash_box_cash_drawer') }}</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block font-medium text-slate-700 mb-1">الرصيد الافتتاحي (﷼) <span class="text-rose-500">*</span></label>
+                                    <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_banks_form.opening_balance_sar') }} <span class="text-rose-500">*</span></label>
                                     <input 
                                         v-model.number="form.opening_balance" 
                                         :disabled="!!editing"
@@ -75,26 +75,26 @@ const submitAccount = () => (editing ? form.put(route('finance.banks.update', ed
                             <!-- If Bank -->
                             <div v-if="form.type === 'bank'" class="space-y-3 p-3 bg-sky-50/50 rounded-xl border border-sky-100">
                                 <div>
-                                    <label class="block font-medium text-slate-700 mb-1">اسم البنك</label>
+                                    <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_banks_form.bank_name') }}</label>
                                     <input 
                                         v-model="form.bank_name" 
                                         type="text" 
-                                        placeholder="مثال: مصرف الراجحي، بنك الرياض، الأهلي..."
+                                        :placeholder="$t('fin_finance_banks_form.example_al_rajhi_bank_riyad_bank')"
                                         class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:ring-indigo-500 focus:border-indigo-500" 
                                     />
                                 </div>
                                 <div class="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label class="block font-medium text-slate-700 mb-1">رقم الحساب</label>
+                                        <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_banks_form.account_number') }}</label>
                                         <input 
                                             v-model="form.account_number" 
                                             type="text" 
-                                            placeholder="رقم الحساب المصرفي"
+                                            :placeholder="$t('fin_finance_banks_form.bank_account_number')"
                                             class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl font-mono focus:ring-indigo-500 focus:border-indigo-500" 
                                         />
                                     </div>
                                     <div>
-                                        <label class="block font-medium text-slate-700 mb-1">رقم الآيبان (IBAN)</label>
+                                        <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_banks_form.iban') }}</label>
                                         <input 
                                             v-model="form.iban" 
                                             type="text" 
@@ -106,18 +106,18 @@ const submitAccount = () => (editing ? form.put(route('finance.banks.update', ed
                             </div>
             
                             <div>
-                                <label class="block font-medium text-slate-700 mb-1">ربط مع حساب بدليل الحسابات (اختياري)</label>
-                                <SelectCreate v-model="form.account_id" :options="chartAccounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar}`" placeholder="بدون ربط مباشر" />
+                                <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_banks_form.link_to_a_chart_of_accounts_acco') }}</label>
+                                <SelectCreate v-model="form.account_id" :options="chartAccounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :placeholder="$t('fin_finance_banks_form.no_direct_link')" />
                             </div>
             
                             <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                                <Link :href="route('finance.banks.index')" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium">إلغاء</Link>
+                                <Link :href="route('finance.banks.index')" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium">{{ $t('fin_finance_banks_form.cancel') }}</Link>
                                 <button 
                                     type="submit" 
                                     :disabled="form.processing"
                                     class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-xs hover:shadow-indigo-500/20 disabled:opacity-50"
                                 >
-                                    إضافة الحساب
+                                    {{ $t('fin_finance_banks_form.add_the_account') }}
                                 </button>
                             </div>
                         </form>

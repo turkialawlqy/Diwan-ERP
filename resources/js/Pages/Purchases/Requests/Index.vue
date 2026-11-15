@@ -1,6 +1,7 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import DatePicker from '@/Components/UI/DatePicker.vue';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -10,17 +11,18 @@ import DocumentTable from '@/Components/Documents/DocumentTable.vue';
 import LineItemsEditor from '@/Components/Documents/LineItemsEditor.vue';
 import { PlusIcon } from '@heroicons/vue/24/outline';
 import { today } from '@/utils/format';
+const { t } = useI18n();
 
 defineProps({ requests: Object, filters: Object });
-const columns = [
-    { key: 'request_number', label: 'الرقم', type: 'mono' },
-    { key: 'request_date', label: 'التاريخ', type: 'date' },
-    { key: 'required_date', label: 'مطلوب بتاريخ', type: 'date' },
-    { key: 'requester.name', label: 'مقدم الطلب' },
-    { key: 'items_count', label: 'الأصناف' },
-    { key: 'status', label: 'الحالة', type: 'status' },
-];
-const statuses = [{ value: 'pending_approval', label: 'بانتظار الاعتماد' }, { value: 'approved', label: 'معتمد' }, { value: 'ordered', label: 'تم الطلب' }, { value: 'rejected', label: 'مرفوض' }];
+const columns = computed(() => ([
+    { key: 'request_number', label: t('z_purchases_requests_index.number'), type: 'mono' },
+    { key: 'request_date', label: t('z_purchases_requests_index.date'), type: 'date' },
+    { key: 'required_date', label: t('z_purchases_requests_index.required_by'), type: 'date' },
+    { key: 'requester.name', label: t('z_purchases_requests_index.requested_by') },
+    { key: 'items_count', label: t('z_purchases_requests_index.items') },
+    { key: 'status', label: t('z_purchases_requests_index.status'), type: 'status' },
+]));
+const statuses = computed(() => ([{ value: 'pending_approval', label: t('z_purchases_requests_index.awaiting_approval') }, { value: 'approved', label: t('z_purchases_requests_index.approved') }, { value: 'ordered', label: t('z_purchases_requests_index.ordered') }, { value: 'rejected', label: t('z_purchases_requests_index.rejected') }]));
 const open = ref(false);
 const form = useForm({ request_date: today(), required_date: '', notes: '', items: [] });
 const save = () => form.transform((d) => ({ ...d, items: d.items.map((i) => ({ product_id: i.product_id, item_name: i.item_name, quantity: i.quantity, estimated_price: i.estimated_price })) }))
@@ -30,7 +32,7 @@ const save = () => form.transform((d) => ({ ...d, items: d.items.map((i) => ({ p
 <template>
     <AppLayout>
         <Head :title="$t('p_requests_index.purchase_requests')" />
-        <PageHeader year-scoped :title="$t('p_requests_index.purchase_requests')" :subtitle="$t('p_requests_index.internal_request_approval_purcha')" :crumbs="[{ label: 'المشتريات' }, { label: 'طلبات الشراء' }]">
+        <PageHeader year-scoped :title="$t('p_requests_index.purchase_requests')" :subtitle="$t('p_requests_index.internal_request_approval_purcha')" :crumbs="[{ label: $t('z_purchases_requests_index.purchases') }, { label: $t('z_purchases_requests_index.purchase_requests') }]">
             <template #actions><button v-if="$can('purchases.requests.create')" @click="open = true" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold"><PlusIcon class="w-4 h-4" /> {{ $t('p_requests_index.purchase_request') }}</button></template>
         </PageHeader>
         <DocumentTable :paginator="requests" :columns="columns" :filters="filters" :statuses="statuses" search-route="purchases.requests.index" :link="(r) => route('purchases.requests.show', r.id)" />

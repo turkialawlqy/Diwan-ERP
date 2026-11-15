@@ -36,7 +36,7 @@ const reverse = async () => {
             </table>
         </div>
         <div class="text-xs text-slate-600 space-y-1">
-            <div>{{ $t('alloc.credits') }}: {{ accounts.map((a) => `${a.code} - ${a.name_ar}`).join('، ') }}</div>
+            <div>{{ $t('alloc.credits') }}: {{ accounts.map((a) => `${a.code} - ${a.name_ar}`).join($t('prj_projects_allocations_show.text')) }}</div>
             <div v-if="run.journal_entry">{{ $t('alloc.journal') }}: <span class="font-mono">{{ run.journal_entry.entry_number }}</span></div>
         </div>
     </AppLayout>

@@ -16,22 +16,22 @@ const when = (v) => (v ? String(v).replace('T', ' ').slice(0, 16) : '—');
 
 <template>
     <AppLayout>
-        <Head title="الطلبات الإدارية" />
-        <PageHeader title="الطلبات الإدارية" subtitle="استدعاء موظفين للحضور ومتابعة تبليغهم" :crumbs="[{ label: 'شؤون الموظفين' }, { label: 'الطلبات الإدارية' }]">
+        <Head :title="$t('hr_adminrequests_index.administrative_requests')" />
+        <PageHeader :title="$t('hr_adminrequests_index.administrative_requests')" :subtitle="$t('hr_adminrequests_index.summon_employees_to_attend_and_f')" :crumbs="[{ label: $t('hr2_hr_adminrequests_index.employee_affairs') }, { label: $t('hr2_hr_adminrequests_index.administrative_requests') }]">
             <template #actions>
-                <Link :href="route('hr.admin-requests.inbox')" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">مهام التبليغ</Link>
-                <Link v-if="$can('hr.admin_requests.create')" :href="route('hr.admin-requests.create')" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold" data-new-request><PlusIcon class="w-4 h-4" /> طلب إداري جديد</Link>
+                <Link :href="route('hr.admin-requests.inbox')" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">{{ $t('hr_adminrequests_index.notification_tasks') }}</Link>
+                <Link v-if="$can('hr.admin_requests.create')" :href="route('hr.admin-requests.create')" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold" data-new-request><PlusIcon class="w-4 h-4" /> {{ $t('hr_adminrequests_index.new_administrative_request') }}</Link>
             </template>
         </PageHeader>
         <div class="bg-white border border-slate-200 rounded-2xl p-3 mb-3 flex flex-wrap items-end gap-2 text-xs">
-            <input v-model="f.search" @keyup.enter="go" placeholder="رقم أو عنوان" class="rounded-xl border-slate-200 text-xs w-48" />
-            <select v-model="f.status" @change="go" class="rounded-xl border-slate-200 text-xs"><option value="">كل الحالات</option><option v-for="(l, k) in statuses" :key="k" :value="k">{{ l }}</option></select>
-            <select v-model="f.department" @change="go" class="rounded-xl border-slate-200 text-xs"><option value="">كل الإدارات</option><option v-for="d in departments" :key="d.id" :value="d.id">{{ d.name }}</option></select>
-            <select v-model="f.employee" @change="go" class="rounded-xl border-slate-200 text-xs"><option value="">كل الموظفين</option><option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }}</option></select>
+            <input v-model="f.search" @keyup.enter="go" :placeholder="$t('hr_adminrequests_index.number_or_title')" class="rounded-xl border-slate-200 text-xs w-48" />
+            <select v-model="f.status" @change="go" class="rounded-xl border-slate-200 text-xs"><option value="">{{ $t('hr_adminrequests_index.all_statuses') }}</option><option v-for="(l, k) in statuses" :key="k" :value="k">{{ l }}</option></select>
+            <select v-model="f.department" @change="go" class="rounded-xl border-slate-200 text-xs"><option value="">{{ $t('hr_adminrequests_index.all_departments') }}</option><option v-for="d in departments" :key="d.id" :value="d.id">{{ d.name }}</option></select>
+            <select v-model="f.employee" @change="go" class="rounded-xl border-slate-200 text-xs"><option value="">{{ $t('hr_adminrequests_index.all_employees') }}</option><option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }}</option></select>
         </div>
         <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
             <table class="w-full text-xs">
-                <thead class="bg-slate-50 text-slate-500"><tr><th class="px-4 py-2 text-start">الرقم</th><th class="px-4 py-2 text-start">العنوان</th><th class="px-4 py-2 text-start">الموعد</th><th class="px-4 py-2 text-start">الموظفون</th><th class="px-4 py-2 text-start">الحالة</th><th class="px-4 py-2 w-24"></th></tr></thead>
+                <thead class="bg-slate-50 text-slate-500"><tr><th class="px-4 py-2 text-start">{{ $t('hr_adminrequests_index.number') }}</th><th class="px-4 py-2 text-start">{{ $t('hr_adminrequests_index.title') }}</th><th class="px-4 py-2 text-start">{{ $t('hr_adminrequests_index.appointment') }}</th><th class="px-4 py-2 text-start">{{ $t('hr_adminrequests_index.employees') }}</th><th class="px-4 py-2 text-start">{{ $t('hr_adminrequests_index.status') }}</th><th class="px-4 py-2 w-24"></th></tr></thead>
                 <tbody>
                     <tr v-for="r in requests.data" :key="r.id" class="border-t border-slate-100" :data-request="r.number">
                         <td class="px-4 py-2"><Link :href="route('hr.admin-requests.show', r.id)" class="font-mono font-bold text-indigo-600">{{ r.number }}</Link></td>
@@ -39,7 +39,7 @@ const when = (v) => (v ? String(v).replace('T', ' ').slice(0, 16) : '—');
                         <td class="px-4 py-2 font-bold" :class="tone[r.status]">{{ statuses[r.status] }}</td>
                         <td class="px-4 py-2 text-end"><RowActions :view="route('hr.admin-requests.show', r.id)" :edit="r.status === 'draft' && $can('hr.admin_requests.edit') ? route('hr.admin-requests.edit', r.id) : null" :remove="r.status === 'draft' && $can('hr.admin_requests.delete') ? route('hr.admin-requests.destroy', r.id) : null" confirm="حذف هذه المسودة؟" /></td>
                     </tr>
-                    <tr v-if="!requests.data.length"><td colspan="6" class="py-10 text-center text-slate-400">لا طلبات إدارية.</td></tr>
+                    <tr v-if="!requests.data.length"><td colspan="6" class="py-10 text-center text-slate-400">{{ $t('hr_adminrequests_index.no_administrative_requests') }}</td></tr>
                 </tbody>
             </table>
         </div>

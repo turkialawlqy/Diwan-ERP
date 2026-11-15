@@ -2,7 +2,7 @@
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
@@ -53,49 +53,49 @@ const findDefaultAccountId = (role) => {
     if (!accList.length) return '';
 
     if (role === 'sales_revenue') {
-        const found = accList.find(a => a.code === '41' || a.code === '4101' || a.code === '4001' || a.name_ar?.includes('مبيعات') || a.name_ar?.includes('إيراد'))
+        const found = accList.find(a => a.code === '41' || a.code === '4101' || a.code === '4001' || a.name_ar?.includes(t('set2_settings_index.sales')) || a.name_ar?.includes(t('set2_settings_index.revenue')))
             || accList.find(a => a.type === 'revenue');
         return found ? found.id : '';
     }
     if (role === 'purchases_cogs') {
-        const found = accList.find(a => a.code === '51' || a.code === '5101' || a.code === '5001' || a.name_ar?.includes('مشتريات') || a.name_ar?.includes('بضاعة'))
+        const found = accList.find(a => a.code === '51' || a.code === '5101' || a.code === '5001' || a.name_ar?.includes(t('set2_settings_index.purchases')) || a.name_ar?.includes(t('set2_settings_index.goods')))
             || accList.find(a => a.type === 'expense');
         return found ? found.id : '';
     }
     if (role === 'vat_output') {
-        const found = accList.find(a => a.code === '212' || a.code === '2102' || a.name_ar?.includes('محصلة') || (a.name_ar?.includes('ضريبة') && a.type === 'liability'))
-            || accList.find(a => a.name_ar?.includes('ضريبة') && a.type === 'liability');
+        const found = accList.find(a => a.code === '212' || a.code === '2102' || a.name_ar?.includes(t('set2_settings_index.collected')) || (a.name_ar?.includes(t('set2_settings_index.tax')) && a.type === 'liability'))
+            || accList.find(a => a.name_ar?.includes(t('set2_settings_index.tax')) && a.type === 'liability');
         return found ? found.id : '';
     }
     if (role === 'vat_input') {
-        const found = accList.find(a => a.code === '114' || a.code === '1104' || a.name_ar?.includes('مدخلة') || (a.name_ar?.includes('ضريبة') && a.type === 'asset'))
-            || accList.find(a => a.name_ar?.includes('ضريبة') && a.type === 'asset');
+        const found = accList.find(a => a.code === '114' || a.code === '1104' || a.name_ar?.includes(t('set2_settings_index.input')) || (a.name_ar?.includes(t('set2_settings_index.tax')) && a.type === 'asset'))
+            || accList.find(a => a.name_ar?.includes(t('set2_settings_index.tax')) && a.type === 'asset');
         return found ? found.id : '';
     }
     if (role === 'receivables') {
-        const found = accList.find(a => a.code === '1121' || a.code === '112' || a.name_ar?.includes('عملاء') || a.name_ar?.includes('مدين'))
+        const found = accList.find(a => a.code === '1121' || a.code === '112' || a.name_ar?.includes(t('set2_settings_index.customers')) || a.name_ar?.includes(t('set2_settings_index.debit')))
             || accList.find(a => a.type === 'asset');
         return found ? found.id : '';
     }
     if (role === 'payables') {
-        const found = accList.find(a => a.code === '211' || a.code === '2101' || a.name_ar?.includes('موردين') || a.name_ar?.includes('دائن'))
+        const found = accList.find(a => a.code === '211' || a.code === '2101' || a.name_ar?.includes(t('set2_settings_index.suppliers')) || a.name_ar?.includes(t('set2_settings_index.credit')))
             || accList.find(a => a.type === 'liability');
         return found ? found.id : '';
     }
     if (role === 'default_cash') {
-        const found = accList.find(a => a.code === '1111' || a.code === '1101' || a.name_ar?.includes('صندوق') || a.name_ar?.includes('خزينة'))
+        const found = accList.find(a => a.code === '1111' || a.code === '1101' || a.name_ar?.includes(t('set2_settings_index.cash_box')) || a.name_ar?.includes(t('set2_settings_index.cash_box_2')))
             || accList.find(a => a.type === 'asset');
         return found ? found.id : '';
     }
     if (role === 'default_bank') {
-        const found = accList.find(a => a.code === '1112' || a.code === '1102' || a.name_ar?.includes('بنك') || a.name_ar?.includes('مصرف'))
+        const found = accList.find(a => a.code === '1112' || a.code === '1102' || a.name_ar?.includes(t('set2_settings_index.bank')) || a.name_ar?.includes(t('set2_settings_index.bank_2')))
             || accList.find(a => a.type === 'asset');
         return found ? found.id : '';
     }
     return '';
 };
 
-const form = useForm({
+const form = computed(() => (useForm({
     name: props.company?.name || '',
     email: props.company?.email || '',
     phone: props.company?.phone || '',
@@ -108,7 +108,7 @@ const form = useForm({
 
     // Invoicing & Tax
     vat_rate: props.settings?.vat_rate ? Number(props.settings.vat_rate) : 15,
-    invoice_terms: props.settings?.invoice_terms || 'تطبق الشروط والأحكام الخاصة بالمبيعات.',
+    invoice_terms: props.settings?.invoice_terms || t('set2_settings_index.the_sales_terms_and_conditions_a'),
     document_message: props.settings?.document_message || '',
     show_hijri: props.settings?.show_hijri !== '0',
     two_factor_required_roles: [...(props.twoFactorRoles || [])],
@@ -132,7 +132,7 @@ const form = useForm({
     acc_payables_id: findDefaultAccountId('payables'),
     acc_default_cash_id: findDefaultAccountId('default_cash'),
     acc_default_bank_id: findDefaultAccountId('default_bank'),
-});
+})));
 useUnsavedGuard(form);
 
 const onboardForm = useForm({
@@ -147,7 +147,7 @@ const saveSettings = () => {
 };
 
 const triggerOnboard = () => {
-    onboardForm.environment = form.zatca_environment;
+    onboardForm.environment = form.value.zatca_environment;
     onboardForm.post(route('settings.zatca.onboard'), {
         preserveScroll: true,
         onSuccess: () => {
@@ -183,7 +183,7 @@ const handleLogoUpload = async (event) => {
 
     try {
         const response = await axios.post(route('settings.logo.upload'), formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
+            headers: { 'Content-Type': 'multipart/form.value-data' }
         });
         if (response.data.success) {
             currentLogo.value = response.data.logo;

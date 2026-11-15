@@ -16,31 +16,31 @@ const barColor = (pct) => (pct > 100 ? 'bg-rose-500' : pct > 80 ? 'bg-amber-500'
 
 <template>
     <AppLayout>
-        <Head title="لوحة التصنيع" />
-        <PageHeader title="لوحة التصنيع" subtitle="أوامر الإنتاج والطاقة والجودة في لمحة" :crumbs="[{ label: 'التصنيع' }, { label: 'لوحة التصنيع' }]">
+        <Head :title="$t('mfg_manufacturing_dashboard.manufacturing_dashboard')" />
+        <PageHeader :title="$t('mfg_manufacturing_dashboard.manufacturing_dashboard')" :subtitle="$t('mfg_manufacturing_dashboard.production_orders_capacity_and_q')" :crumbs="[{ label: $t('mfg_manufacturing_dashboard.manufacturing') }, { label: $t('mfg_manufacturing_dashboard.manufacturing_dashboard') }]">
             <template #actions>
                 <Link v-if="$can('manufacturing.orders.create')" :href="route('manufacturing.orders.create')" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold inline-flex items-center gap-2">
-                    <PlusIcon class="w-4 h-4" /> أمر إنتاج جديد
+                    <PlusIcon class="w-4 h-4" /> {{ $t('mfg_manufacturing_dashboard.new_production_order') }}
                 </Link>
             </template>
         </PageHeader>
 
         <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <Link :href="route('manufacturing.orders.index', { status: 'in_progress' })" class="bg-white border border-slate-200/80 rounded-2xl p-4 hover:border-indigo-300">
-                <p class="text-3xs font-bold text-slate-400">قيد التنفيذ</p><p class="text-2xl font-black text-amber-600">{{ (counts.in_progress || 0) + (counts.released || 0) }}</p>
+                <p class="text-3xs font-bold text-slate-400">{{ $t('mfg_manufacturing_dashboard.in_progress') }}</p><p class="text-2xl font-black text-amber-600">{{ (counts.in_progress || 0) + (counts.released || 0) }}</p>
             </Link>
-            <div class="bg-white border border-slate-200/80 rounded-2xl p-4"><p class="text-3xs font-bold text-slate-400">مكتملة بانتظار الإغلاق</p><p class="text-2xl font-black text-emerald-600">{{ counts.completed || 0 }}</p></div>
-            <div class="bg-white border border-slate-200/80 rounded-2xl p-4"><p class="text-3xs font-bold text-slate-400">إنتاج الشهر (وحدة)</p><p class="text-2xl font-black text-slate-800">{{ money(monthOutput) }}</p></div>
-            <div class="bg-white border border-slate-200/80 rounded-2xl p-4"><p class="text-3xs font-bold text-slate-400">إنتاج تحت التشغيل</p><p class="text-2xl font-black text-indigo-700">{{ money(wipTotal) }} <span class="text-xs">{{ $cur() }}</span></p></div>
+            <div class="bg-white border border-slate-200/80 rounded-2xl p-4"><p class="text-3xs font-bold text-slate-400">{{ $t('mfg_manufacturing_dashboard.completed_awaiting_closing') }}</p><p class="text-2xl font-black text-emerald-600">{{ counts.completed || 0 }}</p></div>
+            <div class="bg-white border border-slate-200/80 rounded-2xl p-4"><p class="text-3xs font-bold text-slate-400">{{ $t('mfg_manufacturing_dashboard.this_month_s_output_units') }}</p><p class="text-2xl font-black text-slate-800">{{ money(monthOutput) }}</p></div>
+            <div class="bg-white border border-slate-200/80 rounded-2xl p-4"><p class="text-3xs font-bold text-slate-400">{{ $t('mfg_manufacturing_dashboard.work_in_progress') }}</p><p class="text-2xl font-black text-indigo-700">{{ money(wipTotal) }} <span class="text-xs">{{ $cur() }}</span></p></div>
             <Link :href="route('manufacturing.inspections.index', { result: 'pending' })" class="bg-white border border-slate-200/80 rounded-2xl p-4 hover:border-indigo-300">
-                <p class="text-3xs font-bold text-slate-400">فحوصات بانتظار الجودة</p><p class="text-2xl font-black" :class="pendingQc ? 'text-rose-600' : 'text-slate-800'">{{ pendingQc }}</p>
+                <p class="text-3xs font-bold text-slate-400">{{ $t('mfg_manufacturing_dashboard.inspections_awaiting_quality') }}</p><p class="text-2xl font-black" :class="pendingQc ? 'text-rose-600' : 'text-slate-800'">{{ pendingQc }}</p>
             </Link>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             <div class="lg:col-span-2 bg-white border border-slate-200/80 rounded-2xl p-5">
-                <h2 class="font-black text-slate-800 text-sm mb-4">حمل مراكز العمل (الأسابيع الأربعة القادمة)</h2>
-                <p v-if="!capacity.length" class="text-xs text-slate-400">لا توجد مراكز عمل بعد.</p>
+                <h2 class="font-black text-slate-800 text-sm mb-4">{{ $t('mfg_manufacturing_dashboard.work_center_load_next_four_weeks') }}</h2>
+                <p v-if="!capacity.length" class="text-xs text-slate-400">{{ $t('mfg_manufacturing_dashboard.no_work_centers_yet') }}</p>
                 <div v-for="c in capacity" :key="c.name" class="mb-3">
                     <div class="flex justify-between text-xs mb-1"><span class="font-bold text-slate-700">{{ c.name }}</span></div>
                     <div class="grid grid-cols-4 gap-2">
@@ -52,26 +52,26 @@ const barColor = (pct) => (pct > 100 ? 'bg-rose-500' : pct > 80 ? 'bg-amber-500'
                 </div>
             </div>
             <div class="bg-white border border-slate-200/80 rounded-2xl p-5">
-                <h2 class="font-black text-slate-800 text-sm mb-3">أوامر متأخرة</h2>
-                <p v-if="!late.length" class="text-xs text-emerald-600">لا توجد أوامر متأخرة.</p>
+                <h2 class="font-black text-slate-800 text-sm mb-3">{{ $t('mfg_manufacturing_dashboard.overdue_orders') }}</h2>
+                <p v-if="!late.length" class="text-xs text-emerald-600">{{ $t('mfg_manufacturing_dashboard.no_overdue_orders') }}</p>
                 <Link v-for="o in late" :key="o.id" :href="route('manufacturing.orders.show', o.id)" class="flex justify-between items-center py-2 border-b border-slate-100 text-xs hover:bg-slate-50 px-1 rounded">
                     <span><b class="font-mono">{{ o.order_number }}</b> {{ o.product?.name_ar }}</span><span class="text-rose-600 font-mono">{{ String(o.planned_end).slice(0, 10) }}</span>
                 </Link>
-                <p class="text-3xs text-slate-400 mt-3">تحت التصنيع لدى الغير: {{ openSubcontracts }} أمر.</p>
+                <p class="text-3xs text-slate-400 mt-3">{{ $t('mfg_manufacturing_dashboard.at_subcontractors_n_orders', { n0: openSubcontracts }) }}</p>
             </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="bg-white border border-slate-200/80 rounded-2xl p-5">
-                <h2 class="font-black text-slate-800 text-sm mb-3">أحدث الأوامر</h2>
+                <h2 class="font-black text-slate-800 text-sm mb-3">{{ $t('mfg_manufacturing_dashboard.latest_orders') }}</h2>
                 <Link v-for="o in recent" :key="o.id" :href="route('manufacturing.orders.show', o.id)" class="flex justify-between items-center py-2 border-b border-slate-100 text-xs hover:bg-slate-50 px-1 rounded">
                     <span><b class="font-mono">{{ o.order_number }}</b> {{ o.product?.name_ar }}</span>
                     <span class="flex items-center gap-2"><span class="font-mono">{{ money(o.received_quantity) }}/{{ money(o.quantity) }}</span><StatusPill :status="o.status" /></span>
                 </Link>
             </div>
             <div class="bg-white border border-slate-200/80 rounded-2xl p-5">
-                <h2 class="font-black text-slate-800 text-sm mb-3">أعلى قيم تحت التشغيل</h2>
-                <p v-if="!wipOrders.length" class="text-xs text-slate-400">لا توجد تكلفة قائمة.</p>
+                <h2 class="font-black text-slate-800 text-sm mb-3">{{ $t('mfg_manufacturing_dashboard.highest_wip_values') }}</h2>
+                <p v-if="!wipOrders.length" class="text-xs text-slate-400">{{ $t('mfg_manufacturing_dashboard.no_outstanding_cost') }}</p>
                 <Link v-for="o in wipOrders" :key="o.id" :href="route('manufacturing.orders.show', o.id)" class="flex justify-between items-center py-2 border-b border-slate-100 text-xs hover:bg-slate-50 px-1 rounded">
                     <span><b class="font-mono">{{ o.number }}</b> {{ o.product }}</span><span class="font-mono">{{ money(o.wip) }}</span>
                 </Link>

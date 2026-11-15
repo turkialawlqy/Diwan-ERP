@@ -88,7 +88,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', outside));
 <template>
     <div ref="root" class="relative" data-select-create>
         <input
-            type="text" :value="shown" :placeholder="placeholder || tx('اختر...')" :disabled="disabled" autocomplete="off"
+            type="text" :value="shown" :placeholder="placeholder || tx($t('z_resources_js_components_ui_selectcreate.choose'))" :disabled="disabled" autocomplete="off"
             @focus="openList($event.target)" @input="query = $event.target.value; openList($event.target)"
             @keydown.enter.prevent="showCreate ? startCreate() : (filtered[0] && choose(filtered[0][valueKey]))"
             @keydown.esc="open = false; query = ''"
@@ -98,7 +98,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', outside));
         <span class="absolute inset-y-0 end-2 flex items-center text-slate-400 pointer-events-none"><ChevronUpDownIcon class="w-4 h-4" /></span>
         <div v-if="open" :style="listStyle" data-select-list class="fixed z-40 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto p-1 text-xs">
             <button v-if="showCreate" type="button" @click="startCreate" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-start" data-create-option>
-                <PlusIcon class="w-4 h-4 stroke-2" /> <span>{{ tx('إنشاء') }} "{{ term }}"</span>
+                <PlusIcon class="w-4 h-4 stroke-2" /> <span>{{ tx($t('z_resources_js_components_ui_selectcreate.create')) }} "{{ term }}"</span>
             </button>
             <button v-if="allowEmpty && !term" type="button" @click="choose('')" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-50 text-start"><XMarkIcon class="w-3.5 h-3.5" /> {{ emptyLabel }}</button>
             <button v-for="o in filtered" :key="o[valueKey]" type="button" @click="choose(o[valueKey])"
@@ -106,7 +106,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', outside));
                 {{ labelOf(o) }}
             </button>
             <p v-if="searching" class="px-3 py-2 text-slate-400" data-select-searching>{{ $t('common.loading') }}</p>
-            <p v-else-if="!filtered.length && !showCreate" class="px-3 py-2 text-slate-400">{{ tx('لا توجد نتائج') }}</p>
+            <p v-else-if="!filtered.length && !showCreate" class="px-3 py-2 text-slate-400">{{ tx($t('z_resources_js_components_ui_selectcreate.no_results')) }}</p>
         </div>
         <CustomerModal v-if="creating && entity === 'customer'" :show="true" :initial-name="term" @close="creating = false" @saved="(c) => created({ ...c, label: c.name })" />
         <QuickCreateDialog v-else-if="creating" :entity="entity" :name="term" @close="creating = false" @created="created" />

@@ -40,33 +40,33 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
 
 <template>
     <AppLayout>
-        <Head :title="o ? `تعديل ${o.number}` : 'أمر عمل جديد'" />
-        <PageHeader :title="o ? `تعديل أمر العمل ${o.number}` : 'أمر عمل جديد'" :crumbs="[{ label: 'أوامر العمل', href: route('work-orders.index') }, { label: o ? o.number : 'جديد' }]" />
+        <Head :title="o ? $t('wo2_workorders_form.edit_n', { n0: o.number }) : $t('wo2_workorders_form.new_work_order')" />
+        <PageHeader :title="o ? $t('wo2_workorders_form.edit_work_order_n', { n0: o.number }) : $t('wo2_workorders_form.new_work_order')" :crumbs="[{ label: $t('wo2_workorders_form.work_orders'), href: route('work-orders.index') }, { label: o ? o.number : $t('wo2_workorders_form.new') }]" />
         <form @submit.prevent="submit" class="bg-white border border-slate-200 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <Field label="العميل *" :error="form.errors.customer_id"><PartyPicker v-model="form.customer_id" :initial="o?.customer" /></Field>
-            <Field label="العنوان *" :error="form.errors.title" class="md:col-span-2"><input v-model="form.title" required :class="input" data-title /></Field>
-            <Field label="نوع العمل" :error="form.errors.work_type_id" hint="يحدد سعر الساعة المفوتَر"><SelectCreate v-model="form.work_type_id" :options="workTypes" entity="work_type" :label="(t) => t.name" placeholder="بدون" /></Field>
-            <Field label="الأولوية" :error="form.errors.priority"><select v-model="form.priority" :class="input"><option v-for="(l, k) in priorities" :key="k" :value="k">{{ l }}</option></select></Field>
-            <Field label="مستودع القطع" :error="form.errors.warehouse_id"><SelectCreate v-model="form.warehouse_id" :options="warehouses" entity="warehouse" :label="(w) => w.name_ar" placeholder="الافتراضي" /></Field>
-            <Field v-if="vehicles.length || form.vehicle_id" label="المركبة" :error="form.errors.vehicle_id"><SelectCreate v-model="form.vehicle_id" :options="customerVehicles" entity="vehicle" :label="(v) => v.label" placeholder="بدون" data-vehicle /></Field>
-            <Field v-if="form.vehicle_id" label="قراءة العداد عند الاستلام (كم)" :error="form.errors.odometer_in"><input v-model="form.odometer_in" type="text" inputmode="decimal" data-num :class="input" class="font-mono" data-odometer-in /></Field>
-            <Field v-if="rentalUnits.length || form.property_unit_id" label="الوحدة العقارية" :error="form.errors.property_unit_id"><SelectCreate v-model="form.property_unit_id" :options="rentalUnits" entity="property_unit" :label="(u) => u.label" placeholder="بدون" /></Field>
-            <Field label="الوصف" :error="form.errors.description" class="md:col-span-3"><textarea v-model="form.description" rows="2" :class="input"></textarea></Field>
-            <Field label="عنوان الموقع" :error="form.errors.site_address" class="md:col-span-2"><input v-model="form.site_address" :class="input" /></Field>
-            <Field label="هاتف الموقع" :error="form.errors.site_phone"><input v-model="form.site_phone" :class="input" dir="ltr" /></Field>
-            <Field label="يبدأ في" :error="form.errors.scheduled_start"><div class="flex gap-2"><DatePicker v-model="form.start_date" /><input v-model="form.start_time" type="time" :class="input" class="w-28" dir="ltr" /></div></Field>
-            <Field label="ينتهي في" :error="form.errors.scheduled_end"><div class="flex gap-2"><DatePicker v-model="form.end_date" /><input v-model="form.end_time" type="time" :class="input" class="w-28" dir="ltr" /></div></Field>
-            <Field label="الفني المسؤول" :error="form.errors.assigned_to"><SelectCreate v-model="form.assigned_to" :options="technicians" entity="employee" :label="(t) => t.name" placeholder="غير محدد" data-lead /></Field>
+            <Field :label="$t('wo2_workorders_form.customer')" :error="form.errors.customer_id"><PartyPicker v-model="form.customer_id" :initial="o?.customer" /></Field>
+            <Field :label="$t('wo2_workorders_form.title')" :error="form.errors.title" class="md:col-span-2"><input v-model="form.title" required :class="input" data-title /></Field>
+            <Field :label="$t('wo2_workorders_form.job_type')" :error="form.errors.work_type_id" :hint="$t('wo2_workorders_form.sets_the_billed_hourly_rate')"><SelectCreate v-model="form.work_type_id" :options="workTypes" entity="work_type" :label="(t) => t.name" :placeholder="$t('wo2_workorders_form.none')" /></Field>
+            <Field :label="$t('wo2_workorders_form.priority')" :error="form.errors.priority"><select v-model="form.priority" :class="input"><option v-for="(l, k) in priorities" :key="k" :value="k">{{ l }}</option></select></Field>
+            <Field :label="$t('wo2_workorders_form.parts_warehouse')" :error="form.errors.warehouse_id"><SelectCreate v-model="form.warehouse_id" :options="warehouses" entity="warehouse" :label="(w) => w.name_ar" :placeholder="$t('wo2_workorders_form.default')" /></Field>
+            <Field v-if="vehicles.length || form.vehicle_id" :label="$t('wo2_workorders_form.vehicle')" :error="form.errors.vehicle_id"><SelectCreate v-model="form.vehicle_id" :options="customerVehicles" entity="vehicle" :label="(v) => v.label" :placeholder="$t('wo2_workorders_form.none')" data-vehicle /></Field>
+            <Field v-if="form.vehicle_id" :label="$t('wo2_workorders_form.odometer_at_intake_km')" :error="form.errors.odometer_in"><input v-model="form.odometer_in" type="text" inputmode="decimal" data-num :class="input" class="font-mono" data-odometer-in /></Field>
+            <Field v-if="rentalUnits.length || form.property_unit_id" :label="$t('wo2_workorders_form.property_unit')" :error="form.errors.property_unit_id"><SelectCreate v-model="form.property_unit_id" :options="rentalUnits" entity="property_unit" :label="(u) => u.label" :placeholder="$t('wo2_workorders_form.none')" /></Field>
+            <Field :label="$t('wo2_workorders_form.description')" :error="form.errors.description" class="md:col-span-3"><textarea v-model="form.description" rows="2" :class="input"></textarea></Field>
+            <Field :label="$t('wo2_workorders_form.site_address')" :error="form.errors.site_address" class="md:col-span-2"><input v-model="form.site_address" :class="input" /></Field>
+            <Field :label="$t('wo2_workorders_form.site_phone')" :error="form.errors.site_phone"><input v-model="form.site_phone" :class="input" dir="ltr" /></Field>
+            <Field :label="$t('wo2_workorders_form.starts_at')" :error="form.errors.scheduled_start"><div class="flex gap-2"><DatePicker v-model="form.start_date" /><input v-model="form.start_time" type="time" :class="input" class="w-28" dir="ltr" /></div></Field>
+            <Field :label="$t('wo2_workorders_form.ends_at')" :error="form.errors.scheduled_end"><div class="flex gap-2"><DatePicker v-model="form.end_date" /><input v-model="form.end_time" type="time" :class="input" class="w-28" dir="ltr" /></div></Field>
+            <Field :label="$t('wo2_workorders_form.assigned_technician')" :error="form.errors.assigned_to"><SelectCreate v-model="form.assigned_to" :options="technicians" entity="employee" :label="(t) => t.name" :placeholder="$t('wo2_workorders_form.unassigned')" data-lead /></Field>
             <div class="md:col-span-3">
-                <p class="font-bold text-slate-700 mb-2">باقي الفريق</p>
+                <p class="font-bold text-slate-700 mb-2">{{ $t('wo2_workorders_form.rest_of_the_team') }}</p>
                 <div class="flex flex-wrap gap-2"><label v-for="t in technicians" :key="t.id" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border" :class="form.crew.includes(t.id) ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200'"><input type="checkbox" class="rounded border-slate-300" :checked="form.crew.includes(t.id)" @change="toggleCrew(t.id)" /> {{ t.name }}</label></div>
             </div>
             <div class="md:col-span-3 space-y-2">
-                <p class="font-bold text-slate-700">قائمة المهام</p>
+                <p class="font-bold text-slate-700">{{ $t('wo2_workorders_form.checklist') }}</p>
                 <div v-for="(t, i) in form.tasks" :key="i" class="flex gap-2"><input v-model="form.tasks[i]" :class="input" :data-task-input="i" /><button type="button" class="p-1 text-rose-600" @click="form.tasks.splice(i, 1)"><TrashIcon class="w-4 h-4" /></button></div>
-                <button type="button" class="px-3 py-1.5 rounded-lg border border-slate-200 font-bold text-slate-600" @click="form.tasks.push('')" data-add-task><PlusIcon class="w-3.5 h-3.5 inline" /> مهمة</button>
+                <button type="button" class="px-3 py-1.5 rounded-lg border border-slate-200 font-bold text-slate-600" @click="form.tasks.push('')" data-add-task><PlusIcon class="w-3.5 h-3.5 inline" /> {{ $t('wo2_workorders_form.task') }}</button>
             </div>
-            <div class="md:col-span-3 flex gap-2 pt-2 border-t border-slate-100"><button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-save-order>حفظ</button><Link :href="o ? route('work-orders.show', o.id) : route('work-orders.index')" class="px-5 py-2 rounded-xl border border-slate-200 font-bold text-slate-600">إلغاء</Link></div>
+            <div class="md:col-span-3 flex gap-2 pt-2 border-t border-slate-100"><button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-save-order>{{ $t('wo2_workorders_form.save') }}</button><Link :href="o ? route('work-orders.show', o.id) : route('work-orders.index')" class="px-5 py-2 rounded-xl border border-slate-200 font-bold text-slate-600">{{ $t('wo2_workorders_form.cancel') }}</Link></div>
         </form>
     </AppLayout>
 </template>

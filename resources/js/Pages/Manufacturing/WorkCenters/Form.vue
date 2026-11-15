@@ -21,25 +21,25 @@ const input = 'w-full text-xs rounded-xl border-slate-200 focus:border-indigo-60
 
 <template>
     <AppLayout>
-        <Head :title="editing ? 'تعديل مركز عمل' : 'مركز عمل جديد'" />
-        <PageHeader :title="editing ? 'تعديل مركز عمل' : 'مركز عمل جديد'" :crumbs="[{ label: 'التصنيع' }, { label: 'مراكز العمل', href: route('manufacturing.work-centers.index') }, { label: editing ? 'تعديل' : 'جديد' }]" />
+        <Head :title="editing ? $t('mfg_manufacturing_workcenters_form.edit_a_work_center') : $t('mfg_manufacturing_workcenters_form.new_work_center')" />
+        <PageHeader :title="editing ? $t('mfg_manufacturing_workcenters_form.edit_a_work_center') : $t('mfg_manufacturing_workcenters_form.new_work_center')" :crumbs="[{ label: $t('mfg_manufacturing_workcenters_form.manufacturing') }, { label: $t('mfg_manufacturing_workcenters_form.work_centers'), href: route('manufacturing.work-centers.index') }, { label: editing ? $t('mfg_manufacturing_workcenters_form.edit') : $t('mfg_manufacturing_workcenters_form.new') }]" />
         <form @submit.prevent="submit" class="bg-white border border-slate-200/80 rounded-2xl p-6 space-y-5">
             <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                <Field label="الرمز *" :error="form.errors.code"><input v-model="form.code" :class="input" class="font-mono" required /></Field>
-                <Field label="الاسم *" :error="form.errors.name"><input v-model="form.name" :class="input" required /></Field>
-                <Field label="النوع *"><select v-model="form.type" :class="input"><option value="machine">آلة</option><option value="line">خط إنتاج</option><option value="labour">عمالة يدوية</option><option value="workshop">ورشة</option></select></Field>
-                <Field label="المعدة المرتبطة" hint="للربط مع وحدة المعدات"><select v-model="form.equipment_id" :class="input"><option value="">—</option><option v-for="e in equipment" :key="e.id" :value="e.id">{{ e.code }} — {{ e.name }}</option></select></Field>
-                <Field label="مركز التكلفة"><SelectCreate v-model="form.cost_center_id" :options="costCenters" entity="cost_center" :label="(cc) => `${cc.code} — ${cc.name_ar}`" placeholder="—" /></Field>
-                <Field label="الطاقة (ساعات/يوم) *" :error="form.errors.capacity_hours_per_day"><input v-model.number="form.capacity_hours_per_day" type="text" inputmode="decimal" data-num step="0.1" :class="input" /></Field>
-                <Field label="الكفاءة % *" hint="100 = بلا فاقد" :error="form.errors.efficiency"><input v-model.number="form.efficiency" type="text" inputmode="decimal" data-num step="1" :class="input" /></Field>
-                <Field label="أجور التشغيل لكل ساعة" :error="form.errors.labour_rate_per_hour"><input v-model.number="form.labour_rate_per_hour" type="text" inputmode="decimal" data-num step="0.01" :class="input" /></Field>
-                <Field label="مصروفات غير مباشرة لكل ساعة" hint="كهرباء وإهلاك وصيانة" :error="form.errors.overhead_rate_per_hour"><input v-model.number="form.overhead_rate_per_hour" type="text" inputmode="decimal" data-num step="0.01" :class="input" /></Field>
+                <Field :label="$t('mfg_manufacturing_workcenters_form.code')" :error="form.errors.code"><input v-model="form.code" :class="input" class="font-mono" required /></Field>
+                <Field :label="$t('mfg_manufacturing_workcenters_form.name')" :error="form.errors.name"><input v-model="form.name" :class="input" required /></Field>
+                <Field :label="$t('mfg_manufacturing_workcenters_form.type')"><select v-model="form.type" :class="input"><option value="machine">{{ $t('mfg_manufacturing_workcenters_form.machine') }}</option><option value="line">{{ $t('mfg_manufacturing_workcenters_form.production_line') }}</option><option value="labour">{{ $t('mfg_manufacturing_workcenters_form.manual_labor') }}</option><option value="workshop">{{ $t('mfg_manufacturing_workcenters_form.workshop') }}</option></select></Field>
+                <Field :label="$t('mfg_manufacturing_workcenters_form.linked_equipment')" :hint="$t('mfg_manufacturing_workcenters_form.to_link_with_the_equipment_modul')"><select v-model="form.equipment_id" :class="input"><option value="">—</option><option v-for="e in equipment" :key="e.id" :value="e.id">{{ e.code }} — {{ e.name }}</option></select></Field>
+                <Field :label="$t('mfg_manufacturing_workcenters_form.cost_center')"><SelectCreate v-model="form.cost_center_id" :options="costCenters" entity="cost_center" :label="(cc) => `${cc.code} — ${cc.name_ar}`" placeholder="—" /></Field>
+                <Field :label="$t('mfg_manufacturing_workcenters_form.capacity_hours_day')" :error="form.errors.capacity_hours_per_day"><input v-model.number="form.capacity_hours_per_day" type="text" inputmode="decimal" data-num step="0.1" :class="input" /></Field>
+                <Field :label="$t('mfg_manufacturing_workcenters_form.efficiency')" :hint="$t('mfg_manufacturing_workcenters_form.100_no_loss')" :error="form.errors.efficiency"><input v-model.number="form.efficiency" type="text" inputmode="decimal" data-num step="1" :class="input" /></Field>
+                <Field :label="$t('mfg_manufacturing_workcenters_form.operating_wages_per_hour')" :error="form.errors.labour_rate_per_hour"><input v-model.number="form.labour_rate_per_hour" type="text" inputmode="decimal" data-num step="0.01" :class="input" /></Field>
+                <Field :label="$t('mfg_manufacturing_workcenters_form.indirect_expenses_per_hour')" :hint="$t('mfg_manufacturing_workcenters_form.electricity_depreciation_and_mai')" :error="form.errors.overhead_rate_per_hour"><input v-model.number="form.overhead_rate_per_hour" type="text" inputmode="decimal" data-num step="0.01" :class="input" /></Field>
             </div>
-            <Field label="ملاحظات"><textarea v-model="form.notes" rows="2" :class="input"></textarea></Field>
-            <label class="inline-flex items-center gap-2 text-xs"><input v-model="form.is_active" type="checkbox" class="rounded" /> يعمل</label>
+            <Field :label="$t('mfg_manufacturing_workcenters_form.notes')"><textarea v-model="form.notes" rows="2" :class="input"></textarea></Field>
+            <label class="inline-flex items-center gap-2 text-xs"><input v-model="form.is_active" type="checkbox" class="rounded" /> {{ $t('mfg_manufacturing_workcenters_form.running') }}</label>
             <div class="flex gap-2 pt-2 border-t border-slate-100">
-                <button type="submit" :disabled="form.processing" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold disabled:opacity-50">حفظ</button>
-                <Link :href="route('manufacturing.work-centers.index')" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">إلغاء</Link>
+                <button type="submit" :disabled="form.processing" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold disabled:opacity-50">{{ $t('mfg_manufacturing_workcenters_form.save') }}</button>
+                <Link :href="route('manufacturing.work-centers.index')" class="px-6 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">{{ $t('mfg_manufacturing_workcenters_form.cancel') }}</Link>
             </div>
         </form>
     </AppLayout>

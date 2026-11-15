@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { computed, ref, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -19,6 +20,7 @@ import {
     CheckCircleIcon,
     KeyIcon,
 } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 const props = defineProps({
     users: Object,
@@ -46,7 +48,7 @@ const savePermissions = () => {
 const userIsOwner = (u) => !!props.roles?.find((r) => r.name === u.roles?.[0]?.name)?.is_owner;
 
 const deleteUser = (id, name) => {
-    if (confirm(`هل أنت متأكد من حذف المستخدم "${name}"؟`)) {
+    if (confirm(t('x_users_index.are_you_sure_you_want_to_delete', { n0: name }))) {
         router.delete(route('users.destroy', id));
     }
 };
@@ -57,11 +59,11 @@ const getRoleBadge = (roleName) => {
         return { label: role.label, class: 'bg-rose-50 text-rose-700 border-rose-200' };
     }
     const rolesMap = {
-        admin: { label: 'مدير نظام', class: 'bg-rose-50 text-rose-700 border-rose-200' },
-        accountant: { label: 'محاسب', class: 'bg-blue-50 text-blue-700 border-blue-200' },
-        sales: { label: 'مسؤول مبيعات', class: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-        cashier: { label: 'كاشير POS', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-        employee: { label: 'موظف', class: 'bg-slate-100 text-slate-700 border-slate-200' },
+        admin: { label: t('x_users_index.system_administrator'), class: 'bg-rose-50 text-rose-700 border-rose-200' },
+        accountant: { label: t('x_users_index.accountant'), class: 'bg-blue-50 text-blue-700 border-blue-200' },
+        sales: { label: t('x_users_index.sales_officer'), class: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+        cashier: { label: t('x_users_index.pos_cashier'), class: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+        employee: { label: t('x_users_index.employee'), class: 'bg-slate-100 text-slate-700 border-slate-200' },
     };
     const style = rolesMap[roleName]?.class || 'bg-slate-100 text-slate-700 border-slate-200';
     return { label: role?.label || rolesMap[roleName]?.label || roleName, class: style };
@@ -70,15 +72,15 @@ const getRoleBadge = (roleName) => {
 
 <template>
     <AppLayout>
-        <Head title="إدارة المستخدمين" />
+        <Head :title="$t('x_users_index.user_management')" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
-            <PageHeader title="المستخدمين" :crumbs="[{ label: 'المستخدمين' }]">
+            <PageHeader :title="$t('x_users_index.users')" :crumbs="[{ label: $t('x_users_index.users') }]">
 <template #actions>
 <Link 
                         :href="route('users.index')"
-                        title="تحديث البيانات"
+                        :title="$t('x_users_index.refresh_data')"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:shadow-xs transition-all"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
@@ -88,11 +90,11 @@ const getRoleBadge = (roleName) => {
                         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm shadow-xs transition-all"
                     >
                         <ShieldCheckIcon class="w-4 h-4 text-indigo-600" />
-                        <span>الأدوار والصلاحيات</span>
+                        <span>{{ $t('x_users_index.roles_and_permissions') }}</span>
                     </Link>
                     <Link v-if="$can('admin.users.create')" :href="route('users.create')" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs hover:shadow-indigo-500/20 transition-all duration-150">
                         <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>إضافة مستخدم</span>
+                        <span>{{ $t('x_users_index.add_a_user') }}</span>
                     </Link>
 </template>
 </PageHeader>
@@ -100,11 +102,11 @@ const getRoleBadge = (roleName) => {
             <!-- Stats Overview -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">إجمالي المستخدمين المسجلين</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('x_users_index.total_registered_users') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-slate-900">{{ stats?.total_users ?? 0 }}</p>
                 </div>
                 <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
-                    <p class="text-xs text-slate-400 font-medium mb-1">المستخدمين النشطين</p>
+                    <p class="text-xs text-slate-400 font-medium mb-1">{{ $t('x_users_index.active_users') }}</p>
                     <p class="text-xl sm:text-2xl font-black text-emerald-600">{{ stats?.active_users ?? 0 }}</p>
                 </div>
             </div>
@@ -115,12 +117,12 @@ const getRoleBadge = (roleName) => {
                     <table class="w-full text-right text-xs">
                         <thead>
                             <tr class="border-b border-slate-100 bg-slate-50/50 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                <th class="py-4 px-6 text-start">المستخدم</th>
-                                <th class="py-4 px-6 text-start">البريد الإلكتروني</th>
-                                <th class="py-4 px-6 text-start">الفرع</th>
-                                <th class="py-4 px-6 text-center">الدور / الصلاحية</th>
-                                <th class="py-4 px-6 text-center">الحالة</th>
-                                <th class="py-4 px-6 text-center">إجراءات</th>
+                                <th class="py-4 px-6 text-start">{{ $t('x_users_index.user') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('x_users_index.email') }}</th>
+                                <th class="py-4 px-6 text-start">{{ $t('x_users_index.branch') }}</th>
+                                <th class="py-4 px-6 text-center">{{ $t('x_users_index.role_permission') }}</th>
+                                <th class="py-4 px-6 text-center">{{ $t('x_users_index.status') }}</th>
+                                <th class="py-4 px-6 text-center">{{ $t('x_users_index.actions') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -144,10 +146,10 @@ const getRoleBadge = (roleName) => {
                                     {{ u.email }}
                                 </td>
                                 <td class="py-4 px-6 text-slate-600">
-                                    <span v-if="userIsOwner(u) || !(u.branches?.length || u.branch)" class="text-slate-400">كل الفروع</span>
+                                    <span v-if="userIsOwner(u) || !(u.branches?.length || u.branch)" class="text-slate-400">{{ $t('x_users_index.all_branches') }}</span>
                                     <span v-else class="inline-flex items-start gap-1 font-semibold">
                                         <BuildingOfficeIcon class="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
-                                        <span>{{ (u.branches?.length ? u.branches : [u.branch]).map((b) => b.name_ar).join('، ') }}</span>
+                                        <span>{{ (u.branches?.length ? u.branches : [u.branch]).map((b) => b.name_ar).join($t('x_users_index.text')) }}</span>
                                     </span>
                                 </td>
                                 <td class="py-4 px-6 text-center">
@@ -163,7 +165,7 @@ const getRoleBadge = (roleName) => {
                                         :class="u.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'"
                                         class="text-[11px] font-bold px-2.5 py-1 rounded-lg border"
                                     >
-                                        {{ u.status === 'active' ? 'نشط' : 'معطل' }}
+                                        {{ u.status === 'active' ? $t('x_users_index.active') : $t('x_users_index.disabled') }}
                                     </span>
                                 </td>
                                 <td class="py-4 px-6 text-center">
@@ -176,14 +178,14 @@ const getRoleBadge = (roleName) => {
                                         >
                                             <KeyIcon class="w-4 h-4" />
                                         </button>
-                                        <Link v-if="$can('admin.users.edit')" :href="route('users.edit', u.id)" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="تعديل">
+                                        <Link v-if="$can('admin.users.edit')" :href="route('users.edit', u.id)" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" :title="$t('x_users_index.edit')">
                                             <PencilSquareIcon class="w-4 h-4" />
                                         </Link>
                                         <button 
                                             v-if="$can('admin.users.delete')"
                                             @click="deleteUser(u.id, u.name)"
                                             class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                                            title="حذف"
+                                            :title="$t('x_users_index.delete')"
                                         >
                                             <TrashIcon class="w-4 h-4" />
                                         </button>
@@ -192,7 +194,7 @@ const getRoleBadge = (roleName) => {
                             </tr>
                             <tr v-if="!users?.data || users.data.length === 0">
                                 <td colspan="6" class="py-12 text-center text-slate-400">
-                                    لا يوجد مستخدمين مسجلين حتى الآن.
+                                    {{ $t('x_users_index.no_registered_users_yet') }}
                                 </td>
                             </tr>
                         </tbody>
@@ -202,8 +204,8 @@ const getRoleBadge = (roleName) => {
                 <!-- Pagination Footer -->
                 <div v-if="users?.total > 0" class="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-medium">
                     <div class="flex items-center gap-2">
-                        <span>الإجمالي {{ users.total || 0 }}.</span>
-                        <span>لكل صفحة:</span>
+                        <span>{{ $t('x_users_index.total_n', { n0: users.total || 0 }) }}</span>
+                        <span>{{ $t('x_users_index.per_page') }}</span>
                         <select 
                             :value="users.per_page"
                             @change="router.get(route('users.index'), { per_page: $event.target.value }, { preserveState: true })"
@@ -215,7 +217,7 @@ const getRoleBadge = (roleName) => {
                         </select>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span>الصفحة {{ users.current_page }} من {{ users.last_page || 1 }}.</span>
+                        <span>{{ $t('x_users_index.page_n_of_n', { n0: users.current_page, n1: users.last_page || 1 }) }}</span>
                         <div class="flex items-center gap-1">
                             <Link 
                                 v-if="users.prev_page_url" 

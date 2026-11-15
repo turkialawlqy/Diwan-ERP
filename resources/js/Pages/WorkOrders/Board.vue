@@ -16,11 +16,11 @@ const time = (v) => (v ? String(v).slice(11, 16) : '—');
 
 <template>
     <AppLayout>
-        <Head title="لوحة توزيع الأوامر" />
-        <PageHeader title="لوحة توزيع الأوامر" :crumbs="[{ label: 'أوامر العمل', href: route('work-orders.index') }, { label: 'اللوحة' }]"><template #actions><DatePicker :model-value="date" @update:model-value="go" /></template></PageHeader>
+        <Head :title="$t('wo2_workorders_board.order_dispatch_board')" />
+        <PageHeader :title="$t('wo2_workorders_board.order_dispatch_board')" :crumbs="[{ label: $t('wo2_workorders_board.work_orders'), href: route('work-orders.index') }, { label: $t('wo2_workorders_board.board') }]"><template #actions><DatePicker :model-value="date" @update:model-value="go" /></template></PageHeader>
         <div class="flex gap-3 overflow-x-auto pb-2" data-board>
             <div class="w-64 shrink-0 bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-2 space-y-2" data-column="unassigned">
-                <p class="text-xs font-bold text-slate-600 px-1">بلا فني / بلا موعد ({{ unassigned.length }})</p>
+                <p class="text-xs font-bold text-slate-600 px-1">{{ $t('wo2_workorders_board.no_technician_no_appointment_n', { n0: unassigned.length }) }}</p>
                 <Link v-for="o in unassigned" :key="o.id" :href="route('work-orders.edit', o.id)" class="block rounded-xl border p-2 text-xs" :class="tone[o.status]"><b class="font-mono text-indigo-600">{{ o.number }}</b> {{ o.title }}<span class="block text-slate-500">{{ o.customer?.name }}</span></Link>
             </div>
             <div v-for="t in technicians" :key="t.id" class="w-64 shrink-0 bg-white border border-slate-200 rounded-2xl p-2 space-y-2" :data-column="t.name">
@@ -29,7 +29,7 @@ const time = (v) => (v ? String(v).slice(11, 16) : '—');
                     <span class="font-mono text-slate-500">{{ time(o.scheduled_start) }}</span> <b class="font-mono text-indigo-600">{{ o.number }}</b> {{ o.title }}<span class="block text-slate-500">{{ o.customer?.name }} · {{ statuses[o.status] }}</span>
                 </Link>
             </div>
-            <p v-if="!technicians.length && !unassigned.length" class="text-xs text-slate-400 p-6">لا أوامر في هذا اليوم.</p>
+            <p v-if="!technicians.length && !unassigned.length" class="text-xs text-slate-400 p-6">{{ $t('wo2_workorders_board.no_orders_on_this_day') }}</p>
         </div>
     </AppLayout>
 </template>

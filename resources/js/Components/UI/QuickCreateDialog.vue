@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { computed, onMounted, reactive, ref } from 'vue';
 import axios from 'axios';
 import { tx } from '@/i18n';
@@ -6,6 +7,7 @@ import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import { quickCreate } from '@/quickCreate';
+const { t } = useI18n();
 
 /**
  * Full create form for an entity, opened from "إنشاء «...»" in a dropdown.
@@ -25,7 +27,7 @@ const errors = ref({});
 const saving = ref(false);
 const lookups = reactive({});
 
-const dayNames = [[6, 'السبت'], [7, 'الأحد'], [1, 'الإثنين'], [2, 'الثلاثاء'], [3, 'الأربعاء'], [4, 'الخميس'], [5, 'الجمعة']];
+const dayNames = computed(() => ([[6, t('z_resources_js_components_ui_quickcreatedialog.saturday')], [7, t('z_resources_js_components_ui_quickcreatedialog.sunday')], [1, t('z_resources_js_components_ui_quickcreatedialog.monday')], [2, t('z_resources_js_components_ui_quickcreatedialog.tuesday')], [3, t('z_resources_js_components_ui_quickcreatedialog.wednesday')], [4, t('z_resources_js_components_ui_quickcreatedialog.thursday')], [5, t('z_resources_js_components_ui_quickcreatedialog.friday')]]));
 
 fields.forEach((f) => {
     form[f.key] = f.default !== undefined ? (Array.isArray(f.default) ? [...f.default] : f.default) : (f.type === 'checkbox' ? false : '');
@@ -60,7 +62,7 @@ const submit = async () => {
         emit('created', record);
     } catch (e) {
         const body = e.response?.data;
-        errors.value = body?.errors ? Object.fromEntries(Object.entries(body.errors).map(([k, v]) => [k, v[0]])) : { _: body?.message || tx('تعذّر الحفظ، حاول مرة أخرى.') };
+        errors.value = body?.errors ? Object.fromEntries(Object.entries(body.errors).map(([k, v]) => [k, v[0]])) : { _: body?.message || tx(t('z_resources_js_components_ui_quickcreatedialog.could_not_save_try_again')) };
     } finally {
         saving.value = false;
     }
@@ -82,7 +84,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs focus:border-indigo-60
                         <div v-if="f.type === 'days'" class="flex flex-wrap gap-3">
                             <label v-for="[n, l] in dayNames" :key="n" class="flex items-center gap-1"><input type="checkbox" :checked="form.work_days.includes(n)" @change="toggleDay(n)" class="rounded" /> {{ tx(l) }}</label>
                         </div>
-                        <SelectCreate v-else-if="f.type === 'select'" v-model="form[f.key]" :options="optionsOf(f)" :entity="f.entity" :placeholder="tx(f.empty || 'اختر...')" :allow-empty="!!f.empty || !f.required" :empty-label="tx(f.empty) || '—'" @update:modelValue="config.onChange?.(form, f.key)" @created="(r) => (lookups[f.key] = [...(lookups[f.key] || []), r])" />
+                        <SelectCreate v-else-if="f.type === 'select'" v-model="form[f.key]" :options="optionsOf(f)" :entity="f.entity" :placeholder="tx(f.empty || $t('z_resources_js_components_ui_quickcreatedialog.choose'))" :allow-empty="!!f.empty || !f.required" :empty-label="tx(f.empty) || '—'" @update:modelValue="config.onChange?.(form, f.key)" @created="(r) => (lookups[f.key] = [...(lookups[f.key] || []), r])" />
                         <textarea v-else-if="f.type === 'textarea'" v-model="form[f.key]" rows="2" :class="input"></textarea>
                         <input v-else v-model="form[f.key]" :type="f.type || 'text'" :step="f.step" :required="f.required" :maxlength="f.maxlength" :class="input" />
                     </Field>
@@ -90,8 +92,8 @@ const input = 'w-full rounded-xl border-slate-200 text-xs focus:border-indigo-60
             </template>
         </form>
         <template #footer>
-            <button type="button" @click="emit('close')" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">{{ tx('إلغاء') }}</button>
-            <button type="submit" form="quick-create-form" :disabled="saving" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">{{ saving ? tx('جارٍ الحفظ...') : tx('حفظ وتحديد') }}</button>
+            <button type="button" @click="emit('close')" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">{{ tx($t('z_resources_js_components_ui_quickcreatedialog.cancel')) }}</button>
+            <button type="submit" form="quick-create-form" :disabled="saving" class="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">{{ saving ? tx($t('z_resources_js_components_ui_quickcreatedialog.saving')) : tx($t('z_resources_js_components_ui_quickcreatedialog.save_and_select')) }}</button>
         </template>
     </Dialog>
 </template>

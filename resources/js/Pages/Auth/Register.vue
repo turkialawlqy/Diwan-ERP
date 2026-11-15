@@ -56,21 +56,21 @@ const submit = () => {
 
 <template>
     <AuthLayout wide>
-        <Head title="تسجيل منشأة جديدة" />
+        <Head :title="$t('x_auth_register.register_a_new_company')" />
 
         <div class="text-center mb-6">
-            <h2 class="text-xl font-black text-slate-900 tracking-tight">تسجيل منشأة جديدة</h2>
-            <p class="text-xs text-slate-500 mt-1">ابدأ تجربتك المجانية لمدة 14 يوماً مع {{ $page.props.brand?.name }}</p>
+            <h2 class="text-xl font-black text-slate-900 tracking-tight">{{ $t('x_auth_register.register_a_new_company') }}</h2>
+            <p class="text-xs text-slate-500 mt-1">{{ $t('x_auth_register.start_your_14_day_free_trial_wit', { n0: $page.props.brand?.name }) }}</p>
         </div>
 
         <form @submit.prevent="submit" class="space-y-6">
             <!-- 1. Company -->
             <section class="space-y-4">
-            <h3 class="flex items-center gap-2 text-sm font-black text-slate-800"><span class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center">1</span> بيانات المنشأة</h3>
+            <h3 class="flex items-center gap-2 text-sm font-black text-slate-800"><span class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center">1</span> {{ $t('x_auth_register.company_details') }}</h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
                 <label for="company_name" class="block text-xs font-bold text-slate-700 mb-1">
-                    اسم المنشأة أو المؤسسة *
+                    {{ $t('x_auth_register.company_or_establishment_name') }}
                 </label>
                 <div class="relative">
                     <div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-slate-400">
@@ -82,7 +82,7 @@ const submit = () => {
                         v-model="form.company_name"
                         required
                         autofocus
-                        placeholder="مثال: مؤسسة الأفق للتجارة"
+                        :placeholder="$t('x_auth_register.example_al_ufuq_trading_est')"
                         class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs sm:text-sm rounded-xl ps-9 pe-4 py-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-sans"
                     />
                 </div>
@@ -92,7 +92,7 @@ const submit = () => {
             <!-- Subdomain -->
             <div>
                 <label for="subdomain" class="block text-xs font-bold text-slate-700 mb-1">
-                    رابط النظام المخصص (Subdomain) *
+                    {{ $t('x_auth_register.custom_system_link_subdomain') }}
                 </label>
                 <div class="relative flex rounded-xl shadow-xs" dir="ltr">
                     <input
@@ -112,7 +112,7 @@ const submit = () => {
                 </div>
                 <div class="mt-1 flex items-center gap-1 text-[11px] text-slate-500">
                     <GlobeAltIcon class="w-3.5 h-3.5 text-indigo-600" />
-                    <span>سيكون رابط دخولك: <strong class="text-indigo-600" dir="ltr">{{ fullDomainPreview }}</strong></span>
+                    <span>{{ $t('x_auth_register.your_sign_in_link_will_be') }} <strong class="text-indigo-600" dir="ltr">{{ fullDomainPreview }}</strong></span>
                 </div>
                 <InputError class="mt-1.5" :message="form.errors.subdomain" />
             </div>
@@ -121,7 +121,7 @@ const submit = () => {
             <!-- Country (tax rules) and base currency -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label for="country_code" class="block text-xs font-bold text-slate-700 mb-1">دولة المنشأة *</label>
+                    <label for="country_code" class="block text-xs font-bold text-slate-700 mb-1">{{ $t('x_auth_register.company_country') }}</label>
                     <select id="country_code" v-model="form.country_code" required class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs sm:text-sm rounded-xl py-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-bold" data-register-country>
                         <option v-for="c in countries" :key="c.code" :value="c.code">{{ c.name }}</option>
                     </select>
@@ -129,7 +129,7 @@ const submit = () => {
                     <InputError class="mt-1.5" :message="form.errors.country_code" />
                 </div>
                 <div>
-                    <label for="currency" class="block text-xs font-bold text-slate-700 mb-1">العملة الأساسية للحسابات *</label>
+                    <label for="currency" class="block text-xs font-bold text-slate-700 mb-1">{{ $t('x_auth_register.base_currency_of_the_accounts') }}</label>
                     <div class="relative">
                         <div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-slate-400">
                             <BanknotesIcon class="w-4 h-4" />
@@ -143,7 +143,7 @@ const submit = () => {
             <div>
                 <div class="p-2 bg-amber-50/70 border border-amber-200/60 rounded-lg flex items-start gap-1.5 text-[11px] text-amber-800 font-medium">
                     <LockClosedIcon class="w-3.5 h-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <span>تنبيه هام: يتم قفل العملة الأساسية نهائياً بعد إنشاء المنشأة. الفروع في دول أخرى تُضاف لاحقاً من شاشة الفروع بعملتها وضريبتها.</span>
+                    <span>{{ $t('x_auth_register.important_the_base_currency_is_l') }}</span>
                 </div>
                 <InputError class="mt-1.5" :message="form.errors.currency" />
             </div>
@@ -151,12 +151,12 @@ const submit = () => {
 
             <!-- 2. Administrator -->
             <section class="space-y-4 pt-5 border-t border-slate-100">
-            <h3 class="flex items-center gap-2 text-sm font-black text-slate-800"><span class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center">2</span> حساب مدير المنشأة</h3>
+            <h3 class="flex items-center gap-2 text-sm font-black text-slate-800"><span class="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center">2</span> {{ $t('x_auth_register.company_manager_account') }}</h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <!-- Admin Name -->
                 <div>
                     <label for="name" class="block text-xs font-bold text-slate-700 mb-1">
-                        اسم المسؤول *
+                        {{ $t('x_auth_register.manager_name') }}
                     </label>
                     <div class="relative">
                         <div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-slate-400">
@@ -167,7 +167,7 @@ const submit = () => {
                             type="text"
                             v-model="form.name"
                             required
-                            placeholder="الاسم الكامل"
+                            :placeholder="$t('x_auth_register.full_name')"
                             class="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs sm:text-sm rounded-xl ps-9 pe-4 py-2.5 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                         />
                     </div>
@@ -177,7 +177,7 @@ const submit = () => {
                 <!-- Phone -->
                 <div>
                     <label for="phone" class="block text-xs font-bold text-slate-700 mb-1">
-                        رقم الجوال *
+                        {{ $t('x_auth_register.mobile_number') }}
                     </label>
                     <div class="relative">
                         <div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-slate-400">
@@ -200,7 +200,7 @@ const submit = () => {
             <!-- Email -->
             <div>
                 <label for="email" class="block text-xs font-bold text-slate-700 mb-1">
-                    البريد الإلكتروني (للدخول وتأكيد الحساب) *
+                    {{ $t('x_auth_register.email_for_sign_in_and_account_co') }}
                 </label>
                 <div class="relative">
                     <div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-slate-400">
@@ -220,11 +220,11 @@ const submit = () => {
             </div>
 
             <!-- Password & Confirmation -->
-            <p class="text-[11px] text-slate-500">كلمة مرور قوية: 8 أحرف على الأقل، وتُرفض كلمات المرور المسرّبة في اختراقات سابقة.</p>
+            <p class="text-[11px] text-slate-500">{{ $t('x_auth_register.a_strong_password_at_least_8_cha') }}</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label for="password" class="block text-xs font-bold text-slate-700 mb-1">
-                        كلمة المرور *
+                        {{ $t('x_auth_register.password') }}
                     </label>
                     <div class="relative">
                         <div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-slate-400">
@@ -245,7 +245,7 @@ const submit = () => {
 
                 <div>
                     <label for="password_confirmation" class="block text-xs font-bold text-slate-700 mb-1">
-                        تأكيد كلمة المرور *
+                        {{ $t('x_auth_register.confirm_password') }}
                     </label>
                     <div class="relative">
                         <div class="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-slate-400">
@@ -271,7 +271,7 @@ const submit = () => {
             <div class="pt-5 border-t border-slate-100">
                 <label class="flex items-start gap-2 text-xs text-slate-600">
                     <input v-model="form.terms" type="checkbox" class="mt-0.5 rounded border-slate-300 text-indigo-600" />
-                    <span>أوافق على <a :href="route('legal.show', 'terms')" target="_blank" class="text-indigo-600 underline">الشروط والأحكام</a> و<a :href="route('legal.show', 'privacy')" target="_blank" class="text-indigo-600 underline">سياسة الخصوصية وحماية البيانات</a>.</span>
+                    <span>{{ $t('x_auth_register.i_agree_to') }} <a :href="route('legal.show', 'terms')" target="_blank" class="text-indigo-600 underline">{{ $t('x_auth_register.terms_and_conditions') }}</a> {{ $t('x_auth_register.and') }}<a :href="route('legal.show', 'privacy')" target="_blank" class="text-indigo-600 underline">{{ $t('x_auth_register.the_privacy_and_data_protection') }}</a>.</span>
                 </label>
                 <InputError class="mt-1.5" :message="form.errors.terms" />
             </div>
@@ -284,16 +284,16 @@ const submit = () => {
                     class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs sm:text-sm py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition duration-150 disabled:opacity-50"
                 >
                     <SparklesIcon class="w-4 h-4" />
-                    <span>{{ form.processing ? 'جاري إنشاء الحساب...' : 'إنشاء المنشأة والبدء مجاناً' }}</span>
+                    <span>{{ form.processing ? $t('x_auth_register.creating_the_account') : $t('x_auth_register.create_the_company_and_start_fre') }}</span>
                 </button>
             </div>
         </form>
 
         <!-- Back to Login -->
         <div class="mt-6 pt-4 border-t border-slate-100 text-center">
-            <span class="text-xs text-slate-500">لديك حساب بالفعل؟ </span>
+            <span class="text-xs text-slate-500">{{ $t('x_auth_register.already_have_an_account') }} </span>
             <Link :href="route('login')" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition">
-                تسجيل الدخول
+                {{ $t('x_auth_register.sign_in') }}
             </Link>
         </div>
     </AuthLayout>

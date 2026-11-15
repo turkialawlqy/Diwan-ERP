@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import ImportButton from '@/Components/UI/ImportButton.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { ref } from 'vue';
@@ -17,6 +18,7 @@ import {
     CreditCardIcon,
     WalletIcon,
 } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 const props = defineProps({
     accounts: Array,
@@ -25,7 +27,7 @@ const props = defineProps({
 });
 
 const deleteAccount = (id, name) => {
-    if (confirm(`هل أنت متأكد من حذف الحساب "${name}"؟`)) {
+    if (confirm(t('fin_finance_banks_index.are_you_sure_you_want_to_delete', { n0: name }))) {
         router.delete(route('finance.banks.destroy', id));
     }
 };
@@ -40,24 +42,24 @@ const formatCurrency = (val) => {
 
 <template>
     <AppLayout>
-        <Head title="الخزائن والحسابات البنكية" />
+        <Head :title="$t('fin_finance_banks_index.cash_boxes_and_bank_accounts')" />
 
         <div class="space-y-5">
             <!-- Header Ribbon -->
-            <PageHeader title="الخزائن والبنوك" :crumbs="[{ label: 'المالية' }, { label: 'الخزائن والبنوك' }]">
+            <PageHeader :title="$t('fin_finance_banks_index.cash_boxes_and_banks')" :crumbs="[{ label: $t('fin_finance_banks_index.finance') }, { label: $t('fin_finance_banks_index.cash_boxes_and_banks') }]">
 <template #actions>
 <Link 
                         :href="route('finance.banks.index')"
                         class="p-2.5 rounded-xl bg-white border border-slate-200/80 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors shadow-xs"
-                        title="تحديث البيانات"
+                        :title="$t('fin_finance_banks_index.refresh_data')"
                     >
                         <ArrowPathIcon class="w-4 h-4" />
                     </Link>
 <Link v-if="$can('finance.banks.create')" :href="route('finance.banks.create')" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs hover:shadow-indigo-500/20 transition-all flex items-center gap-1.5">
                         <PlusIcon class="w-4 h-4 stroke-2" />
-                        <span>إضافة حساب بنكي / خزينة</span>
+                        <span>{{ $t('fin_finance_banks_index.add_a_bank_account_cash_box') }}</span>
                     </Link>
-                <ImportButton v-if="$can('finance.banks.create')" type="bank_accounts" title="استيراد الحسابات البنكية من Excel" />
+                <ImportButton v-if="$can('finance.banks.create')" type="bank_accounts" :title="$t('fin_finance_banks_index.import_bank_accounts_from_excel')" />
 </template>
 </PageHeader>
 
@@ -65,7 +67,7 @@ const formatCurrency = (val) => {
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
                     <div class="space-y-1">
-                        <span class="text-xs font-bold text-slate-500">إجمالي السيولة النقدية</span>
+                        <span class="text-xs font-bold text-slate-500">{{ $t('fin_finance_banks_index.total_cash_liquidity') }}</span>
                         <h3 class="text-lg font-black font-mono text-indigo-600">
                             {{ formatCurrency(stats?.total_liquidity) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                         </h3>
@@ -77,7 +79,7 @@ const formatCurrency = (val) => {
 
                 <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
                     <div class="space-y-1">
-                        <span class="text-xs font-bold text-slate-500">أرصدة الحسابات البنكية ({{ stats?.bank_count || 0 }})</span>
+                        <span class="text-xs font-bold text-slate-500">{{ $t('fin_finance_banks_index.bank_account_balances_n', { n0: stats?.bank_count || 0 }) }}</span>
                         <h3 class="text-lg font-black font-mono text-sky-600">
                             {{ formatCurrency(stats?.total_bank_balance) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                         </h3>
@@ -89,7 +91,7 @@ const formatCurrency = (val) => {
 
                 <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
                     <div class="space-y-1">
-                        <span class="text-xs font-bold text-slate-500">أرصدة الخزائن النقدية ({{ stats?.cash_count || 0 }})</span>
+                        <span class="text-xs font-bold text-slate-500">{{ $t('fin_finance_banks_index.cash_box_balances_n', { n0: stats?.cash_count || 0 }) }}</span>
                         <h3 class="text-lg font-black font-mono text-emerald-600">
                             {{ formatCurrency(stats?.total_cash_balance) }} <span class="text-xs font-normal text-slate-400">﷼</span>
                         </h3>
@@ -122,17 +124,17 @@ const formatCurrency = (val) => {
                                 <div>
                                     <h4 class="font-bold text-slate-900 text-xs sm:text-sm">{{ acc.name }}</h4>
                                     <span class="text-3xs font-semibold text-slate-400">
-                                        {{ acc.type === 'bank' ? 'حساب بنكي جاري' : 'خزينة عهدة نقدية' }}
+                                        {{ acc.type === 'bank' ? $t('fin_finance_banks_index.current_bank_account') : $t('fin_finance_banks_index.cash_custody_box') }}
                                     </span>
                                 </div>
                             </div>
 
                             <span class="flex items-center">
-                            <Link v-if="$can('finance.banks.edit')" :href="route('finance.banks.edit', acc.id)" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition" title="تعديل" data-row-edit><PencilSquareIcon class="w-4 h-4" /></Link>
+                            <Link v-if="$can('finance.banks.edit')" :href="route('finance.banks.edit', acc.id)" class="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition" :title="$t('fin_finance_banks_index.edit')" data-row-edit><PencilSquareIcon class="w-4 h-4" /></Link>
                             <button 
                                 @click="deleteAccount(acc.id, acc.name)"
                                 class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
-                                title="حذف"
+                                :title="$t('fin_finance_banks_index.delete')"
                             >
                                 <TrashIcon class="w-4 h-4" />
                             </button>
@@ -142,11 +144,11 @@ const formatCurrency = (val) => {
                         <!-- Bank Details -->
                         <div v-if="acc.type === 'bank'" class="space-y-1.5 p-3 bg-slate-50 rounded-xl text-3xs font-mono">
                             <div class="flex items-center justify-between text-slate-500">
-                                <span>البنك:</span>
+                                <span>{{ $t('fin_finance_banks_index.bank') }}</span>
                                 <span class="font-sans font-bold text-slate-800">{{ acc.bank_name || '-' }}</span>
                             </div>
                             <div class="flex items-center justify-between text-slate-500">
-                                <span>رقم الحساب:</span>
+                                <span>{{ $t('fin_finance_banks_index.account_number') }}</span>
                                 <span class="font-bold text-slate-800">{{ acc.account_number || '-' }}</span>
                             </div>
                             <div v-if="acc.iban" class="flex flex-col gap-0.5 text-slate-500 pt-1 border-t border-slate-200/60">
@@ -158,7 +160,7 @@ const formatCurrency = (val) => {
 
                     <!-- Current Balance Ribbon -->
                     <div class="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between">
-                        <span class="text-3xs font-bold text-slate-400">الرصيد الفعلي الحالي:</span>
+                        <span class="text-3xs font-bold text-slate-400">{{ $t('fin_finance_banks_index.current_actual_balance') }}</span>
                         <span class="font-mono font-black text-base text-slate-900">
                             {{ formatCurrency(acc.current_balance) }} <span class="text-xs font-normal">﷼</span>
                         </span>

@@ -9,19 +9,19 @@ const r = (n, p = {}) => route(n, { company: props.portal.company.id, ...p });
 </script>
 
 <template>
-    <Head title="الاشتراكات" />
+    <Head :title="$t('por_portal_subscriptions.subscriptions')" />
     <PortalLayout :portal="portal" active="subscriptions">
-        <h1 class="text-lg font-black text-slate-900 mb-3">الاشتراكات</h1>
+        <h1 class="text-lg font-black text-slate-900 mb-3">{{ $t('por_portal_subscriptions.subscriptions') }}</h1>
         <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
             <table class="w-full text-xs">
-                <thead class="bg-slate-50 text-slate-500"><tr><th class="px-4 py-2 text-start">الرقم</th><th class="px-4 py-2 text-start">الخطة</th><th class="px-4 py-2 text-start">السعر</th><th class="px-4 py-2 text-start">الحالة</th><th class="px-4 py-2 text-start">التجديد</th></tr></thead>
+                <thead class="bg-slate-50 text-slate-500"><tr><th class="px-4 py-2 text-start">{{ $t('por_portal_subscriptions.number') }}</th><th class="px-4 py-2 text-start">{{ $t('por_portal_subscriptions.plan') }}</th><th class="px-4 py-2 text-start">{{ $t('por_portal_subscriptions.price') }}</th><th class="px-4 py-2 text-start">{{ $t('por_portal_subscriptions.status') }}</th><th class="px-4 py-2 text-start">{{ $t('por_portal_subscriptions.renewal') }}</th></tr></thead>
                 <tbody>
                     <tr v-for="s in subscriptions.data" :key="s.id" class="border-t border-slate-100">
                         <td class="px-4 py-2"><Link :href="r('customer-portal.subscriptions.show', { subscription: s.id })" class="font-mono font-bold text-indigo-600">{{ s.number }}</Link></td>
                         <td class="px-4 py-2">{{ s.plan?.name }}</td><td class="px-4 py-2 font-mono">{{ money(s.unit_price) }}</td>
                         <td class="px-4 py-2">{{ statuses[s.status] || s.status }}</td><td class="px-4 py-2 font-mono">{{ s.recurring?.next_run_date?.slice(0, 10) || '—' }}</td>
                     </tr>
-                    <tr v-if="!subscriptions.data.length"><td colspan="5" class="py-8 text-center text-slate-400">لا اشتراكات.</td></tr>
+                    <tr v-if="!subscriptions.data.length"><td colspan="5" class="py-8 text-center text-slate-400">{{ $t('por_portal_subscriptions.no_subscriptions') }}</td></tr>
                 </tbody>
             </table>
         </div>

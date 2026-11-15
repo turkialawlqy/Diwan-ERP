@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import AppSidebar from '../Components/AppSidebar.vue';
@@ -10,6 +11,7 @@ import SplitScreen from '../Components/SplitScreen.vue';
 import { sidebarCollapsed } from '@/composables/useSidebar';
 import { embedded, splitOpen, splitOrientation, splitRatio, openSplit, toggleSplit } from '@/composables/useSplitScreen';
 import { CheckCircleIcon, ExclamationCircleIcon, XMarkIcon } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 // Pages that list their own form errors set own-errors so they are not shown twice.
 const props = defineProps({ ownErrors: { type: Boolean, default: false } });
@@ -63,9 +65,9 @@ const subscriptionNotice = computed(() => {
     const sub = page.props.subscription;
     if (!sub) return null;
     const days = sub.ends_at ? Math.ceil((new Date(sub.ends_at) - new Date()) / 86400000) : null;
-    if (sub.state === 'expired') return { tone: 'bg-rose-600', text: 'انتهى الاشتراك: البيانات متاحة للعرض فقط حتى التجديد.' };
-    if (sub.state === 'grace') return { tone: 'bg-amber-500', text: 'انتهى الاشتراك وأنت في فترة السماح. جدّد لتفادي إيقاف الإدخال.' };
-    if (sub.state === 'trial' && days !== null && days <= 7) return { tone: 'bg-sky-600', text: `تنتهي الفترة التجريبية خلال ${Math.max(days, 0)} يوم.` };
+    if (sub.state === 'expired') return { tone: 'bg-rose-600', text: t('z_resources_js_layouts_applayout.the_subscription_has_expired_dat') };
+    if (sub.state === 'grace') return { tone: 'bg-amber-500', text: t('z_resources_js_layouts_applayout.the_subscription_has_expired_and') };
+    if (sub.state === 'trial' && days !== null && days <= 7) return { tone: 'bg-sky-600', text: t('z_resources_js_layouts_applayout.the_trial_ends_in_n_days', { n0: Math.max(days, 0) }) };
     return null;
 });
 
@@ -82,7 +84,7 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value, field
         <ImpersonationBanner v-if="!embedded" class="print:hidden" :impersonation="impersonation" />
         <div v-if="subscriptionNotice && !embedded" :class="subscriptionNotice.tone" class="text-white text-xs font-bold px-4 py-2 text-center print:hidden">
             {{ subscriptionNotice.text }}
-            <a v-if="$canRoute('billing.index')" :href="route('billing.index')" class="underline ms-2">إدارة الاشتراك</a>
+            <a v-if="$canRoute('billing.index')" :href="route('billing.index')" class="underline ms-2">{{ $t('z_resources_js_layouts_applayout.manage_the_subscription') }}</a>
         </div>
 
         <div class="flex-1 flex print:block">
@@ -133,11 +135,11 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value, field
                             <div class="flex items-start gap-2 min-w-0">
                                 <ExclamationCircleIcon class="w-5 h-5 text-amber-600 flex-shrink-0" />
                                 <div class="min-w-0">
-                                    <p class="font-bold">لم يتم الحفظ. راجع {{ fieldErrors.length === 1 ? 'الملاحظة التالية' : `الملاحظات التالية (${fieldErrors.length})` }}:</p>
+                                    <p class="font-bold">{{ $t('z_resources_js_layouts_applayout.not_saved_review_n', { n0: fieldErrors.length === 1 ? 'الملاحظة التالية' : `الملاحظات التالية (${fieldErrors.length})` }) }}</p>
                                     <ul class="list-disc ps-5 mt-1 space-y-0.5 break-words">
                                         <li v-for="(message, i) in (showAllErrors ? fieldErrors : fieldErrors.slice(0, 5))" :key="i">{{ message }}</li>
                                     </ul>
-                                    <button v-if="fieldErrors.length > 5 && !showAllErrors" @click="showAllErrors = true" class="mt-1 font-bold underline">عرض الكل</button>
+                                    <button v-if="fieldErrors.length > 5 && !showAllErrors" @click="showAllErrors = true" class="mt-1 font-bold underline">{{ $t('z_resources_js_layouts_applayout.view_all') }}</button>
                                 </div>
                             </div>
                             <button @click="dismissFlash" class="text-amber-600 hover:text-amber-900"><XMarkIcon class="w-4 h-4" /></button>

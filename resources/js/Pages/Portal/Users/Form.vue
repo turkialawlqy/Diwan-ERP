@@ -15,15 +15,15 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
 
 <template>
     <AppLayout>
-        <Head title="دعوة مستخدم بوابة" />
-        <PageHeader title="دعوة مستخدم إلى بوابة العملاء" :crumbs="[{ label: 'المبيعات' }, { label: 'بوابة العملاء', href: route('portal.users.index') }, { label: 'دعوة' }]" />
+        <Head :title="$t('por_portal_users_form.invite_a_portal_user')" />
+        <PageHeader :title="$t('por_portal_users_form.invite_a_user_to_the_customer_po')" :crumbs="[{ label: $t('por_portal_users_form.sales') }, { label: $t('por_portal_users_form.customer_portal'), href: route('portal.users.index') }, { label: $t('por_portal_users_form.invite') }]" />
         <form @submit.prevent="submit" class="bg-white border border-slate-200 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <Field label="العميل *" :error="form.errors.customer_id" class="md:col-span-2"><PartyPicker v-model="form.customer_id" :initial="customer" /></Field>
-            <Field label="الاسم *" :error="form.errors.name"><input v-model="form.name" required :class="input" data-portal-name /></Field>
-            <Field label="البريد الإلكتروني *" :error="form.errors.email" hint="يصله رمز الدخول عند كل تسجيل"><input v-model="form.email" type="email" required :class="input" dir="ltr" data-portal-email-input /></Field>
+            <Field :label="$t('por_portal_users_form.customer')" :error="form.errors.customer_id" class="md:col-span-2"><PartyPicker v-model="form.customer_id" :initial="customer" /></Field>
+            <Field :label="$t('por_portal_users_form.name')" :error="form.errors.name"><input v-model="form.name" required :class="input" data-portal-name /></Field>
+            <Field :label="$t('por_portal_users_form.email')" :error="form.errors.email" :hint="$t('por_portal_users_form.they_receive_a_sign_in_code_at_e')"><input v-model="form.email" type="email" required :class="input" dir="ltr" data-portal-email-input /></Field>
             <div class="md:col-span-2 flex gap-2 pt-2 border-t border-slate-100">
-                <button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-save-portal-user>إرسال الدعوة</button>
-                <Link :href="route('portal.users.index')" class="px-5 py-2 rounded-xl border border-slate-200 font-bold text-slate-600">إلغاء</Link>
+                <button type="submit" :disabled="form.processing" class="px-5 py-2 rounded-xl bg-indigo-600 text-white font-bold" data-save-portal-user>{{ $t('por_portal_users_form.send_the_invitation') }}</button>
+                <Link :href="route('portal.users.index')" class="px-5 py-2 rounded-xl border border-slate-200 font-bold text-slate-600">{{ $t('por_portal_users_form.cancel') }}</Link>
             </div>
         </form>
     </AppLayout>

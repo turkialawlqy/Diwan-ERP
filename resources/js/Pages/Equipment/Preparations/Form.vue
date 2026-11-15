@@ -37,7 +37,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
 <template>
     <AppLayout>
         <Head :title="editing ? $t('eq_prep.edit_title', { number: editing.number }) : $t('eq_prep.new')" />
-        <PageHeader :title="editing ? $t('eq_prep.edit_title', { number: editing.number }) : $t('eq_prep.new')" :subtitle="editing ? '' : $t('eq_prep.expected_number', { n: suggestedNumber })" :crumbs="[{ label: 'المعدات', href: route('equipment.index') }, { label: $t('eq_prep.title'), href: route('equipment.preparations.index') }, { label: editing ? editing.number : $t('eq_prep.new') }]" />
+        <PageHeader :title="editing ? $t('eq_prep.edit_title', { number: editing.number }) : $t('eq_prep.new')" :subtitle="editing ? '' : $t('eq_prep.expected_number', { n: suggestedNumber })" :crumbs="[{ label: $t('eq2_equipment_preparations_form.equipment'), href: route('equipment.index') }, { label: $t('eq_prep.title'), href: route('equipment.preparations.index') }, { label: editing ? editing.number : $t('eq_prep.new') }]" />
 
         <form @submit.prevent="submit" class="space-y-4 text-xs">
             <div class="bg-white border border-slate-200 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-3 gap-4">

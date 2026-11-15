@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { computed, ref, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
@@ -17,6 +18,7 @@ import {
     LockClosedIcon,
     CheckIcon,
 } from '@heroicons/vue/24/outline';
+const { t } = useI18n();
 
 const props = defineProps({
     roles: Array,
@@ -48,7 +50,7 @@ watch(() => props.roles, () => {
 });
 
 const selectRole = (role) => {
-    if (dirty.value && !confirm('لديك تغييرات غير محفوظة على صلاحيات هذا الدور. هل تريد تجاهلها؟')) {
+    if (dirty.value && !confirm(t('x_roles_index.you_have_unsaved_changes_to_this'))) {
         return;
     }
     selectedId.value = role.id;
@@ -92,7 +94,7 @@ const duplicateRole = (role) => {
 };
 
 const deleteRole = (role) => {
-    if (confirm(`هل أنت متأكد من حذف الدور "${role.label}"؟`)) {
+    if (confirm(t('x_roles_index.are_you_sure_you_want_to_delete', { n0: role.label }))) {
         router.delete(route('roles.destroy', role.id), { preserveScroll: true });
     }
 };
@@ -100,7 +102,7 @@ const deleteRole = (role) => {
 
 <template>
     <AppLayout>
-        <Head title="الأدوار والصلاحيات" />
+        <Head :title="$t('x_roles_index.roles_and_permissions')" />
 
         <div class="space-y-5">
 <PageHeader :title="$t('nav.roles')" :crumbs="[{ label: $t('nav.roles') }]">

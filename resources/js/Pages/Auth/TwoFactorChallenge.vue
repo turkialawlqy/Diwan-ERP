@@ -15,29 +15,29 @@ const submit = () => {
 
 <template>
     <AuthLayout>
-        <Head title="التحقق الثنائي" />
+        <Head :title="$t('x_auth_twofactorchallenge.two_factor_authentication')" />
         <div class="text-center mb-6">
-            <h2 class="text-xl font-black text-slate-900">التحقق الثنائي</h2>
+            <h2 class="text-xl font-black text-slate-900">{{ $t('x_auth_twofactorchallenge.two_factor_authentication') }}</h2>
             <p class="text-xs text-slate-500 mt-1">
-                {{ useRecovery ? 'أدخل أحد رموز الاسترداد التي حفظتها عند التفعيل.' : 'أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة.' }}
+                {{ useRecovery ? $t('x_auth_twofactorchallenge.enter_one_of_the_recovery_codes') : $t('x_auth_twofactorchallenge.enter_the_6_digit_code_from_the') }}
             </p>
         </div>
         <form @submit.prevent="submit" class="space-y-4">
             <div v-if="!useRecovery">
-                <label for="code" class="block text-xs font-bold text-slate-700 mb-1">رمز التحقق</label>
+                <label for="code" class="block text-xs font-bold text-slate-700 mb-1">{{ $t('x_auth_twofactorchallenge.verification_code') }}</label>
                 <input id="code" v-model="form.code" inputmode="numeric" autocomplete="one-time-code" autofocus maxlength="6" dir="ltr"
                     class="w-full rounded-xl border-slate-200 text-center text-lg font-mono tracking-[0.5em]" />
                 <InputError :message="form.errors.code" class="mt-1" />
             </div>
             <div v-else>
-                <label for="recovery_code" class="block text-xs font-bold text-slate-700 mb-1">رمز الاسترداد</label>
+                <label for="recovery_code" class="block text-xs font-bold text-slate-700 mb-1">{{ $t('x_auth_twofactorchallenge.recovery_code') }}</label>
                 <input id="recovery_code" v-model="form.recovery_code" autocomplete="off" dir="ltr" class="w-full rounded-xl border-slate-200 text-center font-mono" />
                 <InputError :message="form.errors.recovery_code" class="mt-1" />
             </div>
-            <button type="submit" :disabled="form.processing" class="w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white disabled:opacity-50">تحقق ودخول</button>
+            <button type="submit" :disabled="form.processing" class="w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white disabled:opacity-50">{{ $t('x_auth_twofactorchallenge.verify_and_sign_in') }}</button>
             <div class="flex items-center justify-between text-xs">
-                <button type="button" @click="useRecovery = !useRecovery" class="font-bold text-indigo-600">{{ useRecovery ? 'استخدام رمز التطبيق' : 'استخدام رمز استرداد' }}</button>
-                <Link :href="route('login')" class="text-slate-500">رجوع لتسجيل الدخول</Link>
+                <button type="button" @click="useRecovery = !useRecovery" class="font-bold text-indigo-600">{{ useRecovery ? $t('x_auth_twofactorchallenge.use_an_app_code') : $t('x_auth_twofactorchallenge.use_a_recovery_code') }}</button>
+                <Link :href="route('login')" class="text-slate-500">{{ $t('x_auth_twofactorchallenge.back_to_sign_in') }}</Link>
             </div>
         </form>
     </AuthLayout>
