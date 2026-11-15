@@ -1,18 +1,40 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import AppSidebar from '../Components/AppSidebar.vue';
 import AppTopBar from '../Components/AppTopBar.vue';
 import UpdateBanner from '../Components/UpdateBanner.vue';
 import IdleWatcher from '../Components/IdleWatcher.vue';
 import ImpersonationBanner from '../Components/ImpersonationBanner.vue';
+import SplitScreen from '../Components/SplitScreen.vue';
 import { sidebarCollapsed } from '@/composables/useSidebar';
+import { embedded, splitOpen, splitOrientation, splitRatio, openSplit, toggleSplit } from '@/composables/useSplitScreen';
 import { CheckCircleIcon, ExclamationCircleIcon, XMarkIcon } from '@heroicons/vue/24/outline';
 
 // Pages that list their own form errors set own-errors so they are not shown twice.
 const props = defineProps({ ownErrors: { type: Boolean, default: false } });
 const page = usePage();
 const isSidebarOpen = ref(false);
+
+// The cashier screens never split; a page inside the split frame shows only its content.
+const splitActive = computed(() => splitOpen.value && !embedded && !page.url.startsWith('/pos'));
+
+// Alt + click on a side-menu link opens it in the other pane; Alt + Shift + S toggles the split.
+const altClick = (event) => {
+    if (!event.altKey || embedded) return;
+    const link = event.target.closest?.('aside a[href], nav a[href]');
+    if (!link || link.getAttribute('href').startsWith('/pos')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openSplit(link.getAttribute('href'));
+};
+const splitKey = (event) => {
+    if (embedded || !event.altKey || !event.shiftKey || event.code !== 'KeyS' || page.url.startsWith('/pos')) return;
+    event.preventDefault();
+    toggleSplit();
+};
+onMounted(() => { document.addEventListener('click', altClick, true); document.addEventListener('keydown', splitKey); });
+onBeforeUnmount(() => { document.removeEventListener('click', altClick, true); document.removeEventListener('keydown', splitKey); });
 
 const impersonation = computed(() => page.props.impersonation);
 const flash = computed(() => page.props.flash);
@@ -57,8 +79,8 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value, field
 <template>
     <div class="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white print:bg-white print:min-h-0 print:p-0 print:m-0 print:block">
         <!-- Super Admin Impersonation Notice Banner -->
-        <ImpersonationBanner class="print:hidden" :impersonation="impersonation" />
-        <div v-if="subscriptionNotice" :class="subscriptionNotice.tone" class="text-white text-xs font-bold px-4 py-2 text-center print:hidden">
+        <ImpersonationBanner v-if="!embedded" class="print:hidden" :impersonation="impersonation" />
+        <div v-if="subscriptionNotice && !embedded" :class="subscriptionNotice.tone" class="text-white text-xs font-bold px-4 py-2 text-center print:hidden">
             {{ subscriptionNotice.text }}
             <a v-if="$canRoute('billing.index')" :href="route('billing.index')" class="underline ms-2">إدارة الاشتراك</a>
         </div>
@@ -66,15 +88,17 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value, field
         <div class="flex-1 flex print:block">
             <!-- Right Navigation Sidebar (in RTL) -->
             <AppSidebar 
+                v-if="!embedded"
                 class="print:hidden"
                 :is-open="isSidebarOpen" 
                 @close-sidebar="isSidebarOpen = false" 
             />
 
             <!-- Main Content Shell (Padded for the sidebar on the start side: Right in RTL, Left in LTR) -->
-            <div :class="sidebarCollapsed ? 'lg:ps-20' : 'lg:ps-72'" class="flex-1 flex flex-col min-w-0 transition-all duration-300 print:ps-0 print:p-0 print:m-0 print:block">
+            <div :class="[embedded ? '' : (sidebarCollapsed ? 'lg:ps-20' : 'lg:ps-72'), splitActive ? (splitOrientation === 'h' ? 'lg:flex-row h-screen sticky top-0' : 'h-screen sticky top-0') : 'flex-col']" class="flex-1 flex min-w-0 transition-all duration-300 print:ps-0 print:p-0 print:m-0 print:block" :data-split-active="splitActive || null" :data-embedded="embedded || null">
+              <div :class="splitActive ? 'overflow-auto' : ''" :style="splitActive ? { flexBasis: `${splitRatio * 100}%`, flexGrow: 0, flexShrink: 0 } : { flex: '1 1 0%' }" class="flex flex-col min-w-0 min-h-0">
                 <!-- Top Sticky Navbar -->
-                <AppTopBar class="print:hidden" @toggle-sidebar="isSidebarOpen = !isSidebarOpen" />
+                <AppTopBar v-if="!embedded" class="print:hidden" @toggle-sidebar="isSidebarOpen = !isSidebarOpen" />
 
                 <!-- Flash Notification Banner -->
                 <div v-if="showFlash && (flash?.success || flash?.error || generalError || fieldErrors.length)" class="px-4 sm:px-8 pt-4 print:hidden space-y-2">
@@ -135,11 +159,13 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value, field
                 </div>
 
                 <!-- Page Content Slot -->
-                <main class="flex-1 p-4 sm:p-6 lg:p-8 print:p-0 print:m-0 print:block">
+                <main :class="embedded ? 'p-3' : 'p-4 sm:p-6 lg:p-8'" class="flex-1 print:p-0 print:m-0 print:block">
                     <UpdateBanner v-if="$page.props.update" />
                     <IdleWatcher v-if="$page.props.idleMinutes" />
                     <slot />
                 </main>
+              </div>
+              <SplitScreen v-if="splitActive" />
             </div>
         </div>
     </div>

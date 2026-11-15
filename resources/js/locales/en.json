@@ -4118,5 +4118,14 @@
         "subtotal": "Subtotal before tax",
         "total": "Total including tax",
         "issue": "Issue the supplier invoice"
+    },
+    "split": {
+        "open_page": "Open a page here...",
+        "same_page": "Open the current page here",
+        "reload": "Refresh",
+        "layout": "Switch between side by side and top/bottom",
+        "close": "Close the split screen",
+        "empty": "Choose a page from the list above (or Alt + click any link in the side menu).",
+        "button": "Split screen"
     }
 }
