@@ -73,17 +73,18 @@ watch(() => form.branch_id, (id) => {
 const customerList = ref([...(props.customers || [])]);
 const productList = ref([...(props.products || [])]);
 
-const onProductSelect = (index, productId) => {
-    const item = form.items[index];
-    if (!productId) return;
+// The lists hold the first records; a customer found by searching joins this one, for the details shown under it.
+const keepCustomer = (customer) => {
+    if (customer && !customerList.value.some(c => c.id === customer.id)) customerList.value.push(customer);
+};
 
-    const prod = productList.value.find(p => p.id == productId);
-    if (prod) {
-        item.product_id = prod.id;
-        item.item_name = prod.name_ar || prod.name_en || '';
-        item.unit_price = Number(prod.selling_price) || 0;
-        item.tax_rate = Number(prod.tax_rate ?? lineRate());
-    }
+const fillLine = (index, prod) => {
+    if (!prod) return;
+    const item = form.items[index];
+    item.product_id = prod.id;
+    item.item_name = prod.name_ar || prod.name_en || '';
+    item.unit_price = Number(prod.selling_price) || 0;
+    item.tax_rate = Number(prod.tax_rate ?? lineRate());
 };
 
 // Row calculations
@@ -156,6 +157,8 @@ const submit = () => {
 
 // Lines read from a spreadsheet (bill of quantities): appended, or replacing the current ones.
 const importLines = (lines, replace) => {
+    // Products the list does not hold yet join it, so each imported line shows its product.
+    lines.forEach((l) => { if (l.product && !productList.value.some(p => p.id === l.product.id)) productList.value.push(l.product); });
     const rows = lines.map((l) => ({ product_id: l.product_id || '', item_name: l.item_name, description: l.description || '', quantity: l.quantity, unit_price: l.unit_price, discount: l.discount, tax_rate: l.tax_rate }));
     form.items = replace ? rows : [...form.items.filter((i) => i.item_name || i.product_id), ...rows];
 };
@@ -209,7 +212,7 @@ const importLines = (lines, replace) => {
 
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_quote_form.choose_the_customer') }}</label>
-                            <SelectCreate v-model="form.customer_id" :options="customerList" entity="customer" :label="(c) => `${c.name} ${c.company_name ? `(${c.company_name})` : ''}`" :placeholder="$t('s_quote_form.select_the_customer')" :allow-empty="false" required @created="(c) => customerList.push(c)" />
+                            <SelectCreate v-model="form.customer_id" :options="customerList" search="lookup.customers" entity="customer" :label="(c) => `${c.name} ${c.company_name ? `(${c.company_name})` : ''}`" :placeholder="$t('s_quote_form.select_the_customer')" :allow-empty="false" required @created="(c) => customerList.push(c)" @picked="keepCustomer" />
                             <p v-if="form.errors.customer_id" class="text-2xs text-rose-500 mt-1">{{ form.errors.customer_id }}</p>
                         </div>
 
@@ -326,7 +329,7 @@ const importLines = (lines, replace) => {
                                         {{ idx + 1 }}
                                     </td>
                                     <td class="py-3 px-4 space-y-1">
-                                        <SelectCreate :model-value="item.product_id || ''" :options="productList" entity="product" :label="(p) => `${p.name_ar || p.name_en} (${formatCurrency(p.selling_price)} ﷼)`" :placeholder="$t('s_quote_form.choose_from_the_product_list_opt')" class="mb-1" @created="(p) => productList.push(p)" @update:modelValue="(id) => onProductSelect(idx, id)" />
+                                        <SelectCreate :model-value="item.product_id || ''" :options="productList" search="lookup.products" entity="product" :label="(p) => `${p.name_ar || p.name_en} (${formatCurrency(p.selling_price)} ﷼)`" :placeholder="$t('s_quote_form.choose_from_the_product_list_opt')" class="mb-1" @created="(p) => { productList.push(p); fillLine(idx, p); }" @picked="(p) => fillLine(idx, p)" />
                                         <input 
                                             v-model="item.item_name"
                                             type="text" 
