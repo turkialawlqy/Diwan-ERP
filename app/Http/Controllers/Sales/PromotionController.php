@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\CustomerGroup;
 use App\Models\Product;
 use App\Models\Promotion;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -39,7 +40,7 @@ class PromotionController extends Controller
 
     public function edit(Promotion $promotion): Response
     {
-        return Inertia::render('Sales/Promotions/Form', ['promotion' => $promotion] + $this->lookups());
+        return Inertia::render('Sales/Promotions/Form', ['promotion' => $promotion] + $this->lookups($promotion));
     }
 
     public function store(Request $request)
@@ -67,12 +68,12 @@ class PromotionController extends Controller
         return redirect()->route('sales.promotions.index')->with('success', 'تم حذف العرض (المستندات الصادرة تحتفظ بخصوماتها)');
     }
 
-    protected function lookups(): array
+    protected function lookups(?Promotion $promotion = null): array
     {
         return [
             'types' => Promotion::TYPES,
             'documents' => Promotion::DOCUMENTS,
-            'products' => Product::where('is_active', true)->orderBy('name_ar')->limit(1000)->get(['id', 'name_ar', 'sku']),
+            'products' => PickerOptions::from(Product::where('is_active', true)->orderBy('name_ar'), ['id', 'name_ar', 'sku'], [$promotion?->product_id]),
             'categories' => Category::where('is_active', true)->orderBy('name_ar')->get(['id', 'name_ar']),
             'groups' => CustomerGroup::where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ];

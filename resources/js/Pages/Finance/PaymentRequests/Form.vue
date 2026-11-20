@@ -1,5 +1,6 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import axios from 'axios';
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -33,9 +34,36 @@ const form = useForm({
 });
 useUnsavedGuard(form);
 
-const invoices = computed(() => props.unpaidInvoices.filter((i) => !form.supplier_id || i.supplier_id === form.supplier_id));
 const isSupplierPayment = computed(() => form.kind === 'supplier_payment');
 const showSupplier = computed(() => isSupplierPayment.value || form.payee_type === 'supplier');
+
+const supplierSearch = { route: 'lookup.suppliers', params: { active: 1 } };
+
+// Open invoices: the page brings the first ones, a newly chosen supplier's are fetched, the rest are found by typing.
+const invoiceRoute = 'finance.payment-requests.open-invoices';
+const invoiceParams = computed(() => (form.supplier_id ? { supplier_id: form.supplier_id } : {}));
+const invoiceSearch = computed(() => ({ route: invoiceRoute, params: invoiceParams.value }));
+const firstInvoices = ref(props.unpaidInvoices);
+let firstInvoicesOf = form.supplier_id;
+let invoicesRequest = 0;
+watch([() => form.supplier_id, isSupplierPayment], async () => {
+    if (!isSupplierPayment.value || form.supplier_id === firstInvoicesOf) return;
+    firstInvoicesOf = form.supplier_id;
+    const current = ++invoicesRequest;
+    firstInvoices.value = [];
+    try {
+        const { data } = await axios.get(route(invoiceRoute), { params: invoiceParams.value });
+        if (current === invoicesRequest) firstInvoices.value = data.data;
+    } catch (e) {
+        // A failed fetch leaves the list empty; typing still searches.
+    }
+});
+// The invoice in the form stays listed under its own supplier (or no supplier), wherever it was found.
+const chosenInvoice = ref(props.unpaidInvoices.find((i) => i.id === form.purchase_invoice_id) ?? null);
+const invoices = computed(() => {
+    const chosen = chosenInvoice.value;
+    return chosen && (!form.supplier_id || chosen.supplier_id === form.supplier_id) ? [...firstInvoices.value, chosen] : firstInvoices.value;
+});
 const save = (submit) => {
     form.send_for_approval = submit;
     if (isSupplierPayment.value) form.payee_type = 'supplier';
@@ -61,11 +89,11 @@ const save = (submit) => {
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <Field v-if="showSupplier" :label="$t('prq.supplier')" :error="form.errors.supplier_id"><SelectCreate v-model="form.supplier_id" :options="suppliers" entity="supplier" label="name" /></Field>
+                <Field v-if="showSupplier" :label="$t('prq.supplier')" :error="form.errors.supplier_id"><SelectCreate v-model="form.supplier_id" :options="suppliers" :search="supplierSearch" entity="supplier" label="name" /></Field>
                 <Field v-if="!isSupplierPayment && form.payee_type === 'employee'" :label="$t('prq.employee')" :error="form.errors.employee_id"><SelectCreate v-model="form.employee_id" :options="employees" entity="employee" label="name" /></Field>
                 <Field v-if="!isSupplierPayment && form.payee_type === 'other'" :label="$t('prq.payee_name')" :error="form.errors.payee_name"><input v-model="form.payee_name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field v-if="!isSupplierPayment" :label="$t('prq.account')" :error="form.errors.account_id"><SelectCreate v-model="form.account_id" :options="expenseAccounts" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" /></Field>
-                <Field v-if="isSupplierPayment" :label="$t('prq.invoice')" :error="form.errors.purchase_invoice_id"><SelectCreate v-model="form.purchase_invoice_id" :options="invoices" :label="(i) => `${i.invoice_number} (${i.remaining_amount})`" :placeholder="$t('prq.none')" /></Field>
+                <Field v-if="isSupplierPayment" :label="$t('prq.invoice')" :error="form.errors.purchase_invoice_id"><SelectCreate v-model="form.purchase_invoice_id" :options="invoices" :search="invoiceSearch" :label="(i) => `${i.invoice_number} (${i.remaining_amount})`" :placeholder="$t('prq.none')" @picked="(i) => (chosenInvoice = i)" /></Field>
                 <Field :label="$t('prq.amount')" :error="form.errors.amount"><input v-model="form.amount" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
                 <Field :label="$t('prq.method')">
                     <select v-model="form.payment_method" class="w-full rounded-xl border-slate-200 text-xs"><option value="bank_transfer">{{ $t('prq.m_bank_transfer') }}</option><option value="cash">{{ $t('prq.m_cash') }}</option><option value="card">{{ $t('prq.m_card') }}</option><option value="cheque">{{ $t('prq.m_cheque') }}</option></select>
