@@ -774,5 +774,6 @@
     "رمز النفق غير صالح: انسخه كاملًا من لوحة Cloudflare (Zero Trust ← Networks ← Tunnels).": "The tunnel token is not valid: copy it in full from the Cloudflare dashboard (Zero Trust → Networks → Tunnels).",
     "مفتاح Tailscale غير صالح: يبدأ بـ tskey- ويُنشأ من Settings ← Keys في لوحة Tailscale.": "The Tailscale key is not valid: it starts with tskey- and is created under Settings → Keys in the Tailscale dashboard.",
     "هناك تطبيق جارٍ بالفعل، انتظر حتى ينتهي.": "A change is already being applied, wait until it finishes.",
-    "أُرسل الطلب إلى الخادم؛ يستغرق التطبيق دقيقة أو دقيقتين.": "The request was sent to the server; applying takes a minute or two."
+    "أُرسل الطلب إلى الخادم؛ يستغرق التطبيق دقيقة أو دقيقتين.": "The request was sent to the server; applying takes a minute or two.",
+    "رمز الصنف مستخدم لصنف آخر (وقد يكون صنفًا محذوفًا): غيّره أو اتركه فارغًا ليأخذ الرمز التالي من دليل الترميز.": "This item code is used by another item (possibly a deleted one): change it, or leave it empty to take the next code from the Numbering Guide."
 }
