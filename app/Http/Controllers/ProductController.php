@@ -18,10 +18,20 @@ use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Unique;
 use Inertia\Inertia;
 
 class ProductController extends Controller
 {
+    protected const SKU_TAKEN = 'رمز الصنف مستخدم لصنف آخر (وقد يكون صنفًا محذوفًا): غيّره أو اتركه فارغًا ليأخذ الرمز التالي من دليل الترميز.';
+
+    /** Codes are unique per company, deleted products included: the unique index (company_id, sku) keeps their codes. */
+    protected function uniqueSku(int $companyId, ?int $ignore = null): Unique
+    {
+        return Rule::unique('products', 'sku')->where('company_id', $companyId)->ignore($ignore);
+    }
+
     /**
      * Display a listing of products.
      */
@@ -97,13 +107,20 @@ class ProductController extends Controller
      */
     public function store(Request $request)
     {
+        $companyId = app(TenantManager::class)->getTenantId()
+            ?? auth()->user()?->company_id;
+
+        if (! $companyId) {
+            abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
+        }
+
         $validated = $request->validate([
             'image' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:2048',
             'name_ar' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'category_id' => 'nullable|tenant_exists:categories,id',
             'unit_id' => 'nullable|tenant_exists:units,id',
-            'sku' => 'nullable|string|max:100',
+            'sku' => ['nullable', 'string', 'max:100', $this->uniqueSku($companyId)],
             'barcode' => 'nullable|string|max:100',
             'description' => 'nullable|string',
             'purchase_price' => 'nullable|numeric|min:0',
@@ -126,14 +143,7 @@ class ProductController extends Controller
                     $fail('سبب الإعفاء لا يناسب الفئة الضريبية المختارة.');
                 }
             }],
-        ]);
-
-        $companyId = app(TenantManager::class)->getTenantId()
-            ?? auth()->user()?->company_id;
-
-        if (! $companyId) {
-            abort(403, 'لا يمكن تحديد سياق المنشأة. يرجى تسجيل الدخول مجدداً.');
-        }
+        ], ['sku.unique' => self::SKU_TAKEN]);
 
         $product = DB::transaction(function () use ($validated, $companyId, $request) {
             $productType = $validated['type'] ?? 'product';
@@ -236,7 +246,7 @@ class ProductController extends Controller
             'name_en' => 'nullable|string|max:255',
             'category_id' => 'nullable|tenant_exists:categories,id',
             'unit_id' => 'nullable|tenant_exists:units,id',
-            'sku' => 'nullable|string|max:100',
+            'sku' => ['nullable', 'string', 'max:100', $this->uniqueSku($product->company_id, $product->id)],
             'barcode' => 'nullable|string|max:100',
             'description' => 'nullable|string',
             'purchase_price' => 'required|numeric|min:0',
@@ -254,7 +264,7 @@ class ProductController extends Controller
                     $fail('سبب الإعفاء لا يناسب الفئة الضريبية المختارة.');
                 }
             }],
-        ]);
+        ], ['sku.unique' => self::SKU_TAKEN]);
         $validated = $this->normaliseVat($validated);
 
         // Tracking mode cannot change while stock exists (batches/serials would be inconsistent).
