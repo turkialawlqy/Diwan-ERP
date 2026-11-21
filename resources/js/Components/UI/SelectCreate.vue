@@ -34,6 +34,8 @@ const props = defineProps({
     disabled: { type: Boolean, default: false },
     // A lookup route ('lookup.products') or { route, params } for lists too long to send whole.
     search: { type: [String, Object], default: null },
+    // Presets for the create dialog's fields, e.g. { type: 'revenue' } on the revenue form.
+    defaults: { type: Object, default: null },
 });
 const emit = defineEmits(['update:modelValue', 'created', 'picked']);
 
@@ -109,6 +111,6 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', outside));
             <p v-else-if="!filtered.length && !showCreate" class="px-3 py-2 text-slate-400">{{ tx($t('z_resources_js_components_ui_selectcreate.no_results')) }}</p>
         </div>
         <CustomerModal v-if="creating && entity === 'customer'" :show="true" :initial-name="term" @close="creating = false" @saved="(c) => created({ ...c, label: c.name })" />
-        <QuickCreateDialog v-else-if="creating" :entity="entity" :name="term" @close="creating = false" @created="created" />
+        <QuickCreateDialog v-else-if="creating" :entity="entity" :name="term" :defaults="defaults" @close="creating = false" @created="created" />
     </div>
 </template>

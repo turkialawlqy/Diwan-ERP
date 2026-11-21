@@ -11,11 +11,13 @@ use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\CostCenter;
 use App\Models\FixedAsset;
+use App\Rules\BranchBox;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DepreciationService;
 use App\Services\Accounting\FixedAssetRegister;
 use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
+use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -66,9 +68,11 @@ class FixedAssetController extends Controller
             'useful_life_months' => 'required|integer|min:1|max:1200',
             'depreciation_method' => 'required|in:straight_line,declining_balance,units_of_production',
             'declining_rate' => 'nullable|numeric|min:0|max:100',
-            'asset_account_id' => 'nullable|tenant_exists:accounts,id',
-            'accumulated_account_id' => 'nullable|tenant_exists:accounts,id',
-            'expense_account_id' => 'nullable|tenant_exists:accounts,id',
+            // What the form lists: posting accounts of the right type, and never a cash box's or bank's (each depreciation
+            // run and disposal posts to them, for assets of every branch).
+            'asset_account_id' => ['nullable', 'tenant_exists:accounts,id', $this->categoryAccount('asset')],
+            'accumulated_account_id' => ['nullable', 'tenant_exists:accounts,id', $this->categoryAccount('asset')],
+            'expense_account_id' => ['nullable', 'tenant_exists:accounts,id', $this->categoryAccount('expense')],
         ]);
 
         $validated['asset_account_id'] ??= $map->id('fixed_assets');
@@ -82,6 +86,19 @@ class FixedAssetController extends Controller
         }
 
         return back()->with('success', 'تم إضافة فئة الأصول');
+    }
+
+    /** A posting (non-parent) account of $type that is no box's ledger (any branch, shared or archived). */
+    protected function categoryAccount(string $type): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($type) {
+            $account = Account::find($value);
+            if ($account && ($account->type !== $type || $account->is_parent)) {
+                $fail($type === 'asset' ? 'اختر حسابًا فرعيًا من الأصول.' : 'اختر حسابًا فرعيًا من المصروفات.');
+            } elseif ($account && BankAccount::boxLedgers([$account->id])) {
+                $fail('هذا الحساب حساب صندوق أو بنك؛ لا يكون حسابًا لفئة أصول.');
+            }
+        };
     }
 
     public function store(Request $request, DepreciationService $depreciation)
@@ -105,7 +122,8 @@ class FixedAssetController extends Controller
             'total_units' => 'nullable|numeric|gt:0',
             'unit_label' => 'nullable|string|max:20',
             'paid_from' => 'required|in:cash,bank_transfer,payables,opening',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // The purchase entry takes the asset's branch: the form's, else the top bar's.
+            'bank_account_id' => ['nullable', BranchBox::of(fn () => $request->input('branch_id'))],
             'supplier_id' => 'nullable|required_if:paid_from,payables|tenant_exists:suppliers,id',
             'acquisition_vat' => 'nullable|numeric|min:0',
             'opening_accumulated' => 'nullable|numeric|min:0',
@@ -168,7 +186,7 @@ class FixedAssetController extends Controller
             'date' => 'required|date',
             'proceeds' => 'required|numeric|min:0',
             'method' => 'required|in:cash,bank_transfer',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'bank_account_id' => ['nullable', BranchBox::of($asset->branch_id)],
             'vat_amount' => 'nullable|numeric|min:0',
         ]);
         $vat = round((float) ($validated['vat_amount'] ?? 0), 2);

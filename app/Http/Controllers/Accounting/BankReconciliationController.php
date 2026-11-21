@@ -7,6 +7,7 @@ use App\Models\Account;
 use App\Models\BankAccount;
 use App\Models\BankReconciliation;
 use App\Models\JournalEntry;
+use App\Rules\BranchBox;
 use App\Services\Accounting\AccountingReports;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -24,7 +25,9 @@ class BankReconciliationController extends Controller
     public function index(): Response
     {
         return Inertia::render('Accounting/Reconciliations/Index', [
-            'reconciliations' => BankReconciliation::with('bankAccount:id,name')->orderByDesc('statement_date')->paginate(20),
+            // A reconciliation has no branch: it shows with its bank (archived ones too), of the branches the top bar shows.
+            'reconciliations' => BankReconciliation::with(['bankAccount' => fn ($q) => $q->withTrashed()->select('id', 'name')])
+                ->whereHas('bankAccount', fn ($q) => $q->withTrashed())->orderByDesc('statement_date')->paginate(20),
             'bankAccounts' => BankAccount::where('is_active', true)->whereNotNull('account_id')->get(['id', 'name', 'type']),
         ]);
     }
@@ -32,7 +35,8 @@ class BankReconciliationController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'bank_account_id' => 'required|tenant_exists:bank_accounts,id',
+            // A reconciliation has no branch of its own: any bank the user can see.
+            'bank_account_id' => ['required', new BranchBox],
             'statement_date' => 'required|date',
             'statement_balance' => 'required|numeric',
         ]);
@@ -48,8 +52,7 @@ class BankReconciliationController extends Controller
 
     public function show(BankReconciliation $reconciliation, AccountingReports $reports): Response
     {
-        $reconciliation->load('bankAccount');
-        $accountId = $reconciliation->bankAccount->account_id;
+        $accountId = $this->bankOf($reconciliation)->account_id;
         $account = Account::findOrFail($accountId);
 
         // Lines up to the statement date that are not reconciled yet, plus the
@@ -84,6 +87,16 @@ class BankReconciliationController extends Controller
         ]);
     }
 
+    /** The reconciliation's bank, as the branch scope shows it (an archived one too): another branch's is not found. */
+    protected function bankOf(BankReconciliation $reconciliation): BankAccount
+    {
+        $bank = BankAccount::withTrashed()->find($reconciliation->bank_account_id);
+        abort_unless($bank, 404);
+        $reconciliation->setRelation('bankAccount', $bank);
+
+        return $bank;
+    }
+
     /**
      * Save the ticked lines (and optionally complete the reconciliation).
      */
@@ -99,7 +112,7 @@ class BankReconciliationController extends Controller
             'complete' => 'boolean',
         ]);
 
-        $accountId = $reconciliation->bankAccount->account_id;
+        $accountId = $this->bankOf($reconciliation)->account_id;
 
         DB::transaction(function () use ($validated, $reconciliation, $accountId, $request) {
             DB::table('journal_entry_lines')

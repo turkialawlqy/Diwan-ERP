@@ -238,8 +238,11 @@ const submitCredit = () => submitOrder('credit', Number(downPayment.value) || 0)
 
 const submitSplit = () => submitOrder('multiple', (Number(splitCash.value) || 0) + (Number(splitCard.value) || 0), { cash_amount: Number(splitCash.value) || 0, card_amount: Number(splitCard.value) || 0 });
 
+// A refused sale (validation or posting rule: a drawer box of another branch, a credit limit...) is shown, never silent.
+const saleError = ref('');
 const submitOrder = (paymentMethod, paid, tender = {}) => {
     if (cart.value.length === 0) return;
+    saleError.value = '';
 
     router.post(route('pos.order.process'), {
         session_id: props.session.id,
@@ -262,7 +265,8 @@ const submitOrder = (paymentMethod, paid, tender = {}) => {
                 isReceiptModalOpen.value = true;
             }
             clearCart();
-        }
+        },
+        onError: (errors) => { saleError.value = Object.values(errors)[0] || ''; },
     });
 };
 
@@ -366,6 +370,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                 </button>
             </div>
         </header>
+
+        <!-- A refused sale: above the payment dialogs, until dismissed or the next sale. -->
+        <div v-if="saleError" role="alert" data-sale-error class="fixed top-14 inset-x-0 z-[60] flex justify-center px-4 pointer-events-none">
+            <div class="pointer-events-auto max-w-xl w-full flex items-start gap-2 rounded-2xl bg-rose-600 text-white text-xs font-bold px-4 py-3 shadow-lg">
+                <span class="flex-1 leading-relaxed">{{ saleError }}</span>
+                <button type="button" @click="saleError = ''" class="text-white/80 hover:text-white"><XMarkIcon class="w-4 h-4" /></button>
+            </div>
+        </div>
 
         <!-- 2. Main Work Area (Split Grid) -->
         <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
@@ -847,6 +859,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                             <option v-for="b in boxes" :key="b.id" :value="b.id">{{ b.name }}</option>
                         </select>
                         <p v-if="closeSessionForm.errors.deposit_bank_account_id" class="text-rose-600 mt-1">{{ closeSessionForm.errors.deposit_bank_account_id }}</p>
+                        <p v-if="closeSessionForm.errors.closing_cash || closeSessionForm.errors.accounting" class="text-rose-600 mt-1" data-close-error>{{ closeSessionForm.errors.closing_cash || closeSessionForm.errors.accounting }}</p>
                         <p class="text-3xs text-slate-500 mt-1">{{ $t('pos_terminal.any_shortage_or_surplus_against') }}</p>
                     </div>
 

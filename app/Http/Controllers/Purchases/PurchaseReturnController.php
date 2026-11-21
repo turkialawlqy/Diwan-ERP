@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseReturn;
+use App\Rules\BranchBox;
 use App\Services\AttachmentService;
 use App\Services\Purchases\PurchaseCycleService;
 use Illuminate\Http\Request;
@@ -51,7 +52,8 @@ class PurchaseReturnController extends Controller
             'return_date' => 'required|date',
             'reason' => 'nullable|string|max:500',
             'settlement' => 'required|in:credit,cash,bank_transfer',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // A return is filed in its bill's branch (PurchaseReturn::inheritedBranchId).
+            'bank_account_id' => ['nullable', BranchBox::forNew(PurchaseReturn::class, $request->only('purchase_invoice_id'))],
             'warehouse_id' => 'nullable|tenant_exists:warehouses,id',
             'items' => 'required|array|min:1',
             'items.*.purchase_invoice_item_id' => 'required|integer',

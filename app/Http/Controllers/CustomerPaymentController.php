@@ -6,6 +6,7 @@ use App\Models\BankAccount;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
 use App\Models\Invoice;
+use App\Rules\BranchBox;
 use App\Services\Accounting\ChequeService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
@@ -81,7 +82,8 @@ class CustomerPaymentController extends Controller
             'cheque_due_date' => 'nullable|date|after_or_equal:payment_date',
             'reference_number' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // Filed in its invoice's branch, else the top bar's (CustomerPayment::inheritedBranchId).
+            'bank_account_id' => ['nullable', BranchBox::forNew(CustomerPayment::class, $request->only('invoice_id'))],
             'auto_allocate' => 'nullable|boolean',
             'allocations' => 'nullable|array|max:200',
             'allocations.*.invoice_id' => 'required|tenant_exists:invoices,id',

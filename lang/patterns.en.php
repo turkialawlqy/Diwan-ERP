@@ -114,4 +114,8 @@ return [
     'دخلت المواد المستودع وفُتحت المسودة {} بانتظار فاتورة المورد' => 'The items entered the warehouse and draft {} is open awaiting the supplier invoice',
     'تمت فوترة المسودة {}: فاتورة المورد {}' => 'Draft {} invoiced: supplier invoice {}',
     'الصنف «{}» ليس صنفًا مخزنيًا فلا يدخل المستودع.' => 'Item “{}” is not a stock item, so it cannot enter the warehouse.',
+    'الحساب «{} - {}» حساب صندوق أو بنك لفرع آخر؛ لا يُرحَّل عليه من هذا الفرع.' => 'Account “{} - {}” belongs to a cash box or bank of another branch; it cannot be posted to from this branch.',
+    'كل الفروع ترحّل على حساب «{}»: لا يكون حساب صندوق أو بنك لفرع واحد.' => 'Every branch posts to the “{}” account: it cannot be the account of one branch\'s cash box or bank.',
+    'حساب «{}» لا يكون حساب صندوق أو بنك.' => 'The “{}” account cannot be the account of a cash box or bank.',
+    'سطر {}: الحساب {} مربوط بصندوق أو بنك لفرع آخر.' => 'Row {}: account {} is linked to a cash box or bank account of another branch.',
 ];

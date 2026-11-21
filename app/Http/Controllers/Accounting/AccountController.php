@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Accounting;
 
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use App\Models\BankAccount;
+use App\Services\Accounting\AccountMap;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -83,6 +86,11 @@ class AccountController extends Controller
         if (! empty($validated['parent_id'])) {
             $parent = Account::find($validated['parent_id']);
             if ($parent && ! $parent->is_parent) {
+                // A posting account becomes a group under its first child: as in update(), not one with postings, nor one
+                // the system posts to (a box's ledger, a mapped role), whose postings would all be refused from then on.
+                if ($problem = $this->groupProblem($parent)) {
+                    throw ValidationException::withMessages(['parent_id' => $problem]);
+                }
                 $parent->update(['is_parent' => true]);
             }
         }
@@ -126,13 +134,26 @@ class AccountController extends Controller
         ]);
 
         // An account that already has postings cannot become a group account.
-        if (! empty($validated['is_parent']) && ! $account->is_parent && $account->journalLines()->exists()) {
-            return back()->with('error', 'لا يمكن تحويل حساب عليه حركات إلى حساب رئيسي.');
+        if (! empty($validated['is_parent']) && ! $account->is_parent && ($problem = $this->groupProblem($account))) {
+            return back()->with('error', $problem);
         }
 
         // Postings were classified under the current type and nature; changing them would move history between statements.
         if (($validated['type'] !== $account->type || $validated['nature'] !== $account->nature) && $account->journalLines()->exists()) {
             return back()->with('error', 'لا يمكن تغيير نوع أو طبيعة حساب عليه حركات. أنشئ حساباً جديداً وانقل الرصيد بقيد تسوية.');
+        }
+
+        // A box's ledger is that box's balance: it stays an asset of debit nature (a revenue voucher would credit it), and
+        // a box of a branch the user may not work in is not theirs to move or switch off.
+        if (BankAccount::boxLedgers([$account->id])) {
+            if ($validated['type'] !== $account->type || $validated['nature'] !== $account->nature) {
+                return back()->with('error', 'هذا الحساب حساب صندوق أو بنك؛ لا يتغير نوعه ولا طبيعته.');
+            }
+            $moved = (array_key_exists('parent_id', $validated) && (int) $validated['parent_id'] !== (int) $account->parent_id)
+                || (array_key_exists('is_active', $validated) && (bool) $validated['is_active'] !== (bool) $account->is_active);
+            if ($moved && BankAccount::hiddenLedgers([$account->id])) {
+                return back()->with('error', 'هذا الحساب مربوط بصندوق أو بنك لفرع آخر.');
+            }
         }
 
         // The balance is derived from posted journal lines and is never edited directly.
@@ -148,6 +169,19 @@ class AccountController extends Controller
             ->with('success', 'تم تحديث بيانات الحساب بنجاح');
     }
 
+    /** Why $account cannot become a group account, or null: its postings, its box, or a role mapped to it. */
+    protected function groupProblem(Account $account): ?string
+    {
+        if ($account->journalLines()->exists()) {
+            return 'لا يمكن تحويل حساب عليه حركات إلى حساب رئيسي.';
+        }
+        if (BankAccount::boxLedgers([$account->id]) || in_array((int) $account->id, array_map('intval', array_filter(app(AccountMap::class)->all())), true)) {
+            return 'لا يمكن تحويل حساب يرحّل عليه النظام (صندوق أو بنك أو حساب مربوط في ربط الحسابات) إلى حساب رئيسي.';
+        }
+
+        return null;
+    }
+
     public function destroy(Account $account)
     {
         if ($account->children()->exists()) {
@@ -156,6 +190,11 @@ class AccountController extends Controller
 
         if ($account->journalLines()->exists()) {
             return back()->with('error', 'لا يمكن حذف الحساب نظراً لوجود قيود يومية وعمليات محاسبية مسجلة عليه.');
+        }
+
+        // Without its ledger a box would post to the default cash / bank account.
+        if (BankAccount::boxLedgers([$account->id])) {
+            return back()->with('error', 'لا يمكن حذف حساب مربوط بصندوق أو بنك.');
         }
 
         $account->delete();

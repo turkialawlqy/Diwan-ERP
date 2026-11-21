@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Sales;
 
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use App\Models\BankAccount;
 use App\Models\CustomerGroup;
 use App\Models\JournalEntryLine;
+use App\Services\Accounting\AccountMap;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -60,9 +62,12 @@ class CustomerGroupController extends Controller
     {
         $data = $this->validated($request, $group);
 
-        // Customers already posted to the old account: moving the group would split their balances.
-        if (($data['account_id'] ?? null) != $group->account_id && $group->account_id
-            && JournalEntryLine::where('account_id', $group->account_id)->where('party_type', 'customer')->whereIn('party_id', $group->customers()->pluck('id'))->exists()) {
+        // Customers already posted to the account they use now (the group's, else the general receivables): moving the
+        // group would split their balances. A group that had no account of its own is no exception.
+        $general = app(AccountMap::class)->find('receivables');
+        $current = (int) ($group->account_id ?: $general);
+        if ($current && $current !== (int) (($data['account_id'] ?? null) ?: $general)
+            && JournalEntryLine::where('account_id', $current)->where('party_type', 'customer')->whereIn('party_id', $group->customers()->pluck('id'))->exists()) {
             throw ValidationException::withMessages(['account_id' => 'لا يمكن تغيير حساب المجموعة بعد وجود حركات لعملائها عليه.']);
         }
 
@@ -93,10 +98,15 @@ class CustomerGroupController extends Controller
             'code' => ['required', 'string', 'max:30', Rule::unique('customer_groups', 'code')->where('company_id', $companyId)->ignore($group?->id)],
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:500',
+            // Receipts and credit sales of the group's customers in every branch post here: a receivables account, never a
+            // box's ledger nor another account the system posts to (default cash, input VAT...).
             'account_id' => ['nullable', 'tenant_exists:accounts,id', function ($attribute, $value, $fail) {
                 $account = $value ? Account::find($value) : null;
+                $roles = collect(app(AccountMap::class)->all())->except('receivables')->filter()->map(fn ($id) => (int) $id)->all();
                 if ($account && ($account->type !== 'asset' || $account->is_parent)) {
                     $fail('اختر حسابًا فرعيًا من الأصول (ذمم العملاء).');
+                } elseif ($account && (BankAccount::boxLedgers([$account->id]) || in_array((int) $account->id, $roles, true))) {
+                    $fail('هذا الحساب حساب صندوق أو بنك أو حساب آلي آخر؛ اختر حساب ذمم عملاء.');
                 }
             }],
             'is_active' => 'boolean',

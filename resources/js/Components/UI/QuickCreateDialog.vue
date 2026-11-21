@@ -17,6 +17,8 @@ const { t } = useI18n();
 const props = defineProps({
     entity: { type: String, required: true },
     name: { type: String, default: '' },
+    // Fields the form the dropdown sits in presets (an account made from the revenue form is a revenue account).
+    defaults: { type: Object, default: null },
 });
 const emit = defineEmits(['close', 'created']);
 
@@ -33,6 +35,7 @@ fields.forEach((f) => {
     form[f.key] = f.default !== undefined ? (Array.isArray(f.default) ? [...f.default] : f.default) : (f.type === 'checkbox' ? false : '');
 });
 if (config.seed) form[config.seed] = props.name;
+Object.entries(props.defaults || {}).forEach(([key, value]) => { form[key] = value; config.onChange?.(form, key); });
 
 onMounted(() => {
     fields.filter((f) => f.lookup).forEach(async (f) => {

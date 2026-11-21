@@ -17,7 +17,8 @@ const form = useForm({
     iban: '',
     currency: usePage().props.tenant?.currency || 'SAR',
     opening_balance: '0.00',
-    account_id: props.chartAccounts?.[0]?.id || '',
+    // Empty by default: the box gets a ledger account of its own (BankAccountService), not one shared with another box.
+    account_id: '',
 });
 // Editing: names and bank details only (the balance and ledger account follow the postings).
 if (editing) {
@@ -107,7 +108,7 @@ const submitAccount = () => (editing ? form.put(route('finance.banks.update', ed
             
                             <div>
                                 <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_banks_form.link_to_a_chart_of_accounts_acco') }}</label>
-                                <SelectCreate v-model="form.account_id" :options="chartAccounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :placeholder="$t('fin_finance_banks_form.no_direct_link')" />
+                                <SelectCreate v-model="form.account_id" :options="chartAccounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :placeholder="$t('fin_finance_banks_form.own_ledger_account')" :empty-label="$t('fin_finance_banks_form.own_ledger_account')" />
                             </div>
             
                             <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">

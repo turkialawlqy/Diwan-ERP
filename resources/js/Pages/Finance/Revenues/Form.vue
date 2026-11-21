@@ -136,7 +136,7 @@ const submitRevenue = () => (editing ? form.put(route('finance.revenues.update',
                                 </div>
                                 <div>
                                     <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_revenues_form.revenue_account_in_the_chart') }}</label>
-                                    <SelectCreate v-model="form.account_id" :options="revenueAccounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :allow-empty="false" />
+                                    <SelectCreate v-model="form.account_id" :options="revenueAccounts" entity="account" :defaults="{ type: 'revenue' }" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :allow-empty="false" />
                                 </div>
                             </div>
                             <DimensionFields v-model:cost-center="form.cost_center_id" v-model:project="form.project_id" :account="{ type: 'revenue', requires_cost_center: revenueAccounts.find((a) => a.id === form.account_id)?.requires_cost_center }" :policy="dimensionPolicy" :cost-centers="costCenters" :projects="projects" :errors="form.errors" />

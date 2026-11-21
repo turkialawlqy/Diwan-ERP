@@ -1153,6 +1153,8 @@ class DataTransferController extends Controller
         $map = app(AccountMap::class);
         $control = collect(self::CONTROL_ROLES)->mapWithKeys(fn ($source, $role) => [(int) $map->find($role) => $source])->except(0);
         $accounts = Account::whereIn('code', array_map(fn ($r) => (string) $r['account_code'], $rows))->get()->keyBy(fn ($a) => (string) $a->code);
+        // As on a manual entry (JournalEntryController::guardControlAccounts): no box of a branch the user may not work in.
+        $hiddenBoxes = BankAccount::hiddenLedgers($accounts->pluck('id'));
 
         $errors = [];
         $lines = [];
@@ -1168,6 +1170,8 @@ class DataTransferController extends Controller
                 $errors[] = "سطر {$line}: الحساب {$code} حساب رئيسي؛ استخدم حساباً فرعياً.";
             } elseif ($source = $control->get($account->id)) {
                 $errors[] = "سطر {$line}: الحساب {$code} حساب مراقبة؛ يُستورد رصيده من ملف «{$source}».";
+            } elseif (in_array((int) $account->id, $hiddenBoxes, true)) {
+                $errors[] = "سطر {$line}: الحساب {$code} مربوط بصندوق أو بنك لفرع آخر.";
             } elseif ($debit > 0 && $credit > 0) {
                 $errors[] = "سطر {$line}: ضع المبلغ في المدين أو الدائن فقط.";
             } elseif ($debit > 0 || $credit > 0) {
@@ -1194,6 +1198,8 @@ class DataTransferController extends Controller
             'description' => 'ميزان المراجعة الافتتاحي في '.$date->format('Y-m-d'),
             'entry_type' => 'opening',
             'source_type' => 'opening_trial_balance',
+            // Boxes of other branches were refused above unless the user may work in them: one opening entry for every box is meant.
+            'cross_branch' => true,
             'lines' => $lines,
         ]);
     }

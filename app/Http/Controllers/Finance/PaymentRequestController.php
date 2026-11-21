@@ -11,9 +11,12 @@ use App\Models\PaymentRequest;
 use App\Models\Project;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
+use App\Rules\BranchBox;
 use App\Services\Finance\PaymentRequestService;
+use App\Services\TenantManager;
 use App\Services\Workflow\ApprovalService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -59,7 +62,7 @@ class PaymentRequestController extends Controller
 
     public function update(Request $request, PaymentRequest $paymentRequest)
     {
-        $this->service->update($paymentRequest, $this->validated($request));
+        $this->service->update($paymentRequest, $this->validated($request, $paymentRequest));
         if ($request->boolean('send_for_approval')) {
             $this->service->submit($paymentRequest);
         }
@@ -116,7 +119,7 @@ class PaymentRequestController extends Controller
         return redirect()->route('finance.payment-requests.index')->with('success', 'تم حذف المسودة');
     }
 
-    protected function validated(Request $request): array
+    protected function validated(Request $request, ?PaymentRequest $paymentRequest = null): array
     {
         return $request->validate([
             'request_date' => 'required|date',
@@ -127,15 +130,17 @@ class PaymentRequestController extends Controller
             'employee_id' => 'nullable|tenant_exists:employees,id',
             'payee_name' => 'nullable|string|max:255',
             'purpose' => 'required|string|max:500',
-            'account_id' => 'nullable|tenant_exists:accounts,id',
+            // What the form lists: a posting (non-parent) expense account of the company.
+            'account_id' => ['nullable', Rule::exists('accounts', 'id')->where(fn ($q) => $q->where('company_id', app(TenantManager::class)->getTenantId())->where('type', 'expense')->where('is_parent', false))],
             'purchase_invoice_id' => 'nullable|tenant_exists:purchase_invoices,id',
             'amount' => 'required|numeric|min:0.01',
             'payment_method' => 'required|in:cash,card,bank_transfer,cheque',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // A box of the request's branch (a new request: the top bar's).
+            'bank_account_id' => ['nullable', BranchBox::of($paymentRequest?->branch_id)],
             'cost_center_id' => 'nullable|tenant_exists:cost_centers,id',
             'project_id' => 'nullable|tenant_exists:projects,id',
             'notes' => 'nullable|string|max:2000',
-        ]);
+        ], ['account_id.exists' => 'اختر حساب مصروفات فرعيًا.']);
     }
 
     protected function options(): array

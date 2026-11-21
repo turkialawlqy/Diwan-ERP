@@ -16,6 +16,7 @@ use App\Models\SupplierPayment;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Rules\AllowedBranch;
+use App\Rules\BranchBox;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\BudgetService;
 use App\Services\Accounting\DimensionPolicy;
@@ -180,10 +181,11 @@ class PurchaseInvoiceController extends Controller
             // Several payment rows (cash + transfer ...) settle the bill at once.
             'payments' => 'nullable|array|max:10',
             'payments.*.method' => 'required|in:cash,card,bank_transfer',
-            'payments.*.bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // Boxes of the bill's branch: the form's, else the top bar's (where a new bill is filed).
+            'payments.*.bank_account_id' => ['nullable', BranchBox::of(fn () => $request->input('branch_id'))],
             'payments.*.amount' => 'required|numeric|min:0.01',
             'paid_amount' => 'nullable|numeric|min:0',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'bank_account_id' => ['nullable', BranchBox::of(fn () => $request->input('branch_id'))],
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'nullable|tenant_exists:products,id',
@@ -394,7 +396,8 @@ class PurchaseInvoiceController extends Controller
             'payment_method' => 'required|in:cash,card,bank_transfer,credit',
             'payment_status' => 'required|in:paid,partially_paid,unpaid',
             'paid_amount' => 'nullable|numeric|min:0',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // The bill is filed in the top bar's branch (PurchaseCycleService::invoiceReceipts).
+            'bank_account_id' => ['nullable', BranchBox::of()],
             'accept_price_variance' => 'nullable|boolean',
             'notes' => 'nullable|string|max:2000',
             'lines' => 'required|array|min:1|max:500',
