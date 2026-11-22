@@ -44,6 +44,55 @@ class ServerMessagesTest extends TestCase
         $this->assertSame('Plain text', ServerMessages::translate('Plain text', 'en'));
     }
 
+    /** lang/en.json holds only the leading fragment of a concatenated message, which never matches at runtime. */
+    public function test_concatenated_messages_translate_in_full(): void
+    {
+        foreach ([
+            'تم تغيير سياق العمل: الفرع الرئيسي • السنة المالية 2026' => 'Work context changed: الفرع الرئيسي • Fiscal year 2026',
+            'تم تغيير سياق العمل: كل الفروع • السنة المالية 2025/2026' => 'Work context changed: All branches • Fiscal year 2025/2026',
+            'تمت دعوة أحمد إلى البوابة' => 'أحمد was invited to the portal',
+            'تم فتح التذكرة TKT-00012' => 'Ticket TKT-00012 opened',
+            'بيعت الباقة PKG-0003' => 'Package PKG-0003 sold',
+            'تم إنشاء منشأتك بنجاح! مرحباً بك في Diwan.' => 'Your company was created successfully! Welcome to Diwan.',
+            'تم تسجيل إيجار المورد بمبلغ 1,150.00' => 'Supplier rental of 1,150.00 recorded',
+            'تم إرجاع مواد بقيمة 320.50' => 'Materials worth 320.50 returned',
+            'تم صرف مواد بقيمة 1,200.00' => 'Materials worth 1,200.00 issued',
+            'تم حفظ نسب الضريبة لـالمملكة العربية السعودية ابتداءً من 2026-01-01' => 'Tax rates for المملكة العربية السعودية saved, effective from 2026-01-01',
+            'تم إنشاء السنة المالية وفتراتها: شهرية (12 فترة)' => 'Fiscal year and its periods created: شهرية (12 فترة)',
+            'بيانات البائع ناقصة للفوترة الإلكترونية: الرقم الضريبي، العنوان الوطني' => 'Seller details are incomplete for e-invoicing: الرقم الضريبي، العنوان الوطني',
+            'تجاوز الحد الائتماني للعميل: الرصيد بعد الفاتورة 12,500.00 والحد المسموح 10,000.00.' => "The customer's credit limit is exceeded: the balance after the invoice is 12,500.00 and the allowed limit is 10,000.00.",
+            'تعذّر الإرسال: Connection refused' => 'Sending failed: Connection refused',
+            'تتعارض البادئة مع بادئة «فاتورة المبيعات» (INV) لأنهما في سجل واحد.' => 'The prefix conflicts with the prefix of “فاتورة المبيعات” (INV) because both share one register.',
+            'حساب «الصندوق» يجب أن يكون من نوع أصول.' => 'The “الصندوق” account must be of type أصول.',
+            'تم إنشاء عرض السعر بنجاح (طُبِّق عرض: خصم الصيف)' => 'Quotation created successfully (promotion applied: خصم الصيف)',
+            'تم إنشاء الفاتورة الضريبية بنجاح وفق متطلبات هيئة الزكاة (طُبِّق عرض: خصم الصيف)' => 'Tax invoice created successfully in line with ZATCA requirements (promotion applied: خصم الصيف)',
+            'الكمية المتوفرة من «قلم أزرق» في المستودع غير كافية (المتوفر: 3، المطلوب: 5).' => 'The available quantity of “قلم أزرق” in the warehouse is not enough (available: 3, required: 5).',
+            // «تم ترحيل القيد {}» used to take this one ("Entry اليومي بنجاح برقم JE-42 posted").
+            'تم ترحيل القيد اليومي بنجاح برقم JE-42' => 'Journal entry posted successfully with number JE-42',
+            'INV-0007: رفضتها الهيئة: BR-KSA-08 Invalid seller identification' => 'INV-0007: Rejected by the authority: BR-KSA-08 Invalid seller identification',
+        ] as $arabic => $english) {
+            $this->assertSame($english, ServerMessages::translate($arabic, 'en'), $arabic);
+        }
+    }
+
+    public function test_every_template_translates_its_own_sample(): void
+    {
+        $fill = function (string $template): string {
+            $n = 0;
+
+            return preg_replace_callback('/\{\}/', function () use (&$n) {
+                return 'V'.++$n;
+            }, $template);
+        };
+        $taken = [];
+        foreach (require lang_path('patterns.en.php') as $arabic => $english) {
+            if (($got = ServerMessages::translate($fill($arabic), 'en')) !== $fill($english)) {
+                $taken[] = "«{$arabic}» gave \"{$got}\"";
+            }
+        }
+        $this->assertSame([], $taken, "The first matching template wins; put these above the general template that takes them:\n".implode("\n", $taken));
+    }
+
     public function test_flash_and_validation_errors_are_translated_in_the_inertia_response(): void
     {
         $this->withSession(['locale' => 'en', 'success' => 'تم حذف العميل بنجاح', 'errors' => new ViewErrorBag])
