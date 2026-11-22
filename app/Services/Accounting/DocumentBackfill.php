@@ -19,6 +19,7 @@ use App\Services\HR\PayrollService;
 use App\Services\TenantManager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Posts journal entries for documents created before integrated posting
@@ -66,10 +67,11 @@ class DocumentBackfill
                             continue;
                         }
 
+                        // One document that cannot be posted (a closed period, a box another branch's...) is counted and the run goes on.
                         try {
                             DB::transaction(fn () => $post($document));
                             $posted++;
-                        } catch (AccountingException $e) {
+                        } catch (AccountingException|ValidationException $e) {
                             $failed++;
                             report($e);
                         }

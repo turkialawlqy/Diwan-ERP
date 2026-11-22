@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Projects;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\Subcontract;
+use App\Rules\BranchBox;
 use App\Services\Projects\ProjectService;
 use Illuminate\Http\Request;
 
@@ -45,7 +46,7 @@ class ProjectCostController extends Controller
             'unit_cost' => 'nullable|numeric|min:0',
             'paid_from' => 'required|in:cash,bank_transfer,payables,accrued',
             'supplier_id' => 'nullable|required_if:paid_from,payables|tenant_exists:suppliers,id',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'bank_account_id' => ['nullable', BranchBox::of($project->branch_id)],
             'fixed_asset_id' => 'nullable|tenant_exists:fixed_assets,id',
             'boq_item_id' => 'nullable|integer',
             'reference' => 'nullable|string|max:50',
@@ -74,7 +75,7 @@ class ProjectCostController extends Controller
             'date' => 'required|date',
             'amount' => 'required|numeric|gt:0',
             'payment_method' => 'required|in:cash,bank_transfer,cheque',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'bank_account_id' => ['nullable', BranchBox::of(fn () => $subcontract->project?->branch_id)],
         ]));
 
         return back()->with('success', 'تم صرف الدفعة المقدمة لمقاول الباطن');

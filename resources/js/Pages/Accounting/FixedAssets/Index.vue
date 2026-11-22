@@ -17,7 +17,7 @@ import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
-const props = defineProps({ assets: Object, categories: Array, accounts: Array, branches: Array, costCenters: Array, bankAccounts: Array, totals: Object, filters: Object });
+const props = defineProps({ assets: Object, categories: Array, categoryAccounts: Object, branches: Array, costCenters: Array, bankAccounts: Array, totals: Object, filters: Object });
 
 const assetOpen = ref(false);
 const categoryOpen = ref(false);
@@ -25,8 +25,10 @@ const depreciateOpen = ref(false);
 
 const assetForm = useForm({ asset_category_id: '', code: '', name_ar: '', serial_number: '', location: '', branch_id: '', cost_center_id: '', acquisition_date: today(), cost: '', salvage_value: 0, useful_life_months: '', total_units: '', unit_label: 'ساعة', paid_from: 'bank_transfer', bank_account_id: '', supplier_id: '', taxable: false, opening_accumulated: 0, notes: '' });
 const categoryForm = useForm({ name_ar: '', useful_life_months: 60, depreciation_method: 'straight_line', declining_rate: '', asset_account_id: '', accumulated_account_id: '', expense_account_id: '' });
+// Categories made from the asset form's picker, until the page reloads.
+const createdCategories = ref([]);
 // Units-of-production categories need the asset's lifetime units.
-const unitsCategory = computed(() => props.categories.find((c) => c.id === assetForm.asset_category_id)?.depreciation_method === 'units_of_production');
+const unitsCategory = computed(() => [...props.categories, ...createdCategories.value].find((c) => c.id === assetForm.asset_category_id)?.depreciation_method === 'units_of_production');
 const depreciateForm = useForm({ month: addMonths(thisMonth(), -1) });
 // The asset dialog's fields on show, each with its own error; FormErrors lists the rest.
 const assetShown = computed(() => [
@@ -103,7 +105,7 @@ const statusLabel = computed(() => ({ active: t('fassets.st_active'), fully_depr
 
         <Dialog :show="assetOpen" :title="$t('fassets.register_a_fixed_asset')" size="lg" @close="assetOpen = false">
             <form @submit.prevent="saveAsset" class="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-                <Field :label="$t('fassets.category')" :error="assetForm.errors.asset_category_id"><SelectCreate v-model="assetForm.asset_category_id" :options="categories" entity="category" label="name_ar" :allow-empty="false" required /></Field>
+                <Field :label="$t('fassets.category')" :error="assetForm.errors.asset_category_id"><SelectCreate v-model="assetForm.asset_category_id" :options="categories" entity="asset_category" label="name_ar" :allow-empty="false" required @created="(c) => createdCategories.push(c)" /></Field>
                 <Field :label="$t('fassets.asset_code')" :error="assetForm.errors.code"><input v-model="assetForm.code" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field :label="$t('fassets.asset_name')" :error="assetForm.errors.name_ar"><input v-model="assetForm.name_ar" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field :label="$t('fassets.serial_number')" :error="assetForm.errors.serial_number"><input v-model="assetForm.serial_number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
@@ -139,9 +141,9 @@ const statusLabel = computed(() => ({ active: t('fassets.st_active'), fully_depr
                     <Field :label="$t('fassets.useful_life_months')" :error="categoryForm.errors.useful_life_months"><input v-model.number="categoryForm.useful_life_months" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                     <Field :label="$t('fassets.depreciation_method')" :error="categoryForm.errors.depreciation_method"><select v-model="categoryForm.depreciation_method" class="w-full rounded-xl border-slate-200 text-xs"><option value="straight_line">{{ $t('fassets.straight_line') }}</option><option value="declining_balance">{{ $t('fassets.declining_balance') }}</option><option value="units_of_production">{{ $t('fassets.units_of_production_hours_km_uni') }}</option></select></Field>
                 </div>
-                <Field :label="$t('fassets.asset_account')" :hint="$t('fassets.empty_the_default_account')"><SelectCreate v-model="categoryForm.asset_account_id" :options="accounts.filter(x => x.type === 'asset')" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('fassets.default')" /></Field>
-                <Field :label="$t('fassets.accumulated_depreciation_account')"><SelectCreate v-model="categoryForm.accumulated_account_id" :options="accounts.filter(x => x.type === 'asset')" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('fassets.default')" /></Field>
-                <Field :label="$t('fassets.depreciation_expense_account')"><SelectCreate v-model="categoryForm.expense_account_id" :options="accounts.filter(x => x.type === 'expense')" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('fassets.default')" /></Field>
+                <Field :label="$t('fassets.asset_account')" :hint="$t('fassets.empty_the_default_account')"><SelectCreate v-model="categoryForm.asset_account_id" :options="categoryAccounts.asset_account_id" entity="account" :defaults="{ type: 'asset' }" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('fassets.default')" /></Field>
+                <Field :label="$t('fassets.accumulated_depreciation_account')"><SelectCreate v-model="categoryForm.accumulated_account_id" :options="categoryAccounts.accumulated_account_id" entity="account" :defaults="{ type: 'asset', nature: 'credit' }" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('fassets.default')" /></Field>
+                <Field :label="$t('fassets.depreciation_expense_account')"><SelectCreate v-model="categoryForm.expense_account_id" :options="categoryAccounts.expense_account_id" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('fassets.default')" /></Field>
             </form>
             <!-- The account pickers' refusals (an account of another type, a box's ledger...) are listed here. -->
             <FormErrors :errors="categoryForm.errors" :except="['name_ar', 'useful_life_months', 'depreciation_method']" class="mt-3" />

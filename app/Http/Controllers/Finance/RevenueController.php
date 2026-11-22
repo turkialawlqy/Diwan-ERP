@@ -8,11 +8,14 @@ use App\Models\BankAccount;
 use App\Models\CostCenter;
 use App\Models\Project;
 use App\Models\Revenue;
+use App\Rules\BranchBox;
 use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Tax\TaxProfile;
+use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -73,8 +76,10 @@ class RevenueController extends Controller
     {
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'account_id' => 'nullable|tenant_exists:accounts,id',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // What the form lists: a posting (non-parent) revenue account of the company.
+            'account_id' => ['nullable', Rule::exists('accounts', 'id')->where(fn ($q) => $q->where('company_id', app(TenantManager::class)->getTenantId())->where('type', 'revenue')->where('is_parent', false))],
+            // A box of the voucher's branch (a new voucher: the top bar's).
+            'bank_account_id' => ['nullable', BranchBox::of($replace?->branch_id)],
             'cost_center_id' => 'nullable|tenant_exists:cost_centers,id',
             'project_id' => 'nullable|tenant_exists:projects,id',
             'category' => 'required|string|max:100',
@@ -86,7 +91,7 @@ class RevenueController extends Controller
             'reference_number' => 'nullable|string|max:100',
             'customer_name' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
-        ]);
+        ], ['account_id.exists' => 'اختر حساب إيرادات فرعيًا.']);
 
         // No VAT unless the voucher is marked taxable (government fees, salaries,
         // unregistered vendors carry none).

@@ -66,7 +66,7 @@ const submit = () => {
                 </div>
                 <div v-if="registers?.length && form.opening_cash > 0">
                     <label class="block text-xs font-semibold text-slate-600 mb-1.5 text-center">{{ $t('pos_opensession.float_issued_from_optional') }}</label>
-                    <SelectCreate v-model="form.float_bank_account_id" :options="boxes" entity="bank" label="name" :placeholder="$t('pos_opensession.not_issued_now_already_in_the_dr')" />
+                    <SelectCreate v-model="form.float_bank_account_id" :options="boxes" entity="bank" :defaults="{ type: 'cash' }" label="name" :placeholder="$t('pos_opensession.not_issued_now_already_in_the_dr')" />
                     <p v-if="form.errors.float_bank_account_id" class="text-xs text-rose-600 mt-1 text-center">{{ form.errors.float_bank_account_id }}</p>
                 </div>
 

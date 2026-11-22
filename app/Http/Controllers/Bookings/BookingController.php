@@ -8,6 +8,7 @@ use App\Models\BookableService;
 use App\Models\Booking;
 use App\Models\BookingResource;
 use App\Models\CustomerPackage;
+use App\Rules\BranchBox;
 use App\Services\Bookings\AvailabilityService;
 use App\Services\Bookings\BookingService;
 use Illuminate\Http\Request;
@@ -96,7 +97,9 @@ class BookingController extends Controller
             'starts_at' => 'required|date_format:Y-m-d H:i',
             'deposit_amount' => 'nullable|numeric|min:0',
             'deposit_method' => 'nullable|in:cash,card,bank_transfer',
-            'deposit_bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // The deposit receipt takes the booking's branch: its resource's (Booking::inheritedBranchId), else the top bar's.
+            // With «any free resource» that branch is known once one is picked: BookingDeposits::receive checks the box then.
+            'deposit_bank_account_id' => ['nullable', $request->filled('booking_resource_id') ? BranchBox::forNew(Booking::class, $request->only('booking_resource_id')) : new BranchBox],
             'notes' => 'nullable|string|max:2000',
         ], [], ['customer_id' => 'العميل', 'bookable_service_id' => 'الخدمة', 'starts_at' => 'الموعد']);
 

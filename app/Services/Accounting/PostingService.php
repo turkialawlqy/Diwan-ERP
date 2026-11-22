@@ -3,6 +3,7 @@
 namespace App\Services\Accounting;
 
 use App\Models\Account;
+use App\Models\BankAccount;
 use App\Models\CostCenter;
 use App\Models\FiscalYearClosing;
 use App\Models\JournalEntry;
@@ -36,6 +37,8 @@ class PostingService
         protected AccountMap $accounts,
         protected FiscalCalendar $calendar,
         protected DocumentNumberService $numbers,
+        protected BranchBalances $branchBalances,
+        protected CashFlowBalances $cashFlowBalances,
     ) {}
 
     /**
@@ -72,6 +75,9 @@ class PostingService
      * A missing or null branch_id means "not given": the entry takes its source document's branch,
      * else the one chosen in the top bar. With no_branch => true it takes neither and stays without
      * a branch (closing or reversing entries that have none); a branch_id that is given still wins.
+     *
+     * A line on the ledger of a cash box / bank of another branch only is refused (assertOwnBranchBoxes),
+     * unless cross_branch => true: the caller checked that the user may move that box (a manual entry).
      */
     public function post(array $data): JournalEntry
     {
@@ -98,6 +104,10 @@ class PostingService
             $noBranch = ! empty($data['no_branch']) && ! isset($data['branch_id']);
             // The entry's branch: given, else its source document's, else the one chosen in the top bar.
             $branchId = $noBranch ? null : ($data['branch_id'] ?? $this->branchOf($source) ?? app(ActiveBranch::class)->forWrite());
+            // Reversing and closing entries mirror what is already in the ledger.
+            if (empty($data['cross_branch']) && ! in_array($entryType, ['closing', 'reversal'], true)) {
+                $this->assertOwnBranchBoxes($branchId ? (int) $branchId : null, $lines, $companyId);
+            }
 
             // A branch closed for the year (its closing entry exists) takes no more postings in that year,
             // even while the year itself and its periods are still open for the other branches.
@@ -149,7 +159,8 @@ class PostingService
             }
 
             if ($status === JournalEntry::STATUS_POSTED) {
-                $this->applyBalances($companyId, $date, $lines, 1);
+                $this->applyBalances($companyId, $date, $lines, 1, $entry->branch_id);
+                $this->cashFlowBalances->add($entry, $lines);
             }
 
             return $entry->load('lines');
@@ -157,9 +168,9 @@ class PostingService
     }
 
     /**
-     * Post a draft entry (re-validated against the current rules).
+     * Post a draft entry (re-validated against the current rules; $crossBranch as in post()).
      */
-    public function postDraft(JournalEntry $entry): JournalEntry
+    public function postDraft(JournalEntry $entry, bool $crossBranch = false): JournalEntry
     {
         if ($entry->status !== JournalEntry::STATUS_DRAFT) {
             throw new AccountingException('القيد مرحّل مسبقاً.');
@@ -176,6 +187,9 @@ class PostingService
         ])->all();
 
         $this->validateLines($lines, $entry->company_id);
+        if (! $crossBranch) {
+            $this->assertOwnBranchBoxes($entry->branch_id ? (int) $entry->branch_id : null, $lines, (int) $entry->company_id);
+        }
 
         return DB::transaction(function () use ($entry, $lines) {
             // Locked and checked again: two clicks on «ترحيل» must not apply the balances twice.
@@ -197,7 +211,8 @@ class PostingService
                 'posted_by' => auth()->id(),
             ]);
 
-            $this->applyBalances($entry->company_id, Carbon::parse($entry->date), $lines, 1);
+            $this->applyBalances($entry->company_id, Carbon::parse($entry->date), $lines, 1, $entry->branch_id);
+            $this->cashFlowBalances->add($entry, $lines);
 
             return $entry;
         });
@@ -318,6 +333,9 @@ class PostingService
                     'updated_at' => $now,
                 ])->values()->all());
             }
+
+            $this->branchBalances->rebuild($companyId);
+            $this->cashFlowBalances->rebuild($companyId);
 
             $totals = DB::table('account_balances')
                 ->where('company_id', $companyId)
@@ -497,14 +515,31 @@ class PostingService
     }
 
     /**
-     * Add (sign = 1) or remove (sign = -1) the lines from the monthly balances
-     * and the running account balance.
+     * A box's ledger account is that box's balance: an entry of a branch moves only the ledgers of its own boxes
+     * and of boxes shared by every branch (BankAccount::foreignLedgers). Whatever configuration a line comes from
+     * (a mapping, an asset category, a customer group, a stored document or template), another branch's box is
+     * refused here. Entries without a branch and accounts the system posts to for every branch are not concerned.
      */
-    protected function applyBalances(int $companyId, Carbon $date, array $lines, int $sign): void
+    protected function assertOwnBranchBoxes(?int $branchId, array $lines, int $companyId): void
+    {
+        $foreign = BankAccount::foreignLedgers($branchId, array_column($lines, 'account_id'), $companyId);
+        if ($foreign) {
+            $account = Account::withoutGlobalScopes()->whereKey($foreign[0])->first(['code', 'name_ar']);
+
+            throw new AccountingException("الحساب «{$account?->code} - {$account?->name_ar}» حساب صندوق أو بنك لفرع آخر؛ لا يُرحَّل عليه من هذا الفرع.");
+        }
+    }
+
+    /**
+     * Add (sign = 1) or remove (sign = -1) the lines from the monthly balances
+     * (the company's and the branch's) and the running account balance.
+     */
+    protected function applyBalances(int $companyId, Carbon $date, array $lines, int $sign, ?int $branchId = null): void
     {
         $period = (int) $date->format('Ym');
         $now = now();
         $grouped = [];
+        $signed = [];
 
         foreach ($lines as $line) {
             $id = $line['account_id'];
@@ -520,6 +555,7 @@ class PostingService
         foreach ($grouped as $accountId => $amounts) {
             $debit = round($amounts['debit'] * $sign, 2);
             $credit = round($amounts['credit'] * $sign, 2);
+            $signed[$accountId] = ['debit' => $debit, 'credit' => $credit];
             // Fixed-point literals (never scientific notation) for the SQL increments.
             $d = number_format($debit, 2, '.', '');
             $c = number_format($credit, 2, '.', '');
@@ -545,5 +581,7 @@ class PostingService
             $delta = ($natures[$accountId] ?? 'debit') === 'debit' ? $debit - $credit : $credit - $debit;
             DB::table('accounts')->where('id', $accountId)->update(['balance' => DB::raw('balance + '.number_format($delta, 2, '.', ''))]);
         }
+
+        $this->branchBalances->add($companyId, $branchId, $period, $signed);
     }
 }

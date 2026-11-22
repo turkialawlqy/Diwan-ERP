@@ -100,8 +100,10 @@ const formatCurrency = (val) => {
     });
 };
 
+// The page lists the first customers; one found by searching is remembered when picked.
+const pickedCustomer = ref(null);
 const selectedCustomer = computed(() => {
-    return props.customers?.find(c => c.id == form.customer_id);
+    return props.customers?.find(c => c.id == form.customer_id) ?? (pickedCustomer.value?.id == form.customer_id ? pickedCustomer.value : undefined);
 });
 
 const submit = () => {
@@ -253,7 +255,7 @@ const submit = () => {
                         <!-- Customer Selection -->
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_return_form.customer_2') }}</label>
-                            <SelectCreate v-model="form.customer_id" :options="customers" entity="customer" :label="(c) => `${c.name} ${c.company_name ? `(${c.company_name})` : ''}`" :placeholder="$t('s_return_form.choose_the_customer')" required />
+                            <SelectCreate v-model="form.customer_id" :options="customers" search="lookup.customers" entity="customer" :label="(c) => `${c.name} ${c.company_name ? `(${c.company_name})` : ''}`" :placeholder="$t('s_return_form.choose_the_customer')" required @picked="(c) => (pickedCustomer = c)" />
                             <p v-if="form.errors.customer_id" class="text-2xs text-rose-500 mt-1">{{ form.errors.customer_id }}</p>
                         </div>
 

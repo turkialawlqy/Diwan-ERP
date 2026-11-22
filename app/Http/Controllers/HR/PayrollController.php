@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAdjustment;
 use App\Models\Payroll;
 use App\Models\PayrollItem;
+use App\Rules\BranchBox;
 use App\Services\HR\PayrollService;
 use App\Services\Settings\CompanyPolicy;
 use App\Services\Tax\CountryFeatures;
@@ -82,7 +83,7 @@ class PayrollController extends Controller
 
     public function pay(Request $request, Payroll $payroll)
     {
-        $validated = $request->validate(['date' => 'required|date', 'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id']);
+        $validated = $request->validate(['date' => 'required|date', 'bank_account_id' => ['nullable', BranchBox::of($payroll->branch_id)]]);
         $this->payrolls->pay($payroll, $validated['bank_account_id'] ?? null, $validated['date']);
 
         return back()->with('success', 'تم صرف الرواتب');

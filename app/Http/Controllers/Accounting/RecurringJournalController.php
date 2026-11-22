@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Accounting;
 
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use App\Models\BankAccount;
 use App\Models\CostCenter;
 use App\Models\RecurringJournal;
+use App\Services\ActiveBranch;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -43,6 +45,13 @@ class RecurringJournalController extends Controller
         $credit = round(collect($validated['lines'])->sum('credit'), 2);
         if ($debit !== $credit || $debit <= 0) {
             throw ValidationException::withMessages(['lines' => 'القيد غير متوازن.']);
+        }
+        // Its entries are filed in its branch (the top bar's) and posted unattended, so no line may move another branch's box,
+        // whoever schedules it (PostingService refuses such a line when the template runs, see RecurringJournalRunner).
+        $otherBranchBoxes = BankAccount::foreignLedgers(app(ActiveBranch::class)->forWrite(), array_column($validated['lines'], 'account_id'));
+        if ($otherBranchBoxes) {
+            throw ValidationException::withMessages(collect($validated['lines'])->filter(fn ($line) => in_array((int) $line['account_id'], $otherBranchBoxes, true))
+                ->mapWithKeys(fn ($line, $i) => ["lines.{$i}.account_id" => 'هذا الحساب مربوط بصندوق أو بنك لفرع آخر.'])->all());
         }
 
         RecurringJournal::create(array_merge($validated, ['is_active' => true, 'created_by' => auth()->id()]));

@@ -6,7 +6,8 @@ import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 
-const props = defineProps({ chartAccounts: Array, bank: { type: Object, default: null } });
+// ledgerParents: the group a box's own ledger opens under, by box type; an account made from the ledger picker goes there as an asset.
+const props = defineProps({ chartAccounts: Array, ledgerParents: { type: Object, default: () => ({}) }, bank: { type: Object, default: null } });
 const editing = props.bank;
 
 const form = useForm({
@@ -17,7 +18,8 @@ const form = useForm({
     iban: '',
     currency: usePage().props.tenant?.currency || 'SAR',
     opening_balance: '0.00',
-    account_id: props.chartAccounts?.[0]?.id || '',
+    // Empty by default: the box gets a ledger account of its own (BankAccountService), not one shared with another box.
+    account_id: '',
 });
 // Editing: names and bank details only (the balance and ledger account follow the postings).
 if (editing) {
@@ -108,7 +110,7 @@ const submitAccount = () => (editing ? form.put(route('finance.banks.update', ed
                             <div class="flex flex-col">
                                 <p v-if="form.errors.account_id" class="order-last text-rose-600 text-3xs mt-1">{{ form.errors.account_id }}</p>
                                 <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_banks_form.link_to_a_chart_of_accounts_acco') }}</label>
-                                <SelectCreate v-model="form.account_id" :options="chartAccounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :placeholder="$t('fin_finance_banks_form.no_direct_link')" />
+                                <SelectCreate v-model="form.account_id" :options="chartAccounts" entity="account" :defaults="{ type: 'asset', parent_id: ledgerParents[form.type] || '' }" :disabled="!!editing" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :placeholder="$t('fin_finance_banks_form.own_ledger_account')" :empty-label="$t('fin_finance_banks_form.own_ledger_account')" />
                             </div>
             
                             <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">

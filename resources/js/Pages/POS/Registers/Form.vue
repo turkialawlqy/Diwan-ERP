@@ -35,7 +35,7 @@ const input = 'w-full text-xs rounded-xl border-slate-200 focus:border-indigo-60
                     <SelectCreate v-model="form.warehouse_id" :options="warehouses" entity="warehouse" label="name_ar" :allow-empty="false" required />
                 </Field>
                 <Field :label="$t('pos_registers_form.cash_box')" :hint="$t('pos_registers_form.the_cash_box_that_receives_cash')" :error="form.errors.bank_account_id">
-                    <SelectCreate v-model="form.bank_account_id" :options="boxes" entity="bank" label="name" :placeholder="$t('pos_registers_form.default_cash_box')" />
+                    <SelectCreate v-model="form.bank_account_id" :options="boxes" entity="bank" :defaults="{ type: 'cash' }" label="name" :placeholder="$t('pos_registers_form.default_cash_box')" />
                 </Field>
             </div>
             <label class="inline-flex items-center gap-2 text-xs"><input v-model="form.is_active" type="checkbox" class="rounded" /> {{ $t('pos_registers_form.the_device_is_active') }}</label>

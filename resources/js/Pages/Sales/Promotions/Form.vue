@@ -73,7 +73,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
                 </div>
             </div>
 
-            <Field :label="$t('s_promo_form.specific_item')"><SelectCreate v-model="form.product_id" :options="products" entity="product" :label="(o) => o.name_ar" :placeholder="$t('s_promo_form.all_items')" /></Field>
+            <Field :label="$t('s_promo_form.specific_item')"><SelectCreate v-model="form.product_id" :options="products" search="lookup.products" entity="product" :label="(o) => o.name_ar" :placeholder="$t('s_promo_form.all_items')" /></Field>
             <Field :label="$t('s_promo_form.specific_category')"><SelectCreate v-model="form.category_id" :options="categories" entity="category" label="name_ar" :placeholder="$t('s_promo_form.all_categories')" /></Field>
             <Field :label="$t('s_promo_form.customer_group')"><SelectCreate v-model="form.customer_group_id" :options="groups" entity="customer_group" label="name" :placeholder="$t('s_promo_form.all_customers')" /></Field>
 

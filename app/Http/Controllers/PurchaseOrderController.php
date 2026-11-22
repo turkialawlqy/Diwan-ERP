@@ -9,6 +9,7 @@ use App\Models\PurchaseOrder;
 use App\Models\SupplierPayment;
 use App\Models\Warehouse;
 use App\Rules\AllowedBranch;
+use App\Rules\BranchBox;
 use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\BudgetService;
 use App\Services\Accounting\DocumentPoster;
@@ -103,7 +104,8 @@ class PurchaseOrderController extends Controller
             'due_date' => 'nullable|date|after_or_equal:today',
             'payments' => 'nullable|array|max:10',
             'payments.*.method' => 'required|in:cash,card,bank_transfer',
-            'payments.*.bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // The bill takes the order's branch.
+            'payments.*.bank_account_id' => ['nullable', BranchBox::of($order->branch_id)],
             'payments.*.amount' => 'required|numeric|min:0.01',
         ]);
         if ($order->status === 'converted_to_invoice') {

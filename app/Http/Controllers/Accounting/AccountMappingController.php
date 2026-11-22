@@ -8,6 +8,7 @@ use App\Services\Accounting\AccountMap;
 use App\Services\Accounting\DimensionPolicy;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -53,22 +54,18 @@ class AccountMappingController extends Controller
         $accounts = Account::whereIn('id', array_filter($validated['mapping']))->get()->keyBy('id');
         $companyId = app(TenantManager::class)->getTenantId();
 
-        foreach ($validated['mapping'] as $role => $accountId) {
-            if (! array_key_exists($role, AccountMap::ROLES)) {
-                continue;
+        // Checked first, saved together: a refused role leaves the others as they were.
+        $roles = array_intersect_key($validated['mapping'], AccountMap::ROLES);
+        foreach ($roles as $role => $accountId) {
+            if ($problem = $map->problem($role, $accountId ? $accounts->get($accountId) : null, $companyId)) {
+                throw ValidationException::withMessages(["mapping.{$role}" => $problem]);
             }
-
-            $account = $accountId ? $accounts->get($accountId) : null;
-            if ($account && $account->is_parent) {
-                throw ValidationException::withMessages(["mapping.{$role}" => 'يجب اختيار حساب فرعي.']);
-            }
-            if ($account && $account->type !== AccountMap::ROLES[$role][1]) {
-                $types = ['asset' => 'أصول', 'liability' => 'خصوم', 'equity' => 'حقوق ملكية', 'revenue' => 'إيرادات', 'expense' => 'مصروفات'];
-                throw ValidationException::withMessages(["mapping.{$role}" => 'حساب «'.AccountMap::ROLES[$role][0].'» يجب أن يكون من نوع '.$types[AccountMap::ROLES[$role][1]].'.']);
-            }
-
-            $map->set($role, $account?->id, $companyId);
         }
+        DB::transaction(function () use ($roles, $accounts, $map, $companyId) {
+            foreach ($roles as $role => $accountId) {
+                $map->set($role, $accountId ? $accounts->get($accountId)?->id : null, $companyId);
+            }
+        });
 
         return back()->with('success', 'تم حفظ ربط الحسابات');
     }

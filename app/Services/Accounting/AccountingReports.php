@@ -21,8 +21,10 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Ledger based reports. Totals come from the monthly account_balances table
- * for whole months and from ledger lines only for partial edge months, so
- * report cost stays flat as the ledger grows to millions of lines.
+ * (branch_account_balances for a report narrowed to some branches) for whole
+ * months and from ledger lines only for partial edge months, so report cost
+ * stays flat as the ledger grows to millions of lines. The cash flow statement
+ * needs each entry's lines together: it has its own monthly totals (CashFlowBalances).
  */
 class AccountingReports
 {
@@ -31,6 +33,7 @@ class AccountingReports
     public function __construct(
         protected TenantManager $tenantManager,
         protected AccountMap $map,
+        protected CashFlowBalances $cashFlowBalances,
     ) {}
 
     /** @var array<int, array<int>> every branch id of a company, per company (memo) */
@@ -41,9 +44,9 @@ class AccountingReports
 
     /**
      * Branches the reports cover: the one chosen in the top bar (or all the
-     * user's branches while "all" is shown). Null: the whole company, which
-     * keeps the fast path through account_balances (also when the selection
-     * is every branch, so entries without a branch stay in).
+     * user's branches while "all" is shown). Null: the whole company, read
+     * from account_balances (also when the selection is every branch, so
+     * entries without a branch stay in).
      *
      * @return array<int>|null
      */
@@ -76,13 +79,7 @@ class AccountingReports
         // Profit reports must not see the year-end closing entry (nor its
         // reversal when a year is reopened), or a closed year shows zero.
         if ($excludeClosing) {
-            $totals = $this->totalsBetween($from, $to, $accountIds, $costCenterId);
-            foreach ($this->closingTotals($from, $to, $accountIds, $costCenterId) as $row) {
-                $totals[$row->account_id]['debit'] = ($totals[$row->account_id]['debit'] ?? 0) - (float) $row->debit;
-                $totals[$row->account_id]['credit'] = ($totals[$row->account_id]['credit'] ?? 0) - (float) $row->credit;
-            }
-
-            return $totals;
+            return $this->lessRows($this->totalsBetween($from, $to, $accountIds, $costCenterId), $this->closingTotals($from, $to, $accountIds, $costCenterId));
         }
 
         if ($this->sharedTotals !== null) {
@@ -96,22 +93,23 @@ class AccountingReports
             }
         };
 
-        // Cost center and branch reports must read lines (balances are not split by either).
-        if ($costCenterId || $this->branchIds() !== null) {
+        // Cost center reports must read lines (the monthly totals are not split by it).
+        if ($costCenterId) {
             $add($this->lineTotals($from, $to, $accountIds, $costCenterId));
 
             return $totals;
         }
 
-        // Whole months covered by [from, to] come from account_balances.
-        $firstFull = $from ? ($from->day === 1 ? $from->copy() : $from->copy()->addMonthNoOverflow()->startOfMonth()) : null;
-        $lastFull = $to->copy()->isLastOfMonth() ? $to->copy()->startOfMonth() : $to->copy()->subMonthNoOverflow()->startOfMonth();
+        // Whole months covered by [from, to] come from the monthly totals: the company's, or the chosen branches'.
+        $months = $this->wholeMonths($from, $to);
+        $branchIds = $this->branchIds();
 
-        if (! $firstFull || $firstFull->lte($lastFull)) {
-            $add(DB::table('account_balances')
+        if ($months) {
+            $add(DB::table($branchIds ? 'branch_account_balances' : 'account_balances')
                 ->where('company_id', $companyId)
-                ->when($firstFull, fn ($q) => $q->where('period', '>=', (int) $firstFull->format('Ym')))
-                ->where('period', '<=', (int) $lastFull->format('Ym'))
+                ->when($branchIds, fn ($q) => $q->whereIn('branch_id', $branchIds))
+                ->when($months[0], fn ($q, $first) => $q->where('period', '>=', $first))
+                ->where('period', '<=', $months[1])
                 ->when($accountIds, fn ($q) => $q->whereIn('account_id', $accountIds))
                 ->groupBy('account_id')
                 ->selectRaw('account_id, SUM(debit) as debit, SUM(credit) as credit')
@@ -131,6 +129,20 @@ class AccountingReports
         }
 
         return $totals;
+    }
+
+    /**
+     * The whole months inside a range as [first YYYYMM (null: since the beginning), last YYYYMM],
+     * or null when it holds none (it lies inside one month or astride a single month end).
+     *
+     * @return array{0: int|null, 1: int}|null
+     */
+    protected function wholeMonths(?Carbon $from, Carbon $to): ?array
+    {
+        $first = $from ? ($from->day === 1 ? $from->copy() : $from->copy()->addMonthNoOverflow()->startOfMonth()) : null;
+        $last = $to->copy()->isLastOfMonth() ? $to->copy()->startOfMonth() : $to->copy()->subMonthNoOverflow()->startOfMonth();
+
+        return ! $first || $first->lte($last) ? [$first ? (int) $first->format('Ym') : null, (int) $last->format('Ym')] : null;
     }
 
     /**
@@ -161,6 +173,17 @@ class AccountingReports
         }
 
         return $first;
+    }
+
+    /** Take rows of account_id, debit and credit out of totals of the form totalsBetween() returns. */
+    protected function lessRows(array $totals, Collection $rows): array
+    {
+        foreach ($rows as $row) {
+            $totals[$row->account_id]['debit'] = ($totals[$row->account_id]['debit'] ?? 0) - (float) $row->debit;
+            $totals[$row->account_id]['credit'] = ($totals[$row->account_id]['credit'] ?? 0) - (float) $row->credit;
+        }
+
+        return $totals;
     }
 
     protected function sharedRange(?Carbon $from, Carbon $to, ?array $accountIds, ?int $costCenterId): array
@@ -197,10 +220,27 @@ class AccountingReports
             ->where('e.date', '<=', $end);
     }
 
+    /** The lines of the year-end closing entries and of their reversals. */
     protected function closingTotals(?Carbon $from, Carbon $to, ?array $accountIds = null, ?int $costCenterId = null): Collection
     {
-        $closingIds = DB::table('journal_entries')->where('company_id', $this->companyId())->where('entry_type', 'closing')->pluck('id');
-        if ($closingIds->isEmpty()) {
+        $closing = DB::table('journal_entries')->where('company_id', $this->companyId())->where('entry_type', 'closing')->get(['id', 'reversed_by_id']);
+
+        return $this->entryTotals($closing->pluck('id')->merge($closing->pluck('reversed_by_id')->filter()), $from, $to, $accountIds, $costCenterId);
+    }
+
+    /** The lines of the opening entries of the range. Not of their reversals: those stay in a period's movement. */
+    protected function openingTotals(Carbon $from, Carbon $to): Collection
+    {
+        $opening = DB::table('journal_entries')->where('company_id', $this->companyId())->where('entry_type', 'opening')
+            ->where('date', '>=', $from->toDateString())->where('date', '<=', $to->toDateString().' 23:59:59')->pluck('id');
+
+        return $this->entryTotals($opening, $from, $to);
+    }
+
+    /** Totals of some entries, few compared to the ledger: their lines are read directly, not searched for in it. */
+    protected function entryTotals(Collection $entryIds, ?Carbon $from, Carbon $to, ?array $accountIds = null, ?int $costCenterId = null): Collection
+    {
+        if ($entryIds->isEmpty()) {
             return collect();
         }
 
@@ -209,7 +249,7 @@ class AccountingReports
             ->where('l.company_id', $this->companyId())
             ->whereIn('e.status', self::STATUSES)
             ->when($this->branchIds(), fn ($q, $ids) => $q->whereIn('e.branch_id', $ids))
-            ->where(fn ($q) => $q->whereIn('e.id', $closingIds)->orWhereIn('e.reversal_of_id', $closingIds))
+            ->whereIntegerInRaw('l.journal_entry_id', $entryIds) // an import can make thousands of opening entries: no bound parameter per id
             ->when($from, fn ($q) => $q->where('l.date', '>=', $from->toDateString()))
             ->where('l.date', '<=', $to->toDateString().' 23:59:59')
             ->when($accountIds, fn ($q) => $q->whereIn('l.account_id', $accountIds))
@@ -221,6 +261,10 @@ class AccountingReports
 
     protected function lineTotals(?Carbon $from, Carbon $to, ?array $accountIds = null, ?int $costCenterId = null): Collection
     {
+        // Every account of a short range: from the range's entries to their lines. Left to itself MySQL may
+        // walk all the company's lines in account order to save sorting the groups (ignored by other databases).
+        $fromEntries = $accountIds || $costCenterId ? '' : '/*+ JOIN_ORDER(e, l) */ ';
+
         return DB::table('journal_entry_lines as l')
             ->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
             ->where('l.company_id', $this->companyId())
@@ -230,7 +274,7 @@ class AccountingReports
             ->when($accountIds, fn ($q) => $q->whereIn('l.account_id', $accountIds))
             ->when($costCenterId, fn ($q) => $q->where('l.cost_center_id', $costCenterId))
             ->groupBy('l.account_id')
-            ->selectRaw('l.account_id, SUM(l.debit) as debit, SUM(l.credit) as credit')
+            ->selectRaw($fromEntries.'l.account_id, SUM(l.debit) as debit, SUM(l.credit) as credit')
             ->get();
     }
 
@@ -576,33 +620,8 @@ class AccountingReports
 
         $flows = ['operating' => [], 'investing' => [], 'financing' => []];
         $openingInRange = 0.0;
-        $range = [$from->toDateString(), $to->toDateString().' 23:59:59'];
 
-        // Entries that move cash: a cash line, another line and a net cash
-        // movement (transfers between cash accounts net to zero). Whole entries
-        // are summed in SQL: paging their lines could split an entry.
-        $cash = $cashIds ?: [0];
-        $isCash = 'l.account_id IN ('.implode(', ', array_fill(0, count($cash), '?')).')';
-        $entries = DB::table('journal_entry_lines as l')
-            ->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
-            ->where('l.company_id', $this->companyId())
-            ->whereIn('e.status', self::STATUSES)
-            ->when($this->branchIds(), fn ($q, $ids) => $q->whereIn('e.branch_id', $ids))
-            ->tap(fn ($q) => $this->withinPeriod($q, $from, $to))
-            ->groupBy('l.journal_entry_id')
-            ->havingRaw("SUM(CASE WHEN {$isCash} THEN 1 ELSE 0 END) > 0", $cash)
-            ->havingRaw("SUM(CASE WHEN {$isCash} THEN 0 ELSE 1 END) > 0", $cash)
-            ->havingRaw("ABS(SUM(CASE WHEN {$isCash} THEN l.debit - l.credit ELSE 0 END)) >= 0.005", $cash)
-            ->selectRaw("l.journal_entry_id, MAX(CASE WHEN e.entry_type = 'opening' THEN 1 ELSE 0 END) as is_opening");
-
-        $totals = DB::table('journal_entry_lines as l')
-            ->joinSub($entries, 'f', 'f.journal_entry_id', '=', 'l.journal_entry_id')
-            ->whereBetween('l.date', $range)
-            ->groupBy('f.is_opening', 'l.account_id')
-            ->selectRaw('f.is_opening, l.account_id, SUM(l.debit) as debit, SUM(l.credit) as credit')
-            ->get();
-
-        foreach ($totals as $line) {
+        foreach ($this->cashFlowTotals($from, $to, $cashIds) as $line) {
             $cashLine = in_array((int) $line->account_id, $cashIds, true);
             if ($line->is_opening) {
                 // Opening balances are not a cash flow of the period.
@@ -639,6 +658,67 @@ class AccountingReports
     }
 
     /**
+     * The lines of the entries that moved cash in the range, per opening flag and account: whole
+     * months from the monthly totals, the partial months at either end from the ledger lines
+     * (lines carry their entry's date, so cutting a range at a date never splits an entry).
+     */
+    protected function cashFlowTotals(Carbon $from, Carbon $to, array $cashIds): Collection
+    {
+        $months = $this->wholeMonths($from, $to);
+        $whole = $months ? $this->cashFlowBalances->totals($this->companyId(), $this->branchIds() ?: null, $months[0], $months[1], $cashIds) : null;
+        if ($whole === null) {
+            return $this->cashFlowLines($from, $to, $cashIds);
+        }
+
+        $rows = $whole;
+        if ($from->day !== 1) {
+            $rows = $rows->concat($this->cashFlowLines($from, $from->copy()->endOfMonth(), $cashIds));
+        }
+        if (! $to->isLastOfMonth()) {
+            $rows = $rows->concat($this->cashFlowLines($to->copy()->startOfMonth(), $to, $cashIds));
+        }
+
+        // One row per opening flag and account, as the line query answers.
+        return $rows->groupBy(fn ($row) => (int) $row->is_opening.'|'.$row->account_id)
+            ->map(fn ($group) => (object) [
+                'is_opening' => (int) $group->first()->is_opening,
+                'account_id' => (int) $group->first()->account_id,
+                'debit' => $group->sum(fn ($row) => (float) $row->debit),
+                'credit' => $group->sum(fn ($row) => (float) $row->credit),
+            ])->values();
+    }
+
+    /**
+     * The same totals from the ledger lines. Entries that move cash: a cash line, another line
+     * and a net cash movement (transfers between cash accounts net to zero). Whole entries are
+     * summed in SQL: paging their lines could split an entry.
+     */
+    protected function cashFlowLines(Carbon $from, Carbon $to, array $cashIds): Collection
+    {
+        $range = [$from->toDateString(), $to->toDateString().' 23:59:59'];
+        $cash = $cashIds ?: [0];
+        $isCash = 'l.account_id IN ('.implode(', ', array_fill(0, count($cash), '?')).')';
+        $entries = DB::table('journal_entry_lines as l')
+            ->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
+            ->where('l.company_id', $this->companyId())
+            ->whereIn('e.status', self::STATUSES)
+            ->when($this->branchIds(), fn ($q, $ids) => $q->whereIn('e.branch_id', $ids))
+            ->tap(fn ($q) => $this->withinPeriod($q, $from, $to))
+            ->groupBy('l.journal_entry_id')
+            ->havingRaw("SUM(CASE WHEN {$isCash} THEN 1 ELSE 0 END) > 0", $cash)
+            ->havingRaw("SUM(CASE WHEN {$isCash} THEN 0 ELSE 1 END) > 0", $cash)
+            ->havingRaw("ABS(SUM(CASE WHEN {$isCash} THEN l.debit - l.credit ELSE 0 END)) >= 0.005", $cash)
+            ->selectRaw("l.journal_entry_id, MAX(CASE WHEN e.entry_type = 'opening' THEN 1 ELSE 0 END) as is_opening");
+
+        return DB::table('journal_entry_lines as l')
+            ->joinSub($entries, 'f', 'f.journal_entry_id', '=', 'l.journal_entry_id')
+            ->whereBetween('l.date', $range)
+            ->groupBy('f.is_opening', 'l.account_id')
+            ->selectRaw('f.is_opening, l.account_id, SUM(l.debit) as debit, SUM(l.credit) as credit')
+            ->get();
+    }
+
+    /**
      * Cash flow statement, indirect method: operating cash is derived from
      * net profit, adjusted for non-cash items (depreciation, impairment,
      * provisions, gains on investing items) and for the change in working
@@ -653,19 +733,7 @@ class AccountingReports
         $cashIds = $this->cashAccountIds();
         $accounts = Account::query()->where('is_parent', false)->get(['id', 'code', 'name_ar', 'type', 'cash_flow_category'])->keyBy('id');
 
-        // Period movement (credit - debit) per account, without opening and year-end closing entries.
-        $closingIds = DB::table('journal_entries')->where('company_id', $this->companyId())->where('entry_type', 'closing')->pluck('id');
-        $movement = DB::table('journal_entry_lines as l')
-            ->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
-            ->where('l.company_id', $this->companyId())
-            ->whereIn('e.status', self::STATUSES)
-            ->when($this->branchIds(), fn ($q, $ids) => $q->whereIn('e.branch_id', $ids))
-            ->tap(fn ($q) => $this->withinPeriod($q, $from, $to))
-            ->where(fn ($q) => $q->whereNull('e.entry_type')->orWhereNotIn('e.entry_type', ['opening', 'closing']))
-            ->when($closingIds->isNotEmpty(), fn ($q) => $q->where(fn ($q) => $q->whereNull('e.reversal_of_id')->orWhereNotIn('e.reversal_of_id', $closingIds)))
-            ->groupBy('l.account_id')
-            ->selectRaw('l.account_id, SUM(l.credit) - SUM(l.debit) as net')
-            ->pluck('net', 'account_id')->map(fn ($v) => (float) $v);
+        $movement = $this->periodMovement($from, $to);
         $net = fn ($ids) => round(collect((array) $ids)->filter()->sum(fn ($id) => $movement[$id] ?? 0), 2);
         $row = fn ($id, $amount) => ['id' => $id, 'code' => $accounts[$id]->code ?? '', 'name' => $accounts[$id]->name_ar ?? '', 'amount' => round($amount, 2)];
 
@@ -717,6 +785,21 @@ class AccountingReports
                 'operating_total' => $operating,
             ],
         ];
+    }
+
+    /**
+     * Credit minus debit per account in the range, without opening entries, year-end closing entries
+     * or the reversals of those closings: the range's totals less the lines of those few entries, so
+     * the cost does not grow with the ledger.
+     *
+     * @return array<int, float>
+     */
+    protected function periodMovement(Carbon $from, Carbon $to): array
+    {
+        $totals = $this->lessRows($this->totalsBetween($from, $to, null, null, true), $this->openingTotals($from, $to));
+
+        // Amounts have two decimals: rounding drops what adding and subtracting them as floats leaves behind.
+        return array_map(fn (array $row) => round($row['credit'] - $row['debit'], 2), $totals);
     }
 
     /**

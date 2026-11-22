@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Accounting\AccountMap;
 use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -40,6 +41,16 @@ class Account extends Model
     public function parent(): BelongsTo
     {
         return $this->belongsTo(Account::class, 'parent_id');
+    }
+
+    /**
+     * The system posts to this account by itself: the ledger of a box (any branch, shared or archived), or an account
+     * mapped to a role (AccountMap). It never becomes a group account, whose postings would all be refused.
+     */
+    public function isPostedBySystem(): bool
+    {
+        return BankAccount::boxLedgers([$this->id], false, $this->company_id) !== []
+            || in_array((int) $this->id, array_map('intval', array_filter(app(AccountMap::class)->all($this->company_id))), true);
     }
 
     public function children(): HasMany

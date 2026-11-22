@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
 use App\Models\JournalEntry;
+use App\Rules\BranchBox;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\ActiveBranch;
 use App\Services\TenantManager;
@@ -57,8 +58,10 @@ class TransferController extends Controller
         $companyId = $tenantManager->getTenantId() ?? auth()->user()?->company_id;
 
         $validated = $request->validate([
-            'from_account_id' => 'required|tenant_exists:bank_accounts,id|different:to_account_id',
-            'to_account_id' => 'required|tenant_exists:bank_accounts,id',
+            // Two boxes the user sees: of the branch chosen in the top bar, or shared by all branches (the entry is filed in
+            // that branch). Only a platform admin in support mode, who sees every branch, moves money between branches here.
+            'from_account_id' => ['required', new BranchBox, 'different:to_account_id'],
+            'to_account_id' => ['required', new BranchBox],
             'amount' => 'required|numeric|min:0.01',
             'transfer_date' => 'required|date',
             'reference' => 'nullable|string|max:50',
@@ -96,7 +99,7 @@ class TransferController extends Controller
             $transferRef = $validated['reference'] ?? $this->nextNumber('transfer', $validated['transfer_date']);
             $desc = "تحويل مالي من [{$from->name}] إلى [{$to->name}]".(! empty($validated['notes']) ? ' - '.$validated['notes'] : '');
 
-            app(DocumentPoster::class)->transfer($from, $to, $amount, $validated['transfer_date'], $transferRef, $desc);
+            app(DocumentPoster::class)->transfer($from, $to, $amount, $validated['transfer_date'], $transferRef, $desc, crossBranch: true);
         });
 
         return redirect()->route('finance.transfers.index')

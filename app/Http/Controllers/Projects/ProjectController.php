@@ -13,6 +13,7 @@ use App\Models\Subcontract;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Rules\AllowedBranch;
+use App\Rules\BranchBox;
 use App\Services\Projects\ProjectReport;
 use App\Services\Projects\ProjectService;
 use App\Services\Projects\ProjectWip;
@@ -149,7 +150,8 @@ class ProjectController extends Controller
             'date' => 'required|date',
             'amount' => 'required|numeric|gt:0',
             'payment_method' => 'required|in:cash,bank_transfer,cheque',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // The advance invoice takes the project's branch.
+            'bank_account_id' => ['nullable', BranchBox::of($project->branch_id)],
         ]);
         $invoice = $this->projects->receiveAdvance($project, $validated);
 

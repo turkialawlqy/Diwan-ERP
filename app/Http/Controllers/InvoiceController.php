@@ -14,6 +14,7 @@ use App\Models\Project;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Rules\AllowedBranch;
+use App\Rules\BranchBox;
 use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\AttachmentService;
@@ -25,6 +26,7 @@ use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
 use App\Support\BranchOptions;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -102,16 +104,9 @@ class InvoiceController extends Controller
         $company = $tenantManager->getCompany();
 
         // First slice only; the form searches the rest via /lookup/*.
-        $customers = Customer::where('status', 'active')
-            ->orderBy('name')
-            ->limit(200)
-            ->get(['id', 'name', 'company_name', 'tax_number', 'phone', 'current_balance']);
+        $customers = PickerOptions::from(Customer::where('status', 'active')->orderBy('name'), ['id', 'name', 'company_name', 'tax_number', 'phone', 'current_balance']);
 
-        $products = Product::where('is_active', true)
-            ->with(['category', 'unit'])
-            ->orderBy('name_ar')
-            ->limit(200)
-            ->get(['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'purchase_price', 'tax_rate', 'unit_id', 'category_id', 'description']);
+        $products = PickerOptions::from(Product::where('is_active', true)->with('unit:id,name_ar')->orderBy('name_ar'), ['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'purchase_price', 'tax_rate', 'unit_id', 'category_id', 'description']);
 
         $categories = Category::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
         if ($categories->isEmpty() && $company) {
@@ -169,6 +164,7 @@ class InvoiceController extends Controller
         return Inertia::render('Sales/Invoices/Create', [
             'customers' => $customers,
             'products' => $products,
+            'suggestedSku' => $this->peekNumber('product'), // the new-product dialog's code, as on the product page
             'categories' => $categories,
             'units' => $units,
             'warehouses' => $warehouses,
@@ -196,7 +192,8 @@ class InvoiceController extends Controller
             'supply_date' => 'nullable|date',
             'payment_method' => 'required|string|in:cash,card,bank_transfer,credit',
             'payment_status' => 'required|string|in:paid,partially_paid,unpaid',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // The branch the invoice is saved in (InvoiceService::create): the form's, else the top bar's.
+            'bank_account_id' => ['nullable', BranchBox::of(fn () => $request->input('branch_id'))],
             'warehouse_id' => 'nullable|tenant_exists:warehouses,id',
             'paid_amount' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',

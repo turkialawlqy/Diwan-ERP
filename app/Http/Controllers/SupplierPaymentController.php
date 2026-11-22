@@ -7,6 +7,7 @@ use App\Models\PaymentRequest;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
+use App\Rules\BranchBox;
 use App\Services\Accounting\ChequeService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
@@ -102,7 +103,8 @@ class SupplierPaymentController extends Controller
             'cheque_due_date' => 'nullable|date|after_or_equal:payment_date',
             'reference_number' => 'nullable|string|max:50',
             'notes' => 'nullable|string',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // Filed in its bill's branch, else the top bar's (SupplierPayment::inheritedBranchId).
+            'bank_account_id' => ['nullable', BranchBox::forNew(SupplierPayment::class, $request->only('purchase_invoice_id'))],
             'auto_allocate' => 'nullable|boolean',
             'wht_rate' => 'nullable|numeric|min:0|max:100',
             'allocations' => 'nullable|array|max:200',

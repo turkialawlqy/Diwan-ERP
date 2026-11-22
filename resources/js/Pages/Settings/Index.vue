@@ -632,7 +632,7 @@ const removeLogo = async () => {
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
                                             {{ $t('setidx.sales_revenue_account_default_cr') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_sales_revenue_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_sales_account_from_th')" />
+                                        <SelectCreate v-model="form.acc_sales_revenue_id" :options="accounts" entity="account" :defaults="{ type: 'revenue' }" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_sales_account_from_th')" />
                                         <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.credited_as_revenue_when_any_sal') }}</p>
                                     </div>
 
@@ -640,7 +640,7 @@ const removeLogo = async () => {
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
                                             {{ $t('setidx.receivables_customers_account_de') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_receivables_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_customers_receivables')" />
+                                        <SelectCreate v-model="form.acc_receivables_id" :options="accounts" entity="account" :defaults="{ type: 'asset' }" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_customers_receivables')" />
                                         <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.debited_for_credit_invoices_or_r') }}</p>
                                     </div>
                                 </div>
@@ -657,7 +657,7 @@ const removeLogo = async () => {
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
                                             {{ $t('setidx.purchases_cost_of_goods_sold_acc') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_purchases_cogs_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_purchases_cost_accoun')" />
+                                        <SelectCreate v-model="form.acc_purchases_cogs_id" :options="accounts" entity="account" :defaults="{ type: 'expense' }" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_purchases_cost_accoun')" />
                                         <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.recorded_as_an_expense_or_purcha') }}</p>
                                     </div>
 
@@ -665,7 +665,7 @@ const removeLogo = async () => {
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
                                             {{ $t('setidx.payables_suppliers_account') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_payables_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_suppliers_payables_ac')" />
+                                        <SelectCreate v-model="form.acc_payables_id" :options="accounts" entity="account" :defaults="{ type: 'liability' }" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_suppliers_payables_ac')" />
                                         <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.credited_as_a_financial_liabilit') }}</p>
                                     </div>
                                 </div>
@@ -682,7 +682,7 @@ const removeLogo = async () => {
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
                                             {{ $t('setidx.output_vat_collected_sales') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_vat_output_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_output_vat_account')" />
+                                        <SelectCreate v-model="form.acc_vat_output_id" :options="accounts" entity="account" :defaults="{ type: 'liability' }" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_output_vat_account')" />
                                         <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.a_liability_account_owed_to_the') }}</p>
                                     </div>
 
@@ -690,7 +690,7 @@ const removeLogo = async () => {
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
                                             {{ $t('setidx.input_vat_purchases') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_vat_input_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_input_vat_account')" />
+                                        <SelectCreate v-model="form.acc_vat_input_id" :options="accounts" entity="account" :defaults="{ type: 'asset' }" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_input_vat_account')" />
                                         <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.a_current_asset_account_where_re') }}</p>
                                     </div>
                                 </div>
@@ -707,7 +707,7 @@ const removeLogo = async () => {
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
                                             {{ $t('setidx.default_main_cash_box') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_default_cash_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_main_cash_box_account')" />
+                                        <SelectCreate v-model="form.acc_default_cash_id" :options="accounts" entity="account" :defaults="{ type: 'asset' }" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_main_cash_box_account')" />
                                         <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.used_to_record_quick_cash_receip') }}</p>
                                     </div>
 
@@ -715,7 +715,7 @@ const removeLogo = async () => {
                                         <label class="block text-xs font-bold text-slate-700 mb-1">
                                             {{ $t('setidx.default_main_bank_account') }}
                                         </label>
-                                        <SelectCreate v-model="form.acc_default_bank_id" :options="accounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_default_bank_account')" />
+                                        <SelectCreate v-model="form.acc_default_bank_id" :options="accounts" entity="account" :defaults="{ type: 'asset' }" :label="(acc) => `${acc.code} - ${acc.name_ar} (${acc.type})`" :placeholder="$t('setidx.choose_the_default_bank_account')" />
                                         <p class="text-[10px] text-slate-400 mt-1">{{ $t('setidx.used_automatically_for_bank_tran') }}</p>
                                     </div>
                                 </div>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\AssetCategory;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Category;
 use App\Models\CostCenter;
@@ -29,6 +30,9 @@ use Illuminate\Http\Request;
 class LookupController extends Controller
 {
     protected const LIMIT = 20;
+
+    /** Forms that only name the record they pick: whoever holds nothing else gets no more than its name, as those forms always showed. */
+    protected const NAME_ONLY = ['finance.payment_requests.create', 'finance.payment_requests.edit', 'sales.promotions.create', 'sales.promotions.edit'];
 
     public function customers(Request $request): JsonResponse
     {
@@ -59,6 +63,9 @@ class LookupController extends Controller
         if ($request->boolean('cost') && $this->mayUse($request, ['manufacturing.boms.create', 'manufacturing.boms.edit'])) {
             $columns[] = 'average_cost';
         }
+        if ($this->namesOnly($request, 'lookup.products')) {
+            $columns = ['id', 'name_ar', 'sku'];
+        }
 
         $results = Product::query()
             ->where('is_active', true)
@@ -88,7 +95,7 @@ class LookupController extends Controller
                 ->orWhere('tax_number', 'like', "{$q}%")))
             ->orderBy('name')
             ->limit(self::LIMIT)
-            ->get();
+            ->get($this->namesOnly($request, 'lookup.suppliers') ? ['id', 'name'] : ['*']);
 
         return response()->json(['data' => $results]);
     }
@@ -130,7 +137,12 @@ class LookupController extends Controller
         }
         if ($name === 'accounts') {
             $query->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
-                ->when($request->boolean('parents'), fn ($q) => $q->where('is_parent', true));
+                ->when($request->boolean('parents'), fn ($q) => $q->where('is_parent', true))
+                // A box's ledger, a customer group's receivables, an asset category's accounts: only what the form behind
+                // the picker accepts.
+                ->when($request->boolean('box_ledger'), fn ($q) => $q->whereIn('id', BankAccount::linkableLedgers()->pluck('id')))
+                ->when($request->boolean('receivables'), fn ($q) => $q->whereIn('id', CustomerGroup::accountOptions()->pluck('id')))
+                ->when($request->query('asset_category'), fn ($q, $field) => $q->whereIn('id', is_string($field) && isset(AssetCategory::ACCOUNTS[$field]) ? AssetCategory::accountOptions($field)->pluck('id') : []));
         }
 
         return response()->json(['data' => $query->orderBy($order)->limit(500)->get()->map(fn ($m) => ['id' => $m->getKey(), 'label' => $label($m)])->values()]);
@@ -160,6 +172,12 @@ class LookupController extends Controller
         $user = $request->user();
 
         return $user && ($user->isCompanyOwner() || collect($permissions)->contains(fn ($permission) => $user->can($permission)));
+    }
+
+    /** Whether the user reaches this lookup only through forms that just name the record (NAME_ONLY). */
+    protected function namesOnly(Request $request, string $route): bool
+    {
+        return ! $this->mayUse($request, array_diff((array) config('erp_permissions.routes')[$route], self::NAME_ONLY));
     }
 
     protected function term(Request $request): string

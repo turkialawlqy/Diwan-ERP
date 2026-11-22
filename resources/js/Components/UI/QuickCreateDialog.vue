@@ -17,6 +17,8 @@ const { t } = useI18n();
 const props = defineProps({
     entity: { type: String, required: true },
     name: { type: String, default: '' },
+    // Fields the form the dropdown sits in presets (an account made from the revenue form is a revenue account).
+    defaults: { type: Object, default: null },
 });
 const emit = defineEmits(['close', 'created']);
 
@@ -33,6 +35,7 @@ fields.forEach((f) => {
     form[f.key] = f.default !== undefined ? (Array.isArray(f.default) ? [...f.default] : f.default) : (f.type === 'checkbox' ? false : '');
 });
 if (config.seed) form[config.seed] = props.name;
+Object.entries(props.defaults || {}).forEach(([key, value]) => { form[key] = value; config.onChange?.(form, key); });
 
 onMounted(() => {
     fields.filter((f) => f.lookup).forEach(async (f) => {
@@ -84,7 +87,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs focus:border-indigo-60
                         <div v-if="f.type === 'days'" class="flex flex-wrap gap-3">
                             <label v-for="[n, l] in dayNames" :key="n" class="flex items-center gap-1"><input type="checkbox" :checked="form.work_days.includes(n)" @change="toggleDay(n)" class="rounded" /> {{ tx(l) }}</label>
                         </div>
-                        <SelectCreate v-else-if="f.type === 'select'" v-model="form[f.key]" :options="optionsOf(f)" :entity="f.entity" :placeholder="tx(f.empty || $t('z_resources_js_components_ui_quickcreatedialog.choose'))" :allow-empty="!!f.empty || !f.required" :empty-label="tx(f.empty) || '—'" @update:modelValue="config.onChange?.(form, f.key)" @created="(r) => (lookups[f.key] = [...(lookups[f.key] || []), r])" />
+                        <SelectCreate v-else-if="f.type === 'select'" v-model="form[f.key]" :options="optionsOf(f)" :entity="f.entity" :defaults="f.defaults || null" :placeholder="tx(f.empty || $t('z_resources_js_components_ui_quickcreatedialog.choose'))" :allow-empty="!!f.empty || !f.required" :empty-label="tx(f.empty) || '—'" @update:modelValue="config.onChange?.(form, f.key)" @created="(r) => (lookups[f.key] = [...(lookups[f.key] || []), r])" />
                         <textarea v-else-if="f.type === 'textarea'" v-model="form[f.key]" rows="2" :class="input"></textarea>
                         <input v-else v-model="form[f.key]" :type="f.type || 'text'" :step="f.step" :required="f.required" :maxlength="f.maxlength" :class="input" />
                     </Field>
