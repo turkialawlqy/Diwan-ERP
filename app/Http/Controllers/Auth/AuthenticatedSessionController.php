@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Support\ServerMessages;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,7 +21,7 @@ class AuthenticatedSessionController extends Controller
     {
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
-            'status' => session('status'),
+            'status' => ServerMessages::translate(session('status')),
             // Seeded demo logins, only when explicitly enabled outside production.
             'demoAccounts' => config('app.demo_login') && ! app()->isProduction() ? [
                 ['label' => 'مدير منشأة (أنس)', 'email' => 'anas@diwan.io', 'password' => 'password'],

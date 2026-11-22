@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use App\Support\ServerMessages;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\ViewErrorBag;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Scalar\String_;
+use PhpParser\Node\Stmt;
 use PhpParser\NodeFinder;
 use PhpParser\ParserFactory;
 use Tests\TestCase;
@@ -73,17 +75,83 @@ class ServerMessagesTest extends TestCase
             abort_unless($open, 422, 'مغلق');
             abort_if($used, 422, $reason ?? 'مستعمل');
             $fail('غير صالح');
-            back()->with('status', 'ليست رسالة تنبيه');
+            back()->with('status', 'أعد تسجيل الدخول');
             back()->with('success', 'تم ترحيل القيد '.$number);
+            back()->with('email', 'ليست رسالة');
             PHP;
 
-        $this->assertSame(['حُفظ' => 2, 'اعتُمد' => 3, 'رُفض' => 3, 'أكمل التسجيل' => 4, 'ممنوع' => 5, 'مغلق' => 6, 'مستعمل' => 7, 'غير صالح' => 8], self::messagesIn($code));
+        $this->assertSame(['حُفظ' => 2, 'اعتُمد' => 3, 'رُفض' => 3, 'أكمل التسجيل' => 4, 'ممنوع' => 5, 'مغلق' => 6, 'مستعمل' => 7, 'غير صالح' => 8, 'أعد تسجيل الدخول' => 9], self::messagesIn($code));
+    }
+
+    public function test_the_static_message_scan_counts_validation_messages_and_attribute_names(): void
+    {
+        $code = <<<'PHP'
+            <?php
+            class Sample extends Controller
+            {
+                public function store(Request $request, array $data)
+                {
+                    $request->validate(['logo' => 'required|image'], ['logo.required' => 'اختر الشعار'], ['logo' => 'الشعار']);
+                    $request->validate(['name' => 'required'] + $this->lineRules(), ['name.required' => 'أدخل الاسم'] + $this->lineMessages());
+                    Validator::make($data, ['days' => 'integer'], ['days' => ['min' => 'أيام قليلة']], ['days' => 'الأيام'])->validate();
+                    validator($data, ['qty' => 'numeric'], [], ['qty' => 'الكمية']);
+                    $request->validateWithBag('lines', ['code' => 'required'], [], ['code' => 'الرمز']);
+                    $request->validate(['note' => 'nullable|string']);
+                }
+
+                protected function lineMessages(): array
+                {
+                    return ['lines.*.code.required' => 'السطر :position بدون رمز'];
+                }
+            }
+
+            class SampleRequest extends FormRequest
+            {
+                public function messages(): array { return ['name.required' => 'الاسم مطلوب']; }
+                public function attributes(): array { return ['name' => 'اسم العميل']; }
+            }
+            PHP;
+
+        $this->assertSame([
+            'اختر الشعار' => 6, 'الشعار' => 6, 'أدخل الاسم' => 7, 'السطر :position بدون رمز' => 7, 'أيام قليلة' => 8, 'الأيام' => 8,
+            'الكمية' => 9, 'الرمز' => 10, 'الاسم مطلوب' => 22, 'اسم العميل' => 23,
+        ], self::messagesIn($code));
+    }
+
+    public function test_validators_name_the_fields_and_give_custom_messages_in_the_interface_language(): void
+    {
+        $errors = fn (array $data, array $rules, array $messages = [], array $attributes = []) => Validator::make($data, $rules, $messages, $attributes)->errors()->all();
+
+        app()->setLocale('en');
+        $this->assertSame(['The name field is required.'], $errors([], ['name' => 'required'], [], ['name' => 'الاسم']));
+        $this->assertSame(['The exchange rate field must be greater than 0.'], $errors(['rate' => 0], ['rate' => 'numeric|gt:0'], [], ['rate' => 'سعر الصرف']));
+        $this->assertSame(['Please choose a logo file.'], $errors([], ['logo' => 'required'], ['logo.required' => 'يرجى اختيار ملف الشعار.']));
+        $this->assertSame(['Bill of quantities: line 2 has no code.'], $errors(['boq' => [['code' => 'A'], ['code' => '']]], ['boq.*.code' => 'required'], ['boq.*.code.required' => 'جدول الكميات: السطر :position بدون رمز.']));
+        // An Arabic name with no English entry is left out, so Laravel names the field itself.
+        $this->assertSame(['The plate code field is required.'], $errors([], ['plate_code' => 'required'], [], ['plate_code' => 'اسم لم يُترجم بعد']));
+        $this->assertSame(['The selected customer id does not exist in your company.'], $errors(['customer_id' => 5], ['customer_id' => 'tenant_exists:customers,id']));
+
+        app()->setLocale('ar');
+        $this->assertSame(['حقل الاسم مطلوب.'], $errors([], ['name' => 'required'], [], ['name' => 'الاسم']));
+        $this->assertSame(['يرجى اختيار ملف الشعار.'], $errors([], ['logo' => 'required'], ['logo.required' => 'يرجى اختيار ملف الشعار.']));
+    }
+
+    public function test_the_login_and_forgot_password_pages_show_their_status_in_the_interface_language(): void
+    {
+        $timedOut = 'انتهت مهلة التحقق، سجّل الدخول مرة أخرى.';
+        $this->withSession(['locale' => 'en', 'status' => $timedOut])->get('/login')->assertOk()
+            ->assertInertia(fn ($page) => $page->where('status', 'Verification timed out; sign in again.'));
+        $this->withSession(['locale' => 'en', 'status' => 'إن كان البريد مسجلاً لدينا فستصلك رسالة بها رابط إعادة تعيين كلمة المرور.'])->get('/forgot-password')->assertOk()
+            ->assertInertia(fn ($page) => $page->where('status', 'If this email is registered with us, you will receive a message with a password reset link.'));
+        $this->withSession(['locale' => 'ar', 'status' => $timedOut])->get('/login')->assertOk()
+            ->assertInertia(fn ($page) => $page->where('status', $timedOut));
     }
 
     /**
-     * Arabic literals the code shows the user whole: flash messages (each branch of a ternary, ?? or match too,
-     * and ->with(['success' => …])), abort/abort_if/abort_unless messages and $fail('…') in closure rules.
-     * Concatenated and interpolated messages are templates (lang/patterns.en.php), not counted here.
+     * Arabic literals the code shows the user whole: flash and status messages (each branch of a ternary, ?? or match
+     * too, and ->with(['success' => …])), abort/abort_if/abort_unless messages, $fail('…') in closure rules, and the
+     * custom messages and attribute names a validator is given (validate(), Validator::make(), a FormRequest's
+     * messages() and attributes()). Concatenated and interpolated messages are templates (lang/patterns.en.php).
      *
      * @return array<string, string> message => where it is
      */
@@ -106,8 +174,9 @@ class ServerMessagesTest extends TestCase
     {
         static $parser;
         $parser ??= (new ParserFactory)->createForNewestSupportedVersion();
-        $messages = [];
-        $calls = (new NodeFinder)->find($parser->parse($code), fn (Node $node) => $node instanceof Expr\FuncCall || $node instanceof Expr\MethodCall || $node instanceof Expr\NullsafeMethodCall);
+        $ast = $parser->parse($code);
+        $found = [];
+        $calls = (new NodeFinder)->find($ast, fn (Node $node) => $node instanceof Expr\FuncCall || $node instanceof Expr\MethodCall || $node instanceof Expr\NullsafeMethodCall || $node instanceof Expr\StaticCall);
         foreach ($calls as $call) {
             if ($call->isFirstClassCallable()) {
                 continue;
@@ -118,16 +187,32 @@ class ServerMessagesTest extends TestCase
                 $call->name instanceof Expr\Variable && is_string($call->name->name) => '$'.$call->name->name,
                 default => '',
             };
-            $texts = match ($call instanceof Expr\FuncCall ? $name : "->{$name}") {
+            $found[] = [$call->getStartLine(), match (match (true) {
+                $call instanceof Expr\FuncCall => $name,
+                $call instanceof Expr\StaticCall => ($call->class instanceof Node\Name ? $call->class->getLast() : '').'::'.$name,
+                default => "->{$name}",
+            }) {
                 '->with' => self::flashed($args),
                 'abort' => self::branches($args[1] ?? null),
                 'abort_if', 'abort_unless' => self::branches($args[2] ?? null),
                 '$fail' => self::branches($args[0] ?? null),
+                // validate($rules, $messages, $attributes); the others take the data (or the error bag) first.
+                '->validate' => [...self::validatorTexts($ast, $args[1] ?? null), ...self::validatorTexts($ast, $args[2] ?? null)],
+                '->validateWithBag', 'validator', 'Validator::make', 'Validator::validate' => [...self::validatorTexts($ast, $args[2] ?? null), ...self::validatorTexts($ast, $args[3] ?? null)],
                 default => [],
-            };
+            }];
+        }
+        foreach ((new NodeFinder)->find($ast, fn (Node $node) => $node instanceof Stmt\Class_ && $node->extends?->getLast() === 'FormRequest') as $request) {
+            foreach (array_filter([$request->getMethod('messages'), $request->getMethod('attributes')]) as $method) {
+                $found[] = [$method->getStartLine(), self::returnedTexts($ast, $method)];
+            }
+        }
+
+        $messages = [];
+        foreach ($found as [$line, $texts]) {
             foreach ($texts as $text) {
                 if (preg_match('/\p{Arabic}/u', $text)) {
-                    $messages[$text] ??= $call->getStartLine();
+                    $messages[$text] ??= $line;
                 }
             }
         }
@@ -135,10 +220,32 @@ class ServerMessagesTest extends TestCase
         return $messages;
     }
 
+    /**
+     * The literals of a validator's custom messages or attribute names: an array (also one nested by field), arrays
+     * joined with +, or $this->method() of the same file returning one.
+     */
+    private static function validatorTexts(array $ast, ?Node $node, int $depth = 0): array
+    {
+        return match (true) {
+            $node instanceof Expr\Array_ => array_merge([], ...array_map(fn ($item) => $item?->value instanceof Expr\Array_ ? self::validatorTexts($ast, $item->value, $depth) : self::branches($item?->value), $node->items)),
+            $node instanceof Expr\BinaryOp\Plus => [...self::validatorTexts($ast, $node->left, $depth), ...self::validatorTexts($ast, $node->right, $depth)],
+            $node instanceof Expr\MethodCall && $node->var instanceof Expr\Variable && $node->var->name === 'this' && $node->name instanceof Node\Identifier && $depth < 3 => self::returnedTexts(
+                $ast, (new NodeFinder)->findFirst($ast, fn (Node $n) => $n instanceof Stmt\ClassMethod && $n->name->toLowerString() === $node->name->toLowerString()), $depth + 1),
+            default => [],
+        };
+    }
+
+    private static function returnedTexts(array $ast, ?Node $method, int $depth = 0): array
+    {
+        $returns = $method ? (new NodeFinder)->findInstanceOf($method, Stmt\Return_::class) : [];
+
+        return array_merge([], ...array_map(fn (Stmt\Return_ $return) => self::validatorTexts($ast, $return->expr, $depth), $returns));
+    }
+
     /** @param  list<Expr>  $args  of ->with('success', …), ->with($ok ? 'success' : 'error', …) or ->with(['success' => …]) */
     private static function flashed(array $args): array
     {
-        $levels = ['success', 'error', 'warning', 'info'];
+        $levels = ['success', 'error', 'warning', 'info', 'status'];
         if (isset($args[1])) {
             $keys = self::branches($args[0]);
 

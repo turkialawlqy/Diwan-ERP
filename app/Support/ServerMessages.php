@@ -61,4 +61,31 @@ class ServerMessages
             return ['/^'.implode('(.+?)', $parts).'$/su' => $english];
         })->all();
     }
+
+    /**
+     * Attribute names given to a validator (['name' => 'الاسم']) in the interface language: the English entry in
+     * lang/en.json, so Laravel's English lines name the field in English. An Arabic name with no entry is left out
+     * and Laravel names the field itself ("The name field…"). The Arabic interface keeps the names as they are.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    public static function attributes(array $attributes, ?string $locale = null): array
+    {
+        $locale ??= app()->getLocale();
+        if ($locale === 'ar') {
+            return $attributes;
+        }
+
+        $names = [];
+        foreach ($attributes as $field => $name) {
+            if (! is_string($name) || ! preg_match('/\p{Arabic}/u', $name)) {
+                $names[$field] = $name;
+            } elseif (is_string($english = trans($name, [], $locale)) && $english !== $name) {
+                $names[$field] = $english;
+            }
+        }
+
+        return $names;
+    }
 }
