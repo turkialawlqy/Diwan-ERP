@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\ActiveBranch;
 use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
 use Illuminate\Database\Eloquent\Model;
@@ -37,6 +38,20 @@ class FixedAsset extends Model
     ];
 
     protected $appends = ['book_value'];
+
+    /**
+     * Every entry of an asset (purchase, depreciation, impairment, disposal) is filed in its branch
+     * (PostingService::branchOf), so a new one takes the branch chosen in the top bar, as branch
+     * documents do (BranchScoped). The register still lists the assets of every branch.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (FixedAsset $asset) {
+            if (empty($asset->branch_id)) {
+                $asset->branch_id = app(ActiveBranch::class)->forWrite();
+            }
+        });
+    }
 
     public function getBookValueAttribute(): float
     {

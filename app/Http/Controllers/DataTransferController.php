@@ -974,6 +974,8 @@ class DataTransferController extends Controller
     protected function importAccounts(array $records): string
     {
         $accounts = Account::query()->get()->keyBy(fn ($a) => (string) $a->code);
+        // The ledger of a box of a branch the user may not work in is not theirs to rename (as in AccountController::update).
+        $hidden = BankAccount::hiddenLedgers(collect($records)->map(fn ($row) => $accounts->get((string) $row['code'])?->id)->filter());
         $errors = [];
         $planned = [];
         // Parents first: shorter codes before longer ones.
@@ -981,7 +983,14 @@ class DataTransferController extends Controller
 
         foreach ($records as $line => $row) {
             $code = (string) $row['code'];
-            if ($accounts->has($code) || isset($planned[$code])) {
+            $existing = $accounts->get($code);
+            if ($existing && in_array((int) $existing->id, $hidden, true)
+                && collect(array_filter(['name_ar' => $row['name_ar'] ?? null, 'name_en' => $row['name_en'] ?? null]))->contains(fn ($name, $field) => (string) $name !== (string) $existing->{$field})) {
+                $errors[] = "سطر {$line}: الحساب {$code} مربوط بصندوق أو بنك لفرع آخر.";
+
+                continue;
+            }
+            if ($existing || isset($planned[$code])) {
                 continue;
             }
             $parentCode = isset($row['parent_code']) ? (string) $row['parent_code'] : null;
@@ -993,6 +1002,19 @@ class DataTransferController extends Controller
             }
             if ($parent instanceof Account && ! $parent->is_parent && DB::table('journal_entry_lines')->where('account_id', $parent->id)->exists()) {
                 $errors[] = "سطر {$line}: الحساب الأب {$parentCode} عليه قيود؛ لا يمكن أن يصبح حساباً رئيسياً.";
+
+                continue;
+            }
+            // A box's ledger or a mapped role account, even without postings yet: every posting to it would be refused.
+            if ($parent instanceof Account && ! $parent->is_parent && $parent->isPostedBySystem()) {
+                $errors[] = "سطر {$line}: الحساب الأب {$parentCode} يرحّل عليه النظام (صندوق أو بنك أو حساب مربوط في ربط الحسابات)؛ لا يمكن أن يصبح حساباً رئيسياً.";
+
+                continue;
+            }
+            // Nor one a setting posts to (an asset category, a recurring entry that still runs, a customer group), as on the
+            // chart screen (AccountController::settingsProblem).
+            if ($parent instanceof Account && ! $parent->is_parent && collect($parent->postingSettings(true))->contains(fn ($found) => $found->isNotEmpty())) {
+                $errors[] = "سطر {$line}: الحساب الأب {$parentCode} ترحّل عليه الإعدادات (فئة أصول أو قيد متكرر أو مجموعة عملاء)؛ لا يمكن أن يصبح حساباً رئيسياً.";
 
                 continue;
             }
@@ -1153,6 +1175,8 @@ class DataTransferController extends Controller
         $map = app(AccountMap::class);
         $control = collect(self::CONTROL_ROLES)->mapWithKeys(fn ($source, $role) => [(int) $map->find($role) => $source])->except(0);
         $accounts = Account::whereIn('code', array_map(fn ($r) => (string) $r['account_code'], $rows))->get()->keyBy(fn ($a) => (string) $a->code);
+        // As on a manual entry (JournalEntryController::guardControlAccounts): no box of a branch the user may not work in.
+        $hiddenBoxes = BankAccount::hiddenLedgers($accounts->pluck('id'));
 
         $errors = [];
         $lines = [];
@@ -1168,6 +1192,8 @@ class DataTransferController extends Controller
                 $errors[] = "سطر {$line}: الحساب {$code} حساب رئيسي؛ استخدم حساباً فرعياً.";
             } elseif ($source = $control->get($account->id)) {
                 $errors[] = "سطر {$line}: الحساب {$code} حساب مراقبة؛ يُستورد رصيده من ملف «{$source}».";
+            } elseif (in_array((int) $account->id, $hiddenBoxes, true)) {
+                $errors[] = "سطر {$line}: الحساب {$code} مربوط بصندوق أو بنك لفرع آخر.";
             } elseif ($debit > 0 && $credit > 0) {
                 $errors[] = "سطر {$line}: ضع المبلغ في المدين أو الدائن فقط.";
             } elseif ($debit > 0 || $credit > 0) {
@@ -1194,6 +1220,8 @@ class DataTransferController extends Controller
             'description' => 'ميزان المراجعة الافتتاحي في '.$date->format('Y-m-d'),
             'entry_type' => 'opening',
             'source_type' => 'opening_trial_balance',
+            // Boxes of other branches were refused above unless the user may work in them: one opening entry for every box is meant.
+            'cross_branch' => true,
             'lines' => $lines,
         ]);
     }

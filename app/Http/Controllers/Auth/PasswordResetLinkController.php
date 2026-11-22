@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Support\ServerMessages;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
@@ -18,7 +19,7 @@ class PasswordResetLinkController extends Controller
     public function create(): Response
     {
         return Inertia::render('Auth/ForgotPassword', [
-            'status' => session('status'),
+            'status' => ServerMessages::translate(session('status')),
         ]);
     }
 

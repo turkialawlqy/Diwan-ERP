@@ -97,6 +97,8 @@ return Application::configure(basePath: dirname(__DIR__))
         );
 
         // Creating while the top bar shows "all branches": ask for a branch instead of failing.
+        // A refusal the user corrects, like a validation error: not an error for the log.
+        $exceptions->dontReport(BranchRequiredException::class);
         $exceptions->render(function (BranchRequiredException $e, $request) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => $e->getMessage(), 'errors' => ['branch_id' => [$e->getMessage()]]], 422);

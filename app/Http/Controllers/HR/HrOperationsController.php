@@ -14,6 +14,7 @@ use App\Models\JobPosition;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\WorkShift;
+use App\Rules\BranchBox;
 use App\Services\HR\AttendanceService;
 use App\Services\HR\EmployeeFinanceService;
 use App\Services\HR\LeaveService;
@@ -199,7 +200,9 @@ class HrOperationsController extends Controller
     public function decideLoan(Request $request, EmployeeLoan $loan, EmployeeFinanceService $finance)
     {
         if ($request->boolean('approve')) {
-            $finance->approveLoan($loan, $request->integer('bank_account_id') ?: null);
+            // The loan's entry is filed in the top bar's branch: a box of that one.
+            $validated = $request->validate(['bank_account_id' => ['nullable', BranchBox::of()]]);
+            $finance->approveLoan($loan, isset($validated['bank_account_id']) ? (int) $validated['bank_account_id'] : null);
 
             return back()->with('success', 'تم اعتماد وصرف السلفة');
         }
@@ -254,7 +257,8 @@ class HrOperationsController extends Controller
 
     public function paySettlement(Request $request, EndOfServiceSettlement $settlement, EmployeeFinanceService $finance)
     {
-        $validated = $request->validate(['date' => 'required|date', 'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id']);
+        // The settlement has no branch: its payment is filed in the top bar's.
+        $validated = $request->validate(['date' => 'required|date', 'bank_account_id' => ['nullable', BranchBox::of()]]);
         $finance->paySettlement($settlement, $validated['bank_account_id'] ?? null, $validated['date']);
 
         return back()->with('success', 'تم صرف المخالصة');

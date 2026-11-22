@@ -8,6 +8,7 @@ use App\Models\Account;
 use App\Models\Company;
 use App\Models\CompanySetting;
 use App\Models\Invoice;
+use App\Services\Accounting\AccountMap;
 use App\Services\Auth\TwoFactor;
 use App\Services\RemoteAccess;
 use App\Services\TenantManager;
@@ -34,8 +35,10 @@ class CompanySettingController extends Controller
             ->pluck('value', 'key')
             ->toArray();
 
+        // The role pickers: AccountMap::problem() takes no switched-off account as a new choice; the ones mapped now stay shown.
         $accounts = Account::where('company_id', $company->id)
             ->where('is_parent', false)
+            ->where(fn ($q) => $q->where('is_active', true)->orWhereIn('id', array_values(array_filter(app(AccountMap::class)->all($company->id)))))
             ->orderBy('code')
             ->get(['id', 'code', 'name_ar', 'name_en', 'type', 'nature']);
 
@@ -108,6 +111,16 @@ class CompanySettingController extends Controller
             'acc_default_cash_id' => 'nullable|tenant_exists:accounts,id',
             'acc_default_bank_id' => 'nullable|tenant_exists:accounts,id',
         ]);
+
+        // These keys are the AccountMap roles of the mapping screen: a changed one passes the same checks (type, box ledgers).
+        $map = app(AccountMap::class);
+        foreach (['sales_revenue', 'purchases_cogs', 'vat_output', 'vat_input', 'receivables', 'payables', 'default_cash', 'default_bank'] as $role) {
+            $accountId = (int) ($validated["acc_{$role}_id"] ?? 0);
+            if ($accountId && $accountId !== (int) $map->find($role, $company->id)
+                && ($problem = $map->problem($role, Account::withoutGlobalScopes()->where('company_id', $company->id)->find($accountId), $company->id))) {
+                throw ValidationException::withMessages(["acc_{$role}_id" => $problem]);
+            }
+        }
 
         // Enforce that base currency cannot be modified once set for the company
         if (! empty($company->currency)) {

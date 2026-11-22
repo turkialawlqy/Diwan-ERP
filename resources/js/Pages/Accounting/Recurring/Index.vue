@@ -8,6 +8,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
+import FormErrors from '@/Components/UI/FormErrors.vue';
 import { money, date, today } from '@/utils/format';
 import { PlusIcon, TrashIcon } from '@heroicons/vue/24/outline';
 const { t } = useI18n();
@@ -18,6 +19,7 @@ const blank = () => ({ account_id: '', cost_center_id: '', debit: 0, credit: 0, 
 const form = useForm({ name: '', description: '', frequency: 'monthly', next_run_date: today(), end_date: '', auto_reverse: false, lines: [blank(), blank()] });
 const totals = computed(() => form.lines.reduce((t, l) => ({ d: t.d + Number(l.debit || 0), c: t.c + Number(l.credit || 0) }), { d: 0, c: 0 }));
 const balanced = computed(() => Math.abs(totals.value.d - totals.value.c) < 0.01 && totals.value.d > 0);
+const lineError = (i) => form.errors[`lines.${i}.account_id`] || form.errors[`lines.${i}.cost_center_id`];
 const save = () => form.post(route('accounting.recurring.store'), { preserveScroll: true, onSuccess: () => { open.value = false; form.reset(); } });
 const toggle = (t) => router.put(route('accounting.recurring.update', t.id), { is_active: !t.is_active }, { preserveScroll: true });
 const remove = (row) => confirm(t('a_recurring.confirm_delete')) && router.delete(route('accounting.recurring.destroy', row.id), { preserveScroll: true });
@@ -52,25 +54,31 @@ const freq = computed(() => ({ monthly: t('s_recurring.f_monthly'), quarterly: t
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-3">
                 <Field :label="$t('a_recurring.name')" :error="form.errors.name"><input v-model="form.name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <label class="flex items-center gap-2 text-xs col-span-full"><input v-model="form.auto_reverse" type="checkbox" class="rounded" /> {{ $t('a_recurring.accrual_entry_reverses_automatic') }}</label>
-                <Field :label="$t('a_recurring.frequency')"><select v-model="form.frequency" class="w-full rounded-xl border-slate-200 text-xs"><option v-for="(l, k) in freq" :key="k" :value="k">{{ l }}</option></select></Field>
-                <Field :label="$t('a_recurring.first_run')"><DatePicker v-model="form.next_run_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field :label="$t('a_recurring.ends_on_optional')"><DatePicker v-model="form.end_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('a_recurring.frequency')" :error="form.errors.frequency"><select v-model="form.frequency" class="w-full rounded-xl border-slate-200 text-xs"><option v-for="(l, k) in freq" :key="k" :value="k">{{ l }}</option></select></Field>
+                <Field :label="$t('a_recurring.first_run')" :error="form.errors.next_run_date"><DatePicker v-model="form.next_run_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('a_recurring.ends_on_optional')" :error="form.errors.end_date"><DatePicker v-model="form.end_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <div class="col-span-2 md:col-span-4"><Field :label="$t('a_recurring.entry_description')" :error="form.errors.description"><input v-model="form.description" class="w-full rounded-xl border-slate-200 text-xs" /></Field></div>
             </div>
             <div class="overflow-x-auto"><table class="w-full text-xs">
-                <tr v-for="(l, i) in form.lines" :key="i">
-                    <td class="p-1"><SelectCreate v-model="l.account_id" :options="accounts" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :allow-empty="false" /></td>
-                    <td class="p-1 w-36"><SelectCreate v-model="l.cost_center_id" :options="costCenters" entity="cost_center" label="name_ar" :placeholder="$t('a_recurring.cost_center')" /></td>
-                    <td class="p-1 w-28"><input v-model.number="l.debit" @focus="l.credit = 0" type="text" inputmode="decimal" data-num step="0.01" :placeholder="$t('a_recurring.debit')" class="w-full rounded-lg border-slate-200 text-xs font-mono" /></td>
-                    <td class="p-1 w-28"><input v-model.number="l.credit" @focus="l.debit = 0" type="text" inputmode="decimal" data-num step="0.01" :placeholder="$t('a_recurring.credit')" class="w-full rounded-lg border-slate-200 text-xs font-mono" /></td>
-                    <td class="p-1 w-8"><button v-if="form.lines.length > 2" @click="form.lines.splice(i, 1)" class="text-slate-400 hover:text-rose-600"><TrashIcon class="w-4 h-4" /></button></td>
-                </tr>
+                <template v-for="(l, i) in form.lines" :key="i">
+                    <tr>
+                        <td class="p-1"><SelectCreate v-model="l.account_id" :options="accounts" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :allow-empty="false" /></td>
+                        <td class="p-1 w-36"><SelectCreate v-model="l.cost_center_id" :options="costCenters" entity="cost_center" label="name_ar" :placeholder="$t('a_recurring.cost_center')" /></td>
+                        <td class="p-1 w-28"><input v-model.number="l.debit" @focus="l.credit = 0" type="text" inputmode="decimal" data-num step="0.01" :placeholder="$t('a_recurring.debit')" class="w-full rounded-lg border-slate-200 text-xs font-mono" /></td>
+                        <td class="p-1 w-28"><input v-model.number="l.credit" @focus="l.debit = 0" type="text" inputmode="decimal" data-num step="0.01" :placeholder="$t('a_recurring.credit')" class="w-full rounded-lg border-slate-200 text-xs font-mono" /></td>
+                        <td class="p-1 w-8"><button v-if="form.lines.length > 2" @click="form.lines.splice(i, 1)" class="text-slate-400 hover:text-rose-600"><TrashIcon class="w-4 h-4" /></button></td>
+                    </tr>
+                    <!-- The server refuses a line its runs could not post; the page's error list is behind this dialog. -->
+                    <tr v-if="lineError(i)"><td colspan="5" class="px-1 pb-1 text-3xs text-rose-600">{{ lineError(i) }}</td></tr>
+                </template>
             </table></div>
             <div class="flex items-center justify-between mt-2 text-xs">
                 <button @click="form.lines.push(blank())" class="text-indigo-600 font-bold">{{ $t('a_recurring.line') }}</button>
                 <span :class="balanced ? 'text-emerald-600' : 'text-rose-600'" class="font-mono font-bold">{{ money(totals.d) }} / {{ money(totals.c) }}</span>
             </div>
             <p v-if="form.errors.lines" class="text-xs text-rose-600 mt-2">{{ form.errors.lines }}</p>
+            <!-- A line's own refusal (its account...) carries the line number. -->
+            <FormErrors :errors="form.errors" :except="['name', 'frequency', 'next_run_date', 'end_date', 'description', 'lines']" class="mt-2" />
             <template #footer><button @click="save" :disabled="form.processing || !balanced" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40">{{ $t('ui.save') }}</button></template>
         </Dialog>
     </AppLayout>

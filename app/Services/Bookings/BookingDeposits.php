@@ -2,6 +2,7 @@
 
 namespace App\Services\Bookings;
 
+use App\Models\BankAccount;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\CustomerPayment;
@@ -28,6 +29,13 @@ class BookingDeposits
     {
         if (! in_array($method, self::METHODS, true)) {
             throw ValidationException::withMessages(['deposit_method' => 'طريقة استلام العربون غير معروفة.']);
+        }
+        // The receipt is filed in the booking's branch: a box of it or one shared by all branches.
+        if ($bankAccountId) {
+            $box = BankAccount::withoutGlobalScope('branch')->find($bankAccountId);
+            if (! $box || ($booking->branch_id && $box->branch_id && (int) $box->branch_id !== (int) $booking->branch_id)) {
+                throw ValidationException::withMessages(['deposit_bank_account_id' => 'اختر صندوقًا أو بنكًا من فرع المستند.']);
+            }
         }
         $date = now()->toDateString();
         $payment = CustomerPayment::create([

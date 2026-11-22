@@ -894,6 +894,7 @@
         "suggested_selling_price_sar": "سعر البيع المقترح (﷼)",
         "tax_rate": "نسبة الضريبة (%)",
         "item_code_sku": "كود الصنف (SKU)",
+        "sku_auto": "يُرقَّم تلقائيًا من دليل الترميز",
         "barcode": "الباركود (Barcode)",
         "item_description_extra_details": "وصف الصنف / تفاصيل إضافية",
         "save_and_insert_into_the_invoice": "حفظ وإدراج في الفاتورة",
@@ -2088,6 +2089,8 @@
         "remaining": "متبقي"
     },
     "s_return_form": {
+        "refund_from": "يُصرف من الصندوق أو البنك",
+        "default_cash_box": "الصندوق الافتراضي",
         "cancel": "إلغاء",
         "approve_and_issue_the_note": "اعتماد وإصدار الإشعار",
         "return_items_back_to_stock_cost": "إرجاع أصناف (تعود للمخزون وتُعكس تكلفتها)",
@@ -3430,6 +3433,9 @@
         "confirm_cancel": "إلغاء أمر الشراء؟"
     },
     "p_payments_form": {
+        "paid_from": "يُصرف من الصندوق أو البنك",
+        "cheque_drawn_on": "البنك المسحوب عليه الشيك",
+        "default_for_the_method": "الافتراضي لطريقة الدفع",
         "supplier": "المورد",
         "purchase_invoice_optional": "فاتورة الشراء (اختياري)",
         "general_payment_on_the_account_b": "سداد عام على رصيد الحساب",
@@ -5888,7 +5894,7 @@
         "example_al_rajhi_main_account_or": "مثال: حساب مصرف الراجحي الرئيسي أو خزينة الرياض",
         "example_al_rajhi_bank_riyad_bank": "مثال: مصرف الراجحي، بنك الرياض، الأهلي...",
         "bank_account_number": "رقم الحساب المصرفي",
-        "no_direct_link": "بدون ربط مباشر",
+        "own_ledger_account": "حساب أستاذ خاص بالصندوق (يُنشأ تلقائيًا)",
         "edit_n": "تعديل {n0}",
         "new_bank_or_cash_box_account": "حساب بنك أو صندوق جديد",
         "finance": "المالية",
@@ -6469,6 +6475,8 @@
         "calendar": "التقويم"
     },
     "bk2_bookings_form": {
+        "deposit_into": "يُودع العربون في الصندوق أو البنك",
+        "default_for_the_method": "الافتراضي لطريقة الاستلام",
         "cash": "نقدًا",
         "card": "بطاقة",
         "transfer": "تحويل",

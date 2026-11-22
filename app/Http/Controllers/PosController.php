@@ -13,6 +13,7 @@ use App\Models\PosRegister;
 use App\Models\PosSession;
 use App\Models\Product;
 use App\Models\User;
+use App\Rules\BranchBox;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\PostingService;
 use App\Services\Inventory\DocumentStock;
@@ -132,10 +133,20 @@ class PosController extends Controller
      */
     public function openSession(Request $request)
     {
+        // A register of a branch the user may not work in answers as a missing one: neither that it exists, nor its
+        // branch (through the float box asked for), nor whether a shift is open on it.
+        $registerId = filter_var($request->input('pos_register_id'), FILTER_VALIDATE_INT)
+            ? PosRegister::inBranchesOf($request->user())->whereKey($request->input('pos_register_id'))->value('id')
+            : null;
         $validated = $request->validate([
-            'pos_register_id' => 'required|tenant_exists:pos_registers,id',
+            'pos_register_id' => ['required', function ($attribute, $value, $fail) use ($registerId) {
+                if (! $registerId) {
+                    $fail('جهاز نقاط البيع المحدد غير موجود.');
+                }
+            }],
             'opening_cash' => 'nullable|numeric|min:0',
-            'float_bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // The shift takes its register's branch (PosSession::inheritedBranchId): the float comes from a box of it.
+            'float_bank_account_id' => ['nullable', BranchBox::forNew(PosSession::class, ['pos_register_id' => $registerId])],
             'notes' => 'nullable|string',
         ]);
 
@@ -162,10 +173,10 @@ class PosController extends Controller
                 'notes' => $validated['notes'] ?? null,
             ]);
 
-            // The opening float handed to the cashier moves from the treasury into the drawer.
+            // The opening float handed to the cashier moves from the treasury into the drawer, in the shift's branch.
             if (! empty($validated['float_bank_account_id']) && (float) $session->opening_cash > 0) {
                 $this->moveCash(BankAccount::findOrFail($validated['float_bank_account_id']), $this->drawer($session, 'float_bank_account_id'),
-                    (float) $session->opening_cash, "عهدة افتتاح وردية #{$session->id}");
+                    (float) $session->opening_cash, "عهدة افتتاح وردية #{$session->id}", $session->branch_id ? (int) $session->branch_id : null);
             }
         });
 
@@ -316,6 +327,10 @@ class PosController extends Controller
             if ($cardTender > $total + 0.001) {
                 throw ValidationException::withMessages(['card_amount' => 'مبلغ البطاقة أكبر من إجمالي الفاتورة.']);
             }
+            // Cash goes to the register's box, which must be of the shift's branch.
+            if ($cashTender > 0 && $session->register?->bank_account_id) {
+                $this->drawer($session, 'session_id');
+            }
             $paidAmount = round($cashTender + $cardTender, 2);
             $changeAmount = max(0, round($paidAmount - $total, 2));
             $collected = min($paidAmount, $total);
@@ -406,7 +421,7 @@ class PosController extends Controller
             $poster = app(DocumentPoster::class);
             $cardPart = min($cardTender, $collected);
             $poster->salesInvoice($invoice, $warehouseId, $cost, 'sales_revenue', $validated['payment_method'] === 'multiple' ? [
-                [$poster->cashAccount($session->register?->bank_account_id, 'cash'), round($collected - $cardPart, 2)],
+                [$poster->cashAccount($session->register?->bank_account_id, 'cash', 'session_id'), round($collected - $cardPart, 2)],
                 [$poster->cashAccount(null, 'card'), round($cardPart, 2)],
             ] : null);
 
@@ -430,7 +445,7 @@ class PosController extends Controller
      */
     public function closeSession(Request $request, PosSession $session)
     {
-        $validated = $this->validateClosing($request);
+        $validated = $this->validateClosing($request, $session);
 
         // Only the session owner (or a POS manager) can close an open session.
         if ($session->status !== 'opened'
@@ -479,18 +494,22 @@ class PosController extends Controller
         // Looked up here, not route-bound: binding finds only the branch shown in the top bar.
         $session = PosSession::inBranchesOf($request->user())->findOrFail($session);
 
-        return $this->closeShift($session, $this->validateClosing($request))
+        return $this->closeShift($session, $this->validateClosing($request, $session))
             ? back()->with('success', 'تم إغلاق الوردية وتسوية الصندوق.')
             : back()->with('error', 'هذه الوردية أُغلقت بالفعل.');
     }
 
-    protected function validateClosing(Request $request): array
+    /**
+     * The deposit box is looked up like the closing does it (closeShift, treasury()): whichever branch the top bar
+     * shows, a box of the shift's branch or one shared by all branches.
+     */
+    protected function validateClosing(Request $request, PosSession $session): array
     {
-        return $request->validate([
+        return BranchScopeSwitch::off(fn () => $request->validate([
             'closing_cash' => 'required|numeric|min:0',
-            'deposit_bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'deposit_bank_account_id' => ['nullable', new BranchBox($session->branch_id ? (int) $session->branch_id : null)],
             'notes' => 'nullable|string',
-        ]);
+        ]));
     }
 
     /**
@@ -536,9 +555,10 @@ class PosController extends Controller
                 'notes' => $validated['notes'] ?? $session->notes,
             ]);
 
-            // Shortage is an expense, overage a gain, against the drawer's box.
+            // Shortage is an expense, overage a gain, against the drawer's box (the default cash account without one).
             if ($difference != 0.0) {
-                $drawer = app(DocumentPoster::class)->cashAccount($session->register?->bank_account_id, 'cash');
+                $poster = app(DocumentPoster::class);
+                $drawer = $session->register?->bank_account_id ? $poster->boxAccount($this->drawer($session, 'closing_cash')) : $poster->cashAccount(null, 'cash');
                 $this->posting()->post([
                     'date' => now(),
                     'reference' => 'POS-'.$session->id,
@@ -579,12 +599,19 @@ class PosController extends Controller
         return app(PostingService::class);
     }
 
-    /** The register's own cash box (needed to move a float or a deposit). */
+    /**
+     * The register's own cash box (needed to move a float or a deposit, and for the cash counted in the drawer):
+     * of the shift's own branch or shared by all, like treasury(), whichever branch the top bar shows.
+     */
     protected function drawer(PosSession $session, string $field): BankAccount
     {
-        $box = $session->register?->bank_account_id ? BankAccount::find($session->register->bank_account_id) : null;
+        // Past the top bar's branch, so a box of another branch is named as such below (an archived box is not found).
+        $box = $session->register?->bank_account_id ? BankAccount::withoutGlobalScope('branch')->find($session->register->bank_account_id) : null;
         if (! $box) {
             throw ValidationException::withMessages([$field => 'اربط نقطة البيع بصندوق نقدية خاص بها أولاً (من إعدادات نقاط البيع).']);
+        }
+        if ($session->branch_id && $box->branch_id && (int) $box->branch_id !== (int) $session->branch_id) {
+            throw ValidationException::withMessages([$field => 'صندوق نقطة البيع ليس من فرع الوردية؛ اربطها بصندوق من فرعها (من إعدادات نقاط البيع).']);
         }
 
         return $box;

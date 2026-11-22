@@ -658,6 +658,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         // Expenses
         Route::get('/payment-requests', [PaymentRequestController::class, 'index'])->name('payment-requests.index');
         Route::get('/payment-requests/create', [PaymentRequestController::class, 'create'])->name('payment-requests.create');
+        Route::get('/payment-requests/open-invoices', [PaymentRequestController::class, 'openInvoices'])->name('payment-requests.open-invoices');
         Route::post('/payment-requests', [PaymentRequestController::class, 'store'])->name('payment-requests.store');
         Route::get('/payment-requests/{paymentRequest}', [PaymentRequestController::class, 'show'])->name('payment-requests.show');
         Route::get('/payment-requests/{paymentRequest}/edit', [PaymentRequestController::class, 'edit'])->name('payment-requests.edit');

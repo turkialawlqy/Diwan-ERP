@@ -50,6 +50,7 @@ const props = defineProps({
     units: Array,
     bankAccounts: { type: Array, default: () => [] },
     suggestedNumber: String,
+    suggestedSku: { type: String, default: '' },
     defaultTaxRate: Number,
     defaultBranchId: Number,
     invoice: { type: Object, default: null }, // editing an existing bill
@@ -270,6 +271,7 @@ const activeRowIndexForProduct = ref(null);
 const isProductModalOpen = ref(false);
 const isSavingProduct = ref(false);
 const productModalErrors = ref({});
+const productsAdded = ref(0); // products created from this page: the suggested code is taken by the first
 
 const isNonExistingProduct = (name) => {
     if (!name || !name.trim()) return false;
@@ -328,10 +330,6 @@ const openNewProductModal = (rowIndex, initialName = '') => {
         form.items[rowIndex].isDropdownOpen = false;
     }
 
-    const year = new Date().getFullYear().toString().slice(-2);
-    const seq = String(productsList.value.length + 1).padStart(5, '0');
-    const suggestedSku = `PRD-${year}-${seq}`;
-
     newProductForm.value = {
         type: 'product',
         name_ar: nameToSet,
@@ -341,7 +339,8 @@ const openNewProductModal = (rowIndex, initialName = '') => {
         purchase_price: 0,
         selling_price: 0,
         tax_rate: lineRate(),
-        sku: suggestedSku,
+        // The numbering service's next code, as on the product page; once a product from this page took it, the server numbers the next.
+        sku: productsAdded.value ? '' : props.suggestedSku,
         barcode: '',
         description: '',
     };
@@ -365,12 +364,15 @@ const submitNewProduct = async () => {
     }
 
     try {
-        const response = await axios.post(route('inventory.products.store'), newProductForm.value, {
+        // A code kept as suggested is left to the server, which reserves it (or the next free one) through the numbering service.
+        const payload = { ...newProductForm.value, sku: newProductForm.value.sku === props.suggestedSku ? '' : newProductForm.value.sku };
+        const response = await axios.post(route('inventory.products.store'), payload, {
             headers: { 'Accept': 'application/json' }
         });
         if (response.data && response.data.product) {
             const created = response.data.product;
             productsList.value.unshift(created);
+            productsAdded.value += 1;
 
             // Populate the specific row
             if (activeRowIndexForProduct.value !== null && form.items[activeRowIndexForProduct.value]) {
@@ -1234,9 +1236,10 @@ const importLines = (lines, replace) => {
                                 v-model="newProductForm.sku"
                                 type="text" 
                                 dir="ltr"
-                                placeholder="PRD-26-00001"
+                                :placeholder="$t('pinv.sku_auto')"
                                 class="w-full rounded-xl border border-slate-200 px-3 py-2.5 focus:border-indigo-500 font-mono"
                             />
+                            <p v-if="productModalErrors.sku" class="text-3xs text-rose-600 mt-1 font-semibold">{{ productModalErrors.sku[0] }}</p>
                         </div>
 
                         <!-- Barcode -->

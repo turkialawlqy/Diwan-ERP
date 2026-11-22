@@ -7,6 +7,7 @@ use App\Models\BankAccount;
 use App\Models\Cheque;
 use App\Models\Customer;
 use App\Models\Supplier;
+use App\Rules\BranchBox;
 use App\Services\Accounting\ChequeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -54,7 +55,8 @@ class ChequeController extends Controller
             'direction' => 'required|in:incoming,outgoing',
             'cheque_number' => 'required|string|max:50',
             'bank_name' => 'nullable|string|max:255',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // A new cheque is filed in the top bar's branch.
+            'bank_account_id' => ['nullable', BranchBox::of()],
             'party_type' => 'required|in:customer,supplier',
             'party_id' => 'required|integer',
             'amount' => 'required|numeric|min:0.01',
@@ -76,10 +78,13 @@ class ChequeController extends Controller
 
     public function transition(Request $request, Cheque $cheque, ChequeService $cheques)
     {
+        // Without one in the request the cheque's own bank is used (ChequeService), so that is the one checked.
+        $request->merge(['bank_account_id' => $request->input('bank_account_id') ?: $cheque->bank_account_id]);
         $validated = $request->validate([
             'status' => 'required|in:deposited,cleared,bounced,cancelled',
             'date' => 'required|date',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // A bank of the cheque's branch. Bouncing or cancelling posts nothing to a bank, so the one sent along is not used.
+            'bank_account_id' => ['exclude_if:status,bounced,cancelled', 'nullable', BranchBox::of($cheque->branch_id)],
         ]);
 
         $cheques->transition($cheque, $validated['status'], Carbon::parse($validated['date']), $validated['bank_account_id'] ?? null);

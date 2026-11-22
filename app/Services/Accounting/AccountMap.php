@@ -3,6 +3,7 @@
 namespace App\Services\Accounting;
 
 use App\Models\Account;
+use App\Models\BankAccount;
 use App\Models\CompanySetting;
 use App\Services\TenantManager;
 
@@ -88,9 +89,90 @@ class AccountMap
         'scrap_loss' => ['هالك التصنيع غير الطبيعي', 'expense'],
     ];
 
+    /** Roles a document without a box pays from or collects into (DocumentPoster::cashAccount), and the custody cash. */
+    public const CASH_ROLES = ['default_cash', 'default_bank', 'petty_cash'];
+
+    /**
+     * Roles whose account may require a cost center: each posting the system makes to them by itself carries the cost
+     * center of the record it comes from, or it makes none. Every other role gets lines without one from some document
+     * (receivables, VAT and stock on every invoice; the cash roles on vouchers without a box; sales revenue on debit
+     * notes and POS sales; the cost of sales on returns; provisions, rounding, closing...), and a cost center required
+     * on its account would refuse each of them (PostingService). A new role stays out unless all its postings carry one.
+     */
+    public const COST_CENTER_ROLES = [
+        // The project's (every project gets its own).
+        'contract_revenue', 'contract_asset', 'contract_liability', 'customer_advances', 'retention_receivable',
+        'supplier_advances', 'retention_payable', 'subcontractor_costs', 'project_costs',
+        // The equipment's.
+        'rent_expense', 'maintenance_expense', 'equipment_recovery',
+        // The employee's (a payroll's lines by cost center, a settlement).
+        'salaries_expense', 'gosi_expense',
+        // The expense voucher's, chosen on its form.
+        'general_expense',
+        // Posted to by people only.
+        'service_revenue', 'sales_discounts', 'marketing_expense', 'prepaid_expenses', 'long_term_loans', 'partners_current', 'capital',
+    ];
+
+    protected const TYPE_LABELS = ['asset' => 'أصول', 'liability' => 'خصوم', 'equity' => 'حقوق ملكية', 'revenue' => 'إيرادات', 'expense' => 'مصروفات'];
+
     protected array $cache = [];
 
     public function __construct(protected TenantManager $tenantManager) {}
+
+    /**
+     * Why $account cannot serve $role, or null: it must be a posting (non-parent) account of the role's type,
+     * and a new choice must be active and pass boxProblem().
+     */
+    public function problem(string $role, ?Account $account, ?int $companyId = null): ?string
+    {
+        if (! $account) {
+            return null;
+        }
+        if ($account->is_parent) {
+            return 'يجب اختيار حساب فرعي.';
+        }
+        $type = self::ROLES[$role][1] ?? null;
+        if ($type && $account->type !== $type) {
+            return 'حساب «'.self::ROLES[$role][0].'» يجب أن يكون من نوع '.self::TYPE_LABELS[$type].'.';
+        }
+        // The account already mapped is left alone (existing data), like boxProblem().
+        $current = (int) $account->id === (int) $this->find($role, $companyId);
+        // Every posting the role gets would be refused («موقوف»).
+        if (! $account->is_active && ! $current) {
+            return 'هذا الحساب موقوف؛ اختر حسابًا نشطًا.';
+        }
+        // The system posts to the role without a cost center (all but COST_CENTER_ROLES): each such posting would be
+        // refused, as vouchers without a box, transfers and POS on a cash role, every credit invoice on the receivables.
+        if ($account->requires_cost_center && ! $current && ! in_array($role, self::COST_CENTER_ROLES, true)) {
+            return in_array($role, self::CASH_ROLES, true)
+                ? 'الصندوق والبنك الافتراضيان والعهد النقدية يرحّل عليها النظام بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.'
+                : 'يرحّل النظام على حساب «'.(self::ROLES[$role][0] ?? $role).'» بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.';
+        }
+
+        return $this->boxProblem($role, (int) $account->id, $companyId);
+    }
+
+    /**
+     * Every branch posts to a role account, so a new choice is never the ledger of a box that has a branch: that box
+     * would take every branch's postings (box-less cash, VAT, receivables...). A cash role may take the ledger of a
+     * box shared by all branches; any other role no box's ledger at all. The account already mapped is left alone
+     * (existing data: see BankAccount::ledgerBranches).
+     */
+    public function boxProblem(string $role, int $accountId, ?int $companyId = null): ?string
+    {
+        if ($accountId === (int) $this->find($role, $companyId)) {
+            return null;
+        }
+        $cash = in_array($role, self::CASH_ROLES, true);
+        if (! BankAccount::boxLedgers([$accountId], $cash, $companyId)) {
+            return null;
+        }
+        $label = self::ROLES[$role][0] ?? $role;
+
+        return $cash
+            ? "كل الفروع ترحّل على حساب «{$label}»: لا يكون حساب صندوق أو بنك لفرع واحد."
+            : "حساب «{$label}» لا يكون حساب صندوق أو بنك.";
+    }
 
     /**
      * Account id for a role; throws a user-facing error when not configured.

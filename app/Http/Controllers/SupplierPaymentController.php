@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BankAccount;
 use App\Models\PaymentRequest;
 use App\Models\PurchaseInvoice;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
+use App\Rules\BranchBox;
 use App\Services\Accounting\ChequeService;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
@@ -73,6 +75,8 @@ class SupplierPaymentController extends Controller
             'prefill' => $prefill,
             'whtRates' => collect(WithholdingTax::categories())->pluck('rate', 'key'),
             'suppliers' => Supplier::where('status', 'active')->orderBy('name')->limit(500)->get(['id', 'name', 'current_balance', 'is_non_resident', 'wht_category']),
+            // The form narrows them to the voucher's branch (its bill's, else the top bar's) and the shared ones.
+            'bankAccounts' => BankAccount::where('is_active', true)->orderBy('type')->orderBy('name')->get(['id', 'name', 'type', 'branch_id']),
         ]);
     }
 
@@ -82,7 +86,7 @@ class SupplierPaymentController extends Controller
         $request->validate(['supplier_id' => 'required|tenant_exists:suppliers,id']);
 
         return response()->json(['data' => PurchaseInvoice::where('supplier_id', $request->integer('supplier_id'))->where('remaining_amount', '>', 0)
-            ->get(['id', 'supplier_id', 'invoice_number', 'total', 'remaining_amount', 'currency_code'])]);
+            ->get(['id', 'supplier_id', 'branch_id', 'invoice_number', 'total', 'remaining_amount', 'currency_code'])]);
     }
 
     /**
@@ -99,7 +103,8 @@ class SupplierPaymentController extends Controller
             'cheque_due_date' => 'nullable|date|after_or_equal:payment_date',
             'reference_number' => 'nullable|string|max:50',
             'notes' => 'nullable|string',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // Filed in its bill's branch, else the top bar's (SupplierPayment::inheritedBranchId).
+            'bank_account_id' => ['nullable', BranchBox::forNew(SupplierPayment::class, $request->only('purchase_invoice_id'))],
             'auto_allocate' => 'nullable|boolean',
             'wht_rate' => 'nullable|numeric|min:0|max:100',
             'allocations' => 'nullable|array|max:200',

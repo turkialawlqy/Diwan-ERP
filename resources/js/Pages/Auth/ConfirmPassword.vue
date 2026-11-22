@@ -3,6 +3,8 @@ import AuthLayout from '@/Layouts/AuthLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 
+defineProps({ status: { type: String } });
+
 const form = useForm({ password: '' });
 const submit = () => form.post(route('password.confirm'), { onFinish: () => form.reset() });
 </script>
@@ -14,6 +16,7 @@ const submit = () => form.post(route('password.confirm'), { onFinish: () => form
             <h2 class="text-xl font-black text-slate-900">{{ $t('x_auth_confirmpassword.confirm_password') }}</h2>
             <p class="text-xs text-slate-500 mt-1">{{ $t('x_auth_confirmpassword.this_is_a_protected_area_enter_y') }}</p>
         </div>
+        <div v-if="status" class="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700">{{ status }}</div>
         <form @submit.prevent="submit" class="space-y-4">
             <div>
                 <label for="password" class="block text-xs font-bold text-slate-700 mb-1">{{ $t('x_auth_confirmpassword.password') }}</label>

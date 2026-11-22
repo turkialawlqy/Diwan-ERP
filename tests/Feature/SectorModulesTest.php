@@ -265,6 +265,9 @@ class SectorModulesTest extends TestCase
     public function test_the_checkin_endpoint_answers_json_and_respects_the_permission(): void
     {
         $this->postJson(route('gym.checkin.scan'), ['code' => 'C-00001'])->assertOk()->assertJsonPath('allowed', false)->assertJsonPath('customer.name', 'سارة')->assertJsonStructure(['today' => ['allowed', 'denied', 'rows']]);
+        // The refusal reason is kept in Arabic and shown in the interface language, the day's earlier rows too.
+        $this->withSession(['locale' => 'en'])->postJson(route('gym.checkin.scan'), ['code' => 'C-00001'])
+            ->assertJsonPath('reason', 'No active membership or visit package')->assertJsonPath('today.rows.1.reason', 'No active membership or visit package');
         $this->get(route('gym.checkin'))->assertOk();
         $this->get(route('gym.attendance'))->assertOk();
         $this->actingAs($this->userWithRole($this->company, 'warehouse_keeper'));
