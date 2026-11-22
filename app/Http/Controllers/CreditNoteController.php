@@ -15,6 +15,7 @@ use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Services\Workflow\ApprovalGate;
 use App\Services\Zatca\EInvoiceManager;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -77,13 +78,11 @@ class CreditNoteController extends Controller
             });
         }
 
-        $customers = Customer::where('status', 'active')
-            ->orderBy('name')
-            ->limit(500)
-            ->get(['id', 'name', 'company_name', 'tax_number', 'phone', 'current_balance']);
+        // First records only; the form searches the rest through lookup.customers.
+        $customers = PickerOptions::from(Customer::where('status', 'active')->orderBy('name'), ['id', 'name', 'company_name', 'tax_number', 'phone', 'current_balance'], [$selectedInvoice?->customer_id]);
 
         // Recent invoices for selection if not pre-selected
-        $recentInvoices = Invoice::with('customer')
+        $recentInvoices = Invoice::with('customer:id,name')
             ->orderBy('invoice_date', 'desc')
             ->limit(50)
             ->get(['id', 'invoice_number', 'customer_id', 'total', 'invoice_date']);

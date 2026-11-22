@@ -14,6 +14,7 @@ use App\Services\Sales\QuotationService;
 use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Support\BranchOptions;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -73,15 +74,9 @@ class QuotationController extends Controller
         $tenantManager = app(TenantManager::class);
         $company = $tenantManager->getCompany();
 
-        $customers = Customer::where('status', 'active')
-            ->orderBy('name')
-            ->limit(500)
-            ->get(['id', 'name', 'company_name', 'tax_number', 'phone']);
-
-        $products = Product::where('is_active', true)
-            ->orderBy('name_ar')
-            ->limit(500)
-            ->get(['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'tax_rate']);
+        // First records only; the form searches the rest through lookup.customers and lookup.products.
+        $customers = PickerOptions::from(Customer::where('status', 'active')->orderBy('name'), ['id', 'name', 'company_name', 'tax_number', 'phone']);
+        $products = PickerOptions::from(Product::where('is_active', true)->orderBy('name_ar'), ['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'tax_rate']);
 
         $suggestedNumber = $this->peekNumber('quotation');
 

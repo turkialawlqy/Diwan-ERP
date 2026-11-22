@@ -165,6 +165,8 @@ class LineImporter
                 'item_name' => $product ? ($product->name_ar ?: $name) : $name,
                 'description' => $row['description'] ?? ($product && $name && $name !== $product->name_ar ? $name : null),
                 'sku' => $product?->sku,
+                // What a sales form's product list needs to show this line's product (active ones only, as that list holds).
+                'product' => $kind === 'sales' && $product?->is_active ? $product->only(['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'tax_rate']) : null,
                 'quantity' => $quantity,
                 'unit_price' => round((float) ($price ?? 0), 4),
                 'discount' => max(0, (float) ($this->number($row['discount'] ?? null) ?? 0)),
