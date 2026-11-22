@@ -127,9 +127,10 @@ class ServerMessagesTest extends TestCase
         $this->assertSame(['The exchange rate field must be greater than 0.'], $errors(['rate' => 0], ['rate' => 'numeric|gt:0'], [], ['rate' => 'سعر الصرف']));
         $this->assertSame(['Please choose a logo file.'], $errors([], ['logo' => 'required'], ['logo.required' => 'يرجى اختيار ملف الشعار.']));
         $this->assertSame(['Bill of quantities: line 2 has no code.'], $errors(['boq' => [['code' => 'A'], ['code' => '']]], ['boq.*.code' => 'required'], ['boq.*.code.required' => 'جدول الكميات: السطر :position بدون رمز.']));
-        // An Arabic name with no English entry is left out, so Laravel names the field itself.
-        $this->assertSame(['The plate code field is required.'], $errors([], ['plate_code' => 'required'], [], ['plate_code' => 'اسم لم يُترجم بعد']));
-        $this->assertSame(['The selected customer id does not exist in your company.'], $errors(['customer_id' => 5], ['customer_id' => 'tenant_exists:customers,id']));
+        // An Arabic name with no English entry is left out, so Laravel names the field itself. No language file names these
+        // two keys, so the lines hold whatever field names lang/en/validation.php lists (it may call customer_id "customer").
+        $this->assertSame(['The unnamed code field is required.'], $errors([], ['unnamed_code' => 'required'], [], ['unnamed_code' => 'اسم لم يُترجم بعد']));
+        $this->assertSame(['The selected unnamed id does not exist in your company.'], $errors(['unnamed_id' => 5], ['unnamed_id' => 'tenant_exists:customers,id']));
 
         app()->setLocale('ar');
         $this->assertSame(['حقل الاسم مطلوب.'], $errors([], ['name' => 'required'], [], ['name' => 'الاسم']));
