@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Bookings;
 
 use App\Http\Controllers\Controller;
+use App\Models\BankAccount;
 use App\Models\BookableService;
 use App\Models\Booking;
 use App\Models\BookingResource;
@@ -171,7 +172,9 @@ class BookingController extends Controller
         return [
             'services' => BookableService::where('is_active', true)->with('resources:id')->orderBy('name')->get()
                 ->map(fn ($s) => $s->only(['id', 'name', 'duration_minutes', 'price', 'deposit_percent']) + ['resource_ids' => $s->resources->pluck('id')->all()]),
-            'resources' => BookingResource::where('is_active', true)->orderBy('name')->get(['id', 'name', 'type']),
+            'resources' => BookingResource::where('is_active', true)->orderBy('name')->get(['id', 'name', 'type', 'branch_id']),
+            // The deposit is received into a box of the booking's branch (its resource's, else the top bar's) or a shared one: the form narrows the list.
+            'bankAccounts' => BankAccount::where('is_active', true)->orderBy('type')->orderBy('name')->get(['id', 'name', 'type', 'branch_id']),
         ];
     }
 }

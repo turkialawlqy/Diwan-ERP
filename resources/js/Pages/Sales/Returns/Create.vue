@@ -17,7 +17,7 @@ import {
     UserIcon,
     InformationCircleIcon,
 } from '@heroicons/vue/24/outline';
-import { today } from '@/utils/format';
+import { date, today } from '@/utils/format';
 
 const props = defineProps({
     customers: Array,
@@ -26,6 +26,8 @@ const props = defineProps({
     suggestedNumber: String,
     company: Object,
     defaultTaxRate: Number,
+    // Boxes a refund may be paid from: the note's branch (its invoice's) or shared by all branches.
+    bankAccounts: { type: Array, default: () => [] },
 });
 
 
@@ -40,6 +42,7 @@ const form = useForm({
     reason: '',
     status: 'approved',
     refund_method: 'credit',
+    bank_account_id: '',
     attachment_ids: [],
     // Item level return (goods back to stock) when the invoice is known.
     items: (props.selectedInvoice?.items || []).map((i) => ({
@@ -51,6 +54,8 @@ const form = useForm({
 useUnsavedGuard(form);
 const itemMode = ref(form.items.length > 0);
 const itemsTotal = computed(() => form.items.reduce((s, i) => s + Number(i.quantity || 0) * i.unit_net * (1 + i.tax_rate / 100), 0));
+// A goods return is issued at once, on account or refunded: it has no draft.
+watch(itemMode, (on) => { if (on && form.status === 'draft') form.status = 'approved'; }, { immediate: true });
 
 // Watch invoice selection changes
 watch(() => form.invoice_id, (newInvoiceId) => {
@@ -95,14 +100,23 @@ const formatCurrency = (val) => {
     });
 };
 
+// The page lists the first customers; one found by searching is remembered when picked.
+const pickedCustomer = ref(null);
 const selectedCustomer = computed(() => {
-    return props.customers?.find(c => c.id == form.customer_id);
+    return props.customers?.find(c => c.id == form.customer_id) ?? (pickedCustomer.value?.id == form.customer_id ? pickedCustomer.value : undefined);
 });
 
 const submit = () => {
-    form.transform((d) => (itemMode.value
-        ? { ...d, items: d.items.filter((i) => Number(i.quantity) > 0).map(({ invoice_item_id, quantity, return_to_stock }) => ({ invoice_item_id, quantity, return_to_stock })) }
-        : { ...d, items: [] })).post(route('sales.returns.store'));
+    form.transform((d) => {
+        // «Refund now» pays from the chosen box (a bank one by transfer) or the default cash box; the other choices credit the customer's account.
+        const refund = d.status === 'refunded';
+        const box = props.bankAccounts.find((b) => b.id === d.bank_account_id);
+        const data = { ...d, refund_method: refund ? (box?.type === 'bank' ? 'bank_transfer' : 'cash') : 'credit', bank_account_id: refund ? d.bank_account_id : '' };
+        // The server is told which kind this is: an amount credit note sends no lines.
+        return itemMode.value
+            ? { ...data, mode: 'items', items: d.items.filter((i) => Number(i.quantity) > 0).map(({ invoice_item_id, quantity, return_to_stock }) => ({ invoice_item_id, quantity, return_to_stock })) }
+            : { ...data, mode: 'amount', items: [] };
+    }).post(route('sales.returns.store'));
 };
 </script>
 
@@ -159,7 +173,7 @@ const submit = () => {
                             <span class="font-bold text-sm">{{ $t('s_return_form.return_linked_to_tax_invoice') }}</span>
                             <span class="font-mono font-black text-indigo-700">{{ selectedInvoice.invoice_number }}</span>
                         </div>
-                        <span class="text-indigo-700 font-medium">{{ $t('s_return_form.invoice_date') }}: {{ selectedInvoice.invoice_date }}</span>
+                        <span class="text-indigo-700 font-medium">{{ $t('s_return_form.invoice_date') }}: {{ date(selectedInvoice.invoice_date) }}</span>
                     </div>
 
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-2xs sm:text-xs">
@@ -241,7 +255,7 @@ const submit = () => {
                         <!-- Customer Selection -->
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_return_form.customer_2') }}</label>
-                            <SelectCreate v-model="form.customer_id" :options="customers" entity="customer" :label="(c) => `${c.name} ${c.company_name ? `(${c.company_name})` : ''}`" :placeholder="$t('s_return_form.choose_the_customer')" required />
+                            <SelectCreate v-model="form.customer_id" :options="customers" search="lookup.customers" entity="customer" :label="(c) => `${c.name} ${c.company_name ? `(${c.company_name})` : ''}`" :placeholder="$t('s_return_form.choose_the_customer')" required @picked="(c) => (pickedCustomer = c)" />
                             <p v-if="form.errors.customer_id" class="text-2xs text-rose-500 mt-1">{{ form.errors.customer_id }}</p>
                         </div>
 
@@ -323,8 +337,15 @@ const submit = () => {
                             >
                                 <option value="approved">{{ $t('s_return_form.deduct_from_the_customer_balance') }}</option>
                                 <option value="refunded">{{ $t('s_return_form.immediate_cash_refund_to_the_cus') }}</option>
-                                <option value="draft">{{ $t('s_return_form.save_as_a_draft_for_review') }}</option>
+                                <option v-if="!itemMode" value="draft">{{ $t('s_return_form.save_as_a_draft_for_review') }}</option>
                             </select>
+                            <p v-if="form.errors.status || form.errors.refund_method" class="text-2xs text-rose-500 mt-1">{{ form.errors.status || form.errors.refund_method }}</p>
+                        </div>
+
+                        <div v-if="form.status === 'refunded'" data-refund-box>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">{{ $t('s_return_form.refund_from') }}</label>
+                            <SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('s_return_form.default_cash_box')" />
+                            <p v-if="form.errors.bank_account_id" class="text-2xs text-rose-500 mt-1">{{ form.errors.bank_account_id }}</p>
                         </div>
                     </div>
                 </div>

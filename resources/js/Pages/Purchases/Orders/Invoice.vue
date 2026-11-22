@@ -74,6 +74,7 @@ const input = 'rounded-lg border border-slate-200 px-2 py-1.5 text-xs';
                     <div class="col-span-5"><SelectCreate v-model="p.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('p_orders_invoice.cash_box_bank')" /></div>
                     <input v-model="p.amount" type="text" inputmode="decimal" data-num :class="input" class="col-span-3 font-mono" />
                     <button type="button" @click="form.payments.splice(i, 1)" class="col-span-1 text-rose-500 font-bold">×</button>
+                    <p v-for="key in ['method', 'bank_account_id', 'amount'].filter((k) => form.errors[`payments.${i}.${k}`])" :key="key" class="col-span-12 text-rose-600 font-bold" data-payment-error>{{ form.errors[`payments.${i}.${key}`] }}</p>
                 </div>
                 <p v-if="form.errors.payments" class="text-rose-600 font-bold">{{ form.errors.payments }}</p>
             </div>

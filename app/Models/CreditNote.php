@@ -58,6 +58,12 @@ class CreditNote extends Model
         return $this->hasMany(CreditNoteItem::class);
     }
 
+    /** Where a goods return put the items back (an amount credit note has none). */
+    public function warehouse(): BelongsTo
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
     /** A document that hangs on another (a payment on its invoice...) belongs to that document's branch. */
     public function inheritedBranchId(): ?int
     {

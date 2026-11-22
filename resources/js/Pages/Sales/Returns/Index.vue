@@ -1,5 +1,6 @@
 <script setup>
 import PageHeader from '@/Components/UI/PageHeader.vue';
+import { date } from '@/utils/format';
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import {
@@ -94,7 +95,7 @@ const formatCurrency = (val) => {
                                     <span v-else class="text-slate-400">-</span>
                                 </td>
                                 <td class="py-4 px-6 font-black text-rose-600 font-mono">{{ formatCurrency(r.total) }} ﷼</td>
-                                <td class="py-4 px-6 text-slate-500">{{ r.credit_note_date }}</td>
+                                <td class="py-4 px-6 text-slate-500 font-mono">{{ date(r.credit_note_date) }}</td>
                                 <td class="py-4 px-6 text-center">
                                     <span 
                                         v-if="r.status === 'refunded'"
