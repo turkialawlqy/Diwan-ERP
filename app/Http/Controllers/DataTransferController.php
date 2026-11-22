@@ -1011,6 +1011,13 @@ class DataTransferController extends Controller
 
                 continue;
             }
+            // Nor one a setting posts to (an asset category, a recurring entry that still runs, a customer group), as on the
+            // chart screen (AccountController::settingsProblem).
+            if ($parent instanceof Account && ! $parent->is_parent && collect($parent->postingSettings(true))->contains(fn ($found) => $found->isNotEmpty())) {
+                $errors[] = "سطر {$line}: الحساب الأب {$parentCode} ترحّل عليه الإعدادات (فئة أصول أو قيد متكرر أو مجموعة عملاء)؛ لا يمكن أن يصبح حساباً رئيسياً.";
+
+                continue;
+            }
             $type = $row['type'] ?? ($parent['type'] ?? null);
             if (! $type) {
                 $errors[] = "سطر {$line}: حدد نوع الحساب (type) لحساب بلا أب.";
