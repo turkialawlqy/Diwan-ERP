@@ -5,11 +5,16 @@ namespace Tests\Feature;
 use App\Support\ServerMessages;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\ViewErrorBag;
+use PhpParser\Node;
+use PhpParser\Node\Expr;
+use PhpParser\Node\Scalar\String_;
+use PhpParser\NodeFinder;
+use PhpParser\ParserFactory;
 use Tests\TestCase;
 
 /**
  * Server messages are Arabic in the code and translated once at the boundary (lang/en.json + lang/patterns.en.php).
- * The ratchet stops new static flash messages from being added without an English translation.
+ * The ratchet stops new static flash, abort and $fail messages from being added without an English translation.
  */
 class ServerMessagesTest extends TestCase
 {
@@ -100,22 +105,114 @@ class ServerMessagesTest extends TestCase
             ->assertInertia(fn ($page) => $page->where('flash.success', 'Customer deleted successfully'));
     }
 
-    public function test_every_static_flash_message_in_the_code_has_an_english_translation(): void
+    public function test_every_static_server_message_in_the_code_has_an_english_translation(): void
     {
-        $en = json_decode(File::get(lang_path('en.json')), true);
-        $missing = [];
+        $missing = array_diff_key(self::staticMessages(), json_decode(File::get(lang_path('en.json')), true));
+        $this->assertSame([], $missing, "Add to lang/en.json:\n".implode("\n", array_map(fn ($text, $at) => "{$text}    ({$at})", array_keys($missing), $missing)));
+    }
+
+    public function test_the_static_message_scan_counts_ternary_branches_abort_and_fail_messages(): void
+    {
+        $code = <<<'PHP'
+            <?php
+            back()->with('success', 'حُفظ');
+            back()->with($ok ? 'success' : 'error', $ok ? 'اعتُمد' : "رُفض");
+            back()->with(['info' => 'أكمل التسجيل', 'email' => $email]);
+            abort(403, 'ممنوع');
+            abort_unless($open, 422, 'مغلق');
+            abort_if($used, 422, $reason ?? 'مستعمل');
+            $fail('غير صالح');
+            back()->with('status', 'ليست رسالة تنبيه');
+            back()->with('success', 'تم ترحيل القيد '.$number);
+            PHP;
+
+        $this->assertSame(['حُفظ' => 2, 'اعتُمد' => 3, 'رُفض' => 3, 'أكمل التسجيل' => 4, 'ممنوع' => 5, 'مغلق' => 6, 'مستعمل' => 7, 'غير صالح' => 8], self::messagesIn($code));
+    }
+
+    /**
+     * Arabic literals the code shows the user whole: flash messages (each branch of a ternary, ?? or match too,
+     * and ->with(['success' => …])), abort/abort_if/abort_unless messages and $fail('…') in closure rules.
+     * Concatenated and interpolated messages are templates (lang/patterns.en.php), not counted here.
+     *
+     * @return array<string, string> message => where it is
+     */
+    private static function staticMessages(): array
+    {
+        $messages = [];
         foreach (File::allFiles(app_path()) as $file) {
-            if ($file->getExtension() !== 'php') {
-                continue;
-            }
-            preg_match_all("/with\\(\\s*'(?:success|error|warning|info)'\\s*,\\s*(['\"])((?:\\\\.|(?!\\1).)*)\\1\\s*\\)/su", File::get($file->getPathname()), $m);
-            foreach ($m[2] as $text) {
-                if (preg_match('/\p{Arabic}/u', $text) && ! str_contains($text, '$') && ! str_contains($text, '{') && ! isset($en[stripcslashes($text)]) && ! isset($en[$text])) {
-                    $missing[$text] = $file->getRelativePathname();
+            if ($file->getExtension() === 'php') {
+                foreach (self::messagesIn(File::get($file->getPathname())) as $text => $line) {
+                    $messages[$text] ??= $file->getRelativePathname().':'.$line;
                 }
             }
         }
-        $this->assertSame([], $missing, "Add to lang/en.json:\n".implode("\n", array_keys($missing)));
+
+        return $messages;
+    }
+
+    /** @return array<string, int> message => line */
+    private static function messagesIn(string $code): array
+    {
+        static $parser;
+        $parser ??= (new ParserFactory)->createForNewestSupportedVersion();
+        $messages = [];
+        $calls = (new NodeFinder)->find($parser->parse($code), fn (Node $node) => $node instanceof Expr\FuncCall || $node instanceof Expr\MethodCall || $node instanceof Expr\NullsafeMethodCall);
+        foreach ($calls as $call) {
+            if ($call->isFirstClassCallable()) {
+                continue;
+            }
+            $args = array_map(fn ($arg) => $arg->value, $call->getArgs());
+            $name = match (true) {
+                $call->name instanceof Node\Identifier, $call->name instanceof Node\Name => $call->name->toString(),
+                $call->name instanceof Expr\Variable && is_string($call->name->name) => '$'.$call->name->name,
+                default => '',
+            };
+            $texts = match ($call instanceof Expr\FuncCall ? $name : "->{$name}") {
+                '->with' => self::flashed($args),
+                'abort' => self::branches($args[1] ?? null),
+                'abort_if', 'abort_unless' => self::branches($args[2] ?? null),
+                '$fail' => self::branches($args[0] ?? null),
+                default => [],
+            };
+            foreach ($texts as $text) {
+                if (preg_match('/\p{Arabic}/u', $text)) {
+                    $messages[$text] ??= $call->getStartLine();
+                }
+            }
+        }
+
+        return $messages;
+    }
+
+    /** @param  list<Expr>  $args  of ->with('success', …), ->with($ok ? 'success' : 'error', …) or ->with(['success' => …]) */
+    private static function flashed(array $args): array
+    {
+        $levels = ['success', 'error', 'warning', 'info'];
+        if (isset($args[1])) {
+            $keys = self::branches($args[0]);
+
+            return $keys && ! array_diff($keys, $levels) ? self::branches($args[1]) : [];
+        }
+        $texts = [];
+        foreach (($args[0] ?? null) instanceof Expr\Array_ ? $args[0]->items : [] as $item) {
+            if ($item?->key instanceof String_ && in_array($item->key->value, $levels, true)) {
+                $texts = [...$texts, ...self::branches($item->value)];
+            }
+        }
+
+        return $texts;
+    }
+
+    /** The literals an expression gives whole: a string, or each branch of ?:, ?? and match. */
+    private static function branches(?Node $node): array
+    {
+        return match (true) {
+            $node instanceof String_ => [$node->value],
+            $node instanceof Expr\Ternary => [...self::branches($node->if ?? $node->cond), ...self::branches($node->else)],
+            $node instanceof Expr\BinaryOp\Coalesce => [...self::branches($node->left), ...self::branches($node->right)],
+            $node instanceof Expr\Match_ => array_merge([], ...array_map(fn ($arm) => self::branches($arm->body), $node->arms)),
+            default => [],
+        };
     }
 
     public function test_validation_and_business_rule_messages_never_regress(): void
