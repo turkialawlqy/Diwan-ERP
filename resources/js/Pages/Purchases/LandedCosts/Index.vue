@@ -7,6 +7,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
+import FormErrors from '@/Components/UI/FormErrors.vue';
 import PartyPicker from '@/Components/Documents/PartyPicker.vue';
 import DocumentTable from '@/Components/Documents/DocumentTable.vue';
 import { PlusIcon } from '@heroicons/vue/24/outline';
@@ -39,13 +40,14 @@ const save = () => form.post(route('purchases.landed-costs.store'), { onSuccess:
                     <select v-model="form.purchase_invoice_id" class="w-full rounded-xl border-slate-200 text-xs"><option value="">{{ $t('p_landedcosts_index.choose') }}</option><option v-for="i in invoices" :key="i.id" :value="i.id">{{ i.invoice_number }} {{ i.supplier_invoice_number ? `(${i.supplier_invoice_number})` : '' }}</option></select>
                 </Field>
                 <Field :label="$t('p_landedcosts_index.description')" :error="form.errors.description" class="col-span-2"><input v-model="form.description" :placeholder="$t('p_landedcosts_index.sea_freight_customs_duties')" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field :label="$t('p_landedcosts_index.date')"><DatePicker v-model="form.date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('p_landedcosts_index.date')" :error="form.errors.date"><DatePicker v-model="form.date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field :label="$t('p_landedcosts_index.amount_before_tax')" :error="form.errors.amount"><input v-model.number="form.amount" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
-                <Field :label="$t('p_landedcosts_index.input_tax')"><input v-model.number="form.tax_amount" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
-                <Field :label="$t('p_landedcosts_index.payment')"><select v-model="form.paid_from" class="w-full rounded-xl border-slate-200 text-xs"><option value="payables">{{ $t('p_landedcosts_index.on_credit_to_the_service_supplie') }}</option><option value="cash">{{ $t('p_landedcosts_index.cash') }}</option><option value="bank_transfer">{{ $t('p_landedcosts_index.bank') }}</option></select></Field>
+                <Field :label="$t('p_landedcosts_index.input_tax')" :error="form.errors.tax_amount"><input v-model.number="form.tax_amount" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs font-mono" /></Field>
+                <Field :label="$t('p_landedcosts_index.payment')" :error="form.errors.paid_from"><select v-model="form.paid_from" class="w-full rounded-xl border-slate-200 text-xs"><option value="payables">{{ $t('p_landedcosts_index.on_credit_to_the_service_supplie') }}</option><option value="cash">{{ $t('p_landedcosts_index.cash') }}</option><option value="bank_transfer">{{ $t('p_landedcosts_index.bank') }}</option></select></Field>
                 <Field v-if="form.paid_from === 'payables'" :label="$t('p_landedcosts_index.service_supplier')" :error="form.errors.supplier_id" class="col-span-2"><PartyPicker v-model="form.supplier_id" route-name="lookup.suppliers" /></Field>
-                <Field v-else :label="$t('p_landedcosts_index.account')" class="col-span-2"><SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('p_landedcosts_index.default')" /></Field>
+                <Field v-else :label="$t('p_landedcosts_index.account')" :error="form.errors.bank_account_id" class="col-span-2"><SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('p_landedcosts_index.default')" /></Field>
             </div>
+            <FormErrors :errors="form.errors" :except="['purchase_invoice_id', 'description', 'date', 'amount', 'tax_amount', 'paid_from', form.paid_from === 'payables' ? 'supplier_id' : 'bank_account_id']" class="mt-3" />
             <template #footer><button @click="save" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('ui.save') }}</button></template>
         </Dialog>
     </AppLayout>

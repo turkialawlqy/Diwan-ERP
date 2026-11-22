@@ -2089,6 +2089,8 @@
         "remaining": "remaining"
     },
     "s_return_form": {
+        "refund_from": "Paid from (cash box or bank)",
+        "default_cash_box": "Default cash box",
         "cancel": "Cancel",
         "approve_and_issue_the_note": "Approve and issue the note",
         "return_items_back_to_stock_cost": "Return items (back to stock, cost reversed)",
@@ -3431,6 +3433,9 @@
         "confirm_cancel": "Cancel the purchase order?"
     },
     "p_payments_form": {
+        "paid_from": "Paid from (cash box or bank)",
+        "cheque_drawn_on": "Bank the cheque is drawn on",
+        "default_for_the_method": "Default for the payment method",
         "supplier": "Supplier",
         "purchase_invoice_optional": "Purchase invoice (optional)",
         "general_payment_on_the_account_b": "General payment on the account balance",
@@ -6470,6 +6475,8 @@
         "calendar": "Calendar"
     },
     "bk2_bookings_form": {
+        "deposit_into": "Deposit received into (cash box or bank)",
+        "default_for_the_method": "Default for the method",
         "cash": "Cash",
         "card": "Card",
         "transfer": "Transfer",

@@ -14,7 +14,7 @@ import {
     ArrowUturnLeftIcon,
     CheckCircleIcon,
 } from '@heroicons/vue/24/outline';
-import { timeZone } from '@/utils/format';
+import { date, timeZone } from '@/utils/format';
 
 const discardDraft = () => {
     if (confirm('حذف مسودة الإشعار الدائن؟')) router.delete(route('sales.returns.destroy', props.creditNote.id));
@@ -194,7 +194,7 @@ const formatDateArabic = (dateStr) => {
                         </div>
                         <div class="flex sm:justify-end gap-2">
                             <span class="text-slate-500">تاريخ الإصدار:</span>
-                            <span class="font-mono text-slate-900">{{ creditNote.credit_note_date }}</span>
+                            <span class="font-mono text-slate-900">{{ date(creditNote.credit_note_date) }}</span>
                         </div>
                         <div v-if="creditNote.invoice" class="flex sm:justify-end gap-2">
                             <span class="text-slate-500">مرتبط بالفاتورة رقم:</span>

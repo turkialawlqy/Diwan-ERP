@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Field from '@/Components/UI/Field.vue';
@@ -11,7 +11,7 @@ import SlotPicker from '@/Components/Bookings/SlotPicker.vue';
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import { money } from '@/utils/format';
 
-const props = defineProps({ booking: Object, prefill: Object, services: Array, resources: Array });
+const props = defineProps({ booking: Object, prefill: Object, services: Array, resources: Array, bankAccounts: { type: Array, default: () => [] } });
 const b = props.booking;
 const pre = props.prefill || {};
 const [preDate = '', preTime = ''] = (b ? b.starts_at.replace('T', ' ').slice(0, 16) : (pre.starts_at || '')).split(' ');
@@ -20,7 +20,7 @@ const form = useForm({
     customer_id: b?.customer_id || (pre.customer ? Number(pre.customer) : null),
     bookable_service_id: b?.bookable_service_id || (pre.service ? Number(pre.service) : ''),
     booking_resource_id: b?.booking_resource_id || (pre.resource ? Number(pre.resource) : ''),
-    date: preDate, time: preTime, deposit_amount: b ? Number(b.deposit_amount) : 0, deposit_method: 'cash', notes: b?.notes || '', starts_at: '',
+    date: preDate, time: preTime, deposit_amount: b ? Number(b.deposit_amount) : 0, deposit_method: 'cash', deposit_bank_account_id: '', notes: b?.notes || '', starts_at: '',
 });
 useUnsavedGuard(form);
 
@@ -34,6 +34,15 @@ watch(() => form.bookable_service_id, () => {
 const onPicked = (s) => { if (!form.booking_resource_id && !b) pickedResource.value = s.resource_id; };
 const pickedResource = ref(null);
 const resourceName = computed(() => props.resources.find((r) => r.id === (form.booking_resource_id || pickedResource.value))?.name);
+// The booking is filed in its resource's branch, else the one chosen in the top bar: the deposit goes into a box of that branch or a shared one.
+const page = usePage();
+const bookingBranch = computed(() => {
+    const resource = props.resources.find((r) => r.id === (form.booking_resource_id || pickedResource.value));
+    const active = page.props.branchSwitcher?.active;
+    return resource?.branch_id || (active && active !== 'all' ? Number(active) : null);
+});
+const depositBoxes = computed(() => props.bankAccounts.filter((x) => !x.branch_id || !bookingBranch.value || x.branch_id === bookingBranch.value));
+watch(depositBoxes, (list) => { if (form.deposit_bank_account_id && !list.some((x) => x.id === form.deposit_bank_account_id)) form.deposit_bank_account_id = ''; });
 
 const submit = () => {
     form.transform((d) => ({ ...d, starts_at: `${d.date} ${d.time}`, booking_resource_id: d.booking_resource_id || (b ? undefined : pickedResource.value) || null }));
@@ -61,7 +70,10 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
                 <SlotPicker v-model="form.time" :url="route('bookings.slots')" :service="form.bookable_service_id" :resource="form.booking_resource_id" :date="form.date" :ignore="b?.id" @picked="onPicked" />
                 <p v-if="form.time && resourceName" class="text-3xs text-slate-500 mt-1">{{ $t('bk2_bookings_form.resource_n', { n0: resourceName }) }}</p>
             </Field>
-            <Field v-if="!b" :label="$t('bk2_bookings_form.deposit_received')" :error="form.errors.deposit_amount" :hint="$t('bk2_bookings_form.a_receipt_voucher_is_recorded_fo')"><div class="flex gap-2"><input v-model.number="form.deposit_amount" type="text" inputmode="decimal" data-num :class="input" data-deposit /><select v-if="Number(form.deposit_amount) > 0" v-model="form.deposit_method" :class="input" class="w-32" data-deposit-method><option value="cash">{{ $t('bk2_bookings_form.cash') }}</option><option value="card">{{ $t('bk2_bookings_form.card') }}</option><option value="bank_transfer">{{ $t('bk2_bookings_form.transfer') }}</option></select></div></Field>
+            <Field v-if="!b" :label="$t('bk2_bookings_form.deposit_received')" :error="form.errors.deposit_amount || form.errors.deposit_method" :hint="$t('bk2_bookings_form.a_receipt_voucher_is_recorded_fo')"><div class="flex gap-2"><input v-model.number="form.deposit_amount" type="text" inputmode="decimal" data-num :class="input" data-deposit /><select v-if="Number(form.deposit_amount) > 0" v-model="form.deposit_method" :class="input" class="w-32" data-deposit-method><option value="cash">{{ $t('bk2_bookings_form.cash') }}</option><option value="card">{{ $t('bk2_bookings_form.card') }}</option><option value="bank_transfer">{{ $t('bk2_bookings_form.transfer') }}</option></select></div></Field>
+            <Field v-if="!b && Number(form.deposit_amount) > 0" :label="$t('bk2_bookings_form.deposit_into')" :error="form.errors.deposit_bank_account_id" data-deposit-box>
+                <SelectCreate v-model="form.deposit_bank_account_id" :options="depositBoxes" entity="bank" label="name" :placeholder="$t('bk2_bookings_form.default_for_the_method')" />
+            </Field>
             <Field :label="$t('bk2_bookings_form.notes')" :error="form.errors.notes" class="md:col-span-2"><textarea v-model="form.notes" rows="2" :class="input"></textarea></Field>
             <p v-if="service" class="md:col-span-2 text-slate-500">{{ $t('bk2_bookings_form.price') }} <span class="font-mono font-bold">{{ money(service.price) }}</span> {{ $t('bk2_bookings_form.the_membership_discount_is_appli') }}</p>
             <div class="md:col-span-2 flex gap-2 pt-2 border-t border-slate-100">

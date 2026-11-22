@@ -8,6 +8,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
+import FormErrors from '@/Components/UI/FormErrors.vue';
 import Pagination from '@/Components/UI/Pagination.vue';
 import StatusBadge from '@/Components/Documents/StatusBadge.vue';
 import { money, date, today } from '@/utils/format';
@@ -67,9 +68,10 @@ const approve = (s) => { if (confirm(t('hr2_hr_settlements.approve_the_settlemen
         </div>
         <Dialog :show="!!paying" :title="$t('hr_settlements.pay_the_settlement')" @close="paying = null">
             <div class="grid grid-cols-2 gap-3">
-                <Field :label="$t('hr_settlements.date')"><DatePicker v-model="payForm.date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field :label="$t('hr_settlements.account')"><SelectCreate v-model="payForm.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('hr_settlements.default')" /></Field>
+                <Field :label="$t('hr_settlements.date')" :error="payForm.errors.date"><DatePicker v-model="payForm.date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('hr_settlements.account')" :error="payForm.errors.bank_account_id"><SelectCreate v-model="payForm.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('hr_settlements.default')" /></Field>
             </div>
+            <FormErrors :errors="payForm.errors" :except="['date', 'bank_account_id']" class="mt-3" />
             <template #footer><button @click="payForm.post(route('hr.settlements.pay', paying.id), { onSuccess: () => (paying = null) })" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('hr2_hr_settlements.pay_n', { n0: money(paying?.net_amount) }) }}</button></template>
         </Dialog>
     </AppLayout>
