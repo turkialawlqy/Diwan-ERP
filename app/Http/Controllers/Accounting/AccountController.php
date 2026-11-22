@@ -181,8 +181,8 @@ class AccountController extends Controller
         }
 
         $needsCostCenter = ! empty($validated['requires_cost_center']) && ! $account->requires_cost_center;
-        if ($needsCostCenter && $this->postedWithoutCostCenter($account)) {
-            return back()->with('error', 'يرحّل النظام على حسابات الصناديق والبنوك بلا مركز تكلفة؛ لا يُشترط لهذا الحساب مركز تكلفة.');
+        if ($needsCostCenter && ($problem = $this->costCenterProblem($account))) {
+            return back()->with('error', $problem);
         }
         if ($needsCostCenter && ($problem = $this->settingsProblem($account, 'cost_center'))) {
             return back()->with('error', $problem);
@@ -269,15 +269,21 @@ class AccountController extends Controller
     }
 
     /**
-     * A box's ledger, or a cash role a voucher without a box falls back on (default cash, bank, petty cash): vouchers,
-     * transfers and POS post to it without a cost center, so requiring one would refuse every such posting.
+     * Why $account may not require a cost center, or null: the system posts to it without one, and each such posting
+     * would be refused. Vouchers, transfers and POS post so to a box's ledger and to the cash roles a voucher without a
+     * box falls back on (default cash, bank, petty cash); documents to every other role but AccountMap::COST_CENTER_ROLES
+     * (every credit invoice to the receivables...). The role is mapped to another account first.
      */
-    protected function postedWithoutCostCenter(Account $account): bool
+    protected function costCenterProblem(Account $account): ?string
     {
-        $cashRoles = array_intersect_key(app(AccountMap::class)->all(), array_flip(AccountMap::CASH_ROLES));
+        $roles = array_keys(array_filter(app(AccountMap::class)->all(), fn ($id) => (int) $id === (int) $account->id));
+        if (BankAccount::boxLedgers([$account->id]) !== [] || array_intersect($roles, AccountMap::CASH_ROLES)) {
+            return 'يرحّل النظام على حسابات الصناديق والبنوك بلا مركز تكلفة؛ لا يُشترط لهذا الحساب مركز تكلفة.';
+        }
+        $uncosted = collect($roles)->diff(AccountMap::COST_CENTER_ROLES)->map(fn (string $role) => AccountMap::ROLES[$role][0])->values();
 
-        return BankAccount::boxLedgers([$account->id]) !== []
-            || in_array((int) $account->id, array_map('intval', array_filter($cashRoles)), true);
+        return $uncosted->isEmpty() ? null
+            : "هذا الحساب مربوط في «ربط الحسابات» بدور يرحّل عليه النظام بلا مركز تكلفة: {$this->nameList($uncosted)}؛ لا يُشترط له مركز تكلفة. اربط الدور بحساب آخر من «ربط الحسابات» أولًا.";
     }
 
     /** Why $account cannot become a group account, or null: its postings, its box, a role mapped to it, or a setting posting to it. */

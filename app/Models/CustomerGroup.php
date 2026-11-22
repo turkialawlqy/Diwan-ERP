@@ -26,7 +26,8 @@ class CustomerGroup extends Model
 
     /**
      * Accounts a group's receivables may go to (CustomerGroupController refuses the others): active asset leaves that
-     * are neither a box's ledger nor an AccountMap role other than receivables. A group keeps showing its own.
+     * need no cost center (receivables are posted without one) and are neither a box's ledger nor an AccountMap role
+     * other than receivables. A group keeps showing its own.
      */
     public static function accountOptions(?self $group = null): Builder
     {
@@ -34,7 +35,7 @@ class CustomerGroup extends Model
         $ledgers = BankAccount::withoutGlobalScopes()->where('company_id', app(TenantManager::class)->getTenantId())->whereNotNull('account_id')->pluck('account_id')->all();
 
         return Account::where('type', 'asset')->where('is_parent', false)
-            ->where(fn ($q) => $q->where(fn ($q) => $q->where('is_active', true)->whereNotIn('id', array_merge($roles, $ledgers)))
+            ->where(fn ($q) => $q->where(fn ($q) => $q->where('is_active', true)->where('requires_cost_center', false)->whereNotIn('id', array_merge($roles, $ledgers)))
                 ->when($group?->account_id, fn ($q, $id) => $q->orWhere('id', $id)));
     }
 

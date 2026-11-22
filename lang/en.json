@@ -811,5 +811,8 @@
     "لا يمكن إيقاف الحساب لأن قيدًا متكررًا لفرع آخر يستعمله.": "The account cannot be switched off because a recurring entry of another branch uses it.",
     "لا يمكن تغيير نوع الحساب أو طبيعته لأن قيدًا متكررًا لفرع آخر يستعمله.": "The account's type or nature cannot change because a recurring entry of another branch uses it.",
     "لا يمكن تحويل حساب يستعمله قيد متكرر لفرع آخر إلى حساب رئيسي.": "An account that a recurring entry of another branch uses cannot become a parent account.",
-    "لا يمكن اشتراط مركز تكلفة للحساب لأن قيدًا متكررًا لفرع آخر يستعمله بلا مركز تكلفة.": "The account cannot require a cost center because a recurring entry of another branch uses it without one."
+    "لا يمكن اشتراط مركز تكلفة للحساب لأن قيدًا متكررًا لفرع آخر يستعمله بلا مركز تكلفة.": "The account cannot require a cost center because a recurring entry of another branch uses it without one.",
+    "لا يمكن تفعيل القيد المتكرر لأن أحد حسابات أسطره حُذف من الدليل؛ أنشئ قيدًا متكررًا جديدًا.": "The recurring entry cannot be switched on because one of the accounts in its lines was deleted from the chart; create a new recurring entry.",
+    "هذا الحساب يتطلب مركز تكلفة، والنظام يرحّل ذمم العملاء بلا مركز تكلفة؛ اختر حساب ذمم لا يتطلب مركز تكلفة.": "This account requires a cost center, but the system posts customer receivables without one; choose a receivables account that does not require one.",
+    "هذا الحساب يتطلب مركز تكلفة، والنظام يرحّل عليه قيود الأصول ولو بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.": "This account requires a cost center, but the system posts asset entries to it even without one; choose an account that does not require one."
 }

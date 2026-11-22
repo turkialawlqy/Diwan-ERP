@@ -25,14 +25,14 @@ class AssetCategory extends Model
     ];
 
     /**
-     * Accounts $field may take (FixedAssetController refuses the others): active leaves of its type that are no box's
-     * ledger nor one of foreignRoles().
+     * Accounts $field may take (FixedAssetController refuses the others): active leaves of its type that need no cost
+     * center and are no box's ledger nor one of foreignRoles().
      */
     public static function accountOptions(string $field): Builder
     {
         $ledgers = BankAccount::withoutGlobalScopes()->where('company_id', app(TenantManager::class)->getTenantId())->whereNotNull('account_id')->pluck('account_id')->all();
 
-        return Account::where('type', self::ACCOUNTS[$field][0])->where('is_parent', false)->where('is_active', true)
+        return Account::where('type', self::ACCOUNTS[$field][0])->where('is_parent', false)->where('is_active', true)->where('requires_cost_center', false)
             ->whereNotIn('id', array_merge($ledgers, self::foreignRoles($field)));
     }
 

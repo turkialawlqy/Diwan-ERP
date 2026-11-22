@@ -91,7 +91,9 @@ class FixedAssetController extends Controller
 
     /**
      * For a category's $field: a posting (non-parent) account of its type that is no box's ledger (any branch, shared or
-     * archived), no role it may not take (AssetCategory::foreignRoles) and not switched off.
+     * archived), no role it may not take (AssetCategory::foreignRoles), not switched off, and that needs no cost center:
+     * the accumulated-depreciation line, a disposal's asset line and the expense line of an asset without one carry
+     * none (DepreciationService), and assets need none and are not edited.
      */
     protected function categoryAccount(string $field): Closure
     {
@@ -110,6 +112,8 @@ class FixedAssetController extends Controller
                 $fail('هذا الحساب مربوط بدور آخر في «ربط الحسابات»؛ لا يكون حسابًا لفئة أصول.');
             } elseif (! $account->is_active) {
                 $fail('هذا الحساب موقوف؛ اختر حسابًا نشطًا.');
+            } elseif ($account->requires_cost_center) {
+                $fail('هذا الحساب يتطلب مركز تكلفة، والنظام يرحّل عليه قيود الأصول ولو بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.');
             }
         };
     }

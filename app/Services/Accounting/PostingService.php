@@ -479,14 +479,8 @@ class PostingService
             if (! $account) {
                 throw new AccountingException('أحد الحسابات المحددة في القيد غير موجود.');
             }
-            if ($account->is_parent) {
-                throw new AccountingException("لا يمكن الترحيل على الحساب الرئيسي «{$account->code} - {$account->name_ar}». اختر حساباً فرعياً.");
-            }
-            if (! $account->is_active) {
-                throw new AccountingException("الحساب «{$account->code} - {$account->name_ar}» موقوف.");
-            }
-            if ($account->requires_cost_center && empty($line['cost_center_id'])) {
-                throw new AccountingException("الحساب «{$account->code} - {$account->name_ar}» يتطلب تحديد مركز تكلفة.");
+            if ($problem = self::lineProblem($account, $line['cost_center_id'] ?? null)) {
+                throw new AccountingException(self::lineMessage($account, $problem));
             }
             if ($dimensionPolicy && ! empty($line['dimensions'])) {
                 $policy = app(DimensionPolicy::class);
@@ -505,6 +499,33 @@ class PostingService
                 throw new AccountingException('أحد مراكز التكلفة المحددة غير صالح.');
             }
         }
+    }
+
+    /**
+     * Why a line on $account is refused, whatever the entry, or null: 'group' (a parent account), 'switched_off', or
+     * 'cost_center' (it requires one and the line carries none). Settings whose lines are posted later, unattended (a
+     * recurring entry's), check them with it when saved and switched on again.
+     */
+    public static function lineProblem(Account $account, mixed $costCenterId): ?string
+    {
+        return match (true) {
+            (bool) $account->is_parent => 'group',
+            ! $account->is_active => 'switched_off',
+            $account->requires_cost_center && empty($costCenterId) => 'cost_center',
+            default => null,
+        };
+    }
+
+    /** What the posting answers for lineProblem()'s $problem on $account. */
+    public static function lineMessage(Account $account, string $problem): string
+    {
+        $name = "«{$account->code} - {$account->name_ar}»";
+
+        return match ($problem) {
+            'group' => "لا يمكن الترحيل على الحساب الرئيسي {$name}. اختر حساباً فرعياً.",
+            'switched_off' => "الحساب {$name} موقوف.",
+            'cost_center' => "الحساب {$name} يتطلب تحديد مركز تكلفة.",
+        };
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Models\Account;
 use App\Models\BankAccount;
 use App\Models\CostCenter;
 use App\Models\RecurringJournal;
+use App\Services\Accounting\PostingService;
 use App\Services\ActiveBranch;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -53,6 +54,19 @@ class RecurringJournalController extends Controller
             throw ValidationException::withMessages(collect($validated['lines'])->filter(fn ($line) => in_array((int) $line['account_id'], $otherBranchBoxes, true))
                 ->mapWithKeys(fn ($line, $i) => ["lines.{$i}.account_id" => 'هذا الحساب مربوط بصندوق أو بنك لفرع آخر.'])->all());
         }
+        // Nor a line its runs would have refused, each run recorded as failed and skipped: on a group account, a switched-off
+        // one, or one that requires a cost center the line does not carry (the form lists only active posting accounts).
+        $accounts = Account::whereIn('id', array_column($validated['lines'], 'account_id'))->get()->keyBy('id');
+        $refused = [];
+        foreach ($validated['lines'] as $i => $line) {
+            $account = $accounts->get((int) $line['account_id']);
+            if ($account && ($problem = PostingService::lineProblem($account, $line['cost_center_id'] ?? null))) {
+                $refused["lines.{$i}.".($problem === 'cost_center' ? 'cost_center_id' : 'account_id')] = PostingService::lineMessage($account, $problem);
+            }
+        }
+        if ($refused) {
+            throw ValidationException::withMessages($refused);
+        }
 
         RecurringJournal::create(array_merge($validated, ['is_active' => true, 'created_by' => auth()->id()]));
 
@@ -61,9 +75,41 @@ class RecurringJournalController extends Controller
 
     public function update(Request $request, RecurringJournal $recurring)
     {
-        $recurring->update($request->validate(['is_active' => 'required|boolean']));
+        $validated = $request->validate(['is_active' => 'required|boolean']);
+        if ($validated['is_active'] && ! $recurring->is_active && ($problem = $this->reactivationProblem($recurring))) {
+            return back()->with('error', $problem);
+        }
+        $recurring->update($validated);
 
         return back()->with('success', $recurring->is_active ? 'تم تفعيل القيد المتكرر' : 'تم إيقاف القيد المتكرر');
+    }
+
+    /**
+     * Why a stopped entry may not be switched on again, or null: its next run would refuse one of its lines as saved (an
+     * entry's lines are not edited). Once its entries are stopped, the chart lets an account be switched off, made a group
+     * or made to need a cost center (AccountController::settingsProblem); a line's account deleted by older data, too.
+     */
+    protected function reactivationProblem(RecurringJournal $recurring): ?string
+    {
+        $lines = (array) $recurring->lines;
+        $accounts = Account::whereIn('id', array_column($lines, 'account_id'))->get()->keyBy('id');
+        foreach ($lines as $line) {
+            $account = $accounts->get((int) ($line['account_id'] ?? 0));
+            if (! $account) {
+                return 'لا يمكن تفعيل القيد المتكرر لأن أحد حسابات أسطره حُذف من الدليل؛ أنشئ قيدًا متكررًا جديدًا.';
+            }
+            $name = "«{$account->code} - {$account->name_ar}»";
+            $problem = PostingService::lineProblem($account, $line['cost_center_id'] ?? null);
+            if ($problem) {
+                return match ($problem) {
+                    'group' => "لا يمكن تفعيل القيد المتكرر لأن الحساب {$name} في أسطره حساب رئيسي؛ أنشئ قيدًا متكررًا جديدًا بحساب فرعي.",
+                    'switched_off' => "لا يمكن تفعيل القيد المتكرر لأن الحساب {$name} في أسطره موقوف؛ فعّله من «دليل الحسابات» أولًا.",
+                    'cost_center' => "لا يمكن تفعيل القيد المتكرر لأن الحساب {$name} في أسطره يتطلب مركز تكلفة وسطره بلا مركز تكلفة؛ أنشئ قيدًا متكررًا جديدًا بمركز تكلفة للسطر.",
+                };
+            }
+        }
+
+        return null;
     }
 
     public function destroy(RecurringJournal $recurring)
