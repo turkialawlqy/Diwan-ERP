@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BankAccount;
 use App\Models\PurchaseDraft;
+use App\Rules\BranchBox;
 use App\Services\AttachmentService;
 use App\Services\Purchases\PurchaseDraftService;
 use App\Services\Tax\TaxProfile;
@@ -55,7 +56,8 @@ class PurchaseDraftController extends Controller
             'payment_method' => 'required|in:cash,card,bank_transfer,credit',
             'payment_status' => 'required|in:paid,partially_paid,unpaid',
             'paid_amount' => 'nullable|numeric|min:0',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // The bill is filed in the top bar's branch (PurchaseCycleService::invoiceReceipts).
+            'bank_account_id' => ['nullable', BranchBox::of()],
             'notes' => 'nullable|string|max:2000',
             'lines' => 'required|array|min:1|max:500',
             'lines.*.goods_receipt_item_id' => 'required|tenant_exists:goods_receipt_items,id',

@@ -5889,7 +5889,7 @@
         "example_al_rajhi_main_account_or": "مثال: حساب مصرف الراجحي الرئيسي أو خزينة الرياض",
         "example_al_rajhi_bank_riyad_bank": "مثال: مصرف الراجحي، بنك الرياض، الأهلي...",
         "bank_account_number": "رقم الحساب المصرفي",
-        "no_direct_link": "بدون ربط مباشر",
+        "own_ledger_account": "حساب أستاذ خاص بالصندوق (يُنشأ تلقائيًا)",
         "edit_n": "تعديل {n0}",
         "new_bank_or_cash_box_account": "حساب بنك أو صندوق جديد",
         "finance": "المالية",

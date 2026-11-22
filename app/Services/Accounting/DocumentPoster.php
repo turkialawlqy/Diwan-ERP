@@ -19,6 +19,7 @@ use App\Models\Revenue;
 use App\Models\SupplierPayment;
 use App\Services\Inventory\CostingService;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Journal templates for every operational document. Each method builds the
@@ -328,7 +329,8 @@ class DocumentPoster
     /**
      * Transfer between cash boxes / banks.   Dr destination   Cr source
      */
-    public function transfer(BankAccount $from, BankAccount $to, float $amount, $date, string $reference, string $description, ?float $fees = null, ?int $branchId = null): JournalEntry
+    /** $crossBranch: the caller checked the user may move both boxes, of whichever branches (PostingService::post). */
+    public function transfer(BankAccount $from, BankAccount $to, float $amount, $date, string $reference, string $description, ?float $fees = null, ?int $branchId = null, bool $crossBranch = false): JournalEntry
     {
         $lines = [
             ['account_id' => $this->boxAccount($to), 'debit' => $amount, 'description' => "تحويل وارد من {$from->name}"],
@@ -345,6 +347,7 @@ class DocumentPoster
             'reference' => $reference,
             'description' => $description,
             'source_type' => 'transfer',
+            'cross_branch' => $crossBranch,
             'lines' => $lines,
         ]);
     }
@@ -430,15 +433,18 @@ class DocumentPoster
     }
 
     /**
-     * Ledger account receiving / paying money for a document.
+     * Ledger account receiving / paying money for a document: its box, or the default cash / bank
+     * account when it names none. A box the user cannot see (another branch's) is refused on $field,
+     * never swapped for the default account. An archived box still answers for the documents that
+     * name it (a backfill, a re-post): new documents cannot pick one (BranchBox, tenant_exists).
      */
-    public function cashAccount(?int $bankAccountId, ?string $paymentMethod = null): int
+    public function cashAccount(?int $bankAccountId, ?string $paymentMethod = null, string $field = 'bank_account_id'): int
     {
         if ($bankAccountId) {
-            $box = BankAccount::find($bankAccountId);
-            if ($box) {
-                return $this->boxAccount($box);
-            }
+            $box = BankAccount::withTrashed()->find($bankAccountId)
+                ?? throw ValidationException::withMessages([$field => 'اختر صندوقًا أو بنكًا من فرع المستند.']);
+
+            return $this->boxAccount($box);
         }
 
         return $this->accounts->id(in_array($paymentMethod, ['cash', null, ''], true) ? 'default_cash' : 'default_bank');

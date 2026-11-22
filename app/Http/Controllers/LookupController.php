@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\AssetCategory;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Category;
 use App\Models\CostCenter;
@@ -136,7 +137,10 @@ class LookupController extends Controller
         }
         if ($name === 'accounts') {
             $query->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
-                ->when($request->boolean('parents'), fn ($q) => $q->where('is_parent', true));
+                ->when($request->boolean('parents'), fn ($q) => $q->where('is_parent', true))
+                // A box's ledger, a customer group's receivables: only what the form behind the picker accepts.
+                ->when($request->boolean('box_ledger'), fn ($q) => $q->whereIn('id', BankAccount::linkableLedgers()->pluck('id')))
+                ->when($request->boolean('receivables'), fn ($q) => $q->whereIn('id', CustomerGroup::accountOptions()->pluck('id')));
         }
 
         return response()->json(['data' => $query->orderBy($order)->limit(500)->get()->map(fn ($m) => ['id' => $m->getKey(), 'label' => $label($m)])->values()]);

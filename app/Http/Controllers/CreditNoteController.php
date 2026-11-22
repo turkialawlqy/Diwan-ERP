@@ -6,6 +6,7 @@ use App\Models\CreditNote;
 use App\Models\CreditNoteItem;
 use App\Models\Customer;
 use App\Models\Invoice;
+use App\Rules\BranchBox;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\AttachmentService;
@@ -113,7 +114,8 @@ class CreditNoteController extends Controller
                 'credit_note_date' => 'required|date|before_or_equal:today',
                 'reason' => 'required|string|max:500',
                 'refund_method' => 'nullable|in:credit,cash,bank_transfer',
-                'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+                // A return is filed in its invoice's branch (CreditNote::inheritedBranchId).
+                'bank_account_id' => ['nullable', BranchBox::forNew(CreditNote::class, $request->only('invoice_id'))],
                 'warehouse_id' => 'nullable|tenant_exists:warehouses,id',
                 'items' => 'required|array|min:1',
                 'items.*.invoice_item_id' => 'required|integer',
@@ -148,7 +150,7 @@ class CreditNoteController extends Controller
             'reason' => 'required|string|max:500',
             'status' => 'required|in:draft,approved,refunded',
             'refund_method' => 'nullable|required_if:status,refunded|in:credit,cash,bank_transfer',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            'bank_account_id' => ['nullable', BranchBox::forNew(CreditNote::class, $request->only('invoice_id'))],
         ], ['invoice_id.required' => 'اختر الفاتورة الأصلية التي يعدّلها الإشعار الدائن.']);
 
         // A return can never exceed what is left of the original invoice.

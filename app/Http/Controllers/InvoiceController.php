@@ -14,6 +14,7 @@ use App\Models\Project;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Rules\AllowedBranch;
+use App\Rules\BranchBox;
 use App\Services\Accounting\DimensionPolicy;
 use App\Services\Accounting\ExchangeRates;
 use App\Services\AttachmentService;
@@ -191,7 +192,8 @@ class InvoiceController extends Controller
             'supply_date' => 'nullable|date',
             'payment_method' => 'required|string|in:cash,card,bank_transfer,credit',
             'payment_status' => 'required|string|in:paid,partially_paid,unpaid',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // The branch the invoice is saved in (InvoiceService::create): the form's, else the top bar's.
+            'bank_account_id' => ['nullable', BranchBox::of(fn () => $request->input('branch_id'))],
             'warehouse_id' => 'nullable|tenant_exists:warehouses,id',
             'paid_amount' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',

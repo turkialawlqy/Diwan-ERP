@@ -14,6 +14,7 @@ use App\Models\CustomerPayment;
 use App\Models\JournalEntry;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentRequest;
+use App\Models\PosRegister;
 use App\Models\Project;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
@@ -100,7 +101,46 @@ class AccountingControls
             ->where('l.date', '>=', $today->copy()->subDays(90)->toDateString())->orderByDesc('l.date')->limit(100)
             ->get(['e.entry_number', 'l.date', 'l.description'])->map(fn ($l) => $this->item($l->entry_number, Carbon::parse($l->date), $l->description, $today))->all() : []];
 
+        $sections['shared_box_ledgers'] = ['label' => 'صناديق وبنوك يشترك حسابها مع فروع أخرى', 'rows' => $this->sharedBoxLedgers($today)];
+        $sections['pos_drawers'] = ['label' => 'نقاط بيع صندوقها مؤرشف أو من فرع آخر', 'rows' => $this->unusableDrawers($today)];
+
         return $sections;
+    }
+
+    /**
+     * Boxes of a branch whose ledger is not theirs alone: an account the system posts to for every branch (what the box
+     * form proposed before 1.8.1) or one shared with another branch's box. No branch can be kept off such a box; it needs
+     * a ledger of its own (a new box, the balance moved to it by a transfer, then the old one archived).
+     */
+    protected function sharedBoxLedgers(Carbon $today): array
+    {
+        $roles = array_map('intval', array_filter($this->map->all()));
+        $boxes = BankAccount::with('account:id,code,name_ar')->whereNotNull('branch_id')->whereNotNull('account_id')->orderBy('name')->get();
+        $others = BankAccount::withoutGlobalScopes()->where('company_id', $this->companyId())->whereNull('deleted_at')->whereIn('account_id', $boxes->pluck('account_id')->unique())
+            ->get(['id', 'account_id', 'branch_id'])->groupBy('account_id');
+
+        return $boxes->map(function (BankAccount $box) use ($roles, $others, $today) {
+            $shared = $others->get($box->account_id, collect())->contains(fn ($other) => (int) $other->id !== (int) $box->id && (int) $other->branch_id !== (int) $box->branch_id);
+            $detail = in_array((int) $box->account_id, $roles, true) ? 'حساب يرحّل عليه النظام من كل الفروع' : ($shared ? 'يشترك فيه صندوق فرع آخر' : null);
+
+            return $detail ? $this->item($box->name, $box->created_at ?? $today, $box->account ? $box->account->code.' - '.$box->account->name_ar : '', $today, null, $detail) : null;
+        })->filter()->values()->all();
+    }
+
+    /** Registers whose drawer box is archived or of another branch: their cash sales and shift closings are refused. */
+    protected function unusableDrawers(Carbon $today): array
+    {
+        return PosRegister::whereNotNull('bank_account_id')->where('is_active', true)->orderBy('name')->get()
+            ->map(function (PosRegister $register) use ($today) {
+                $box = BankAccount::withoutGlobalScope('branch')->withTrashed()->find($register->bank_account_id);
+                $detail = match (true) {
+                    ! $box || $box->trashed() => 'صندوق الدرج مؤرشف',
+                    $register->branch_id && $box->branch_id && (int) $box->branch_id !== (int) $register->branch_id => 'صندوق الدرج من فرع آخر',
+                    default => null,
+                };
+
+                return $detail ? $this->item($register->name, $register->created_at ?? $today, (string) $box?->name, $today, null, $detail) : null;
+            })->filter()->values()->all();
     }
 
     protected function item(?string $reference, $date, ?string $description, Carbon $today, ?string $who = null, ?string $detail = null): array

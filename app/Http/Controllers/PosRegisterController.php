@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BankAccount;
 use App\Models\PosRegister;
 use App\Models\Warehouse;
+use App\Rules\BranchBox;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -72,7 +73,8 @@ class PosRegisterController extends Controller
             'name' => 'required|string|max:255',
             'code' => ['nullable', 'string', 'max:50', Rule::unique('pos_registers', 'code')->where('company_id', $request->user()->company_id)->ignore($register?->id)],
             'warehouse_id' => 'required|tenant_exists:warehouses,id',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // The drawer: a box of the register's branch (a new register: the top bar's).
+            'bank_account_id' => ['nullable', BranchBox::of($register?->branch_id)],
             'is_active' => 'boolean',
         ]);
         $data['is_active'] = $request->boolean('is_active', true);

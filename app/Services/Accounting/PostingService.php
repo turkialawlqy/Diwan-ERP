@@ -3,6 +3,7 @@
 namespace App\Services\Accounting;
 
 use App\Models\Account;
+use App\Models\BankAccount;
 use App\Models\CostCenter;
 use App\Models\FiscalYearClosing;
 use App\Models\JournalEntry;
@@ -74,6 +75,9 @@ class PostingService
      * A missing or null branch_id means "not given": the entry takes its source document's branch,
      * else the one chosen in the top bar. With no_branch => true it takes neither and stays without
      * a branch (closing or reversing entries that have none); a branch_id that is given still wins.
+     *
+     * A line on the ledger of a cash box / bank of another branch only is refused (assertOwnBranchBoxes),
+     * unless cross_branch => true: the caller checked that the user may move that box (a manual entry).
      */
     public function post(array $data): JournalEntry
     {
@@ -100,6 +104,10 @@ class PostingService
             $noBranch = ! empty($data['no_branch']) && ! isset($data['branch_id']);
             // The entry's branch: given, else its source document's, else the one chosen in the top bar.
             $branchId = $noBranch ? null : ($data['branch_id'] ?? $this->branchOf($source) ?? app(ActiveBranch::class)->forWrite());
+            // Reversing and closing entries mirror what is already in the ledger.
+            if (empty($data['cross_branch']) && ! in_array($entryType, ['closing', 'reversal'], true)) {
+                $this->assertOwnBranchBoxes($branchId ? (int) $branchId : null, $lines, $companyId);
+            }
 
             // A branch closed for the year (its closing entry exists) takes no more postings in that year,
             // even while the year itself and its periods are still open for the other branches.
@@ -160,9 +168,9 @@ class PostingService
     }
 
     /**
-     * Post a draft entry (re-validated against the current rules).
+     * Post a draft entry (re-validated against the current rules; $crossBranch as in post()).
      */
-    public function postDraft(JournalEntry $entry): JournalEntry
+    public function postDraft(JournalEntry $entry, bool $crossBranch = false): JournalEntry
     {
         if ($entry->status !== JournalEntry::STATUS_DRAFT) {
             throw new AccountingException('القيد مرحّل مسبقاً.');
@@ -179,6 +187,9 @@ class PostingService
         ])->all();
 
         $this->validateLines($lines, $entry->company_id);
+        if (! $crossBranch) {
+            $this->assertOwnBranchBoxes($entry->branch_id ? (int) $entry->branch_id : null, $lines, (int) $entry->company_id);
+        }
 
         return DB::transaction(function () use ($entry, $lines) {
             // Locked and checked again: two clicks on «ترحيل» must not apply the balances twice.
@@ -500,6 +511,22 @@ class PostingService
             if ($found !== count($costCenterIds)) {
                 throw new AccountingException('أحد مراكز التكلفة المحددة غير صالح.');
             }
+        }
+    }
+
+    /**
+     * A box's ledger account is that box's balance: an entry of a branch moves only the ledgers of its own boxes
+     * and of boxes shared by every branch (BankAccount::foreignLedgers). Whatever configuration a line comes from
+     * (a mapping, an asset category, a customer group, a stored document or template), another branch's box is
+     * refused here. Entries without a branch and accounts the system posts to for every branch are not concerned.
+     */
+    protected function assertOwnBranchBoxes(?int $branchId, array $lines, int $companyId): void
+    {
+        $foreign = BankAccount::foreignLedgers($branchId, array_column($lines, 'account_id'), $companyId);
+        if ($foreign) {
+            $account = Account::withoutGlobalScopes()->whereKey($foreign[0])->first(['code', 'name_ar']);
+
+            throw new AccountingException("الحساب «{$account?->code} - {$account?->name_ar}» حساب صندوق أو بنك لفرع آخر؛ لا يُرحَّل عليه من هذا الفرع.");
         }
     }
 

@@ -141,6 +141,8 @@ class JournalEntryController extends Controller
             'description' => $validated['description'],
             'entry_type' => $validated['entry_type'] ?? 'manual',
             'status' => $status,
+            // guardControlAccounts let through only boxes of branches the user may work in: moving cash between two of them is meant.
+            'cross_branch' => true,
             'lines' => collect($validated['lines'])->map(fn ($line) => [
                 'account_id' => (int) $line['account_id'],
                 'cost_center_id' => $line['cost_center_id'] ?? null,
@@ -187,7 +189,7 @@ class JournalEntryController extends Controller
     public function post(Request $request, JournalEntry $entry)
     {
         $this->guardControlAccounts($entry->lines()->get(['account_id', 'party_type', 'party_id'])->toArray(), $request);
-        $this->posting->postDraft($entry);
+        $this->posting->postDraft($entry, crossBranch: true);
 
         return back()->with('success', "تم ترحيل القيد {$entry->entry_number}");
     }
@@ -270,7 +272,12 @@ class JournalEntryController extends Controller
                 continue;
             }
             $model = $models[$line['party_type'] ?? ''] ?? null;
-            if (! $model || ! $model::withoutGlobalScopes()->where('company_id', $companyId)->whereKey($line['party_id'])->exists()) {
+            $query = $model ? $model::withoutGlobalScopes()->where('company_id', $companyId) : null;
+            // A box of a branch the user may not work in answers as one that does not exist.
+            if ($model === BankAccount::class && ($user = auth()->user())) {
+                $query->inBranchesOf($user);
+            }
+            if (! $query || ! $query->whereKey($line['party_id'])->exists()) {
                 throw ValidationException::withMessages(["lines.{$i}.party_id" => 'الطرف المحدد في السطر غير موجود في منشأتك.']);
             }
         }
@@ -280,6 +287,7 @@ class JournalEntryController extends Controller
     {
         $parties = collect($this->partyAccounts())->mapWithKeys(fn ($type, $id) => [(int) $id => $type])->reject(fn ($type) => $type === 'bank');
         $documentAccounts = collect(self::DOCUMENT_ROLES)->map(fn ($role) => (int) $this->map->find($role))->filter()->all();
+        $otherBranchBoxes = BankAccount::hiddenLedgers(array_column($lines, 'account_id'));
         $errors = [];
 
         foreach (array_values($lines) as $i => $line) {
@@ -301,6 +309,10 @@ class JournalEntryController extends Controller
             }
             if (in_array($accountId, $documentAccounts, true) && ! $request->user()->can('accounting.journals.manage')) {
                 $errors["lines.{$i}.account_id"] = 'حساب المخزون والبضاعة المستلمة غير المفوترة يُحدَّث من المستندات. القيد اليدوي عليه يحتاج صلاحية «إدارة القيود».';
+            }
+            // A box's ledger account is that box's balance: a box of a branch the user may not work in is not theirs to move.
+            if (in_array($accountId, $otherBranchBoxes, true)) {
+                $errors["lines.{$i}.account_id"] = 'هذا الحساب مربوط بصندوق أو بنك لفرع آخر.';
             }
         }
 

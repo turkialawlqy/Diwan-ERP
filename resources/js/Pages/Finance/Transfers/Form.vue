@@ -35,13 +35,13 @@ const submitTransfer = () => form.post(route('finance.transfers.store'));
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('fin_finance_transfers_form.from_account_cash_box') }}</label>
-                                    <SelectCreate v-model="form.from_account_id" :options="accounts" entity="account" :label="(a) => `${a.name} (${Number(a.current_balance).toLocaleString('en-US')} ${a.currency})`" :allow-empty="false" required />
+                                    <SelectCreate v-model="form.from_account_id" :options="accounts" entity="bank" :label="(a) => `${a.name} (${Number(a.current_balance).toLocaleString('en-US')} ${a.currency})`" :allow-empty="false" required />
                                     <p v-if="form.errors.from_account_id" class="text-[11px] text-rose-600 mt-1">{{ form.errors.from_account_id }}</p>
                                 </div>
             
                                 <div>
                                     <label class="block text-xs font-bold text-slate-700 mb-1">{{ $t('fin_finance_transfers_form.to_account_cash_box') }}</label>
-                                    <SelectCreate v-model="form.to_account_id" :options="accounts" entity="account" :label="(a) => `${a.name} (${Number(a.current_balance).toLocaleString('en-US')} ${a.currency})`" :allow-empty="false" required />
+                                    <SelectCreate v-model="form.to_account_id" :options="accounts" entity="bank" :label="(a) => `${a.name} (${Number(a.current_balance).toLocaleString('en-US')} ${a.currency})`" :allow-empty="false" required />
                                     <p v-if="form.errors.to_account_id" class="text-[11px] text-rose-600 mt-1">{{ form.errors.to_account_id }}</p>
                                 </div>
                             </div>

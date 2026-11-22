@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
 use App\Models\LandedCost;
 use App\Models\PurchaseInvoice;
+use App\Rules\BranchBox;
 use App\Services\Purchases\PurchaseCycleService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -35,7 +36,8 @@ class LandedCostController extends Controller
             'tax_amount' => 'nullable|numeric|min:0',
             'paid_from' => 'required|in:payables,cash,bank_transfer',
             'supplier_id' => 'nullable|required_if:paid_from,payables|tenant_exists:suppliers,id',
-            'bank_account_id' => 'nullable|tenant_exists:bank_accounts,id',
+            // Filed in its bill's branch (LandedCost::inheritedBranchId).
+            'bank_account_id' => ['nullable', BranchBox::forNew(LandedCost::class, $request->only('purchase_invoice_id'))],
         ]);
 
         $landed = $this->cycle->landedCost(PurchaseInvoice::findOrFail($validated['purchase_invoice_id']), $validated);
