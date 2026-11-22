@@ -15,10 +15,12 @@
     <td style="border: 0; text-align: center;"><div style="font-size: 16pt; font-weight: bold;">{{ $table['title'] }}</div><div class="muted">{{ $table['subtitle'] }}</div></td>
     <td style="border: 0; text-align: left;" class="muted">{{ now()->format('Y-m-d H:i') }}</td>
 </tr></table>
+{{-- A long report is several tables of at most 300 rows (header repeated): one huge table makes mPDF hold it all in memory. --}}
+@foreach(array_chunk($table['rows'], 300, true) as $chunk)
 <table style="margin-top: 10pt;">
     <thead><tr>@foreach($table['columns'] as $c)<th style="{{ $c['type'] === 'money' ? 'text-align: left;' : 'text-align: right;' }}">{{ $c['label'] }}</th>@endforeach</tr></thead>
     <tbody>
-    @foreach($table['rows'] as $i => $row)
+    @foreach($chunk as $i => $row)
         <tr class="{{ in_array($i, $table['bold'] ?? [], true) ? 'b' : '' }}">
             @foreach($table['columns'] as $c)
                 @php $v = $row[$c['key']] ?? null; @endphp
@@ -32,4 +34,5 @@
     @endforeach
     </tbody>
 </table>
+@endforeach
 </body></html>
