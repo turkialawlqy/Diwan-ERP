@@ -12,6 +12,7 @@ import Pagination from '@/Components/UI/Pagination.vue';
 import StatCard from '@/Components/UI/StatCard.vue';
 import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
+import FormErrors from '@/Components/UI/FormErrors.vue';
 import { money, date, today } from '@/utils/format';
 import { PlusIcon } from '@heroicons/vue/24/outline';
 const { t } = useI18n();
@@ -131,11 +132,12 @@ const move = async (cheque, status) => {
                 </Field>
                 <Field :label="$t('a_cheques.cheque_number')" :error="form.errors.cheque_number"><input v-model="form.cheque_number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field :label="$t('a_cheques.amount')" :error="form.errors.amount"><input v-model.number="form.amount" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field :label="$t('a_cheques.issue_date')"><DatePicker v-model="form.issue_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('a_cheques.issue_date')" :error="form.errors.issue_date"><DatePicker v-model="form.issue_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field :label="$t('a_cheques.due_date')" :error="form.errors.due_date"><DatePicker v-model="form.due_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field :label="$t('a_cheques.cheque_bank')"><input v-model="form.bank_name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field :label="$t('a_cheques.our_bank_account')"><SelectCreate v-model="form.bank_account_id" :options="bankAccounts.filter(x => x.type === 'bank')" entity="bank" label="name" placeholder="—" /></Field>
+                <Field :label="$t('a_cheques.cheque_bank')" :error="form.errors.bank_name"><input v-model="form.bank_name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('a_cheques.our_bank_account')" :error="form.errors.bank_account_id"><SelectCreate v-model="form.bank_account_id" :options="bankAccounts.filter(x => x.type === 'bank')" entity="bank" label="name" placeholder="—" /></Field>
             </div>
+            <FormErrors :errors="form.errors" :except="['party_id', 'cheque_number', 'amount', 'issue_date', 'due_date', 'bank_name', 'bank_account_id', ...(openInvoices.length ? ['invoice_id'] : [])]" class="mt-3" />
             <template #footer><button @click="save" :disabled="form.processing || !form.party_id" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40">{{ $t('ui.save') }}</button></template>
         </Dialog>
     </AppLayout>

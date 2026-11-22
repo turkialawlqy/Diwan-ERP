@@ -143,10 +143,12 @@ const submitExpense = () => (editing ? form.put(route('finance.expenses.update',
                                 <div>
                                     <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_expenses_form.paid_from_cash_box_or_bank') }}</label>
                                     <SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" :label="(bank) => $t('fin_finance_expenses_form.n_balance_n_sar', { n0: bank.name, n1: formatCurrency(bank.current_balance) })" :allow-empty="false" />
+                                    <p v-if="form.errors.bank_account_id" class="text-rose-600 text-3xs mt-1">{{ form.errors.bank_account_id }}</p>
                                 </div>
                                 <div>
                                     <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_expenses_form.expense_account_in_the_chart') }}</label>
                                     <SelectCreate v-model="form.account_id" :options="expenseAccounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :allow-empty="false" />
+                                    <p v-if="form.errors.account_id" class="text-rose-600 text-3xs mt-1">{{ form.errors.account_id }}</p>
                                 </div>
                             </div>
                             <DimensionFields v-model:cost-center="form.cost_center_id" v-model:project="form.project_id" :account="{ type: 'expense', requires_cost_center: expenseAccounts.find((a) => a.id === form.account_id)?.requires_cost_center }" :policy="dimensionPolicy" :cost-centers="costCenters" :projects="projects" :errors="form.errors" />

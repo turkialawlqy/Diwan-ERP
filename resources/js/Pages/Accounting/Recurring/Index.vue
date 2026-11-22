@@ -8,6 +8,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
+import FormErrors from '@/Components/UI/FormErrors.vue';
 import { money, date, today } from '@/utils/format';
 import { PlusIcon, TrashIcon } from '@heroicons/vue/24/outline';
 const { t } = useI18n();
@@ -53,9 +54,9 @@ const freq = computed(() => ({ monthly: t('s_recurring.f_monthly'), quarterly: t
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-3">
                 <Field :label="$t('a_recurring.name')" :error="form.errors.name"><input v-model="form.name" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <label class="flex items-center gap-2 text-xs col-span-full"><input v-model="form.auto_reverse" type="checkbox" class="rounded" /> {{ $t('a_recurring.accrual_entry_reverses_automatic') }}</label>
-                <Field :label="$t('a_recurring.frequency')"><select v-model="form.frequency" class="w-full rounded-xl border-slate-200 text-xs"><option v-for="(l, k) in freq" :key="k" :value="k">{{ l }}</option></select></Field>
-                <Field :label="$t('a_recurring.first_run')"><DatePicker v-model="form.next_run_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field :label="$t('a_recurring.ends_on_optional')"><DatePicker v-model="form.end_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('a_recurring.frequency')" :error="form.errors.frequency"><select v-model="form.frequency" class="w-full rounded-xl border-slate-200 text-xs"><option v-for="(l, k) in freq" :key="k" :value="k">{{ l }}</option></select></Field>
+                <Field :label="$t('a_recurring.first_run')" :error="form.errors.next_run_date"><DatePicker v-model="form.next_run_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('a_recurring.ends_on_optional')" :error="form.errors.end_date"><DatePicker v-model="form.end_date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <div class="col-span-2 md:col-span-4"><Field :label="$t('a_recurring.entry_description')" :error="form.errors.description"><input v-model="form.description" class="w-full rounded-xl border-slate-200 text-xs" /></Field></div>
             </div>
             <div class="overflow-x-auto"><table class="w-full text-xs">
@@ -76,6 +77,8 @@ const freq = computed(() => ({ monthly: t('s_recurring.f_monthly'), quarterly: t
                 <span :class="balanced ? 'text-emerald-600' : 'text-rose-600'" class="font-mono font-bold">{{ money(totals.d) }} / {{ money(totals.c) }}</span>
             </div>
             <p v-if="form.errors.lines" class="text-xs text-rose-600 mt-2">{{ form.errors.lines }}</p>
+            <!-- A line's own refusal (its account...) carries the line number. -->
+            <FormErrors :errors="form.errors" :except="['name', 'frequency', 'next_run_date', 'end_date', 'description', 'lines']" class="mt-2" />
             <template #footer><button @click="save" :disabled="form.processing || !balanced" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40">{{ $t('ui.save') }}</button></template>
         </Dialog>
     </AppLayout>

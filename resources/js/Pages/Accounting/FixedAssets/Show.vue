@@ -9,6 +9,7 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 import StatCard from '@/Components/UI/StatCard.vue';
 import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
+import FormErrors from '@/Components/UI/FormErrors.vue';
 import { money, date, monthLabel, today, thisMonth } from '@/utils/format';
 const { t } = useI18n();
 
@@ -101,6 +102,7 @@ const dispose = () => form.transform((d) => ({ ...d, vat_amount: d.taxable ? Mat
                 <Field :label="$t('a_asset.date')" :error="impairForm.errors.date"><DatePicker v-model="impairForm.date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field :label="$t('a_asset.impairment_amount')" :error="impairForm.errors.amount" :hint="$t('a_asset.cur_book', { value: money(asset.book_value) })"><input v-model.number="impairForm.amount" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field :label="$t('a_asset.reason')" :error="impairForm.errors.reason"><input v-model="impairForm.reason" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <FormErrors :errors="impairForm.errors" :except="['date', 'amount', 'reason']" />
             </div>
             <template #footer><button @click="impair" :disabled="impairForm.processing" class="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold">{{ $t('a_asset.post_the_impairment') }}</button></template>
         </Dialog>
@@ -111,9 +113,10 @@ const dispose = () => form.transform((d) => ({ ...d, vat_amount: d.taxable ? Mat
                 <Field :label="$t('a_asset.sale_amount_0_for_scrapping')" :error="form.errors.proceeds"><input v-model.number="form.proceeds" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <label class="flex items-center gap-2"><input v-model="form.taxable" type="checkbox" class="rounded" /> {{ $t('a_asset.taxable_sale') }} {{ $taxRate() }}% ({{ ((parseFloat(form.proceeds) || 0) * $taxRate() / 100).toFixed(2) }})</label>
                 <p v-if="form.errors.vat_amount" class="text-rose-600">{{ form.errors.vat_amount }}</p>
-                <Field :label="$t('a_asset.receipt_method')"><select v-model="form.method" class="w-full rounded-xl border-slate-200 text-xs"><option value="bank_transfer">{{ $t('a_asset.bank') }}</option><option value="cash">{{ $t('a_asset.cash') }}</option></select></Field>
-                <Field :label="$t('a_asset.cash_box_bank')"><SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('a_asset.default')" /></Field>
+                <Field :label="$t('a_asset.receipt_method')" :error="form.errors.method"><select v-model="form.method" class="w-full rounded-xl border-slate-200 text-xs"><option value="bank_transfer">{{ $t('a_asset.bank') }}</option><option value="cash">{{ $t('a_asset.cash') }}</option></select></Field>
+                <Field :label="$t('a_asset.cash_box_bank')" :error="form.errors.bank_account_id"><SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('a_asset.default')" /></Field>
                 <p class="text-slate-500">{{ $t('a_asset.disposal_note', { value: money(asset.book_value) }) }}</p>
+                <FormErrors :errors="form.errors" :except="['date', 'proceeds', 'vat_amount', 'method', 'bank_account_id']" />
             </div>
             <template #footer><button @click="dispose" :disabled="form.processing" class="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold">{{ $t('a_asset.confirm_disposal') }}</button></template>
         </Dialog>

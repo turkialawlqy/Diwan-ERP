@@ -153,6 +153,7 @@ class PurchaseInvoiceController extends Controller
             'units' => $units,
             'bankAccounts' => $bankAccounts,
             'suggestedNumber' => $suggestedNumber,
+            'suggestedSku' => $this->peekNumber('product'), // the new-product dialog's code, as on the product page
             'defaultTaxRate' => TaxProfile::rate(),
             'costCenters' => CostCenter::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_ar']),
             'projects' => Project::orderBy('name')->get(['id', 'name']),

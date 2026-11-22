@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Support\ServerMessages;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,7 +18,10 @@ class ConfirmablePasswordController extends Controller
      */
     public function show(): Response
     {
-        return Inertia::render('Auth/ConfirmPassword');
+        // Entering a company as super admin sends here with a note to request entry again afterwards.
+        return Inertia::render('Auth/ConfirmPassword', [
+            'status' => ServerMessages::translate(session('status')),
+        ]);
     }
 
     /**

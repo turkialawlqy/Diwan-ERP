@@ -15,6 +15,7 @@ use App\Services\ActiveFiscalYear;
 use App\Services\Permissions\PermissionRegistry;
 use App\Services\Saas\PlanGuard;
 use App\Services\TenantManager;
+use App\Support\ServerMessages;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Notifications\ResetPassword;
@@ -34,6 +35,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Validator as BaseValidator;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -86,6 +88,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->configureRateLimiting();
         $this->registerTenantValidationRules();
+        $this->translateValidatorTexts();
         $this->registerSecurityEventLogging();
         $this->registerAuthorization();
 
@@ -168,6 +171,18 @@ class AppServiceProvider extends ServiceProvider
                 ->when($softDeletes[$table], fn ($q) => $q->whereNull('deleted_at'))
                 ->exists();
         }, 'القيمة المحددة غير صالحة.');
+    }
+
+    /**
+     * A validator gets its custom messages ('logo.required' => '…') and attribute names ('name' => 'الاسم') in the
+     * interface language, before Laravel fills in :attribute and :position: an English page reads "The name field is
+     * required." rather than "The الاسم field is required.", and a «السطر :position» message needs one entry for all lines.
+     */
+    protected function translateValidatorTexts(): void
+    {
+        Validator::resolver(fn ($translator, $data, $rules, $messages, $attributes) => new BaseValidator(
+            $translator, $data, $rules, ServerMessages::translateAll($messages), ServerMessages::attributes($attributes)
+        ));
     }
 
     /**

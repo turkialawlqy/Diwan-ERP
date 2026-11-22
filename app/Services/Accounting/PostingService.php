@@ -37,6 +37,8 @@ class PostingService
         protected AccountMap $accounts,
         protected FiscalCalendar $calendar,
         protected DocumentNumberService $numbers,
+        protected BranchBalances $branchBalances,
+        protected CashFlowBalances $cashFlowBalances,
     ) {}
 
     /**
@@ -157,7 +159,8 @@ class PostingService
             }
 
             if ($status === JournalEntry::STATUS_POSTED) {
-                $this->applyBalances($companyId, $date, $lines, 1);
+                $this->applyBalances($companyId, $date, $lines, 1, $entry->branch_id);
+                $this->cashFlowBalances->add($entry, $lines);
             }
 
             return $entry->load('lines');
@@ -208,7 +211,8 @@ class PostingService
                 'posted_by' => auth()->id(),
             ]);
 
-            $this->applyBalances($entry->company_id, Carbon::parse($entry->date), $lines, 1);
+            $this->applyBalances($entry->company_id, Carbon::parse($entry->date), $lines, 1, $entry->branch_id);
+            $this->cashFlowBalances->add($entry, $lines);
 
             return $entry;
         });
@@ -329,6 +333,9 @@ class PostingService
                     'updated_at' => $now,
                 ])->values()->all());
             }
+
+            $this->branchBalances->rebuild($companyId);
+            $this->cashFlowBalances->rebuild($companyId);
 
             $totals = DB::table('account_balances')
                 ->where('company_id', $companyId)
@@ -546,13 +553,14 @@ class PostingService
 
     /**
      * Add (sign = 1) or remove (sign = -1) the lines from the monthly balances
-     * and the running account balance.
+     * (the company's and the branch's) and the running account balance.
      */
-    protected function applyBalances(int $companyId, Carbon $date, array $lines, int $sign): void
+    protected function applyBalances(int $companyId, Carbon $date, array $lines, int $sign, ?int $branchId = null): void
     {
         $period = (int) $date->format('Ym');
         $now = now();
         $grouped = [];
+        $signed = [];
 
         foreach ($lines as $line) {
             $id = $line['account_id'];
@@ -568,6 +576,7 @@ class PostingService
         foreach ($grouped as $accountId => $amounts) {
             $debit = round($amounts['debit'] * $sign, 2);
             $credit = round($amounts['credit'] * $sign, 2);
+            $signed[$accountId] = ['debit' => $debit, 'credit' => $credit];
             // Fixed-point literals (never scientific notation) for the SQL increments.
             $d = number_format($debit, 2, '.', '');
             $c = number_format($credit, 2, '.', '');
@@ -593,5 +602,7 @@ class PostingService
             $delta = ($natures[$accountId] ?? 'debit') === 'debit' ? $debit - $credit : $credit - $debit;
             DB::table('accounts')->where('id', $accountId)->update(['balance' => DB::raw('balance + '.number_format($delta, 2, '.', ''))]);
         }
+
+        $this->branchBalances->add($companyId, $branchId, $period, $signed);
     }
 }

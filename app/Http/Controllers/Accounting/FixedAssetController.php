@@ -184,7 +184,11 @@ class FixedAssetController extends Controller
             'asset' => $asset,
             'monthlyAmount' => $service->monthlyAmount($asset),
             'schedule' => $service->schedule($asset),
-            'bankAccounts' => BankAccount::where('is_active', true)->get(['id', 'name', 'type']),
+            // A disposal is filed in the asset's branch: its boxes or the shared ones, among those the top bar shows
+            // (the posting looks the box up within them, so another branch's box would fall back to the default).
+            'bankAccounts' => BankAccount::where('is_active', true)
+                ->when($asset->branch_id, fn ($q) => $q->where(fn ($q) => $q->where('branch_id', $asset->branch_id)->orWhereNull('branch_id')))
+                ->get(['id', 'name', 'type']),
         ]);
     }
 
