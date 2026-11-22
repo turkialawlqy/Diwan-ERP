@@ -60,8 +60,11 @@ switch ($Action) {
         Stop-Service DiwanDB -ErrorAction SilentlyContinue
         & sc.exe delete DiwanDB | Out-Null
         Remove-NetFirewallRule -DisplayName 'Diwan ERP' -ErrorAction SilentlyContinue
-        Remove-Item (Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) 'الديوان.url') -Force -ErrorAction SilentlyContinue
-        Remove-Item (Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'الديوان') -Recurse -Force -ErrorAction SilentlyContinue
+        # The shortcuts: their English names, and the Arabic ones of earlier installs.
+        $desktop = [Environment]::GetFolderPath('CommonDesktopDirectory')
+        $programs = [Environment]::GetFolderPath('CommonPrograms')
+        if ($desktop) { foreach ($name in @('Diwan ERP.url', 'Diwan ERP.lnk', 'الديوان.url')) { Remove-Item -LiteralPath (Join-Path $desktop $name) -Force -ErrorAction SilentlyContinue } }
+        if ($programs) { foreach ($name in @('Diwan ERP', 'الديوان')) { Remove-Item -LiteralPath (Join-Path $programs $name) -Recurse -Force -ErrorAction SilentlyContinue } }
         Set-Location $env:TEMP
         if ($keep -eq 'NO') {
             # Junctions first, so deleting a release never follows them into the shared data twice.
