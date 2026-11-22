@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use App\Services\Accounting\AccountMap;
+use App\Services\ActiveBranch;
 use App\Services\TenantManager;
 use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
 use App\Traits\BranchScoped;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -133,6 +135,48 @@ class BankAccount extends Model
         return static::withoutGlobalScopes()->where('company_id', $companyId)->whereIn('account_id', $ids)
             ->when($branchesOnly, fn ($q) => $q->whereNotNull('branch_id'))
             ->distinct()->pluck('account_id')->map(fn ($id) => (int) $id)->values()->all();
+    }
+
+    /**
+     * Accounts the company's settings post to by themselves, besides AccountMap roles and box ledgers: customer
+     * groups' receivables, asset categories' accounts, and the lines of recurring templates of a branch other than
+     * $branchId. A box on one would take those postings, and close them to every other branch (PostingService).
+     *
+     * @return array<int, int>
+     */
+    public static function configuredAccounts(?int $branchId = null, ?int $companyId = null): array
+    {
+        $companyId ??= app(TenantManager::class)->getTenantId();
+        if (! $companyId) {
+            return [];
+        }
+        $groups = CustomerGroup::withoutGlobalScopes()->where('company_id', $companyId)->whereNotNull('account_id')->pluck('account_id');
+        $categories = AssetCategory::withoutGlobalScopes()->where('company_id', $companyId)->get(['asset_account_id', 'accumulated_account_id', 'expense_account_id'])
+            ->flatMap(fn (AssetCategory $category) => [$category->asset_account_id, $category->accumulated_account_id, $category->expense_account_id]);
+        $templates = RecurringJournal::withoutGlobalScopes()->where('company_id', $companyId)
+            ->when($branchId, fn ($q) => $q->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', '!=', $branchId)))
+            ->get(['lines'])->flatMap(fn (RecurringJournal $template) => array_column((array) $template->lines, 'account_id'));
+
+        return $groups->merge($categories)->merge($templates)->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
+
+    /**
+     * Asset leaves a new box may be linked to (BankAccountController::checkLedger refuses the others): active, of debit
+     * nature, needing no cost center, and that nothing else posts to: not an AccountMap role, another box's ledger, nor
+     * an account the settings post to. An edited box keeps showing its own.
+     */
+    public static function linkableLedgers(?self $bank = null): Builder
+    {
+        $companyId = app(TenantManager::class)->getTenantId();
+        $taken = array_merge(
+            array_values(array_filter(app(AccountMap::class)->all())),
+            static::withoutGlobalScopes()->where('company_id', $companyId)->whereNotNull('account_id')->pluck('account_id')->all(),
+            static::configuredAccounts(app(ActiveBranch::class)->id(), $companyId),
+        );
+
+        return Account::where('type', 'asset')->where('is_parent', false)
+            ->where(fn ($q) => $q->where(fn ($q) => $q->whereNotIn('id', $taken)->where('is_active', true)->where('nature', 'debit')->where('requires_cost_center', false))
+                ->when($bank?->account_id, fn ($q, $id) => $q->orWhere('id', $id)));
     }
 
     /** Replace current_balance with the ledger balance for display. */

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -39,6 +39,8 @@ const submit = () => form.post(route('pos.open-sessions.close', closing.value.id
 
 // As on the terminal: the shift's own branch, or an account shared by all branches.
 const boxesOfShift = computed(() => props.boxes.filter((b) => !b.branch_id || !closing.value?.branch_id || b.branch_id === closing.value.branch_id));
+// A box made from the picker belongs to the top bar's branch: offered only when that is the shift's branch.
+const canCreateBox = computed(() => !closing.value?.branch_id || closing.value.branch_id === usePage().props.branchSwitcher?.active);
 
 const difference = computed(() => {
     const counted = Number(form.closing_cash);
@@ -79,7 +81,7 @@ const difference = computed(() => {
                 </p>
 
                 <Field :label="$t('pos_open.deposit')" :error="form.errors.deposit_bank_account_id" :hint="$t('pos_open.deposit_hint')">
-                    <SelectCreate v-model="form.deposit_bank_account_id" :options="boxesOfShift" entity="bank" label="name" :placeholder="$t('pos_open.deposit_none')" :empty-label="$t('pos_open.deposit_none')" />
+                    <SelectCreate v-model="form.deposit_bank_account_id" :options="boxesOfShift" :entity="canCreateBox ? 'bank' : ''" label="name" :placeholder="$t('pos_open.deposit_none')" :empty-label="$t('pos_open.deposit_none')" />
                 </Field>
 
                 <Field :label="$t('pos_open.notes')" :error="form.errors.notes">

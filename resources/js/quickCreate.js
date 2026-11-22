@@ -93,7 +93,7 @@ export const quickCreate = {
             text('account_number', 'رقم الحساب', { show: (f) => f.type === 'bank' }),
             text('iban', 'الآيبان', { show: (f) => f.type === 'bank' }),
             num('opening_balance', 'الرصيد الافتتاحي', { required: true }),
-            { key: 'account_id', label: 'حساب الأستاذ (يُنشأ تلقائياً إن تُرك فارغاً)', type: 'select', lookup: 'accounts', query: { type: 'asset' }, empty: 'إنشاء حساب تلقائياً', span: 2 },
+            { key: 'account_id', label: 'حساب الأستاذ (يُنشأ تلقائياً إن تُرك فارغاً)', type: 'select', lookup: 'accounts', query: { type: 'asset', box_ledger: 1 }, empty: 'إنشاء حساب تلقائياً', span: 2 },
         ],
     },
     account: {
@@ -175,7 +175,7 @@ export const quickCreate = {
         fields: () => [
             text('code', 'رمز المجموعة', { required: true }),
             text('name', 'اسم المجموعة', { required: true }),
-            { key: 'account_id', label: 'الحساب المحاسبي المرتبط', type: 'select', lookup: 'accounts', query: { type: 'asset' }, entity: 'account', defaults: { type: 'asset' }, empty: 'الذمم العامة', span: 2 },
+            { key: 'account_id', label: 'الحساب المحاسبي المرتبط', type: 'select', lookup: 'accounts', query: { type: 'asset', receivables: 1 }, entity: 'account', defaults: { type: 'asset' }, empty: 'الذمم العامة', span: 2 },
             text('description', 'الوصف', { span: 2 }),
         ],
     },

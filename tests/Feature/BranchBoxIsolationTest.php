@@ -438,6 +438,14 @@ class BranchBoxIsolationTest extends TestCase
         $this->assertSame($entries, JournalEntry::withoutGlobalScopes()->count());
         $this->assertSame(0, RecurringJournal::withoutGlobalScopes()->count());
 
+        // Another branch's box named as a line's sub-account gets the answer of a box that does not exist.
+        foreach ([$this->bankB->id, 999999] as $id) {
+            $this->post(route('accounting.journals.store'), ['date' => self::DATE, 'description' => 'تسوية', 'save_as' => 'posted', 'lines' => [
+                ['account_id' => $this->boxA->account_id, 'debit' => 5, 'credit' => 0, 'party_type' => 'bank', 'party_id' => $id],
+                ['account_id' => $this->role('general_expense'), 'debit' => 0, 'credit' => 5],
+            ]])->assertSessionHasErrors(['lines.0.party_id' => 'الطرف المحدد في السطر غير موجود في منشأتك.']);
+        }
+
         // Its own box's ledger account is fine.
         $this->post(route('accounting.journals.store'), ['date' => self::DATE, 'description' => 'إيداع', 'save_as' => 'posted', 'lines' => [
             ['account_id' => $this->boxA->account_id, 'debit' => 50, 'credit' => 0],
@@ -1058,6 +1066,13 @@ class BranchBoxIsolationTest extends TestCase
             $group("G{$i}", (int) $account)->assertSessionHasErrors('account_id');
         }
         $this->assertSame(0, CustomerGroup::withoutGlobalScopes()->count());
+        // The form and its quick-create dialog offer only what is accepted: receivables, never a box's ledger or another role.
+        $options = collect($this->get(route('sales.customer-groups.create'))->assertOk()->viewData('page')['props']['accounts'])->pluck('id')->map(fn ($id) => (int) $id);
+        $looked = collect($this->getJson(route('lookup.list', 'accounts').'?type=asset&receivables=1')->assertOk()->json('data'))->pluck('id')->map(fn ($id) => (int) $id);
+        foreach ([$options, $looked] as $list) {
+            $this->assertSame([], $list->intersect([(int) $this->boxB->account_id, (int) $this->boxA->account_id, $this->role('default_cash'), $this->role('vat_input')])->values()->all());
+            $this->assertContains($this->role('receivables'), $list->all());
+        }
 
         // A group without an account of its own: its customers' receipts post to the general receivables account,
         // so giving it one later would split their balances (as moving it from one account to another does).
@@ -1173,6 +1188,33 @@ class BranchBoxIsolationTest extends TestCase
         $this->assertNotContains($costed->id, collect($props['chartAccounts'])->pluck('id')->map(fn ($id) => (int) $id)->all());
         $groupOf = fn (string $role) => (int) Account::withoutGlobalScopes()->whereKey($this->role($role))->value('parent_id');
         $this->assertSame(['cash' => $groupOf('default_cash'), 'bank' => $groupOf('default_bank')], array_map('intval', $props['ledgerParents']));
+
+        // Nor an account the settings post to for other branches (a customer group's receivables, an asset category's
+        // account, another branch's recurring entry), a switched-off account, or one of credit nature. Neither the form
+        // nor the quick-create dialog offers one; a recurring entry of the box's own branch is no obstacle.
+        $make = fn (string $code, array $extra = []) => Account::create($extra + ['code' => $code, 'name_ar' => "حساب {$code}", 'type' => 'asset', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true]);
+        $template = fn (int $branch, int $account) => RecurringJournal::withoutEvents(fn () => RecurringJournal::create(['company_id' => $this->company->id, 'branch_id' => $branch,
+            'name' => 'شهري', 'description' => 'شهري', 'frequency' => 'monthly', 'next_run_date' => self::DATE, 'is_active' => true, 'created_by' => $this->owner->id, 'lines' => [
+                ['account_id' => $account, 'debit' => 10, 'credit' => 0], ['account_id' => $this->role('general_expense'), 'debit' => 0, 'credit' => 10],
+            ]]));
+        [$receivables, $equipment, $planned, $off, $contra, $ownPlanned] = [$make('11291'), $make('11292'), $make('11293'), $make('11294', ['is_active' => false]), $make('11295', ['nature' => 'credit']), $make('11296')];
+        CustomerGroup::create(['code' => 'VIP', 'name' => 'كبار العملاء', 'account_id' => $receivables->id, 'is_active' => true]);
+        AssetCategory::create(['name_ar' => 'معدات', 'useful_life_months' => 60, 'depreciation_method' => 'straight_line', 'asset_account_id' => $equipment->id,
+            'accumulated_account_id' => $make('11297', ['nature' => 'credit'])->id, 'expense_account_id' => $this->role('general_expense')]);
+        $template($this->b->id, $planned->id);
+        $template($this->a->id, $ownPlanned->id);
+        $refused = [$receivables->id, $equipment->id, $planned->id, $off->id, $contra->id];
+        $offered = collect($this->get(route('finance.banks.create'))->viewData('page')['props']['chartAccounts'])->pluck('id')->map(fn ($id) => (int) $id);
+        $looked = collect($this->getJson(route('lookup.list', 'accounts').'?type=asset&box_ledger=1')->assertOk()->json('data'))->pluck('id')->map(fn ($id) => (int) $id);
+        foreach ([$offered, $looked] as $list) {
+            $this->assertSame([], $list->intersect([...$refused, $costed->id, $this->role('default_cash'), (int) $this->boxA->account_id, (int) $this->boxB->account_id])->values()->all());
+            $this->assertContains($ownPlanned->id, $list->all());
+        }
+        foreach ($refused as $account) {
+            $box("صندوق على {$account}", $account)->assertSessionHasErrors('account_id');
+        }
+        $this->assertSame(0, BankAccount::withoutGlobalScopes()->whereIn('account_id', $refused)->count());
+        $box('صندوق قيد متكرر أ', $ownPlanned->id)->assertSessionHasNoErrors();
 
         // An asset account of its own branch with no other postings is fine.
         $own = Account::create(['code' => '11199', 'name_ar' => 'بنك أ', 'type' => 'asset', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true]);

@@ -44,7 +44,7 @@ class CustomerGroupController extends Controller
 
     public function edit(CustomerGroup $group): Response
     {
-        return Inertia::render('Sales/CustomerGroups/Form', ['group' => $group] + $this->lookups());
+        return Inertia::render('Sales/CustomerGroups/Form', ['group' => $group] + $this->lookups($group));
     }
 
     public function store(Request $request)
@@ -86,9 +86,10 @@ class CustomerGroupController extends Controller
         return redirect()->route('sales.customer-groups.index')->with('success', 'تم حذف المجموعة');
     }
 
-    protected function lookups(): array
+    /** Only accounts validated() accepts (CustomerGroup::accountOptions), the group's own included. */
+    protected function lookups(?CustomerGroup $group = null): array
     {
-        return ['accounts' => Account::where('type', 'asset')->where('is_parent', false)->where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_ar'])];
+        return ['accounts' => CustomerGroup::accountOptions($group)->orderBy('code')->get(['id', 'code', 'name_ar'])];
     }
 
     protected function validated(Request $request, ?CustomerGroup $group = null): array

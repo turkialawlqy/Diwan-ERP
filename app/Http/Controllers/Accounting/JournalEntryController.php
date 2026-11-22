@@ -272,7 +272,12 @@ class JournalEntryController extends Controller
                 continue;
             }
             $model = $models[$line['party_type'] ?? ''] ?? null;
-            if (! $model || ! $model::withoutGlobalScopes()->where('company_id', $companyId)->whereKey($line['party_id'])->exists()) {
+            $query = $model ? $model::withoutGlobalScopes()->where('company_id', $companyId) : null;
+            // A box of a branch the user may not work in answers as one that does not exist.
+            if ($model === BankAccount::class && ($user = auth()->user())) {
+                $query->inBranchesOf($user);
+            }
+            if (! $query || ! $query->whereKey($line['party_id'])->exists()) {
                 throw ValidationException::withMessages(["lines.{$i}.party_id" => 'الطرف المحدد في السطر غير موجود في منشأتك.']);
             }
         }

@@ -792,6 +792,8 @@
     "يرحّل النظام على حسابات الصناديق والبنوك بلا مركز تكلفة؛ لا يُشترط لهذا الحساب مركز تكلفة.": "The system posts to cash box and bank accounts without a cost center; this account cannot require one.",
     "هذا الحساب يتطلب مركز تكلفة، والنظام يرحّل على الصندوق بلا مركز تكلفة؛ اختر غيره أو اتركه فارغًا لينشأ للصندوق حساب خاص به.": "This account requires a cost center, but the system posts to a box without one; choose another or leave it empty to create a ledger account for the box.",
     "الصندوق والبنك الافتراضيان والعهد النقدية يرحّل عليها النظام بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.": "The system posts to the default cash, the default bank and petty cash without a cost center; choose an account that does not require one.",
+    "هذا الحساب موقوف أو ليس من طبيعة مدينة؛ اختر غيره أو اتركه فارغًا لينشأ للصندوق حساب خاص به.": "This account is switched off or not of debit nature; choose another or leave it empty to create a ledger account for the box.",
+    "يرحّل النظام على هذا الحساب من إعدادات أخرى (مجموعة عملاء أو فئة أصول أو قيد متكرر لفرع آخر)؛ اتركه فارغًا لينشأ للصندوق حساب خاص به.": "The system posts to this account from other settings (a customer group, an asset category or another branch's recurring entry); leave it empty to create a ledger account for the box.",
     "لا يمكن حذف حساب مربوط بصندوق أو بنك.": "An account linked to a cash box or bank cannot be deleted.",
     "لا يمكن تحويل حساب يرحّل عليه النظام (صندوق أو بنك أو حساب مربوط في ربط الحسابات) إلى حساب رئيسي.": "An account the system posts to (a cash box, a bank, or an account in the account mapping) cannot become a parent account.",
     "اختر حساب إيرادات فرعيًا.": "Choose a revenue sub-account.",

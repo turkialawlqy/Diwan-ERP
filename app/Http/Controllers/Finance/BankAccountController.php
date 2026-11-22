@@ -9,7 +9,6 @@ use App\Models\PosRegister;
 use App\Services\Accounting\AccountMap;
 use App\Services\ActiveBranch;
 use App\Services\Finance\BankAccountService;
-use App\Services\TenantManager;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -65,18 +64,10 @@ class BankAccountController extends Controller
         ];
     }
 
-    /**
-     * Asset leaves a new box may be linked to (store() refuses the others): not an account the system posts to for
-     * every branch, nor another box's ledger, nor one that needs a cost center. An edited box keeps showing its own.
-     */
+    /** Asset leaves a new box may be linked to (BankAccount::linkableLedgers; store() refuses the others). */
     protected function linkableAccounts(?BankAccount $bank = null)
     {
-        $ledgers = BankAccount::withoutGlobalScopes()->where('company_id', app(TenantManager::class)->getTenantId())->whereNotNull('account_id')->pluck('account_id')->all();
-        $taken = array_merge(array_values(array_filter(app(AccountMap::class)->all())), $ledgers);
-
-        return Account::where('type', 'asset')->where('is_parent', false)
-            ->where(fn ($q) => $q->whereNotIn('id', $taken)->where('requires_cost_center', false)->when($bank?->account_id, fn ($q, $id) => $q->orWhere('id', $id)))
-            ->orderBy('code')->get(['id', 'code', 'name_ar']);
+        return BankAccount::linkableLedgers($bank)->orderBy('code')->get(['id', 'code', 'name_ar']);
     }
 
     public function store(Request $request)
@@ -117,6 +108,12 @@ class BankAccountController extends Controller
 
             return;
         }
+        // A switched-off account, or one of credit nature (an allowance, accumulated depreciation), is no box's balance.
+        if (! $account->is_active || $account->nature !== 'debit') {
+            $fail('هذا الحساب موقوف أو ليس من طبيعة مدينة؛ اختر غيره أو اتركه فارغًا لينشأ للصندوق حساب خاص به.');
+
+            return;
+        }
         // Vouchers, transfers and POS post to a box's ledger without a cost center: each would be refused.
         if ($account->requires_cost_center) {
             $fail('هذا الحساب يتطلب مركز تكلفة، والنظام يرحّل على الصندوق بلا مركز تكلفة؛ اختر غيره أو اتركه فارغًا لينشأ للصندوق حساب خاص به.');
@@ -131,6 +128,8 @@ class BankAccountController extends Controller
             $fail('يرحّل النظام على هذا الحساب من كل الفروع (مثل الصندوق أو البنك الافتراضي)؛ اتركه فارغًا لينشأ للصندوق حساب خاص به.');
         } elseif (BankAccount::boxLedgers([$accountId])) {
             $fail('هذا الحساب مربوط بصندوق أو بنك آخر؛ اتركه فارغًا لينشأ للصندوق حساب خاص به.');
+        } elseif (in_array($accountId, BankAccount::configuredAccounts($branch), true)) {
+            $fail('يرحّل النظام على هذا الحساب من إعدادات أخرى (مجموعة عملاء أو فئة أصول أو قيد متكرر لفرع آخر)؛ اتركه فارغًا لينشأ للصندوق حساب خاص به.');
         } elseif (DB::table('journal_entry_lines as l')->join('journal_entries as e', 'e.id', '=', 'l.journal_entry_id')
             ->where('l.company_id', $account->company_id)->where('l.account_id', $accountId)->whereNotNull('e.branch_id')->where('e.branch_id', '!=', $branch)->exists()) {
             $fail('على هذا الحساب حركات فرع آخر؛ اتركه فارغًا لينشأ للصندوق حساب خاص به.');
