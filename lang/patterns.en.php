@@ -118,4 +118,6 @@ return [
     'كل الفروع ترحّل على حساب «{}»: لا يكون حساب صندوق أو بنك لفرع واحد.' => 'Every branch posts to the “{}” account: it cannot be the account of one branch\'s cash box or bank.',
     'حساب «{}» لا يكون حساب صندوق أو بنك.' => 'The “{}” account cannot be the account of a cash box or bank.',
     'سطر {}: الحساب {} مربوط بصندوق أو بنك لفرع آخر.' => 'Row {}: account {} is linked to a cash box or bank account of another branch.',
+    'سطر {}: الحساب الأب {} عليه قيود؛ لا يمكن أن يصبح حساباً رئيسياً.' => 'Row {}: parent account {} has postings; it cannot become a parent account.',
+    'سطر {}: الحساب الأب {} يرحّل عليه النظام (صندوق أو بنك أو حساب مربوط في ربط الحسابات)؛ لا يمكن أن يصبح حساباً رئيسياً.' => 'Row {}: the system posts to parent account {} (a cash box, a bank, or an account in the account mapping); it cannot become a parent account.',
 ];

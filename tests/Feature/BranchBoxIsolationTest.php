@@ -1001,15 +1001,23 @@ class BranchBoxIsolationTest extends TestCase
         $this->put(route('accounting.mappings.update'), ['mapping' => ['default_cash' => $this->boxA->account_id]])->assertSessionHasErrors('mapping.default_cash');
         // Any other role takes no box at all, a shared one included; nothing of a refused request is saved.
         $this->put(route('accounting.mappings.update'), ['mapping' => ['receivables' => $this->role('receivables'), 'vat_input' => $shared->account_id]])->assertSessionHasErrors('mapping.vat_input');
+        // Nor does a cash role sit on an account that needs a cost center: every box-less voucher, transfer and POS
+        // posting would be refused.
+        $costed = Account::create(['code' => '11197', 'name_ar' => 'صندوق بمركز تكلفة', 'type' => 'asset', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true, 'requires_cost_center' => true]);
+        foreach (['default_cash', 'petty_cash'] as $role) {
+            $this->put(route('accounting.mappings.update'), ['mapping' => [$role => $costed->id]])->assertSessionHasErrors("mapping.{$role}");
+        }
         $settings = ['name' => $this->company->name];
         foreach (['sales_revenue', 'purchases_cogs', 'vat_output', 'vat_input', 'receivables', 'payables', 'default_cash', 'default_bank'] as $role) {
             $settings["acc_{$role}_id"] = $this->role($role);
         }
         $this->put(route('settings.update'), ['acc_default_cash_id' => $this->boxB->account_id] + $settings)->assertSessionHasErrors('acc_default_cash_id');
         $this->put(route('settings.update'), ['acc_receivables_id' => $this->boxA->account_id] + $settings)->assertSessionHasErrors('acc_receivables_id');
+        $this->put(route('settings.update'), ['acc_default_bank_id' => $costed->id] + $settings)->assertSessionHasErrors('acc_default_bank_id');
         $map->flush();
         $this->assertSame($cash, $this->role('default_cash'));
         $this->assertSame($this->role('receivables'), (int) $map->find('receivables'));
+        $this->assertNotContains($costed->id, array_map('intval', array_filter($map->all())));
 
         // A cash role may sit on a box shared by all branches; saving the page unchanged is fine.
         $this->put(route('accounting.mappings.update'), ['mapping' => ['default_cash' => $shared->account_id]])->assertSessionHasNoErrors();
@@ -1081,16 +1089,57 @@ class BranchBoxIsolationTest extends TestCase
         // Branch B's bank switched off or moved by a branch-A user; a box ledger without postings yet retyped as revenue.
         $edit((int) $this->bankB->account_id, ['is_active' => false])->assertSessionHas('error');
         $edit((int) $this->bankB->account_id, ['parent_id' => null])->assertSessionHas('error');
+        // Nor renamed, recoded or made to need a cost center (which would refuse every voucher on it just the same).
+        $before = Account::withoutGlobalScopes()->findOrFail($this->bankB->account_id)->only(['code', 'name_ar', 'cash_flow_category', 'requires_cost_center']);
+        foreach ([['name_ar' => 'بنك ب (معدّل)'], ['code' => '99990'], ['requires_cost_center' => true], ['cash_flow_category' => 'financing']] as $change) {
+            $edit((int) $this->bankB->account_id, $change)->assertSessionHas('error', 'هذا الحساب مربوط بصندوق أو بنك لفرع آخر.');
+        }
+        $this->assertSame($before, Account::withoutGlobalScopes()->findOrFail($this->bankB->account_id)->only(['code', 'name_ar', 'cash_flow_category', 'requires_cost_center']));
+        $edit((int) $this->bankB->account_id, [])->assertSessionMissing('error'); // saved as it is: nothing to refuse
         $edit((int) $fresh->account_id, ['type' => 'revenue', 'nature' => 'credit'])->assertSessionHas('error');
         $this->delete(route('accounting.accounts.destroy', $fresh->account_id))->assertSessionHas('error');
         $this->assertSame(['asset', true], array_values(Account::withoutGlobalScopes()->findOrFail($fresh->account_id)->only(['type', 'is_active'])));
         $this->assertTrue((bool) Account::withoutGlobalScopes()->whereKey($this->bankB->account_id)->value('is_active'));
+
+        // Vouchers post to a box's ledger (and to the default cash they fall back on) without a cost center: no box's ledger
+        // needs one, its own branch's included. Any other account still may.
+        foreach ([(int) $this->boxA->account_id, $this->role('default_cash')] as $account) {
+            $edit($account, ['requires_cost_center' => true])->assertSessionHas('error', 'يرحّل النظام على حسابات الصناديق والبنوك بلا مركز تكلفة؛ لا يُشترط لهذا الحساب مركز تكلفة.');
+            $this->assertFalse((bool) Account::withoutGlobalScopes()->whereKey($account)->value('requires_cost_center'));
+        }
+        $edit($this->role('general_expense'), ['requires_cost_center' => true])->assertSessionMissing('error');
+        $this->assertTrue((bool) Account::withoutGlobalScopes()->whereKey($this->role('general_expense'))->value('requires_cost_center'));
 
         // Its own branch's box: renamed and switched off by a user of that branch.
         $edit((int) $this->boxA->account_id, ['name_ar' => 'صندوق الفرع أ'])->assertSessionHasNoErrors()->assertSessionMissing('error');
         $this->inBranch($this->userIn([$this->b], 'accountant'));
         $edit((int) $fresh->account_id, ['is_active' => false])->assertSessionMissing('error');
         $this->assertFalse((bool) Account::withoutGlobalScopes()->whereKey($fresh->account_id)->value('is_active'));
+    }
+
+    /** The chart's Excel import keeps the chart screen's rules: no box ledger or role account turns into a group, and another branch's box ledger keeps its name. */
+    public function test_the_chart_import_leaves_the_ledgers_of_boxes_alone(): void
+    {
+        $this->world();
+        $this->inBranch($this->owner, $this->b->id);
+        $fresh = $this->openBox('صندوق ب2', 'cash', 0); // its ledger has no postings yet
+        $code = fn (int $accountId) => (string) Account::withoutGlobalScopes()->whereKey($accountId)->value('code');
+        [$freshCode, $bankCode, $roleCode] = [$code((int) $fresh->account_id), $code((int) $this->bankB->account_id), $code($this->role('vat_input'))];
+        $this->inBranch($this->userIn([$this->a], 'accountant', ['admin.data.use']));
+        $import = fn (string $csv) => $this->post(route('data-transfer.import', 'accounts'), ['file' => UploadedFile::fake()->createWithContent('accounts.csv', $csv)]);
+
+        // A child under a box's ledger or a role account (neither has postings yet) would make it a group account.
+        $import("code,name_ar,parent_code\n999101,فرعي,{$freshCode}")->assertSessionHasErrors('file');
+        $import("code,name_ar,parent_code\n999102,فرعي,{$roleCode}")->assertSessionHasErrors('file');
+        // Another branch's bank renamed.
+        $import("code,name_ar,name_en\n{$bankCode},حساب مزوّر,Fake")->assertSessionHasErrors('file');
+        $this->assertSame([false, false], [(bool) Account::withoutGlobalScopes()->whereKey($fresh->account_id)->value('is_parent'), (bool) Account::withoutGlobalScopes()->whereKey($this->role('vat_input'))->value('is_parent')]);
+        $this->assertSame('بنك ب', Account::withoutGlobalScopes()->whereKey($this->bankB->account_id)->value('name_ar'));
+        $this->assertSame(0, Account::withoutGlobalScopes()->whereIn('code', ['999101', '999102'])->count());
+
+        // A chart exported and imported again (that ledger's name unchanged) still goes through, new accounts included.
+        $import("code,name_ar,type\n{$bankCode},بنك ب,\n999103,حساب عادي,expense")->assertSessionHasNoErrors();
+        $this->assertSame(1, Account::withoutGlobalScopes()->where('code', '999103')->count());
     }
 
     /** A new box on an account nobody else posts to only: not a company-wide role account, another box's ledger, nor one with another branch's postings. */
@@ -1114,6 +1163,16 @@ class BranchBoxIsolationTest extends TestCase
         // What the form offers: none of those.
         $offered = collect($this->get(route('finance.banks.create'))->assertOk()->viewData('page')['props']['chartAccounts'])->pluck('id')->map(fn ($id) => (int) $id);
         $this->assertSame([], $offered->intersect([$this->role('default_cash'), $this->role('vat_input'), (int) $this->boxA->account_id, (int) $this->boxB->account_id])->values()->all());
+
+        // Nor one that needs a cost center: every voucher, transfer and POS posting to the box would be refused. The form
+        // does not offer it, and opens an account made from its picker as an asset under the group of the automatic ledgers.
+        $costed = Account::create(['code' => '11198', 'name_ar' => 'بنك بمركز تكلفة', 'type' => 'asset', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true, 'requires_cost_center' => true]);
+        $box('بنك بمركز تكلفة', $costed->id)->assertSessionHasErrors('account_id');
+        $this->assertSame(0, BankAccount::withoutGlobalScopes()->where('account_id', $costed->id)->count());
+        $props = $this->get(route('finance.banks.create'))->assertOk()->viewData('page')['props'];
+        $this->assertNotContains($costed->id, collect($props['chartAccounts'])->pluck('id')->map(fn ($id) => (int) $id)->all());
+        $groupOf = fn (string $role) => (int) Account::withoutGlobalScopes()->whereKey($this->role($role))->value('parent_id');
+        $this->assertSame(['cash' => $groupOf('default_cash'), 'bank' => $groupOf('default_bank')], array_map('intval', $props['ledgerParents']));
 
         // An asset account of its own branch with no other postings is fine.
         $own = Account::create(['code' => '11199', 'name_ar' => 'بنك أ', 'type' => 'asset', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true]);
@@ -1344,16 +1403,27 @@ class BranchBoxIsolationTest extends TestCase
         $this->world();
         $this->inBranch($this->owner, $this->b->id);
         $this->post(route('accounting.reconciliations.store'), ['bank_account_id' => $this->bankB->id, 'statement_date' => '2026-06-30', 'statement_balance' => 4321.5])->assertRedirect();
-        $reconciliation = BankReconciliation::withoutGlobalScopes()->firstOrFail();
+        $reconciliation = BankReconciliation::withoutGlobalScopes()->where('bank_account_id', $this->bankB->id)->firstOrFail();
+        // And a completed one (a statement of 0: nothing to tick).
+        $this->post(route('accounting.reconciliations.store'), ['bank_account_id' => $this->boxB->id, 'statement_date' => '2026-06-30', 'statement_balance' => 0])->assertRedirect();
+        $completed = BankReconciliation::withoutGlobalScopes()->where('bank_account_id', $this->boxB->id)->firstOrFail();
+        $this->put(route('accounting.reconciliations.update', $completed->id), ['line_ids' => [], 'complete' => true])->assertSessionHasNoErrors();
+        $this->assertSame('completed', $completed->fresh()->status);
 
         $this->inBranch($this->userIn([$this->a], 'accountant'));
         $listed = $this->get(route('accounting.reconciliations.index'))->assertOk()->viewData('page')['props']['reconciliations']['data'];
         $this->assertSame([], $listed);
         $this->get(route('accounting.reconciliations.show', $reconciliation->id))->assertNotFound();
         $this->put(route('accounting.reconciliations.update', $reconciliation->id), ['line_ids' => [], 'complete' => false])->assertNotFound();
+        // Whatever the request carries (here nothing valid) and whatever its status, the answer is that of a reconciliation
+        // that does not exist: neither its existence nor its status shows.
+        $answer = fn (int $id) => str_replace((string) $id, '#', (string) $this->putJson(route('accounting.reconciliations.update', $id), [])->assertNotFound()->json('message'));
+        $this->assertSame($answer(999999), $answer($reconciliation->id));
+        $this->assertSame($answer(999999), $answer($completed->id));
+        $this->assertSame(['draft', 'completed'], [$reconciliation->fresh()->status, $completed->fresh()->status]);
 
         $this->inBranch($this->owner, $this->b->id);
-        $this->assertCount(1, $this->get(route('accounting.reconciliations.index'))->assertOk()->viewData('page')['props']['reconciliations']['data']);
+        $this->assertCount(2, $this->get(route('accounting.reconciliations.index'))->assertOk()->viewData('page')['props']['reconciliations']['data']);
         $this->get(route('accounting.reconciliations.show', $reconciliation->id))->assertOk();
     }
 

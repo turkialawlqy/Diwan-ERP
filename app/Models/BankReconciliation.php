@@ -19,4 +19,16 @@ class BankReconciliation extends Model
     {
         return $this->belongsTo(BankAccount::class);
     }
+
+    /**
+     * A reconciliation has no branch of its own: as in the index, a route finds it only with a bank the branch scope
+     * shows (archived ones too). Another branch's gets the same 404 as one that does not exist, whatever the request
+     * carries, so neither its existence nor its status shows.
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->resolveRouteBindingQuery($this, $value, $field)
+            ->whereHas('bankAccount', fn ($q) => $q->withTrashed())
+            ->first();
+    }
 }

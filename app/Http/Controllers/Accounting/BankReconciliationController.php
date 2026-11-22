@@ -102,6 +102,9 @@ class BankReconciliationController extends Controller
      */
     public function update(Request $request, BankReconciliation $reconciliation)
     {
+        // The bank first: another branch's reconciliation answers nothing about its status or the request.
+        $accountId = $this->bankOf($reconciliation)->account_id;
+
         if ($reconciliation->status === 'completed') {
             return back()->with('error', 'التسوية مكتملة ولا يمكن تعديلها.');
         }
@@ -111,8 +114,6 @@ class BankReconciliationController extends Controller
             'line_ids.*' => 'integer',
             'complete' => 'boolean',
         ]);
-
-        $accountId = $this->bankOf($reconciliation)->account_id;
 
         DB::transaction(function () use ($validated, $reconciliation, $accountId, $request) {
             DB::table('journal_entry_lines')

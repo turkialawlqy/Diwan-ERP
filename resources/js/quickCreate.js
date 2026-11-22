@@ -175,7 +175,7 @@ export const quickCreate = {
         fields: () => [
             text('code', 'رمز المجموعة', { required: true }),
             text('name', 'اسم المجموعة', { required: true }),
-            { key: 'account_id', label: 'الحساب المحاسبي المرتبط', type: 'select', lookup: 'accounts', query: { type: 'asset' }, entity: 'account', empty: 'الذمم العامة', span: 2 },
+            { key: 'account_id', label: 'الحساب المحاسبي المرتبط', type: 'select', lookup: 'accounts', query: { type: 'asset' }, entity: 'account', defaults: { type: 'asset' }, empty: 'الذمم العامة', span: 2 },
             text('description', 'الوصف', { span: 2 }),
         ],
     },

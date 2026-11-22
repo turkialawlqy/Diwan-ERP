@@ -6,7 +6,8 @@ import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 
-const props = defineProps({ chartAccounts: Array, bank: { type: Object, default: null } });
+// ledgerParents: the group a box's own ledger opens under, by box type; an account made from the ledger picker goes there as an asset.
+const props = defineProps({ chartAccounts: Array, ledgerParents: { type: Object, default: () => ({}) }, bank: { type: Object, default: null } });
 const editing = props.bank;
 
 const form = useForm({
@@ -108,7 +109,7 @@ const submitAccount = () => (editing ? form.put(route('finance.banks.update', ed
             
                             <div>
                                 <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_banks_form.link_to_a_chart_of_accounts_acco') }}</label>
-                                <SelectCreate v-model="form.account_id" :options="chartAccounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :placeholder="$t('fin_finance_banks_form.own_ledger_account')" :empty-label="$t('fin_finance_banks_form.own_ledger_account')" />
+                                <SelectCreate v-model="form.account_id" :options="chartAccounts" entity="account" :defaults="{ type: 'asset', parent_id: ledgerParents[form.type] || '' }" :disabled="!!editing" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :placeholder="$t('fin_finance_banks_form.own_ledger_account')" :empty-label="$t('fin_finance_banks_form.own_ledger_account')" />
                             </div>
             
                             <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">

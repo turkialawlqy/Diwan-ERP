@@ -974,6 +974,8 @@ class DataTransferController extends Controller
     protected function importAccounts(array $records): string
     {
         $accounts = Account::query()->get()->keyBy(fn ($a) => (string) $a->code);
+        // The ledger of a box of a branch the user may not work in is not theirs to rename (as in AccountController::update).
+        $hidden = BankAccount::hiddenLedgers(collect($records)->map(fn ($row) => $accounts->get((string) $row['code'])?->id)->filter());
         $errors = [];
         $planned = [];
         // Parents first: shorter codes before longer ones.
@@ -981,7 +983,14 @@ class DataTransferController extends Controller
 
         foreach ($records as $line => $row) {
             $code = (string) $row['code'];
-            if ($accounts->has($code) || isset($planned[$code])) {
+            $existing = $accounts->get($code);
+            if ($existing && in_array((int) $existing->id, $hidden, true)
+                && collect(array_filter(['name_ar' => $row['name_ar'] ?? null, 'name_en' => $row['name_en'] ?? null]))->contains(fn ($name, $field) => (string) $name !== (string) $existing->{$field})) {
+                $errors[] = "سطر {$line}: الحساب {$code} مربوط بصندوق أو بنك لفرع آخر.";
+
+                continue;
+            }
+            if ($existing || isset($planned[$code])) {
                 continue;
             }
             $parentCode = isset($row['parent_code']) ? (string) $row['parent_code'] : null;
@@ -993,6 +1002,12 @@ class DataTransferController extends Controller
             }
             if ($parent instanceof Account && ! $parent->is_parent && DB::table('journal_entry_lines')->where('account_id', $parent->id)->exists()) {
                 $errors[] = "سطر {$line}: الحساب الأب {$parentCode} عليه قيود؛ لا يمكن أن يصبح حساباً رئيسياً.";
+
+                continue;
+            }
+            // A box's ledger or a mapped role account, even without postings yet: every posting to it would be refused.
+            if ($parent instanceof Account && ! $parent->is_parent && $parent->isPostedBySystem()) {
+                $errors[] = "سطر {$line}: الحساب الأب {$parentCode} يرحّل عليه النظام (صندوق أو بنك أو حساب مربوط في ربط الحسابات)؛ لا يمكن أن يصبح حساباً رئيسياً.";
 
                 continue;
             }

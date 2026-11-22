@@ -28,7 +28,7 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
             <Field :label="$t('s_group_form.group_code')" :error="form.errors.code"><input v-model="form.code" required maxlength="30" :class="input" class="font-mono" placeholder="CG001" /></Field>
             <Field :label="$t('s_group_form.group_name')" :error="form.errors.name"><input v-model="form.name" required :class="input" /></Field>
             <Field :label="$t('s_group_form.linked_ledger_account')" :error="form.errors.account_id" :hint="$t('s_group_form.receivables_of_this_group_s_cust')">
-                <SelectCreate v-model="form.account_id" :options="accounts" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('s_group_form.general_receivables')" />
+                <SelectCreate v-model="form.account_id" :options="accounts" entity="account" :defaults="{ type: 'asset' }" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('s_group_form.general_receivables')" />
             </Field>
             <label class="flex items-center gap-2 font-bold text-slate-700 pt-6"><input type="checkbox" v-model="form.is_active" class="rounded" /> {{ $t('s_group_form.the_group_is_active') }}</label>
             <Field :label="$t('s_group_form.description')" :error="form.errors.description" class="md:col-span-2"><input v-model="form.description" maxlength="500" :class="input" /></Field>

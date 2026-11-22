@@ -48,13 +48,26 @@ class BankAccountController extends Controller
     {
         return Inertia::render('Finance/Banks/Form', [
             'chartAccounts' => $this->linkableAccounts($bank),
+            'ledgerParents' => $this->ledgerParents(),
             'bank' => $bank,
         ]);
     }
 
+    /** The group a box's own ledger opens under, by box type (BankAccountService::createLedgerAccount): one made by hand from the form goes there too. */
+    protected function ledgerParents(): array
+    {
+        $roles = app(AccountMap::class)->all();
+        $parents = Account::whereIn('id', array_filter([$roles['default_cash'] ?? null, $roles['default_bank'] ?? null]))->pluck('parent_id', 'id');
+
+        return [
+            'cash' => $parents[$roles['default_cash'] ?? 0] ?? null,
+            'bank' => $parents[$roles['default_bank'] ?? 0] ?? null,
+        ];
+    }
+
     /**
      * Asset leaves a new box may be linked to (store() refuses the others): not an account the system posts to for
-     * every branch, nor another box's ledger. An edited box keeps showing its own.
+     * every branch, nor another box's ledger, nor one that needs a cost center. An edited box keeps showing its own.
      */
     protected function linkableAccounts(?BankAccount $bank = null)
     {
@@ -62,7 +75,7 @@ class BankAccountController extends Controller
         $taken = array_merge(array_values(array_filter(app(AccountMap::class)->all())), $ledgers);
 
         return Account::where('type', 'asset')->where('is_parent', false)
-            ->where(fn ($q) => $q->whereNotIn('id', $taken)->when($bank?->account_id, fn ($q, $id) => $q->orWhere('id', $id)))
+            ->where(fn ($q) => $q->whereNotIn('id', $taken)->where('requires_cost_center', false)->when($bank?->account_id, fn ($q, $id) => $q->orWhere('id', $id)))
             ->orderBy('code')->get(['id', 'code', 'name_ar']);
     }
 
@@ -101,6 +114,12 @@ class BankAccountController extends Controller
         $account = Account::find($accountId);
         if (! $account || $account->type !== 'asset' || $account->is_parent) {
             $fail('اختر حسابًا فرعيًا من الأصول، أو اتركه فارغًا لينشأ للصندوق حساب خاص به.');
+
+            return;
+        }
+        // Vouchers, transfers and POS post to a box's ledger without a cost center: each would be refused.
+        if ($account->requires_cost_center) {
+            $fail('هذا الحساب يتطلب مركز تكلفة، والنظام يرحّل على الصندوق بلا مركز تكلفة؛ اختر غيره أو اتركه فارغًا لينشأ للصندوق حساب خاص به.');
 
             return;
         }

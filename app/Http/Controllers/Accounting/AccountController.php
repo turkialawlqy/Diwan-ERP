@@ -144,16 +144,19 @@ class AccountController extends Controller
         }
 
         // A box's ledger is that box's balance: it stays an asset of debit nature (a revenue voucher would credit it), and
-        // a box of a branch the user may not work in is not theirs to move or switch off.
+        // a box of a branch the user may not work in is not theirs to change at all: renamed, recoded, moved, switched
+        // off or made to need a cost center (which refuses every posting to it just the same).
         if (BankAccount::boxLedgers([$account->id])) {
             if ($validated['type'] !== $account->type || $validated['nature'] !== $account->nature) {
                 return back()->with('error', 'هذا الحساب حساب صندوق أو بنك؛ لا يتغير نوعه ولا طبيعته.');
             }
-            $moved = (array_key_exists('parent_id', $validated) && (int) $validated['parent_id'] !== (int) $account->parent_id)
-                || (array_key_exists('is_active', $validated) && (bool) $validated['is_active'] !== (bool) $account->is_active);
-            if ($moved && BankAccount::hiddenLedgers([$account->id])) {
+            if (BankAccount::hiddenLedgers([$account->id]) && (clone $account)->fill($validated)->isDirty()) {
                 return back()->with('error', 'هذا الحساب مربوط بصندوق أو بنك لفرع آخر.');
             }
+        }
+
+        if (! empty($validated['requires_cost_center']) && ! $account->requires_cost_center && $this->postedWithoutCostCenter($account)) {
+            return back()->with('error', 'يرحّل النظام على حسابات الصناديق والبنوك بلا مركز تكلفة؛ لا يُشترط لهذا الحساب مركز تكلفة.');
         }
 
         // The balance is derived from posted journal lines and is never edited directly.
@@ -169,13 +172,25 @@ class AccountController extends Controller
             ->with('success', 'تم تحديث بيانات الحساب بنجاح');
     }
 
+    /**
+     * A box's ledger, or a cash role a voucher without a box falls back on (default cash, bank, petty cash): vouchers,
+     * transfers and POS post to it without a cost center, so requiring one would refuse every such posting.
+     */
+    protected function postedWithoutCostCenter(Account $account): bool
+    {
+        $cashRoles = array_intersect_key(app(AccountMap::class)->all(), array_flip(AccountMap::CASH_ROLES));
+
+        return BankAccount::boxLedgers([$account->id]) !== []
+            || in_array((int) $account->id, array_map('intval', array_filter($cashRoles)), true);
+    }
+
     /** Why $account cannot become a group account, or null: its postings, its box, or a role mapped to it. */
     protected function groupProblem(Account $account): ?string
     {
         if ($account->journalLines()->exists()) {
             return 'لا يمكن تحويل حساب عليه حركات إلى حساب رئيسي.';
         }
-        if (BankAccount::boxLedgers([$account->id]) || in_array((int) $account->id, array_map('intval', array_filter(app(AccountMap::class)->all())), true)) {
+        if ($account->isPostedBySystem()) {
             return 'لا يمكن تحويل حساب يرحّل عليه النظام (صندوق أو بنك أو حساب مربوط في ربط الحسابات) إلى حساب رئيسي.';
         }
 

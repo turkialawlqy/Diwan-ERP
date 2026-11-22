@@ -114,6 +114,11 @@ class AccountMap
         if ($type && $account->type !== $type) {
             return 'حساب «'.self::ROLES[$role][0].'» يجب أن يكون من نوع '.self::TYPE_LABELS[$type].'.';
         }
+        // Vouchers without a box, transfers and POS post to a cash role without a cost center: each would be refused.
+        // The account already mapped is left alone, like boxProblem().
+        if (in_array($role, self::CASH_ROLES, true) && $account->requires_cost_center && (int) $account->id !== (int) $this->find($role, $companyId)) {
+            return 'الصندوق والبنك الافتراضيان والعهد النقدية يرحّل عليها النظام بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.';
+        }
 
         return $this->boxProblem($role, (int) $account->id, $companyId);
     }
