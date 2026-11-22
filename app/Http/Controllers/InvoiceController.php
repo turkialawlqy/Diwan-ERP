@@ -26,6 +26,7 @@ use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Services\ZatcaService;
 use App\Support\BranchOptions;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -103,16 +104,9 @@ class InvoiceController extends Controller
         $company = $tenantManager->getCompany();
 
         // First slice only; the form searches the rest via /lookup/*.
-        $customers = Customer::where('status', 'active')
-            ->orderBy('name')
-            ->limit(200)
-            ->get(['id', 'name', 'company_name', 'tax_number', 'phone', 'current_balance']);
+        $customers = PickerOptions::from(Customer::where('status', 'active')->orderBy('name'), ['id', 'name', 'company_name', 'tax_number', 'phone', 'current_balance']);
 
-        $products = Product::where('is_active', true)
-            ->with(['category', 'unit'])
-            ->orderBy('name_ar')
-            ->limit(200)
-            ->get(['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'purchase_price', 'tax_rate', 'unit_id', 'category_id', 'description']);
+        $products = PickerOptions::from(Product::where('is_active', true)->with('unit:id,name_ar')->orderBy('name_ar'), ['id', 'name_ar', 'name_en', 'sku', 'barcode', 'selling_price', 'purchase_price', 'tax_rate', 'unit_id', 'category_id', 'description']);
 
         $categories = Category::where('is_active', true)->get(['id', 'name_ar', 'name_en']);
         if ($categories->isEmpty() && $company) {
@@ -170,6 +164,7 @@ class InvoiceController extends Controller
         return Inertia::render('Sales/Invoices/Create', [
             'customers' => $customers,
             'products' => $products,
+            'suggestedSku' => $this->peekNumber('product'), // the new-product dialog's code, as on the product page
             'categories' => $categories,
             'units' => $units,
             'warehouses' => $warehouses,

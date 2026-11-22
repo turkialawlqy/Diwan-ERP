@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\Accounting\BranchBalances;
+use App\Services\Accounting\CashFlowBalances;
 use App\Traits\Auditable;
 use App\Traits\BelongsToCompany;
 use App\Traits\BranchScoped;
@@ -48,6 +50,17 @@ class JournalEntry extends Model
     public const STATUS_POSTED = 'posted';
 
     public const STATUS_REVERSED = 'reversed';
+
+    protected static function booted(): void
+    {
+        // An entry already in the ledger, filed under another branch, takes its amounts along.
+        static::updated(function (JournalEntry $entry) {
+            if ($entry->wasChanged('branch_id') && in_array($entry->getOriginal('status'), [self::STATUS_POSTED, self::STATUS_REVERSED], true)) {
+                app(BranchBalances::class)->moveEntry($entry, $entry->getOriginal('branch_id'), $entry->branch_id);
+                app(CashFlowBalances::class)->moveEntry($entry, $entry->getOriginal('branch_id'), $entry->branch_id);
+            }
+        });
+    }
 
     public function source(): MorphTo
     {

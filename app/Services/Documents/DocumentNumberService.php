@@ -51,7 +51,8 @@ class DocumentNumberService
     }
 
     /**
-     * Preview the next number without reserving it (for "create" forms).
+     * Preview the next number without reserving it (for "create" forms): the number next()
+     * would give now, so a number already used is never offered.
      */
     public function peek(string $type, ?CarbonInterface $date = null, ?int $companyId = null): string
     {
@@ -61,11 +62,16 @@ class DocumentNumberService
         $scope = $this->scope($rule, $date);
         $prefix = $this->prefix($rule, $date);
 
-        $next = DB::table('document_sequences')
+        $next = (int) (DB::table('document_sequences')
             ->where(['company_id' => $companyId, 'type' => $type, 'scope' => $scope])
-            ->value('next_number') ?? $this->initialNumber($definition, $companyId, $prefix, $rule);
+            ->value('next_number') ?? $this->initialNumber($definition, $companyId, $prefix, $rule));
 
-        return $this->format($prefix, (int) $next, $rule['pad']);
+        // A number taken outside the sequence (typed as suggested, imported) is skipped, as next() skips it.
+        if ($this->exists($definition, $companyId, $this->format($prefix, $next, $rule['pad']))) {
+            $next = $this->firstFree($definition, $companyId, $prefix, (int) $rule['pad'], $next + 1);
+        }
+
+        return $this->format($prefix, $next, $rule['pad']);
     }
 
     protected function lockedRow(int $companyId, string $type, string $scope, string $prefix, array $definition, array $rule): object

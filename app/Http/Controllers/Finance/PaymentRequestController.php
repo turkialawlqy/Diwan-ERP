@@ -15,6 +15,9 @@ use App\Rules\BranchBox;
 use App\Services\Finance\PaymentRequestService;
 use App\Services\TenantManager;
 use App\Services\Workflow\ApprovalService;
+use App\Support\PickerOptions;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -23,6 +26,8 @@ use Inertia\Response;
 /** «طلبات الصرف»: request → approval → carried out as an expense voucher or supplier payment. */
 class PaymentRequestController extends Controller
 {
+    protected const INVOICE_COLUMNS = ['id', 'supplier_id', 'invoice_number', 'remaining_amount'];
+
     public function __construct(protected PaymentRequestService $service, protected ApprovalService $approvals) {}
 
     public function index(Request $request): Response
@@ -47,7 +52,19 @@ class PaymentRequestController extends Controller
     {
         abort_unless(in_array($paymentRequest->status, PaymentRequest::EDITABLE, true), 403);
 
-        return Inertia::render('Finance/PaymentRequests/Form', $this->options() + ['paymentRequest' => $paymentRequest]);
+        return Inertia::render('Finance/PaymentRequests/Form', $this->options($paymentRequest) + ['paymentRequest' => $paymentRequest]);
+    }
+
+    /** The form's list of open invoices: the chosen supplier's or everyone's, matched on the number and amount it shows. */
+    public function openInvoices(Request $request): JsonResponse
+    {
+        $request->validate(['supplier_id' => 'nullable|tenant_exists:suppliers,id']);
+        $q = mb_substr(trim((string) $request->query('q', '')), 0, 100);
+
+        return response()->json(['data' => $this->unpaidInvoices($request->integer('supplier_id') ?: null)
+            ->when($q !== '', fn ($query) => $query->where(fn ($w) => $w->where('invoice_number', 'like', "%{$q}%")->orWhere('remaining_amount', 'like', "%{$q}%")))
+            ->limit(PickerOptions::FIRST)
+            ->get(self::INVOICE_COLUMNS)]);
     }
 
     public function store(Request $request)
@@ -143,16 +160,21 @@ class PaymentRequestController extends Controller
         ], ['account_id.exists' => 'اختر حساب مصروفات فرعيًا.']);
     }
 
-    protected function options(): array
+    protected function options(?PaymentRequest $editing = null): array
     {
         return [
-            'suppliers' => Supplier::where('status', 'active')->orderBy('name')->limit(500)->get(['id', 'name']),
+            'suppliers' => PickerOptions::from(Supplier::where('status', 'active')->orderBy('name'), ['id', 'name'], [$editing?->supplier_id]),
             'employees' => Employee::where('status', '!=', 'terminated')->orderBy('name')->limit(500)->get(['id', 'name']),
             'expenseAccounts' => Account::where('type', 'expense')->where('is_parent', false)->orderBy('code')->get(['id', 'code', 'name_ar']),
             'bankAccounts' => BankAccount::where('is_active', true)->get(['id', 'name']),
             'costCenters' => CostCenter::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name_ar']),
             'projects' => Project::orderBy('name')->get(['id', 'name']),
-            'unpaidInvoices' => PurchaseInvoice::where('remaining_amount', '>', 0)->get(['id', 'supplier_id', 'invoice_number', 'remaining_amount']),
+            'unpaidInvoices' => PickerOptions::from($this->unpaidInvoices($editing?->supplier_id), self::INVOICE_COLUMNS, [$editing?->purchase_invoice_id]),
         ];
+    }
+
+    protected function unpaidInvoices(?int $supplierId = null): Builder
+    {
+        return PurchaseInvoice::where('remaining_amount', '>', 0)->when($supplierId, fn ($query) => $query->where('supplier_id', $supplierId))->orderBy('id');
     }
 }
