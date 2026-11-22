@@ -4,9 +4,7 @@ namespace App\Http\Controllers\Accounting;
 
 use App\Http\Controllers\Controller;
 use App\Models\Account;
-use App\Models\AssetCategory;
 use App\Models\BankAccount;
-use App\Models\CustomerGroup;
 use App\Models\RecurringJournal;
 use App\Services\Accounting\AccountMap;
 use App\Services\TenantManager;
@@ -174,9 +172,20 @@ class AccountController extends Controller
         if (($switchedOff || $retyped) && ($problem = $this->sharedProblem($account))) {
             return back()->with('error', $problem);
         }
+        // Nor one a setting posts to: an asset category's, a line of a recurring entry that still runs, a customer group's.
+        if ($switchedOff && ($problem = $this->settingsProblem($account, 'switch_off'))) {
+            return back()->with('error', $problem);
+        }
+        if ($retyped && ($problem = $this->settingsProblem($account, 'retype'))) {
+            return back()->with('error', $problem);
+        }
 
-        if (! empty($validated['requires_cost_center']) && ! $account->requires_cost_center && $this->postedWithoutCostCenter($account)) {
+        $needsCostCenter = ! empty($validated['requires_cost_center']) && ! $account->requires_cost_center;
+        if ($needsCostCenter && $this->postedWithoutCostCenter($account)) {
             return back()->with('error', 'يرحّل النظام على حسابات الصناديق والبنوك بلا مركز تكلفة؛ لا يُشترط لهذا الحساب مركز تكلفة.');
+        }
+        if ($needsCostCenter && ($problem = $this->settingsProblem($account, 'cost_center'))) {
+            return back()->with('error', $problem);
         }
 
         // The balance is derived from posted journal lines and is never edited directly.
@@ -271,7 +280,7 @@ class AccountController extends Controller
             || in_array((int) $account->id, array_map('intval', array_filter($cashRoles)), true);
     }
 
-    /** Why $account cannot become a group account, or null: its postings, its box, or a role mapped to it. */
+    /** Why $account cannot become a group account, or null: its postings, its box, a role mapped to it, or a setting posting to it. */
     protected function groupProblem(Account $account): ?string
     {
         if ($account->journalLines()->exists()) {
@@ -281,7 +290,7 @@ class AccountController extends Controller
             return 'لا يمكن تحويل حساب يرحّل عليه النظام (صندوق أو بنك أو حساب مربوط في ربط الحسابات) إلى حساب رئيسي.';
         }
 
-        return null;
+        return $this->settingsProblem($account, 'group');
     }
 
     public function destroy(Account $account)
@@ -319,35 +328,81 @@ class AccountController extends Controller
     }
 
     /**
-     * Why $account may not be deleted, or null: a setting posts to it (the accounts of BankAccount::configuredAccounts,
-     * with the recurring entries of every branch), named so the user knows what to change first. Asset categories are
-     * not edited, so their accounts stay; a recurring entry's lines are not edited either, so it is deleted; a customer
-     * group is given another account. A recurring entry of a branch the user may not work in is not named.
+     * What settingsProblem answers, by what the user does to the account: what uses it, {} for the names. Asset categories
+     * are not edited, so their accounts stay as they are; a recurring entry's lines are not edited either, so it is
+     * stopped (deleted, for the account to go); a customer group is given another account.
      */
-    protected function settingsProblem(Account $account): ?string
-    {
-        $id = (int) $account->id;
+    protected const SETTINGS_PROBLEMS = [
+        'delete' => [
+            'categories' => 'لا يمكن حذف الحساب لأن فئات الأصول تستعمله: {}؛ يرحّل عليه النظام قيود أصولها.',
+            'recurring' => 'لا يمكن حذف الحساب لأن القيود المتكررة تستعمله في أسطرها: {}. احذفها من «القيود المتكررة» أولًا.',
+            'other_branch' => 'لا يمكن حذف الحساب لأن قيدًا متكررًا لفرع آخر يستعمله.',
+            'groups' => 'لا يمكن حذف الحساب لأن مجموعات العملاء ترحّل ذممها عليه: {}. اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.',
+        ],
+        'switch_off' => [
+            'categories' => 'لا يمكن إيقاف الحساب لأن فئات الأصول تستعمله: {}؛ يرحّل عليه النظام قيود أصولها.',
+            'recurring' => 'لا يمكن إيقاف الحساب لأن القيود المتكررة تستعمله في أسطرها: {}. أوقفها أو احذفها من «القيود المتكررة» أولًا.',
+            'other_branch' => 'لا يمكن إيقاف الحساب لأن قيدًا متكررًا لفرع آخر يستعمله.',
+            'groups' => 'لا يمكن إيقاف الحساب لأن مجموعات العملاء ترحّل ذممها عليه: {}. اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.',
+        ],
+        'retype' => [
+            'categories' => 'لا يمكن تغيير نوع الحساب أو طبيعته لأن فئات الأصول تستعمله: {}؛ يرحّل عليه النظام قيود أصولها.',
+            'recurring' => 'لا يمكن تغيير نوع الحساب أو طبيعته لأن القيود المتكررة تستعمله في أسطرها: {}. أوقفها أو احذفها من «القيود المتكررة» أولًا.',
+            'other_branch' => 'لا يمكن تغيير نوع الحساب أو طبيعته لأن قيدًا متكررًا لفرع آخر يستعمله.',
+            'groups' => 'لا يمكن تغيير نوع الحساب أو طبيعته لأن مجموعات العملاء ترحّل ذممها عليه: {}. اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.',
+        ],
+        // The account made a group may be the one edited or the parent chosen for another.
+        'group' => [
+            'categories' => 'لا يمكن تحويل حساب تستعمله فئات الأصول إلى حساب رئيسي: {}؛ يرحّل عليه النظام قيود أصولها.',
+            'recurring' => 'لا يمكن تحويل حساب تستعمله القيود المتكررة في أسطرها إلى حساب رئيسي: {}. أوقفها أو احذفها من «القيود المتكررة» أولًا.',
+            'other_branch' => 'لا يمكن تحويل حساب يستعمله قيد متكرر لفرع آخر إلى حساب رئيسي.',
+            'groups' => 'لا يمكن تحويل حساب ترحّل عليه مجموعات العملاء ذممها إلى حساب رئيسي: {}. اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.',
+        ],
+        'cost_center' => [
+            'categories' => 'لا يمكن اشتراط مركز تكلفة للحساب لأن فئات الأصول تستعمله: {}؛ يرحّل عليه النظام قيود أصولها ولو بلا مركز تكلفة.',
+            'recurring' => 'لا يمكن اشتراط مركز تكلفة للحساب لأن القيود المتكررة تستعمله في أسطرها بلا مركز تكلفة: {}. أوقفها أو احذفها من «القيود المتكررة» أولًا.',
+            'other_branch' => 'لا يمكن اشتراط مركز تكلفة للحساب لأن قيدًا متكررًا لفرع آخر يستعمله بلا مركز تكلفة.',
+            'groups' => 'لا يمكن اشتراط مركز تكلفة للحساب لأن مجموعات العملاء ترحّل ذممها عليه بلا مركز تكلفة: {}. اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.',
+        ],
+    ];
 
-        $categories = AssetCategory::where(fn ($q) => $q->where('asset_account_id', $id)->orWhere('accumulated_account_id', $id)->orWhere('expense_account_id', $id))
-            ->orderBy('id')->pluck('name_ar');
+    /**
+     * Why $account may not be deleted, or have $action done to it (switch_off, retype, group, cost_center), or null: a
+     * setting posts to it by itself (Account::postingSettings), named so the user knows what to change first; a recurring
+     * entry of a branch the user may not work in is not named. Switched off or made a group, the account would refuse
+     * those postings («موقوف», «لا يمكن الترحيل على الحساب الرئيسي»), and retyped it would take them out of the type the
+     * setting asked for. Such a change is undone by the next edit, so only the recurring entries that still run hold the
+     * account then; deleted, it never comes back, and a stopped entry could not run again either.
+     *
+     * A cost center is required only where the posting carries one. A category's never all do: the accumulated-depreciation
+     * line, a disposal's asset line and the expense line of an asset without a cost center (DepreciationService) carry
+     * none, and an asset needs none. Nor do a customer group's receivables (DocumentPoster puts none on them). A recurring
+     * entry posts its lines as stored: it holds the account only if a line on it has none.
+     */
+    protected function settingsProblem(Account $account, string $action = 'delete'): ?string
+    {
+        $problems = self::SETTINGS_PROBLEMS[$action];
+        ['categories' => $categories, 'recurring' => $entries, 'groups' => $groups] = $account->postingSettings($action !== 'delete');
+
         if ($categories->isNotEmpty()) {
-            return "لا يمكن حذف الحساب لأن فئات الأصول تستعمله: {$this->nameList($categories)}؛ يرحّل عليه النظام قيود أصولها.";
+            return str_replace('{}', $this->nameList($categories->pluck('name_ar')), $problems['categories']);
         }
 
+        if ($action === 'cost_center') {
+            $entries = $entries->filter(fn (RecurringJournal $entry) => collect((array) $entry->lines)
+                ->contains(fn ($line) => (int) ($line['account_id'] ?? 0) === (int) $account->id && empty($line['cost_center_id'])));
+        }
         $allowed = auth()->user()?->allowedBranchIds();
-        [$seen, $unseen] = RecurringJournal::withoutGlobalScope('branch')->orderBy('id')->get(['id', 'branch_id', 'name', 'lines'])
-            ->filter(fn (RecurringJournal $entry) => in_array($id, array_map('intval', array_column((array) $entry->lines, 'account_id')), true))
-            ->partition(fn (RecurringJournal $entry) => $allowed === null || $entry->branch_id === null || in_array((int) $entry->branch_id, $allowed, true));
+        [$seen, $unseen] = $entries->partition(fn (RecurringJournal $entry) => $allowed === null || $entry->branch_id === null || in_array((int) $entry->branch_id, $allowed, true));
         if ($seen->isNotEmpty()) {
-            return "لا يمكن حذف الحساب لأن القيود المتكررة تستعمله في أسطرها: {$this->nameList($seen->pluck('name'))}. احذفها من «القيود المتكررة» أولًا.";
+            return str_replace('{}', $this->nameList($seen->pluck('name')), $problems['recurring']);
         }
         if ($unseen->isNotEmpty()) {
-            return 'لا يمكن حذف الحساب لأن قيدًا متكررًا لفرع آخر يستعمله.';
+            return $problems['other_branch'];
         }
 
-        $groups = CustomerGroup::where('account_id', $id)->orderBy('id')->pluck('name');
         if ($groups->isNotEmpty()) {
-            return "لا يمكن حذف الحساب لأن مجموعات العملاء ترحّل ذممها عليه: {$this->nameList($groups)}. اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.";
+            return str_replace('{}', $this->nameList($groups->pluck('name')), $problems['groups']);
         }
 
         return null;

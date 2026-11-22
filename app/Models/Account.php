@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 
 class Account extends Model
 {
@@ -51,6 +52,32 @@ class Account extends Model
     {
         return BankAccount::boxLedgers([$this->id], false, $this->company_id) !== []
             || in_array((int) $this->id, array_map('intval', array_filter(app(AccountMap::class)->all($this->company_id))), true);
+    }
+
+    /**
+     * The settings that post to this account by themselves, besides the roles and box ledgers of isPostedBySystem: asset
+     * categories (their asset, accumulated-depreciation or expense account), recurring entries of every branch (a line on
+     * it; with $activeOnly, only those that still run) and customer groups (their customers' receivables). The chart keeps
+     * the account as they need it (AccountController::settingsProblem, the chart import); BankAccount::configuredAccounts
+     * keeps new boxes off the same accounts: a new kind of setting goes in both.
+     *
+     * @return array{categories: Collection<int, AssetCategory>, recurring: Collection<int, RecurringJournal>, groups: Collection<int, CustomerGroup>}
+     */
+    public function postingSettings(bool $activeOnly = false): array
+    {
+        $id = (int) $this->id;
+
+        return [
+            'categories' => AssetCategory::withoutGlobalScopes()->where('company_id', $this->company_id)
+                ->where(fn ($q) => $q->where('asset_account_id', $id)->orWhere('accumulated_account_id', $id)->orWhere('expense_account_id', $id))
+                ->orderBy('id')->get(['id', 'name_ar']),
+            'recurring' => RecurringJournal::withoutGlobalScopes()->where('company_id', $this->company_id)
+                ->when($activeOnly, fn ($q) => $q->where('is_active', true))
+                ->orderBy('id')->get(['id', 'branch_id', 'name', 'lines'])
+                ->filter(fn (RecurringJournal $entry) => in_array($id, array_map('intval', array_column((array) $entry->lines, 'account_id')), true))
+                ->values(),
+            'groups' => CustomerGroup::withoutGlobalScopes()->where('company_id', $this->company_id)->where('account_id', $id)->orderBy('id')->get(['id', 'name']),
+        ];
     }
 
     public function children(): HasMany

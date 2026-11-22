@@ -12,6 +12,7 @@ use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Cheque;
 use App\Models\Company;
+use App\Models\CostCenter;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
 use App\Models\CustomerPayment;
@@ -1644,6 +1645,232 @@ class BranchBoxIsolationTest extends TestCase
             $recurring('«كهرباء أ»') => 'The account cannot be deleted because recurring entries use it in their lines: «كهرباء أ». Delete them from “Recurring entries” first.',
             $otherBranch => 'The account cannot be deleted because a recurring entry of another branch uses it.',
             $groups('«كبار»') => 'The account cannot be deleted because customer groups post their receivables to it: «كبار». Choose another account for them from “Customer groups” first.',
+        ] as $arabic => $english) {
+            $this->assertSame($english, ServerMessages::translate($arabic, 'en'));
+        }
+    }
+
+    /**
+     * Each purchase, depreciation run and disposal of a category's assets posts to its three accounts by itself, with no
+     * cost center on the accumulated-depreciation line, on a disposal's asset line, nor on the expense line of an asset
+     * without one (DepreciationService). Switched off or made a group, such an account would refuse them all («موقوف»,
+     * «لا يمكن الترحيل على الحساب الرئيسي»), made to need a cost center it would refuse those without one, and retyped it
+     * would take them out of the category's type. Categories are not edited, so the account keeps what they need and the
+     * message names them; renamed, it still goes through.
+     */
+    public function test_an_asset_categorys_accounts_keep_what_its_depreciation_needs(): void
+    {
+        $this->world();
+        $this->inBranch($this->owner, $this->a->id);
+        $leaf = fn (string $code, string $name, string $type, string $nature = 'debit') => (int) Account::create(['code' => $code, 'name_ar' => $name, 'type' => $type, 'nature' => $nature, 'is_parent' => false, 'balance' => 0, 'is_active' => true])->id;
+        [$vehicles, $accumulated, $depreciation, $furniture] = [(int) Account::where('code', '1213')->value('id'), $leaf('1222', 'مجمع إهلاك السيارات', 'asset', 'credit'), $leaf('5291', 'إهلاك السيارات', 'expense'), $leaf('5292', 'إهلاك الأثاث', 'expense')];
+        $this->post(route('accounting.fixed-assets.categories.store'), ['name_ar' => 'سيارات', 'useful_life_months' => 60, 'depreciation_method' => 'straight_line',
+            'asset_account_id' => $vehicles, 'accumulated_account_id' => $accumulated, 'expense_account_id' => $depreciation])->assertSessionHasNoErrors();
+        $category = AssetCategory::withoutGlobalScopes()->latest('id')->firstOrFail();
+        $why = 'فئات الأصول تستعمله: «سيارات»؛ يرحّل عليه النظام قيود أصولها';
+        $group = 'لا يمكن تحويل حساب تستعمله فئات الأصول إلى حساب رئيسي: «سيارات»؛ يرحّل عليه النظام قيود أصولها.';
+        $state = fn (int $account) => Account::withoutGlobalScopes()->findOrFail($account)->only(['type', 'nature', 'parent_id', 'is_parent', 'is_active', 'requires_cost_center']);
+
+        $this->inBranch($this->userIn([$this->a], 'accountant'));
+        foreach ([$vehicles, $accumulated, $depreciation] as $account) {
+            $before = $state($account);
+            $this->editAccount($account, ['is_active' => false])->assertSessionHas('error', "لا يمكن إيقاف الحساب لأن {$why}.");
+            foreach ([['nature' => $before['nature'] === 'debit' ? 'credit' : 'debit'], ['type' => 'liability']] as $retype) {
+                $this->editAccount($account, $retype)->assertSessionHas('error', "لا يمكن تغيير نوع الحساب أو طبيعته لأن {$why}.");
+            }
+            $this->editAccount($account, ['is_parent' => true])->assertSessionHas('error', $group);
+            $this->editAccount($account, ['requires_cost_center' => true])->assertSessionHas('error', "لا يمكن اشتراط مركز تكلفة للحساب لأن {$why} ولو بلا مركز تكلفة.");
+            $this->assertSame($before, $state($account));
+        }
+        // Nor does a sub-account make one a group, added under it or moved there.
+        $this->post(route('accounting.accounts.store'), ['code' => '52911', 'name_ar' => 'إهلاك الشاحنات', 'parent_id' => $depreciation, 'type' => 'expense', 'nature' => 'debit'])
+            ->assertSessionHasErrors(['parent_id' => $group]);
+        $this->editAccount($furniture, ['parent_id' => $depreciation])->assertSessionHas('error', $group);
+        $this->assertSame([false, null, 0], [$state($depreciation)['is_parent'], $state($furniture)['parent_id'], Account::withoutGlobalScopes()->where('code', '52911')->count()]);
+        $this->editAccount($depreciation, ['name_ar' => 'إهلاك وسائل النقل'])->assertSessionHasNoErrors()->assertSessionMissing('error');
+
+        // So the category's assets are still bought and depreciated on its accounts.
+        $this->inBranch($this->owner, $this->a->id);
+        $this->post(route('accounting.fixed-assets.store'), ['asset_category_id' => $category->id, 'branch_id' => $this->a->id, 'code' => 'FA-1', 'name_ar' => 'سيارة',
+            'acquisition_date' => '2026-06-01', 'cost' => 6000, 'paid_from' => 'opening'])->assertSessionHasNoErrors();
+        $mark = $this->mark();
+        $this->post(route('accounting.fixed-assets.depreciate'), ['month' => '2026-06'])->assertSessionHasNoErrors();
+        $this->assertLine($this->linesSince($mark), $depreciation, 100, 0);
+        $this->assertLine($this->linesSince($mark), $accumulated, 0, 100);
+    }
+
+    /**
+     * An active recurring entry posts its lines unattended at each run, and one that fails is recorded and skipped
+     * (RecurringJournalRunner): an account its lines use is not switched off, retyped or made a group, nor made to need a
+     * cost center a line on it does not carry. The message names the entries of the user's branches (another branch's
+     * without its name). A stopped entry holds the account no longer, and a line that carries a cost center lets it need one.
+     */
+    public function test_an_account_an_active_recurring_entry_posts_to_keeps_what_its_lines_need(): void
+    {
+        $this->world();
+        $this->inBranch($this->owner, $this->a->id);
+        $utilities = (int) Account::where('code', '525')->value('id');
+        $center = CostCenter::create(['code' => 'CC1', 'name_ar' => 'الإدارة', 'is_active' => true]);
+        $entry = function (string $name, ?int $costCenter = null) use ($utilities): RecurringJournal {
+            $this->post(route('accounting.recurring.store'), ['name' => $name, 'description' => $name, 'frequency' => 'monthly', 'next_run_date' => '2026-07-01', 'lines' => [
+                ['account_id' => $utilities, 'cost_center_id' => $costCenter, 'debit' => 300, 'credit' => 0], ['account_id' => $this->role('payables'), 'debit' => 0, 'credit' => 300],
+            ]])->assertSessionHasNoErrors();
+
+            return RecurringJournal::withoutGlobalScopes()->latest('id')->firstOrFail();
+        };
+        $powerA = $entry('كهرباء أ');
+        $this->inBranch($this->owner, $this->b->id);
+        $powerB = $entry('كهرباء ب');
+        $stop = 'أوقفها أو احذفها من «القيود المتكررة» أولًا.';
+        $named = fn (string $names) => [
+            "لا يمكن إيقاف الحساب لأن القيود المتكررة تستعمله في أسطرها: {$names}. {$stop}" => ['is_active' => false],
+            "لا يمكن تغيير نوع الحساب أو طبيعته لأن القيود المتكررة تستعمله في أسطرها: {$names}. {$stop}" => ['type' => 'asset'],
+            "لا يمكن تحويل حساب تستعمله القيود المتكررة في أسطرها إلى حساب رئيسي: {$names}. {$stop}" => ['is_parent' => true],
+            "لا يمكن اشتراط مركز تكلفة للحساب لأن القيود المتكررة تستعمله في أسطرها بلا مركز تكلفة: {$names}. {$stop}" => ['requires_cost_center' => true],
+        ];
+        $state = fn () => Account::withoutGlobalScopes()->findOrFail($utilities)->only(['type', 'is_parent', 'is_active', 'requires_cost_center']);
+        $before = $state();
+
+        foreach ($named('«كهرباء أ»، «كهرباء ب»') as $message => $change) {
+            $this->editAccount($utilities, $change)->assertSessionHas('error', $message);
+        }
+        // A user of branch A sees its own entry named; once it is stopped, branch B's still holds the account, unnamed.
+        $this->inBranch($this->userIn([$this->a], 'accountant'));
+        foreach ($named('«كهرباء أ»') as $message => $change) {
+            $this->editAccount($utilities, $change)->assertSessionHas('error', $message);
+        }
+        $this->put(route('accounting.recurring.update', $powerA->id), ['is_active' => false])->assertSessionHas('success');
+        foreach ([
+            'لا يمكن إيقاف الحساب لأن قيدًا متكررًا لفرع آخر يستعمله.' => ['is_active' => false],
+            'لا يمكن تغيير نوع الحساب أو طبيعته لأن قيدًا متكررًا لفرع آخر يستعمله.' => ['type' => 'asset'],
+            'لا يمكن تحويل حساب يستعمله قيد متكرر لفرع آخر إلى حساب رئيسي.' => ['is_parent' => true],
+            'لا يمكن اشتراط مركز تكلفة للحساب لأن قيدًا متكررًا لفرع آخر يستعمله بلا مركز تكلفة.' => ['requires_cost_center' => true],
+        ] as $message => $change) {
+            $this->editAccount($utilities, $change)->assertSessionHas('error', $message);
+        }
+        $this->assertSame($before, $state());
+
+        // Branch B's stopped too: nothing runs on the account any more, so it is switched off (and on again).
+        $this->inBranch($this->owner, $this->b->id);
+        $this->put(route('accounting.recurring.update', $powerB->id), ['is_active' => false])->assertSessionHas('success');
+        $this->editAccount($utilities, ['is_active' => false])->assertSessionHasNoErrors()->assertSessionMissing('error');
+        $this->assertFalse($this->accountActive($utilities));
+        $this->editAccount($utilities, ['is_active' => true])->assertSessionMissing('error');
+
+        // A line on it that carries a cost center: the account may need one, and the entry still posts at its run.
+        $office = $entry('كهرباء المكتب', $center->id);
+        $this->editAccount($utilities, ['requires_cost_center' => true])->assertSessionHasNoErrors()->assertSessionMissing('error');
+        $this->assertTrue($state()['requires_cost_center']);
+        auth()->logout();
+        $mark = $this->mark();
+        $this->assertSame(1, app(RecurringJournalRunner::class)->runDue(Carbon::parse('2026-07-01')));
+        $this->assertNull($office->fresh()->last_error);
+        $this->assertLine($this->linesSince($mark), $utilities, 300, 0);
+    }
+
+    /**
+     * Every credit sale, receipt and return of a group's customers posts their receivables to the group's account by
+     * itself, with no cost center (DocumentPoster): switched off, made a group or made to need one, it would refuse them
+     * all, and retyped the receivables would leave the assets. The group is given another account first.
+     */
+    public function test_a_customer_groups_account_keeps_taking_its_customers_receivables(): void
+    {
+        $this->world();
+        $this->inBranch($this->owner, $this->a->id);
+        $vipAccount = (int) Account::create(['code' => '11299', 'name_ar' => 'ذمم كبار العملاء', 'type' => 'asset', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true])->id;
+        $group = ['code' => 'VIP', 'name' => 'كبار', 'is_active' => true];
+        $this->post(route('sales.customer-groups.store'), $group + ['account_id' => $vipAccount])->assertSessionHasNoErrors();
+        $vip = CustomerGroup::where('code', 'VIP')->firstOrFail();
+        DB::table('customers')->where('id', $this->customer->id)->update(['customer_group_id' => $vip->id]);
+        $choose = 'اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.';
+        $made = "لا يمكن تحويل حساب ترحّل عليه مجموعات العملاء ذممها إلى حساب رئيسي: «كبار». {$choose}";
+        $state = fn () => Account::withoutGlobalScopes()->findOrFail($vipAccount)->only(['type', 'nature', 'is_parent', 'is_active', 'requires_cost_center']);
+        $before = $state();
+
+        $this->inBranch($this->userIn([$this->a], 'accountant'));
+        foreach ([
+            "لا يمكن إيقاف الحساب لأن مجموعات العملاء ترحّل ذممها عليه: «كبار». {$choose}" => [['is_active' => false]],
+            "لا يمكن تغيير نوع الحساب أو طبيعته لأن مجموعات العملاء ترحّل ذممها عليه: «كبار». {$choose}" => [['type' => 'expense'], ['nature' => 'credit']],
+            $made => [['is_parent' => true]],
+            "لا يمكن اشتراط مركز تكلفة للحساب لأن مجموعات العملاء ترحّل ذممها عليه بلا مركز تكلفة: «كبار». {$choose}" => [['requires_cost_center' => true]],
+        ] as $message => $changes) {
+            foreach ($changes as $change) {
+                $this->editAccount($vipAccount, $change)->assertSessionHas('error', $message);
+            }
+        }
+        $this->post(route('accounting.accounts.store'), ['code' => '112991', 'name_ar' => 'ذمم كبار عملاء الشرقية', 'parent_id' => $vipAccount, 'type' => 'asset', 'nature' => 'debit'])
+            ->assertSessionHasErrors(['parent_id' => $made]);
+        $this->assertSame($before, $state());
+
+        // Moved to the general receivables first, the account is switched off; given back (switched on again), it takes the
+        // group's credit sales.
+        $this->inBranch($this->owner, $this->a->id);
+        $this->put(route('sales.customer-groups.update', $vip->id), $group + ['account_id' => null])->assertSessionHasNoErrors();
+        $this->editAccount($vipAccount, ['is_active' => false])->assertSessionHasNoErrors()->assertSessionMissing('error');
+        $this->assertFalse($this->accountActive($vipAccount));
+        $this->editAccount($vipAccount, ['is_active' => true])->assertSessionMissing('error');
+        $this->put(route('sales.customer-groups.update', $vip->id), $group + ['account_id' => $vipAccount])->assertSessionHasNoErrors();
+        $mark = $this->mark();
+        $invoice = $this->salesInvoiceA();
+        $this->assertLine($this->linesSince($mark), $vipAccount, round((float) $invoice->total, 2), 0);
+    }
+
+    /** The chart's Excel import turns no account the settings post to into a group either, whoever's branch they are of; a stopped recurring entry holds nothing. */
+    public function test_the_chart_import_turns_no_account_the_settings_post_to_into_a_group(): void
+    {
+        $this->world();
+        $this->inBranch($this->owner, $this->a->id);
+        $leaf = fn (string $code, string $name, string $type) => (int) Account::create(['code' => $code, 'name_ar' => $name, 'type' => $type, 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true])->id;
+        $accounts = ['5291' => $leaf('5291', 'إهلاك السيارات', 'expense'), '5251' => $leaf('5251', 'كهرباء الفروع', 'expense'), '11299' => $leaf('11299', 'ذمم كبار العملاء', 'asset')];
+        $this->post(route('accounting.fixed-assets.categories.store'), ['name_ar' => 'سيارات', 'useful_life_months' => 60, 'depreciation_method' => 'straight_line', 'expense_account_id' => $accounts['5291']])
+            ->assertSessionHasNoErrors();
+        $this->post(route('accounting.recurring.store'), ['name' => 'كهرباء', 'description' => 'كهرباء', 'frequency' => 'monthly', 'next_run_date' => '2026-07-01', 'lines' => [
+            ['account_id' => $accounts['5251'], 'debit' => 300, 'credit' => 0], ['account_id' => $this->role('payables'), 'debit' => 0, 'credit' => 300],
+        ]])->assertSessionHasNoErrors();
+        $power = RecurringJournal::withoutGlobalScopes()->latest('id')->firstOrFail();
+        $this->post(route('sales.customer-groups.store'), ['code' => 'VIP', 'name' => 'كبار', 'account_id' => $accounts['11299'], 'is_active' => true])->assertSessionHasNoErrors();
+        $clerk = $this->userIn([$this->b], 'accountant', ['admin.data.use']);
+        $this->inBranch($clerk);
+        $import = fn (string $csv) => $this->post(route('data-transfer.import', 'accounts'), ['file' => UploadedFile::fake()->createWithContent('accounts.csv', $csv)]);
+
+        foreach ($accounts as $code => $account) {
+            $import("code,name_ar,parent_code\n{$code}1,فرعي,{$code}")
+                ->assertSessionHasErrors(['file' => "سطر 2: الحساب الأب {$code} ترحّل عليه الإعدادات (فئة أصول أو قيد متكرر أو مجموعة عملاء)؛ لا يمكن أن يصبح حساباً رئيسياً."]);
+            $this->assertFalse((bool) Account::withoutGlobalScopes()->whereKey($account)->value('is_parent'), $code);
+        }
+        $this->assertSame(0, Account::withoutGlobalScopes()->whereIn('code', ['52911', '52511', '112991'])->count());
+
+        // The recurring entry stopped (in its branch), its account takes sub-accounts.
+        $this->inBranch($this->owner, $this->a->id);
+        $this->put(route('accounting.recurring.update', $power->id), ['is_active' => false])->assertSessionHas('success');
+        $this->inBranch($clerk);
+        $import("code,name_ar,parent_code\n52511,كهرباء فرع ب,5251")->assertSessionHasNoErrors();
+        $this->assertTrue((bool) Account::withoutGlobalScopes()->whereKey($accounts['5251'])->value('is_parent'));
+    }
+
+    /** The refusals of the chart's edit screen and import for accounts the settings post to read in English too. */
+    public function test_the_refusals_for_accounts_the_settings_post_to_read_in_english(): void
+    {
+        $stop = 'Stop or delete them from “Recurring entries” first.';
+        $choose = 'Choose another account for them from “Customer groups” first.';
+        foreach ([
+            'لا يمكن إيقاف الحساب لأن فئات الأصول تستعمله: «سيارات»؛ يرحّل عليه النظام قيود أصولها.' => "The account cannot be switched off because asset categories use it: «سيارات»; the system posts their assets' entries to it.",
+            'لا يمكن إيقاف الحساب لأن القيود المتكررة تستعمله في أسطرها: «كهرباء أ». أوقفها أو احذفها من «القيود المتكررة» أولًا.' => "The account cannot be switched off because recurring entries use it in their lines: «كهرباء أ». {$stop}",
+            'لا يمكن إيقاف الحساب لأن قيدًا متكررًا لفرع آخر يستعمله.' => 'The account cannot be switched off because a recurring entry of another branch uses it.',
+            'لا يمكن إيقاف الحساب لأن مجموعات العملاء ترحّل ذممها عليه: «كبار». اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.' => "The account cannot be switched off because customer groups post their receivables to it: «كبار». {$choose}",
+            'لا يمكن تغيير نوع الحساب أو طبيعته لأن فئات الأصول تستعمله: «سيارات»؛ يرحّل عليه النظام قيود أصولها.' => "The account's type or nature cannot change because asset categories use it: «سيارات»; the system posts their assets' entries to it.",
+            'لا يمكن تغيير نوع الحساب أو طبيعته لأن القيود المتكررة تستعمله في أسطرها: «كهرباء أ». أوقفها أو احذفها من «القيود المتكررة» أولًا.' => "The account's type or nature cannot change because recurring entries use it in their lines: «كهرباء أ». {$stop}",
+            'لا يمكن تغيير نوع الحساب أو طبيعته لأن قيدًا متكررًا لفرع آخر يستعمله.' => "The account's type or nature cannot change because a recurring entry of another branch uses it.",
+            'لا يمكن تغيير نوع الحساب أو طبيعته لأن مجموعات العملاء ترحّل ذممها عليه: «كبار». اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.' => "The account's type or nature cannot change because customer groups post their receivables to it: «كبار». {$choose}",
+            'لا يمكن تحويل حساب تستعمله فئات الأصول إلى حساب رئيسي: «سيارات»؛ يرحّل عليه النظام قيود أصولها.' => "An account that asset categories use cannot become a parent account: «سيارات»; the system posts their assets' entries to it.",
+            'لا يمكن تحويل حساب تستعمله القيود المتكررة في أسطرها إلى حساب رئيسي: «كهرباء أ». أوقفها أو احذفها من «القيود المتكررة» أولًا.' => "An account that recurring entries use in their lines cannot become a parent account: «كهرباء أ». {$stop}",
+            'لا يمكن تحويل حساب يستعمله قيد متكرر لفرع آخر إلى حساب رئيسي.' => 'An account that a recurring entry of another branch uses cannot become a parent account.',
+            'لا يمكن تحويل حساب ترحّل عليه مجموعات العملاء ذممها إلى حساب رئيسي: «كبار». اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.' => "An account that customer groups post their receivables to cannot become a parent account: «كبار». {$choose}",
+            'لا يمكن اشتراط مركز تكلفة للحساب لأن فئات الأصول تستعمله: «سيارات»؛ يرحّل عليه النظام قيود أصولها ولو بلا مركز تكلفة.' => "The account cannot require a cost center because asset categories use it: «سيارات»; the system posts their assets' entries to it, even without a cost center.",
+            'لا يمكن اشتراط مركز تكلفة للحساب لأن القيود المتكررة تستعمله في أسطرها بلا مركز تكلفة: «كهرباء أ». أوقفها أو احذفها من «القيود المتكررة» أولًا.' => "The account cannot require a cost center because recurring entries use it in their lines without one: «كهرباء أ». {$stop}",
+            'لا يمكن اشتراط مركز تكلفة للحساب لأن قيدًا متكررًا لفرع آخر يستعمله بلا مركز تكلفة.' => 'The account cannot require a cost center because a recurring entry of another branch uses it without one.',
+            'لا يمكن اشتراط مركز تكلفة للحساب لأن مجموعات العملاء ترحّل ذممها عليه بلا مركز تكلفة: «كبار». اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.' => "The account cannot require a cost center because customer groups post their receivables to it without one: «كبار». {$choose}",
+            'سطر 2: الحساب الأب 5291 ترحّل عليه الإعدادات (فئة أصول أو قيد متكرر أو مجموعة عملاء)؛ لا يمكن أن يصبح حساباً رئيسياً.' => 'Row 2: the settings post to parent account 5291 (an asset category, a recurring entry or a customer group); it cannot become a parent account.',
         ] as $arabic => $english) {
             $this->assertSame($english, ServerMessages::translate($arabic, 'en'));
         }

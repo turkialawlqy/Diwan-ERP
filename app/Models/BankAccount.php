@@ -141,7 +141,7 @@ class BankAccount extends Model
      * Accounts the company's settings post to by themselves, besides AccountMap roles and box ledgers: customer
      * groups' receivables, asset categories' accounts, and the lines of recurring templates of a branch other than
      * $branchId. A box on one would take those postings, and close them to every other branch (PostingService). The
-     * chart refuses to delete any of them (AccountController::settingsProblem): a new kind of setting goes in both.
+     * chart keeps them as the settings need them (Account::postingSettings): a new kind of setting goes in both.
      *
      * @return array<int, int>
      */
