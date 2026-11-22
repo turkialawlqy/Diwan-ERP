@@ -14,8 +14,19 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     exit
 }
 
-$Root = Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent
-if (-not (Test-Path (Join-Path $Root 'diwan.json'))) { $Root = 'C:\Diwan' }
+# The install folder (DIWAN_DIR of the installer, C:\Diwan by default) is the nearest of the five
+# folders above this script that holds diwan.json: three up when it runs through the junction
+# <install>\current\deploy\windows (the Start menu tools and the "Diwan Update" task), four up in
+# <install>\releases\<release>\deploy\windows. C:\Diwan when none of them has it.
+function Find-DiwanRoot([string]$From) {
+    $dir = $From
+    for ($i = 0; $i -lt 5 -and $dir; $i++) {
+        $dir = Split-Path -Path $dir -Parent
+        if ($dir -and (Test-Path -LiteralPath (Join-Path $dir 'diwan.json') -PathType Leaf)) { return $dir }
+    }
+    return 'C:\Diwan'
+}
+$Root = Find-DiwanRoot $PSScriptRoot
 $Php = Join-Path $Root 'bin\php\php.exe'
 $Current = Join-Path $Root 'current'
 $config = Get-Content (Join-Path $Root 'diwan.json') -Raw | ConvertFrom-Json
@@ -31,7 +42,7 @@ function Stop-Diwan {
 switch ($Action) {
     'update' {
         & (Join-Path $PSScriptRoot 'local-update.ps1')
-        Done 'Update finished. Details: C:\Diwan\logs\update.log'
+        Done "Update finished. Details: $Root\logs\update.log"
     }
     'backup' {
         Push-Location $Current
@@ -54,7 +65,7 @@ switch ($Action) {
         Write-Host 'This removes Diwan from this computer.' -ForegroundColor Yellow
         $answer = Read-Host 'Type YES to continue'
         if ($answer -ne 'YES') { exit }
-        $keep = Read-Host 'Keep your data (database, uploaded files, backups) in C:\Diwan for later? Type NO to delete everything'
+        $keep = Read-Host "Keep your data (database, uploaded files, backups) in $Root for later? Type NO to delete everything"
         Stop-Diwan
         foreach ($t in @('Diwan Web', 'Diwan Worker', 'Diwan Update')) { Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue }
         Stop-Service DiwanDB -ErrorAction SilentlyContinue

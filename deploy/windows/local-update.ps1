@@ -15,8 +15,19 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$Root = Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent
-if (-not (Test-Path (Join-Path $Root 'diwan.json'))) { $Root = 'C:\Diwan' }
+# The install folder (DIWAN_DIR of the installer, C:\Diwan by default) is the nearest of the five
+# folders above this script that holds diwan.json: three up when it runs through the junction
+# <install>\current\deploy\windows (the "Diwan Update" task and the Start menu tools), four up in
+# <install>\releases\<release>\deploy\windows. C:\Diwan when none of them has it.
+function Find-DiwanRoot([string]$From) {
+    $dir = $From
+    for ($i = 0; $i -lt 5 -and $dir; $i++) {
+        $dir = Split-Path -Path $dir -Parent
+        if ($dir -and (Test-Path -LiteralPath (Join-Path $dir 'diwan.json') -PathType Leaf)) { return $dir }
+    }
+    return 'C:\Diwan'
+}
+$Root = Find-DiwanRoot $PSScriptRoot
 $config = Get-Content (Join-Path $Root 'diwan.json') -Raw | ConvertFrom-Json
 $PackageUrl = if ($env:DIWAN_PACKAGE) { $env:DIWAN_PACKAGE } else { 'https://github.com/turkialawlqy/Diwan-ERP/releases/latest/download/diwan-erp.zip' }
 $Php = Join-Path $Root 'bin\php\php.exe'
