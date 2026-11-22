@@ -105,7 +105,8 @@ const submitAccount = () => (editing ? form.put(route('finance.banks.update', ed
                                 </div>
                             </div>
             
-                            <div>
+                            <div class="flex flex-col">
+                                <p v-if="form.errors.account_id" class="order-last text-rose-600 text-3xs mt-1">{{ form.errors.account_id }}</p>
                                 <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_banks_form.link_to_a_chart_of_accounts_acco') }}</label>
                                 <SelectCreate v-model="form.account_id" :options="chartAccounts" entity="account" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :placeholder="$t('fin_finance_banks_form.no_direct_link')" />
                             </div>

@@ -10,6 +10,7 @@ import Pagination from '@/Components/UI/Pagination.vue';
 import StatCard from '@/Components/UI/StatCard.vue';
 import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
+import FormErrors from '@/Components/UI/FormErrors.vue';
 import { money, date, today, thisMonth, addMonths } from '@/utils/format';
 import { PlusIcon } from '@heroicons/vue/24/outline';
 import { useI18n } from 'vue-i18n';
@@ -27,6 +28,14 @@ const categoryForm = useForm({ name_ar: '', useful_life_months: 60, depreciation
 // Units-of-production categories need the asset's lifetime units.
 const unitsCategory = computed(() => props.categories.find((c) => c.id === assetForm.asset_category_id)?.depreciation_method === 'units_of_production');
 const depreciateForm = useForm({ month: addMonths(thisMonth(), -1) });
+// The asset dialog's fields on show, each with its own error; FormErrors lists the rest.
+const assetShown = computed(() => [
+    'asset_category_id', 'code', 'name_ar', 'serial_number', 'location', 'cost_center_id', 'acquisition_date', 'cost', 'salvage_value', 'useful_life_months', 'paid_from',
+    ...(unitsCategory.value ? ['total_units', 'unit_label'] : []),
+    ...(['cash', 'bank_transfer'].includes(assetForm.paid_from) ? ['bank_account_id'] : []),
+    ...(assetForm.paid_from === 'payables' ? ['supplier_id'] : []),
+    assetForm.paid_from !== 'opening' ? 'acquisition_vat' : 'opening_accumulated',
+]);
 
 const filters = reactive({ search: props.filters.search ?? '', status: props.filters.status ?? '' });
 const apply = () => router.get(route('accounting.fixed-assets.index'), filters, { preserveState: true });
@@ -97,24 +106,25 @@ const statusLabel = computed(() => ({ active: t('fassets.st_active'), fully_depr
                 <Field :label="$t('fassets.category')" :error="assetForm.errors.asset_category_id"><SelectCreate v-model="assetForm.asset_category_id" :options="categories" entity="category" label="name_ar" :allow-empty="false" required /></Field>
                 <Field :label="$t('fassets.asset_code')" :error="assetForm.errors.code"><input v-model="assetForm.code" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field :label="$t('fassets.asset_name')" :error="assetForm.errors.name_ar"><input v-model="assetForm.name_ar" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field :label="$t('fassets.serial_number')"><input v-model="assetForm.serial_number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field :label="$t('fassets.location')"><input v-model="assetForm.location" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field :label="$t('fassets.cost_center')"><SelectCreate v-model="assetForm.cost_center_id" :options="costCenters" entity="cost_center" label="name_ar" placeholder="—" /></Field>
+                <Field :label="$t('fassets.serial_number')" :error="assetForm.errors.serial_number"><input v-model="assetForm.serial_number" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('fassets.location')" :error="assetForm.errors.location"><input v-model="assetForm.location" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('fassets.cost_center')" :error="assetForm.errors.cost_center_id"><SelectCreate v-model="assetForm.cost_center_id" :options="costCenters" entity="cost_center" label="name_ar" placeholder="—" /></Field>
                 <Field :label="$t('fassets.purchase_date')" :error="assetForm.errors.acquisition_date"><DatePicker v-model="assetForm.acquisition_date" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field :label="$t('fassets.cost')" :error="assetForm.errors.cost"><input v-model.number="assetForm.cost" type="text" inputmode="decimal" data-num step="0.01" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field :label="$t('fassets.salvage_value')" :error="assetForm.errors.salvage_value"><input v-model.number="assetForm.salvage_value" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field :label="$t('fassets.useful_life_months')" :hint="$t('fassets.empty_by_category')"><input v-model.number="assetForm.useful_life_months" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('fassets.useful_life_months')" :hint="$t('fassets.empty_by_category')" :error="assetForm.errors.useful_life_months"><input v-model.number="assetForm.useful_life_months" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <template v-if="unitsCategory">
                     <Field :label="$t('fassets.total_expected_units_over_the_li')" :error="assetForm.errors.total_units"><input v-model.number="assetForm.total_units" type="text" inputmode="decimal" data-num step="0.01" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field :label="$t('fassets.unit_of_measure')"><input v-model="assetForm.unit_label" :placeholder="$t('fassets.hour_km_piece')" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('fassets.unit_of_measure')" :error="assetForm.errors.unit_label"><input v-model="assetForm.unit_label" :placeholder="$t('fassets.hour_km_piece')" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 </template>
-                <Field :label="$t('fassets.payment_method')"><select v-model="assetForm.paid_from" class="w-full rounded-xl border-slate-200 text-xs"><option value="bank_transfer">{{ $t('fassets.bank') }}</option><option value="cash">{{ $t('fassets.cash') }}</option><option value="payables">{{ $t('fassets.on_credit_from_a_supplier') }}</option><option value="opening">{{ $t('fassets.opening_balance') }}</option></select></Field>
-                <Field v-if="['cash','bank_transfer'].includes(assetForm.paid_from)" :label="$t('fassets.cash_box_bank')"><SelectCreate v-model="assetForm.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('fassets.default')" /></Field>
+                <Field :label="$t('fassets.payment_method')" :error="assetForm.errors.paid_from"><select v-model="assetForm.paid_from" class="w-full rounded-xl border-slate-200 text-xs"><option value="bank_transfer">{{ $t('fassets.bank') }}</option><option value="cash">{{ $t('fassets.cash') }}</option><option value="payables">{{ $t('fassets.on_credit_from_a_supplier') }}</option><option value="opening">{{ $t('fassets.opening_balance') }}</option></select></Field>
+                <Field v-if="['cash','bank_transfer'].includes(assetForm.paid_from)" :label="$t('fassets.cash_box_bank')" :error="assetForm.errors.bank_account_id"><SelectCreate v-model="assetForm.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('fassets.default')" /></Field>
                 <Field v-if="assetForm.paid_from === 'payables'" :label="$t('fassets.supplier_number')" :error="assetForm.errors.supplier_id"><input v-model.number="assetForm.supplier_id" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <Field v-if="assetForm.paid_from !== 'opening'" :label="$t('fassets.input_tax')" :error="assetForm.errors.acquisition_vat">
                     <label class="flex items-center gap-2 py-2"><input v-model="assetForm.taxable" type="checkbox" class="rounded" /> {{ $t('fassets.taxable_invoice', { rate: $taxRate(), amount: ((parseFloat(assetForm.cost) || 0) * $taxRate() / 100).toFixed(2) }) }}</label>
                 </Field>
                 <Field v-else :label="$t('fassets.accumulated_depreciation_up_to_t')" :error="assetForm.errors.opening_accumulated"><input v-model.number="assetForm.opening_accumulated" type="text" inputmode="decimal" data-num step="0.01" min="0" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <FormErrors :errors="assetForm.errors" :except="assetShown" class="col-span-full" />
             </form>
             <template #footer>
                 <button @click="assetOpen = false" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold">{{ $t('ui.cancel') }}</button>
@@ -126,20 +136,23 @@ const statusLabel = computed(() => ({ active: t('fassets.st_active'), fully_depr
             <form @submit.prevent="saveCategory" class="space-y-3 text-xs">
                 <Field :label="$t('fassets.category_name')" :error="categoryForm.errors.name_ar"><input v-model="categoryForm.name_ar" required class="w-full rounded-xl border-slate-200 text-xs" /></Field>
                 <div class="grid grid-cols-2 gap-3">
-                    <Field :label="$t('fassets.useful_life_months')"><input v-model.number="categoryForm.useful_life_months" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                    <Field :label="$t('fassets.depreciation_method')"><select v-model="categoryForm.depreciation_method" class="w-full rounded-xl border-slate-200 text-xs"><option value="straight_line">{{ $t('fassets.straight_line') }}</option><option value="declining_balance">{{ $t('fassets.declining_balance') }}</option><option value="units_of_production">{{ $t('fassets.units_of_production_hours_km_uni') }}</option></select></Field>
+                    <Field :label="$t('fassets.useful_life_months')" :error="categoryForm.errors.useful_life_months"><input v-model.number="categoryForm.useful_life_months" type="text" inputmode="decimal" data-num class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                    <Field :label="$t('fassets.depreciation_method')" :error="categoryForm.errors.depreciation_method"><select v-model="categoryForm.depreciation_method" class="w-full rounded-xl border-slate-200 text-xs"><option value="straight_line">{{ $t('fassets.straight_line') }}</option><option value="declining_balance">{{ $t('fassets.declining_balance') }}</option><option value="units_of_production">{{ $t('fassets.units_of_production_hours_km_uni') }}</option></select></Field>
                 </div>
                 <Field :label="$t('fassets.asset_account')" :hint="$t('fassets.empty_the_default_account')"><SelectCreate v-model="categoryForm.asset_account_id" :options="accounts.filter(x => x.type === 'asset')" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('fassets.default')" /></Field>
                 <Field :label="$t('fassets.accumulated_depreciation_account')"><SelectCreate v-model="categoryForm.accumulated_account_id" :options="accounts.filter(x => x.type === 'asset')" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('fassets.default')" /></Field>
                 <Field :label="$t('fassets.depreciation_expense_account')"><SelectCreate v-model="categoryForm.expense_account_id" :options="accounts.filter(x => x.type === 'expense')" entity="account" :label="(a) => `${a.code} - ${a.name_ar}`" :placeholder="$t('fassets.default')" /></Field>
             </form>
+            <!-- The account pickers' refusals (an account of another type, a box's ledger...) are listed here. -->
+            <FormErrors :errors="categoryForm.errors" :except="['name_ar', 'useful_life_months', 'depreciation_method']" class="mt-3" />
             <template #footer>
                 <button @click="saveCategory" :disabled="categoryForm.processing" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('ui.save') }}</button>
             </template>
         </Dialog>
 
         <Dialog :show="depreciateOpen" :title="$t('fassets.post_monthly_depreciation')" size="sm" @close="depreciateOpen = false">
-            <Field :label="$t('fassets.month')" :hint="$t('fassets.depreciation_of_all_active_asset')"><DatePicker v-model="depreciateForm.month" type="month" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+            <Field :label="$t('fassets.month')" :hint="$t('fassets.depreciation_of_all_active_asset')" :error="depreciateForm.errors.month"><DatePicker v-model="depreciateForm.month" type="month" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+            <FormErrors :errors="depreciateForm.errors" :except="['month']" class="mt-3" />
             <template #footer>
                 <button @click="runDepreciation" :disabled="depreciateForm.processing" class="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold">{{ $t('fassets.post') }}</button>
             </template>

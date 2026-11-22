@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
 use App\Models\JournalEntry;
 use App\Services\Accounting\DocumentPoster;
+use App\Services\ActiveBranch;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +64,9 @@ class TransferController extends Controller
             'reference' => 'nullable|string|max:50',
             'notes' => 'nullable|string|max:255',
         ]);
+
+        // The entry needs a branch: under "all branches" refuse now, before a number is drawn or a balance moves.
+        app(ActiveBranch::class)->forWrite();
 
         DB::transaction(function () use ($validated, $companyId) {
             // Lock both accounts (in id order to avoid deadlocks) so concurrent

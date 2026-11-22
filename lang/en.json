@@ -1,4 +1,5 @@
 {
+    "اختر فرعاً محدداً من بطاقة «سياق العمل» في القائمة الجانبية قبل إنشاء أي مستند أو قيد.": "Choose a specific branch on the “Work context” card in the side menu before creating any document or entry.",
     "تم إنشاء الدور بنجاح": "Role created successfully",
     "تم تعديل اسم الدور بنجاح": "Role name updated successfully",
     "تم حفظ صلاحيات الدور بنجاح": "Role permissions saved successfully",
@@ -559,7 +560,7 @@
     "حالة غير صالحة.": "Select at least one item to invoice.",
     "حدد صنفاً واحداً على الأقل للفوترة.": "Specify at least one period: hours, kilometers or days.",
     "حدد فترة واحدة على الأقل: بالساعات أو الكيلومترات أو الأيام.": "Specify at least one returned quantity.",
-    "حدد كمية مرتجعة واحدة على الأقل.": "Specify at least one received quantity.",
+    "حدد كمية مرتجعة واحدة على الأقل.": "Specify at least one returned quantity.",
     "حدد كمية مستلمة واحدة على الأقل.": "Specify at least one quantity to deliver.",
     "حدد كمية واحدة على الأقل للتسليم.": "Specify at least one quantity to invoice.",
     "حدد كمية واحدة على الأقل للفوترة.": "Specify an end date and renewal term in months in the contract.",
