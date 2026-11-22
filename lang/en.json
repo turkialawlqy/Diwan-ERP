@@ -806,5 +806,6 @@
     "رقم الحساب مستخدم لحساب آخر في الدليل.": "This account code is already used by another account in the chart.",
     "هذا الحساب موقوف؛ اختر حسابًا نشطًا.": "This account is switched off; choose an active account.",
     "هذا الحساب مربوط بدور آخر في «ربط الحسابات»؛ لا يكون حسابًا لفئة أصول.": "This account is set for another role in the account mapping; it cannot be an asset category account.",
-    "جهاز نقاط البيع المحدد غير موجود.": "The selected POS device does not exist."
+    "جهاز نقاط البيع المحدد غير موجود.": "The selected POS device does not exist.",
+    "لا يمكن حذف الحساب لأن قيدًا متكررًا لفرع آخر يستعمله.": "The account cannot be deleted because a recurring entry of another branch uses it."
 }
