@@ -894,6 +894,7 @@
         "suggested_selling_price_sar": "سعر البيع المقترح (﷼)",
         "tax_rate": "نسبة الضريبة (%)",
         "item_code_sku": "كود الصنف (SKU)",
+        "sku_auto": "يُرقَّم تلقائيًا من دليل الترميز",
         "barcode": "الباركود (Barcode)",
         "item_description_extra_details": "وصف الصنف / تفاصيل إضافية",
         "save_and_insert_into_the_invoice": "حفظ وإدراج في الفاتورة",
