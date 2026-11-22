@@ -4,6 +4,7 @@ import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { taxRate } from '@/utils/tax';
+import { watch } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../../Layouts/AppLayout.vue';
 import VatFields from '@/Components/Products/VatFields.vue';
@@ -45,8 +46,16 @@ const form = useForm({
 });
 useUnsavedGuard(form);
 
+// «حفظ وإضافة جديد» resets the form to its first values: take the page's new suggestion, not the code just saved.
+watch(() => props.suggestedSku, (next, previous) => {
+    form.defaults('sku', next || '');
+    if (form.sku === previous) form.sku = next || '';
+});
+
+// A code kept as suggested is sent empty: the server reserves it (or the next free one) through the numbering service.
 const submit = () => {
-    form.post(route('inventory.products.store'));
+    form.transform((data) => ({ ...data, sku: data.sku === props.suggestedSku ? '' : data.sku }))
+        .post(route('inventory.products.store'));
 };
 </script>
 

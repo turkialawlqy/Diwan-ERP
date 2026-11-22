@@ -229,6 +229,6 @@ php artisan erp:restore diwan-backup-YYYY-MM-DD-HHMMSS.zip --disk=offsite   # م
 
 - **الصحة:** المسار `/up` لفحص الصحة.
 - **الفهارس:** كل الجداول مفهرسة بـ `company_id` مع أعمدة البحث والتواريخ.
-- **الأرصدة:** ميزان المراجعة يقرأ من أرصدة شهرية مجمعة (`account_balances`). يُعاد بناؤها عند الحاجة بـ `php artisan erp:accounting rebuild-balances`.
+- **الأرصدة:** ميزان المراجعة يقرأ من أرصدة شهرية مجمعة (`account_balances`، و`branch_account_balances` عند اختيار فرع)، وقائمة التدفق النقدي من `cash_flow_balances` (مجمّعة حسب تركيبة حسابات القيد، فلا تتأثر بتغيّر حسابات النقد). يُعاد بناؤها جميعًا عند الحاجة بـ `php artisan erp:accounting rebuild-balances`.
 - **اختبار الحمل:** `php artisan erp:load-test` ينشئ بيانات ضخمة ويقيس زمن التقارير.
 - **التزامن:** الترقيم والمخزون وسلسلة الفواتير الإلكترونية محمية بأقفال الصفوف `SELECT ... FOR UPDATE`. جُرّب ذلك على MySQL 8 بأربع عمليات متزامنة: لا أرقام مكررة، والمخزون والقيود متطابقة.

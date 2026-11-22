@@ -133,8 +133,10 @@ const submitRevenue = () => (editing ? form.put(route('finance.revenues.update',
                                 <div>
                                     <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_revenues_form.deposit_into_cash_box_or_bank') }}</label>
                                     <SelectCreate v-model="form.bank_account_id" :options="bankAccounts" entity="bank" :label="(bank) => $t('fin_finance_revenues_form.n_balance_n_sar', { n0: bank.name, n1: formatCurrency(bank.current_balance) })" :allow-empty="false" />
+                                    <p v-if="form.errors.bank_account_id" class="text-rose-600 text-3xs mt-1">{{ form.errors.bank_account_id }}</p>
                                 </div>
-                                <div>
+                                <div class="flex flex-col">
+                                    <p v-if="form.errors.account_id" class="order-last text-rose-600 text-3xs mt-1">{{ form.errors.account_id }}</p>
                                     <label class="block font-medium text-slate-700 mb-1">{{ $t('fin_finance_revenues_form.revenue_account_in_the_chart') }}</label>
                                     <SelectCreate v-model="form.account_id" :options="revenueAccounts" entity="account" :defaults="{ type: 'revenue' }" :label="(acc) => `${acc.code} - ${acc.name_ar}`" :allow-empty="false" />
                                 </div>

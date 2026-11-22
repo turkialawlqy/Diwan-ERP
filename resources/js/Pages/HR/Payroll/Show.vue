@@ -9,6 +9,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import Dialog from '@/Components/UI/Dialog.vue';
 import Field from '@/Components/UI/Field.vue';
+import FormErrors from '@/Components/UI/FormErrors.vue';
 import StatusBadge from '@/Components/Documents/StatusBadge.vue';
 import { money, today } from '@/utils/format';
 const { t } = useI18n();
@@ -103,10 +104,11 @@ const remove = async (url, message) => { if (await confirmAction(message, { dang
 
         <Dialog :show="payOpen" :title="$t('hr_payroll_show.pay_salaries')" @close="payOpen = false">
             <div class="grid grid-cols-2 gap-3">
-                <Field :label="$t('hr_payroll_show.payment_date')"><DatePicker v-model="payForm.date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
-                <Field :label="$t('hr_payroll_show.bank_account')"><SelectCreate v-model="payForm.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('hr_payroll_show.default')" /></Field>
+                <Field :label="$t('hr_payroll_show.payment_date')" :error="payForm.errors.date"><DatePicker v-model="payForm.date" class="w-full rounded-xl border-slate-200 text-xs" /></Field>
+                <Field :label="$t('hr_payroll_show.bank_account')" :error="payForm.errors.bank_account_id"><SelectCreate v-model="payForm.bank_account_id" :options="bankAccounts" entity="bank" label="name" :placeholder="$t('hr_payroll_show.default')" /></Field>
             </div>
             <p class="text-xs mt-2">{{ $t('hr_payroll_show.amount') }} <b class="font-mono">{{ money(payroll.net_total) }}</b></p>
+            <FormErrors :errors="payForm.errors" :except="['date', 'bank_account_id']" class="mt-3" />
             <template #footer><button @click="payForm.post(route('hr.payroll.pay', payroll.id), { onSuccess: () => (payOpen = false) })" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold">{{ $t('hr_payroll_show.confirm_payment') }}</button></template>
         </Dialog>
     </AppLayout>

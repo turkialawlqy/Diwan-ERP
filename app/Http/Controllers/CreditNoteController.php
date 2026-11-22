@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BankAccount;
 use App\Models\CreditNote;
 use App\Models\CreditNoteItem;
 use App\Models\Customer;
@@ -9,6 +10,7 @@ use App\Models\Invoice;
 use App\Rules\BranchBox;
 use App\Services\Accounting\DocumentPoster;
 use App\Services\Accounting\ExchangeRates;
+use App\Services\ActiveBranch;
 use App\Services\AttachmentService;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\SalesCycleService;
@@ -16,6 +18,7 @@ use App\Services\Tax\TaxProfile;
 use App\Services\TenantManager;
 use App\Services\Workflow\ApprovalGate;
 use App\Services\Zatca\EInvoiceManager;
+use App\Support\PickerOptions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -78,18 +81,22 @@ class CreditNoteController extends Controller
             });
         }
 
-        $customers = Customer::where('status', 'active')
-            ->orderBy('name')
-            ->limit(500)
-            ->get(['id', 'name', 'company_name', 'tax_number', 'phone', 'current_balance']);
+        // First records only; the form searches the rest through lookup.customers.
+        $customers = PickerOptions::from(Customer::where('status', 'active')->orderBy('name'), ['id', 'name', 'company_name', 'tax_number', 'phone', 'current_balance'], [$selectedInvoice?->customer_id]);
 
         // Recent invoices for selection if not pre-selected
-        $recentInvoices = Invoice::with('customer')
+        $recentInvoices = Invoice::with('customer:id,name')
             ->orderBy('invoice_date', 'desc')
             ->limit(50)
             ->get(['id', 'invoice_number', 'customer_id', 'total', 'invoice_date']);
 
         $suggestedNumber = $this->peekNumber('credit_note');
+
+        // A cash refund is paid from a box of the note's branch (its invoice's, else the top bar's) or one shared by all branches.
+        $branchId = $selectedInvoice?->branch_id ?: app(ActiveBranch::class)->id();
+        $bankAccounts = BankAccount::where('is_active', true)
+            ->when($branchId, fn ($q) => $q->where(fn ($q) => $q->where('branch_id', $branchId)->orWhereNull('branch_id')))
+            ->orderBy('type')->orderBy('name')->get(['id', 'name', 'type']);
 
         return Inertia::render('Sales/Returns/Create', [
             'customers' => $customers,
@@ -98,6 +105,7 @@ class CreditNoteController extends Controller
             'suggestedNumber' => $suggestedNumber,
             'company' => $company,
             'defaultTaxRate' => TaxProfile::rate(),
+            'bankAccounts' => $bankAccounts,
         ]);
     }
 
@@ -107,8 +115,12 @@ class CreditNoteController extends Controller
     public function store(Request $request)
     {
         // Item level return: goods come back to stock, quantities are checked
-        // against what is still returnable on the original invoice.
-        if ($request->filled('items') && $request->filled('invoice_id')) {
+        // against what is still returnable on the original invoice. The form says
+        // which kind it sends (mode). Without one, only lines count: an amount
+        // credit note sends an empty list, which filled() takes as given.
+        $itemMode = $request->input('mode') === 'items'
+            || ($request->input('mode') !== 'amount' && ! empty($request->input('items')) && $request->filled('invoice_id'));
+        if ($itemMode) {
             $validated = $request->validate([
                 'customer_id' => 'required|tenant_exists:customers,id',
                 'invoice_id' => 'required|tenant_exists:invoices,id',
@@ -124,7 +136,7 @@ class CreditNoteController extends Controller
                 'items.*.return_to_stock' => 'nullable|boolean',
                 'items.*.serials' => 'nullable|array',
                 'items.*.serials.*' => 'string|max:150',
-            ]);
+            ], ['items.required' => 'حدد كمية مرتجعة واحدة على الأقل.']);
 
             $invoice = Invoice::findOrFail($validated['invoice_id']);
             if ((int) $invoice->customer_id !== (int) $validated['customer_id']) {

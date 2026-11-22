@@ -60,8 +60,8 @@ const input = 'w-full rounded-xl border-slate-200 text-xs';
                 <Field :label="$t('pdraft.due_date')" :error="form.errors.due_date"><DatePicker v-model="form.due_date" :class="input" /></Field>
                 <Field :label="$t('pdraft.payment_method')"><select v-model="form.payment_method" :class="input"><option value="credit">{{ $t('p_invoices_fromreceipts.credit') }}</option><option value="cash">{{ $t('s_payments.cash') }}</option><option value="bank_transfer">{{ $t('s_payments.bank_transfer') }}</option><option value="card">{{ $t('p_invoices_fromreceipts.card') }}</option></select></Field>
                 <Field :label="$t('p_invoices_fromreceipts.payment_status')"><select v-model="form.payment_status" :class="input"><option value="unpaid">{{ $t('s_invoices.unpaid') }}</option><option value="partially_paid">{{ $t('s_invoices.partially_paid') }}</option><option value="paid">{{ $t('s_invoices.paid') }}</option></select></Field>
-                <Field v-if="form.payment_status === 'partially_paid'" :label="$t('p_invoices_fromreceipts.amount_paid')"><input v-model.number="form.paid_amount" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
-                <Field v-if="form.payment_status !== 'unpaid'" :label="$t('p_invoices_fromreceipts.bank_account_cash_box')"><SelectCreate v-model="form.bank_account_id" :options="bankAccounts" label="name" entity="bank" /></Field>
+                <Field v-if="form.payment_status === 'partially_paid'" :label="$t('p_invoices_fromreceipts.amount_paid')" :error="form.errors.paid_amount"><input v-model.number="form.paid_amount" type="text" inputmode="decimal" data-num :class="input" class="font-mono" /></Field>
+                <Field v-if="form.payment_status !== 'unpaid'" :label="$t('p_invoices_fromreceipts.bank_account_cash_box')" :error="form.errors.bank_account_id"><SelectCreate v-model="form.bank_account_id" :options="bankAccounts" label="name" entity="bank" /></Field>
             </div>
 
             <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto" data-draft-lines>

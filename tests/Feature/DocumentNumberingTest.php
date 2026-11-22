@@ -74,6 +74,18 @@ class DocumentNumberingTest extends TestCase
         $this->assertSame('QUO-26-000002', $this->numbers()->peek('quotation', $date));
     }
 
+    public function test_peek_offers_the_number_next_would_give_skipping_used_ones(): void
+    {
+        $date = Carbon::parse('2026-05-01');
+        $this->assertSame('INV-26-000001', $this->numbers()->next('sales_invoice', $date));
+        // Taken outside the sequence (typed as suggested, imported): never offered again.
+        $this->insertInvoices([2, 3, 5]);
+
+        $this->assertSame('INV-26-000004', $this->numbers()->peek('sales_invoice', $date));
+        $this->assertSame('INV-26-000004', $this->numbers()->next('sales_invoice', $date));
+        $this->assertSame('INV-26-000006', $this->numbers()->peek('sales_invoice', $date));
+    }
+
     public function test_sequences_are_independent_per_company(): void
     {
         $date = Carbon::parse('2026-03-01');

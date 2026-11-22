@@ -3,14 +3,14 @@ import AttachmentsPanel from '@/Components/Documents/AttachmentsPanel.vue';
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 import DatePicker from '@/Components/UI/DatePicker.vue';
 import SelectCreate from '@/Components/UI/SelectCreate.vue';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import axios from 'axios';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
 import { today } from '@/utils/format';
 
-const props = defineProps({ suppliers: Array, whtRates: { type: Object, default: () => ({}) }, prefill: { type: Object, default: null } });
+const props = defineProps({ suppliers: Array, whtRates: { type: Object, default: () => ({}) }, prefill: { type: Object, default: null }, bankAccounts: { type: Array, default: () => [] } });
 
 const form = useForm({
     supplier_id: props.suppliers?.[0]?.id || '',
@@ -77,6 +77,16 @@ const onSupplierChange = () => {
     loadOpenInvoices();
 };
 onSupplierChange();
+
+// The voucher is filed in its bill's branch, else the one chosen in the top bar: it pays from a box of that branch or a shared one.
+const page = usePage();
+const voucherBranch = computed(() => {
+    const bill = filteredInvoices.value.find((i) => i.id === form.purchase_invoice_id);
+    const active = page.props.branchSwitcher?.active;
+    return bill?.branch_id || (active && active !== 'all' ? Number(active) : null);
+});
+const boxes = computed(() => props.bankAccounts.filter((b) => !b.branch_id || !voucherBranch.value || b.branch_id === voucherBranch.value));
+watch(boxes, (list) => { if (form.bank_account_id && !list.some((b) => b.id === form.bank_account_id)) form.bank_account_id = ''; });
 
 const formatCurrency = (val) => Number(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -184,6 +194,11 @@ const submitPayment = () => form.transform((d) => {
                                     <label class="block font-bold text-slate-700 mb-1">{{ $t('p_payments_form.cheque_due_date_empty_payable_no') }}</label>
                                     <DatePicker v-model="form.cheque_due_date" class="w-full rounded-xl border border-slate-200 px-3 py-2" />
                                     <p v-if="form.errors.cheque_due_date" class="text-rose-600 mt-1">{{ form.errors.cheque_due_date }}</p>
+                                </div>
+                                <div data-payment-box>
+                                    <label class="block font-bold text-slate-700 mb-1">{{ form.payment_method === 'cheque' ? $t('p_payments_form.cheque_drawn_on') : $t('p_payments_form.paid_from') }}</label>
+                                    <SelectCreate v-model="form.bank_account_id" :options="boxes" entity="bank" label="name" :placeholder="$t('p_payments_form.default_for_the_method')" />
+                                    <p v-if="form.errors.bank_account_id" class="text-rose-600 mt-1">{{ form.errors.bank_account_id }}</p>
                                 </div>
                             </div>
             
