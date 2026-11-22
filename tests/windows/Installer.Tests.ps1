@@ -110,9 +110,10 @@ Describe 'Reading a Caddy release' {
 
     It 'finds the digest of a file in the checksums of a release' {
         $sums = Join-Path $TestDrive 'checksums.txt'
+        # One string per line (a comma binds before +, so "('a' * 128) + '...', ..." would be one line).
         Set-Content -Path $sums -Encoding Ascii -Value @(
-            ('a' * 128) + '  caddy_2.99.0_windows_amd64.zip',
-            ('B' * 64) + ' *caddy_2.99.0_windows_arm64.zip',
+            "$('a' * 128)  caddy_2.99.0_windows_amd64.zip",
+            "$('B' * 64) *caddy_2.99.0_windows_arm64.zip",
             'not a checksum line'
         )
         $found = Find-ReleaseChecksum $sums 'caddy_2.99.0_windows_amd64.zip'
