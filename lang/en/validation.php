@@ -167,6 +167,9 @@ return [
     'ulid' => 'The :attribute field must be a valid ULID.',
     'uuid' => 'The :attribute field must be a valid UUID.',
 
+    // Project rule: like "exists" but scoped to the current company (without this line English got its Arabic fallback).
+    'tenant_exists' => 'The selected :attribute does not exist in your company.',
+
     /*
     |--------------------------------------------------------------------------
     | Custom Validation Language Lines
