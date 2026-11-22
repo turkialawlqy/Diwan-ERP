@@ -289,6 +289,10 @@ export const quickCreate = {
             num('useful_life_months', 'العمر الإنتاجي (شهر)', { step: '1', default: 60, required: true }),
             { key: 'depreciation_method', label: 'طريقة الإهلاك', type: 'select', default: 'straight_line', options: [{ value: 'straight_line', label: 'القسط الثابت' }, { value: 'declining_balance', label: 'القسط المتناقص' }, { value: 'units_of_production', label: 'وحدات الإنتاج' }] },
             num('declining_rate', 'نسبة التناقص %', { show: (f) => f.depreciation_method === 'declining_balance' }),
+            // Only accounts the category accepts (AssetCategory::accountOptions); empty = the default role account.
+            { key: 'asset_account_id', label: 'حساب الأصل', type: 'select', lookup: 'accounts', query: { asset_category: 'asset_account_id' }, entity: 'account', defaults: { type: 'asset' }, empty: 'الحساب الافتراضي', span: 2 },
+            { key: 'accumulated_account_id', label: 'حساب مجمع الإهلاك', type: 'select', lookup: 'accounts', query: { asset_category: 'accumulated_account_id' }, entity: 'account', defaults: { type: 'asset', nature: 'credit' }, empty: 'الحساب الافتراضي', span: 2 },
+            { key: 'expense_account_id', label: 'حساب مصروف الإهلاك', type: 'select', lookup: 'accounts', query: { asset_category: 'expense_account_id' }, entity: 'account', defaults: { type: 'expense' }, empty: 'الحساب الافتراضي', span: 2 },
         ],
     },
 };

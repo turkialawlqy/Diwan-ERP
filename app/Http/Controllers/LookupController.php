@@ -138,9 +138,11 @@ class LookupController extends Controller
         if ($name === 'accounts') {
             $query->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
                 ->when($request->boolean('parents'), fn ($q) => $q->where('is_parent', true))
-                // A box's ledger, a customer group's receivables: only what the form behind the picker accepts.
+                // A box's ledger, a customer group's receivables, an asset category's accounts: only what the form behind
+                // the picker accepts.
                 ->when($request->boolean('box_ledger'), fn ($q) => $q->whereIn('id', BankAccount::linkableLedgers()->pluck('id')))
-                ->when($request->boolean('receivables'), fn ($q) => $q->whereIn('id', CustomerGroup::accountOptions()->pluck('id')));
+                ->when($request->boolean('receivables'), fn ($q) => $q->whereIn('id', CustomerGroup::accountOptions()->pluck('id')))
+                ->when($request->query('asset_category'), fn ($q, $field) => $q->whereIn('id', is_string($field) && isset(AssetCategory::ACCOUNTS[$field]) ? AssetCategory::accountOptions($field)->pluck('id') : []));
         }
 
         return response()->json(['data' => $query->orderBy($order)->limit(500)->get()->map(fn ($m) => ['id' => $m->getKey(), 'label' => $label($m)])->values()]);

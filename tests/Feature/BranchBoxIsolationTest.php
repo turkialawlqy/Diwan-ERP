@@ -9,6 +9,7 @@ use App\Models\BankReconciliation;
 use App\Models\BookableService;
 use App\Models\BookingResource;
 use App\Models\Branch;
+use App\Models\Category;
 use App\Models\Cheque;
 use App\Models\Company;
 use App\Models\Customer;
@@ -1479,5 +1480,341 @@ class BranchBoxIsolationTest extends TestCase
             ->assertSessionHasErrors(['account_id' => 'اختر حساب إيرادات فرعيًا.']);
         $this->post(route('finance.expenses.store'), ['title' => 'إيجار', 'category' => 'عام', 'amount' => 400, 'expense_date' => self::DATE, 'payment_method' => 'cash', 'account_id' => $this->role('other_revenue')])
             ->assertSessionHasErrors(['account_id' => 'اختر حساب مصروفات فرعيًا.']);
+    }
+
+    // ------------------------------------------------------------------ accounts the system posts to by itself
+
+    /** Saves $id from the chart form with $changes over what the form shows. */
+    protected function editAccount(int $id, array $changes): TestResponse
+    {
+        return $this->put(route('accounting.accounts.update', $id), $changes + Account::withoutGlobalScopes()->findOrFail($id)->only(['code', 'name_ar', 'type', 'nature', 'parent_id', 'is_parent', 'is_active']));
+    }
+
+    protected function accountActive(int $id): bool
+    {
+        return (bool) Account::withoutGlobalScopes()->whereKey($id)->value('is_active');
+    }
+
+    /**
+     * Every branch posts to a role account (box-less vouchers and POS to the default cash, every sale to output VAT) and
+     * to the ledger of a box shared by all branches: switched off, each of those postings is refused («موقوف»), so no
+     * one switches them off or retypes them, the owner included, until the role is mapped elsewhere. A user still
+     * switches off the ledger of their own branch's box, but not one another branch's box shares.
+     */
+    public function test_accounts_every_branch_posts_to_are_neither_switched_off_nor_retyped(): void
+    {
+        $this->world();
+        $shared = $this->sharedBox();
+        $this->inBranch($this->userIn([$this->a], 'accountant'));
+        $role = 'هذا الحساب مربوط في «ربط الحسابات» ويرحّل عليه النظام لكل الفروع؛ لا يُوقف ولا يتغير نوعه أو طبيعته. اربط الدور بحساب آخر من «ربط الحسابات» أولًا.';
+
+        foreach (['default_cash', 'default_bank', 'petty_cash', 'vat_output'] as $name) {
+            $this->editAccount($this->role($name), ['is_active' => false])->assertSessionHas('error', $role);
+            $this->assertTrue($this->accountActive($this->role($name)), $name);
+        }
+        // Retyped before any posting (with postings, the chart refuses it anyway).
+        $this->editAccount($this->role('petty_cash'), ['nature' => 'credit'])->assertSessionHas('error', $role);
+        $this->editAccount($this->role('other_revenue'), ['type' => 'expense', 'nature' => 'debit'])->assertSessionHas('error', $role);
+        $this->assertSame(['asset', 'debit'], array_values(Account::withoutGlobalScopes()->findOrFail($this->role('petty_cash'))->only(['type', 'nature'])));
+
+        // The ledger of a box every branch's vouchers may go through.
+        $this->editAccount((int) $shared->account_id, ['is_active' => false])->assertSessionHas('error', 'هذا الحساب حساب صندوق أو بنك مشترك بين كل الفروع؛ لا يُوقف.');
+        $this->assertTrue($this->accountActive((int) $shared->account_id));
+        // A ledger branch A's box shares with a box of branch B (older data): switched off, branch B's box stops too.
+        DB::table('bank_accounts')->where('id', $this->boxB->id)->update(['account_id' => $this->boxA->account_id]);
+        $this->editAccount((int) $this->boxA->account_id, ['is_active' => false])->assertSessionHas('error', 'هذا الحساب مربوط بصندوق أو بنك لفرع آخر.');
+        DB::table('bank_accounts')->where('id', $this->boxB->id)->update(['account_id' => $this->boxB->account_id]);
+        // Its own branch's box alone: switched off and on again.
+        $this->editAccount((int) $this->boxA->account_id, ['is_active' => false])->assertSessionHasNoErrors()->assertSessionMissing('error');
+        $this->assertFalse($this->accountActive((int) $this->boxA->account_id));
+        $this->editAccount((int) $this->boxA->account_id, ['is_active' => true])->assertSessionMissing('error');
+
+        // The owner neither, while the role is mapped to it; mapped to another account first, the old one is switched off.
+        $this->inBranch($this->owner, $this->a->id);
+        $petty = $this->role('petty_cash');
+        $this->editAccount($petty, ['is_active' => false])->assertSessionHas('error', $role);
+        $custody = Account::create(['code' => '11196', 'name_ar' => 'عهد نقدية', 'type' => 'asset', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true]);
+        $this->put(route('accounting.mappings.update'), ['mapping' => ['petty_cash' => $custody->id]])->assertSessionHasNoErrors();
+        app(AccountMap::class)->flush();
+        $this->editAccount($petty, ['is_active' => false])->assertSessionMissing('error');
+        $this->assertFalse($this->accountActive($petty));
+
+        // So branch B's box-less vouchers still post to the default cash.
+        $this->inBranch($this->userIn([$this->b], 'accountant'));
+        $mark = $this->mark();
+        $this->post(route('finance.expenses.store'), ['title' => 'ضيافة', 'category' => 'ضيافة', 'amount' => 30, 'expense_date' => self::DATE, 'payment_method' => 'cash'])->assertSessionHasNoErrors();
+        $this->assertLine($this->linesSince($mark), $this->role('default_cash'), 0, 30);
+    }
+
+    /** Deleted, a role account leaves AccountMap with nothing: box-less vouchers fail, and new boxes (opened beside the default cash or bank). */
+    public function test_a_role_account_is_not_deleted_while_a_role_is_mapped_to_it(): void
+    {
+        $this->world();
+        $this->inBranch($this->owner, $this->a->id);
+        $message = 'هذا الحساب مربوط في «ربط الحسابات» ويرحّل عليه النظام؛ لا يُحذف. اربط الدور بحساب آخر من «ربط الحسابات» أولًا.';
+        [$cash, $petty] = [$this->role('default_cash'), $this->role('petty_cash')];
+
+        foreach ([$cash, $this->role('default_bank'), $petty, $this->role('vat_input')] as $account) {
+            $this->delete(route('accounting.accounts.destroy', $account))->assertSessionHas('error', $message);
+            $this->assertTrue(Account::withoutGlobalScopes()->whereKey($account)->exists());
+        }
+        app(AccountMap::class)->flush();
+        $this->assertSame($cash, $this->role('default_cash'));
+        $box = $this->openBox('صندوق جديد', 'cash', 0);
+        $parentOf = fn (int $account) => (int) Account::withoutGlobalScopes()->whereKey($account)->value('parent_id');
+        $this->assertSame($parentOf($cash), $parentOf((int) $box->account_id));
+
+        // Mapped to another account first, it goes.
+        $custody = Account::create(['code' => '11196', 'name_ar' => 'عهد نقدية', 'type' => 'asset', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true]);
+        $this->put(route('accounting.mappings.update'), ['mapping' => ['petty_cash' => $custody->id]])->assertSessionHasNoErrors();
+        app(AccountMap::class)->flush();
+        $this->delete(route('accounting.accounts.destroy', $petty))->assertSessionHas('success');
+        $this->assertFalse(Account::withoutGlobalScopes()->whereKey($petty)->exists());
+    }
+
+    public function test_a_switched_off_account_is_never_a_new_choice_for_a_role(): void
+    {
+        $this->world();
+        $this->inBranch($this->owner, $this->a->id);
+        $off = Account::create(['code' => '11197', 'name_ar' => 'صندوق موقوف', 'type' => 'asset', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => false]);
+        $message = 'هذا الحساب موقوف؛ اختر حسابًا نشطًا.';
+        $settings = ['name' => $this->company->name];
+        foreach (['sales_revenue', 'purchases_cogs', 'vat_output', 'vat_input', 'receivables', 'payables', 'default_cash', 'default_bank'] as $role) {
+            $settings["acc_{$role}_id"] = $this->role($role);
+        }
+
+        foreach (['default_cash', 'petty_cash', 'receivables'] as $role) {
+            $this->put(route('accounting.mappings.update'), ['mapping' => [$role => $off->id]])->assertSessionHasErrors(["mapping.{$role}" => $message]);
+        }
+        $this->put(route('settings.update'), ['acc_default_bank_id' => $off->id] + $settings)->assertSessionHasErrors(['acc_default_bank_id' => $message]);
+        app(AccountMap::class)->flush();
+        $this->assertNotContains($off->id, array_map('intval', array_filter(app(AccountMap::class)->all())));
+
+        // A mapped account older data switched off: saving either page unchanged still goes through.
+        DB::table('accounts')->where('id', $this->role('default_bank'))->update(['is_active' => false]);
+        $this->put(route('accounting.mappings.update'), ['mapping' => ['default_bank' => $this->role('default_bank')]])->assertSessionHasNoErrors();
+        $this->put(route('settings.update'), $settings)->assertSessionHasNoErrors();
+
+        // The settings page's role pickers offer no switched-off account, but keep showing the one mapped now.
+        $offered = collect($this->get(route('settings.index'))->assertOk()->viewData('page')['props']['accounts'])->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $this->assertNotContains($off->id, $offered);
+        $this->assertContains($this->role('default_bank'), $offered);
+    }
+
+    /**
+     * Each purchase, depreciation run and disposal of a category's assets posts to its asset and accumulated-depreciation
+     * accounts: neither is another role's account (it would move the default cash, the customers' receivables, input
+     * VAT...) nor a switched-off one. The form and its quick-create dialog offer only what the category accepts.
+     */
+    public function test_an_asset_category_takes_no_other_role_account_nor_a_switched_off_one(): void
+    {
+        $this->world();
+        $this->inBranch($this->userIn([$this->a], 'accountant'));
+        $category = fn (array $accounts) => $this->post(route('accounting.fixed-assets.categories.store'), $accounts + ['name_ar' => 'سيارات', 'useful_life_months' => 60, 'depreciation_method' => 'straight_line']);
+        $roleMessage = 'هذا الحساب مربوط بدور آخر في «ربط الحسابات»؛ لا يكون حسابًا لفئة أصول.';
+        $off = Account::create(['code' => '15991', 'name_ar' => 'أصل موقوف', 'type' => 'asset', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => false]);
+
+        foreach (['asset_account_id' => ['default_cash', 'receivables', 'vat_input', 'accumulated_depreciation'], 'accumulated_account_id' => ['default_bank', 'petty_cash', 'inventory', 'fixed_assets']] as $field => $roles) {
+            foreach ($roles as $role) {
+                $category([$field => $this->role($role)])->assertSessionHasErrors([$field => $roleMessage]);
+            }
+        }
+        $category(['asset_account_id' => $off->id])->assertSessionHasErrors(['asset_account_id' => 'هذا الحساب موقوف؛ اختر حسابًا نشطًا.']);
+        $this->assertSame(0, AssetCategory::withoutGlobalScopes()->count());
+
+        $refused = [$this->role('default_cash'), $this->role('receivables'), $this->role('vat_input'), (int) $this->boxA->account_id, (int) $this->boxB->account_id, $off->id];
+        $offered = collect($this->get(route('accounting.fixed-assets.index'))->assertOk()->viewData('page')['props']['categoryAccounts'])
+            ->map(fn ($accounts) => collect($accounts)->pluck('id')->map(fn ($id) => (int) $id)->all());
+        $looked = fn (string $field) => collect($this->getJson(route('lookup.list', 'accounts').'?asset_category='.$field)->assertOk()->json('data'))->pluck('id')->map(fn ($id) => (int) $id)->all();
+        foreach (['asset_account_id' => ['fixed_assets', 'accumulated_depreciation'], 'accumulated_account_id' => ['accumulated_depreciation', 'fixed_assets']] as $field => [$own, $other]) {
+            foreach ([$offered[$field], $looked($field)] as $list) {
+                $this->assertContains($this->role($own), $list, $field);
+                $this->assertSame([], array_values(array_intersect($list, [...$refused, $this->role($other)])), $field);
+            }
+        }
+        // The expense account is not concerned: depreciation may go to the general expenses.
+        $this->assertContains($this->role('general_expense'), $offered['expense_account_id']);
+        $this->assertContains($this->role('general_expense'), $looked('expense_account_id'));
+
+        $category(['asset_account_id' => $this->role('fixed_assets'), 'accumulated_account_id' => $this->role('accumulated_depreciation'), 'expense_account_id' => $this->role('general_expense')])->assertSessionHasNoErrors();
+        $this->assertSame(1, AssetCategory::withoutGlobalScopes()->count());
+    }
+
+    /** The database refuses a second account with the same code: the chart answers with a message, not a server error. */
+    public function test_a_duplicate_account_code_is_refused_with_a_message(): void
+    {
+        $this->world();
+        $this->inBranch($this->owner, $this->a->id);
+        $taken = (string) Account::withoutGlobalScopes()->whereKey($this->role('general_expense'))->value('code');
+        $message = 'رقم الحساب مستخدم لحساب آخر في الدليل.';
+        $new = fn (string $code) => ['code' => $code, 'name_ar' => 'حساب جديد', 'type' => 'expense', 'nature' => 'debit'];
+
+        $this->post(route('accounting.accounts.store'), $new($taken))->assertSessionHasErrors(['code' => $message]);
+        $this->postJson(route('accounting.accounts.store'), $new($taken))->assertUnprocessable()->assertJsonValidationErrors(['code' => $message]);
+        $this->assertSame(1, Account::withoutGlobalScopes()->where('company_id', $this->company->id)->where('code', $taken)->count());
+
+        // A code only another company uses is free; recoded onto another account's code, an account is refused.
+        $other = Company::factory()->create();
+        DB::table('accounts')->insert(['company_id' => $other->id, 'code' => '889001', 'name_ar' => 'حساب منشأة أخرى', 'type' => 'expense', 'nature' => 'debit', 'created_at' => now(), 'updated_at' => now()]);
+        $this->post(route('accounting.accounts.store'), $new('889001'))->assertSessionHasNoErrors();
+        $mine = (int) Account::withoutGlobalScopes()->where('company_id', $this->company->id)->where('code', '889001')->value('id');
+        $this->editAccount($mine, ['code' => $taken])->assertSessionHasErrors(['code' => $message]);
+        $this->editAccount($mine, ['name_ar' => 'حساب معدّل'])->assertSessionHasNoErrors()->assertSessionMissing('error');
+        $this->assertSame(['889001', 'حساب معدّل'], array_values(Account::withoutGlobalScopes()->findOrFail($mine)->only(['code', 'name_ar'])));
+    }
+
+    /**
+     * The trial balance rolls an account up into its parent: under a posting account it would be added to that account's
+     * own postings, and under one of its sub-accounts the chart would loop. A posting account with no postings becomes a
+     * group, as when a sub-account is added under it.
+     */
+    public function test_an_account_is_moved_only_under_a_group_and_never_under_its_own_sub_account(): void
+    {
+        $this->world();
+        $this->inBranch($this->owner, $this->a->id);
+        $make = fn (string $code, array $extra = []) => (int) Account::create($extra + ['code' => $code, 'name_ar' => "حساب {$code}", 'type' => 'expense', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true])->id;
+        $value = fn (int $account, string $column) => Account::withoutGlobalScopes()->whereKey($account)->value($column);
+
+        [$leaf, $moved, $posted] = [$make('59101'), $make('59102'), $make('59103')];
+        $this->editAccount($moved, ['parent_id' => $leaf])->assertSessionHasNoErrors()->assertSessionMissing('error');
+        $this->assertSame([true, $leaf], [(bool) $value($leaf, 'is_parent'), (int) $value($moved, 'parent_id')]);
+
+        // Not under one with postings, nor one the system posts to.
+        $this->post(route('accounting.journals.store'), ['date' => self::DATE, 'description' => 'قيد', 'save_as' => 'posted', 'lines' => [
+            ['account_id' => $posted, 'debit' => 50, 'credit' => 0], ['account_id' => $this->boxA->account_id, 'debit' => 0, 'credit' => 50],
+        ]])->assertSessionHasNoErrors();
+        $this->editAccount($moved, ['parent_id' => $posted])->assertSessionHas('error', 'لا يمكن تحويل حساب عليه حركات إلى حساب رئيسي.');
+        $this->editAccount($moved, ['parent_id' => $this->role('general_expense')])->assertSessionHas('error', 'لا يمكن تحويل حساب يرحّل عليه النظام (صندوق أو بنك أو حساب مربوط في ربط الحسابات) إلى حساب رئيسي.');
+        $this->assertSame([false, false, $leaf], [(bool) $value($posted, 'is_parent'), (bool) $value($this->role('general_expense'), 'is_parent'), (int) $value($moved, 'parent_id')]);
+
+        // A group keeps its sub-accounts as a group.
+        $this->editAccount($leaf, ['is_parent' => false])->assertSessionHas('error', 'لا يمكن تحويل حساب رئيسي له حسابات فرعية إلى حساب فرعي. انقل حساباته الفرعية أولًا.');
+        $this->assertTrue((bool) $value($leaf, 'is_parent'));
+
+        // Never under one of its own sub-accounts.
+        $this->editAccount($moved, ['is_parent' => true])->assertSessionMissing('error');
+        $grandchild = $make('59104', ['parent_id' => $moved]);
+        foreach ([$moved, $grandchild] as $below) {
+            $this->editAccount($leaf, ['parent_id' => $below])->assertSessionHas('error', 'لا يمكن جعل الحساب تابعاً لأحد حساباته الفرعية.');
+        }
+        $this->assertNull($value($leaf, 'parent_id'));
+
+        // Older data with an account under a posting account: saved unchanged, it goes through.
+        $legacy = $make('59105');
+        DB::table('accounts')->where('id', $legacy)->update(['parent_id' => $posted]);
+        $this->editAccount($legacy, ['name_ar' => 'حساب قديم'])->assertSessionHasNoErrors()->assertSessionMissing('error');
+    }
+
+    /** Another branch's register answers as one that does not exist: neither its existence, nor its branch, nor an open shift shows. */
+    public function test_a_shift_is_opened_only_on_a_register_of_the_users_branches(): void
+    {
+        $this->world();
+        $this->inBranch($this->owner, $this->b->id);
+        $warehouseB = Warehouse::create(['branch_id' => $this->b->id, 'name_ar' => 'مستودع ب', 'code' => 'WB', 'is_active' => true]);
+        $this->post(route('pos.registers.store'), ['name' => 'كاشير ب', 'warehouse_id' => $warehouseB->id, 'bank_account_id' => $this->boxB->id, 'is_active' => true])->assertSessionHasNoErrors();
+        $register = PosRegister::withoutGlobalScopes()->where('name', 'كاشير ب')->firstOrFail();
+        $this->assertSame($this->b->id, (int) $register->branch_id);
+
+        $cashier = $this->userIn([$this->a], 'cashier');
+        $this->inBranch($cashier);
+        // Without a float (the shift itself was refused as one of another branch), and with one from the cashier's own
+        // box (refused as a box of another branch).
+        $answer = fn (int $id, array $float = []) => $this->postJson(route('pos.session.open'), ['pos_register_id' => $id, 'opening_cash' => 0] + $float)
+            ->assertUnprocessable()->json('errors');
+        $float = ['opening_cash' => 100, 'float_bank_account_id' => $this->boxA->id];
+        $missing = $answer(999999);
+        $this->assertSame($missing, $answer($register->id));
+        $this->assertSame($missing, $answer(999999, $float));
+        $this->assertSame($missing, $answer($register->id, $float));
+        $this->assertSame(['pos_register_id' => ['جهاز نقاط البيع المحدد غير موجود.']], $missing);
+
+        // A cashier of both branches opens a shift on it, from branch A's top bar, in branch B.
+        $this->inBranch($this->userIn([$this->a, $this->b], 'cashier'), $this->a->id);
+        $this->post(route('pos.session.open'), ['pos_register_id' => $register->id, 'opening_cash' => 0])->assertSessionHasNoErrors();
+        $this->assertSame([$this->b->id], PosSession::withoutGlobalScopes()->pluck('branch_id')->map(fn ($id) => (int) $id)->all());
+
+        // The open shift does not show either.
+        $this->inBranch($cashier);
+        $this->assertSame($missing, $answer($register->id));
+        $this->assertSame($missing, $answer($register->id, $float));
+        $this->assertSame(1, PosSession::withoutGlobalScopes()->count());
+    }
+
+    // ------------------------------------------------------------------ quick-create from the pickers of these forms
+
+    /** The <SelectCreate> tag bound to $model on a page (attribute values may hold «=>»). */
+    protected function picker(string $page, string $model): string
+    {
+        preg_match_all('/<SelectCreate\b(?:\s+[^\s=>"\/]+(?:="[^"]*")?)*\s*\/?>/', file_get_contents(resource_path("js/Pages/{$page}.vue")), $m);
+        $tags = array_values(array_filter($m[0], fn (string $tag) => str_contains($tag, "v-model=\"{$model}\"")));
+        $this->assertCount(1, $tags, "{$page}: the picker of {$model}");
+
+        return $tags[0];
+    }
+
+    /** The asset form's category picker creates an asset category (it made an inventory category), on the default accounts unless its dialog picks others. */
+    public function test_the_asset_forms_category_picker_creates_an_asset_category(): void
+    {
+        $this->assertStringContainsString('entity="asset_category"', $this->picker('Accounting/FixedAssets/Index', 'assetForm.asset_category_id'));
+        $registry = file_get_contents(resource_path('js/quickCreate.js'));
+        $this->assertMatchesRegularExpression("/asset_category: \\{\\s*title: [^\\n]*route: 'accounting\\.fixed-assets\\.categories\\.store'/", $registry);
+        foreach (['asset_account_id', 'accumulated_account_id', 'expense_account_id'] as $field) {
+            $this->assertStringContainsString("query: { asset_category: '{$field}' }", $registry);
+        }
+
+        $this->world();
+        $this->inBranch($this->userIn([$this->a], 'accountant'));
+        $inventoryCategories = Category::withoutGlobalScopes()->count();
+        // What the dialog sends with its account pickers left empty.
+        $record = $this->postJson(route('accounting.fixed-assets.categories.store'), ['name_ar' => 'سيارات', 'name_en' => '', 'useful_life_months' => 60, 'depreciation_method' => 'straight_line',
+            'asset_account_id' => '', 'accumulated_account_id' => '', 'expense_account_id' => ''])->assertCreated()->json('record');
+        $category = AssetCategory::withoutGlobalScopes()->findOrFail($record['id']);
+        $this->assertSame([$this->role('fixed_assets'), $this->role('accumulated_depreciation'), $this->role('depreciation_expense')],
+            array_map('intval', array_values($category->only(['asset_account_id', 'accumulated_account_id', 'expense_account_id']))));
+        $this->assertSame($inventoryCategories, Category::withoutGlobalScopes()->count());
+
+        // An asset registered on it right away.
+        $this->post(route('accounting.fixed-assets.store'), ['asset_category_id' => $category->id, 'branch_id' => $this->a->id, 'code' => 'FA-1', 'name_ar' => 'سيارة',
+            'acquisition_date' => '2026-01-01', 'cost' => 10000, 'paid_from' => 'opening'])->assertSessionHasNoErrors();
+        $this->assertSame($category->id, (int) FixedAsset::withoutGlobalScopes()->where('code', 'FA-1')->value('asset_category_id'));
+    }
+
+    /** The register's drawer and the shift's float list cash boxes only: a box made from either picker is a cash box. */
+    public function test_the_pos_box_pickers_create_a_cash_box(): void
+    {
+        foreach (['POS/Registers/Form' => 'form.bank_account_id', 'POS/OpenSession' => 'form.float_bank_account_id'] as $page => $model) {
+            $tag = $this->picker($page, $model);
+            $this->assertStringContainsString('entity="bank"', $tag, $page);
+            $this->assertMatchesRegularExpression("/:defaults=\"\\{ ?type: 'cash' ?\\}\"/", $tag, $page);
+        }
+
+        $this->world();
+        $this->inBranch($this->owner, $this->a->id);
+        // What the dialog sends once its type is preset to cash (the bank fields are hidden then).
+        $box = $this->postJson(route('finance.banks.store'), ['name' => 'درج أ', 'type' => 'cash', 'currency' => 'SAR', 'opening_balance' => 0, 'account_id' => ''])->assertCreated()->json('record');
+        $this->assertSame('cash', $box['type']);
+        $listed = collect($this->get(route('pos.registers.create'))->assertOk()->viewData('page')['props']['boxes'])->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $this->assertContains((int) $box['id'], $listed);
+        $this->post(route('pos.registers.store'), ['name' => 'كاشير أ', 'warehouse_id' => $this->warehouse->id, 'bank_account_id' => $box['id'], 'is_active' => true])->assertSessionHasNoErrors();
+        $this->assertSame((int) $box['id'], (int) PosRegister::withoutGlobalScopes()->where('name', 'كاشير أ')->value('bank_account_id'));
+    }
+
+    /** The parent picker of the account form creates a group account of the account's type (it made an expense posting account). */
+    public function test_the_parent_account_picker_creates_a_group_of_the_accounts_type(): void
+    {
+        $tag = $this->picker('Accounting/Accounts/Form', 'editForm.parent_id');
+        $this->assertStringContainsString('entity="account"', $tag);
+        $this->assertMatchesRegularExpression('/:defaults="\{[^"]*type: editForm\.type[^"]*is_parent: true[^"]*\}"/', $tag);
+
+        $this->world();
+        $this->inBranch($this->owner, $this->a->id);
+        // What its dialog sends for an asset account.
+        $group = $this->postJson(route('accounting.accounts.store'), ['code' => '1199', 'name_ar' => 'عهد الفروع', 'name_en' => '', 'parent_id' => '', 'type' => 'asset', 'nature' => 'debit',
+            'cash_flow_category' => '', 'is_parent' => true, 'requires_cost_center' => false])->assertCreated()->json('record');
+        $this->assertSame([true, 'asset'], [(bool) $group['is_parent'], $group['type']]);
+        $parents = collect($this->get(route('accounting.accounts.create'))->assertOk()->viewData('page')['props']['parentAccounts'])->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $this->assertContains((int) $group['id'], $parents);
+        $this->post(route('accounting.accounts.store'), ['code' => '119901', 'name_ar' => 'عهدة فرع أ', 'parent_id' => $group['id'], 'type' => 'asset', 'nature' => 'debit'])->assertSessionHasNoErrors();
+        $this->assertSame((int) $group['id'], (int) Account::withoutGlobalScopes()->where('code', '119901')->value('parent_id'));
     }
 }

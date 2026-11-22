@@ -58,7 +58,7 @@ const submitEditAccount = () => (editing
             <form @submit.prevent="submitEditAccount" class="form-grid text-xs">
                             <div>
                                 <label class="block font-medium text-slate-700 mb-1">{{ $t('a_account_form.parent_account') }}</label>
-                                <SelectCreate v-model="editForm.parent_id" :options="parentAccounts" entity="account" :label="(p) => `${p.code} - ${p.name_ar} (${typeLabels[p.type]})`" :placeholder="$t('a_account_form.top_level_account_no_parent')" />
+                                <SelectCreate v-model="editForm.parent_id" :options="parentAccounts" entity="account" :defaults="{ type: editForm.type, is_parent: true }" :label="(p) => `${p.code} - ${p.name_ar} (${typeLabels[p.type]})`" :placeholder="$t('a_account_form.top_level_account_no_parent')" />
                             </div>
             
                             <div class="grid grid-cols-2 gap-3">

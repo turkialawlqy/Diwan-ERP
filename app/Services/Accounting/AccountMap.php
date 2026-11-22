@@ -100,7 +100,7 @@ class AccountMap
 
     /**
      * Why $account cannot serve $role, or null: it must be a posting (non-parent) account of the role's type,
-     * and a new choice must pass boxProblem().
+     * and a new choice must be active and pass boxProblem().
      */
     public function problem(string $role, ?Account $account, ?int $companyId = null): ?string
     {
@@ -114,9 +114,14 @@ class AccountMap
         if ($type && $account->type !== $type) {
             return 'حساب «'.self::ROLES[$role][0].'» يجب أن يكون من نوع '.self::TYPE_LABELS[$type].'.';
         }
+        // The account already mapped is left alone (existing data), like boxProblem().
+        $current = (int) $account->id === (int) $this->find($role, $companyId);
+        // Every posting the role gets would be refused («موقوف»).
+        if (! $account->is_active && ! $current) {
+            return 'هذا الحساب موقوف؛ اختر حسابًا نشطًا.';
+        }
         // Vouchers without a box, transfers and POS post to a cash role without a cost center: each would be refused.
-        // The account already mapped is left alone, like boxProblem().
-        if (in_array($role, self::CASH_ROLES, true) && $account->requires_cost_center && (int) $account->id !== (int) $this->find($role, $companyId)) {
+        if (in_array($role, self::CASH_ROLES, true) && $account->requires_cost_center && ! $current) {
             return 'الصندوق والبنك الافتراضيان والعهد النقدية يرحّل عليها النظام بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.';
         }
 

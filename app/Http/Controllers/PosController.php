@@ -133,11 +133,20 @@ class PosController extends Controller
      */
     public function openSession(Request $request)
     {
+        // A register of a branch the user may not work in answers as a missing one: neither that it exists, nor its
+        // branch (through the float box asked for), nor whether a shift is open on it.
+        $registerId = filter_var($request->input('pos_register_id'), FILTER_VALIDATE_INT)
+            ? PosRegister::inBranchesOf($request->user())->whereKey($request->input('pos_register_id'))->value('id')
+            : null;
         $validated = $request->validate([
-            'pos_register_id' => 'required|tenant_exists:pos_registers,id',
+            'pos_register_id' => ['required', function ($attribute, $value, $fail) use ($registerId) {
+                if (! $registerId) {
+                    $fail('جهاز نقاط البيع المحدد غير موجود.');
+                }
+            }],
             'opening_cash' => 'nullable|numeric|min:0',
             // The shift takes its register's branch (PosSession::inheritedBranchId): the float comes from a box of it.
-            'float_bank_account_id' => ['nullable', BranchBox::forNew(PosSession::class, $request->only('pos_register_id'))],
+            'float_bank_account_id' => ['nullable', BranchBox::forNew(PosSession::class, ['pos_register_id' => $registerId])],
             'notes' => 'nullable|string',
         ]);
 
