@@ -92,6 +92,27 @@ class AccountMap
     /** Roles a document without a box pays from or collects into (DocumentPoster::cashAccount), and the custody cash. */
     public const CASH_ROLES = ['default_cash', 'default_bank', 'petty_cash'];
 
+    /**
+     * Roles whose account may require a cost center: each posting the system makes to them by itself carries the cost
+     * center of the record it comes from, or it makes none. Every other role gets lines without one from some document
+     * (receivables, VAT and stock on every invoice; the cash roles on vouchers without a box; sales revenue on debit
+     * notes and POS sales; the cost of sales on returns; provisions, rounding, closing...), and a cost center required
+     * on its account would refuse each of them (PostingService). A new role stays out unless all its postings carry one.
+     */
+    public const COST_CENTER_ROLES = [
+        // The project's (every project gets its own).
+        'contract_revenue', 'contract_asset', 'contract_liability', 'customer_advances', 'retention_receivable',
+        'supplier_advances', 'retention_payable', 'subcontractor_costs', 'project_costs',
+        // The equipment's.
+        'rent_expense', 'maintenance_expense', 'equipment_recovery',
+        // The employee's (a payroll's lines by cost center, a settlement).
+        'salaries_expense', 'gosi_expense',
+        // The expense voucher's, chosen on its form.
+        'general_expense',
+        // Posted to by people only.
+        'service_revenue', 'sales_discounts', 'marketing_expense', 'prepaid_expenses', 'long_term_loans', 'partners_current', 'capital',
+    ];
+
     protected const TYPE_LABELS = ['asset' => 'أصول', 'liability' => 'خصوم', 'equity' => 'حقوق ملكية', 'revenue' => 'إيرادات', 'expense' => 'مصروفات'];
 
     protected array $cache = [];
@@ -120,9 +141,12 @@ class AccountMap
         if (! $account->is_active && ! $current) {
             return 'هذا الحساب موقوف؛ اختر حسابًا نشطًا.';
         }
-        // Vouchers without a box, transfers and POS post to a cash role without a cost center: each would be refused.
-        if (in_array($role, self::CASH_ROLES, true) && $account->requires_cost_center && ! $current) {
-            return 'الصندوق والبنك الافتراضيان والعهد النقدية يرحّل عليها النظام بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.';
+        // The system posts to the role without a cost center (all but COST_CENTER_ROLES): each such posting would be
+        // refused, as vouchers without a box, transfers and POS on a cash role, every credit invoice on the receivables.
+        if ($account->requires_cost_center && ! $current && ! in_array($role, self::COST_CENTER_ROLES, true)) {
+            return in_array($role, self::CASH_ROLES, true)
+                ? 'الصندوق والبنك الافتراضيان والعهد النقدية يرحّل عليها النظام بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.'
+                : 'يرحّل النظام على حساب «'.(self::ROLES[$role][0] ?? $role).'» بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.';
         }
 
         return $this->boxProblem($role, (int) $account->id, $companyId);

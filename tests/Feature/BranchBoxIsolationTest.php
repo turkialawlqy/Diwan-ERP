@@ -1876,6 +1876,237 @@ class BranchBoxIsolationTest extends TestCase
         }
     }
 
+    /**
+     * A recurring entry posts its lines unattended at each run, and a run the posting refuses is recorded and skipped
+     * (RecurringJournalRunner). The form lists only active posting accounts, but the server took any line: on a group
+     * account, a switched-off one, or one that requires a cost center the line does not carry. Each such line is refused
+     * with what its run would have recorded, and nothing is saved; with a cost center on its line, the entry is saved
+     * and posts at its run.
+     */
+    public function test_a_recurring_entry_takes_only_lines_its_runs_can_post(): void
+    {
+        $this->world();
+        $this->inBranch($this->userIn([$this->a], 'accountant'));
+        $leaf = fn (string $code, string $name, array $state) => (int) Account::create($state + ['code' => $code, 'name_ar' => $name, 'type' => 'expense', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true])->id;
+        [$group, $off, $costed] = [(int) Account::where('code', '52')->value('id'), $leaf('5291', 'مصروف موقوف', ['is_active' => false]), $leaf('5292', 'صيانة الفروع', ['requires_cost_center' => true])];
+        $center = CostCenter::create(['code' => 'CC1', 'name_ar' => 'الإدارة', 'is_active' => true]);
+        $line = fn (int $account, float $debit, ?int $costCenter = null) => ['account_id' => $account, 'cost_center_id' => $costCenter, 'debit' => max($debit, 0), 'credit' => max(-$debit, 0)];
+        $entry = fn (array $lines) => $this->post(route('accounting.recurring.store'), ['name' => 'شهري', 'description' => 'شهري', 'frequency' => 'monthly', 'next_run_date' => '2026-07-01', 'lines' => $lines]);
+        $payables = $this->role('payables');
+
+        $entry([$line($group, 300), $line($payables, -300)])
+            ->assertSessionHasErrors(['lines.0.account_id' => 'لا يمكن الترحيل على الحساب الرئيسي «52 - المصروفات العمومية والإدارية». اختر حساباً فرعياً.']);
+        $entry([$line($payables, -300), $line($off, 300)])->assertSessionHasErrors(['lines.1.account_id' => 'الحساب «5291 - مصروف موقوف» موقوف.']);
+        $entry([$line($costed, 300), $line($payables, -300)])->assertSessionHasErrors(['lines.0.cost_center_id' => 'الحساب «5292 - صيانة الفروع» يتطلب تحديد مركز تكلفة.']);
+        // Every refused line at once, the others not.
+        $entry([$line($off, 100), $line($costed, 200), $line($payables, -300)])
+            ->assertSessionHasErrors(['lines.0.account_id', 'lines.1.cost_center_id'])->assertSessionDoesntHaveErrors(['lines.1.account_id', 'lines.2.account_id']);
+        $this->assertSame(0, RecurringJournal::withoutGlobalScopes()->count());
+
+        $entry([$line($costed, 300, $center->id), $line($payables, -300)])->assertSessionHasNoErrors();
+        $saved = RecurringJournal::withoutGlobalScopes()->latest('id')->firstOrFail();
+        auth()->logout();
+        $mark = $this->mark();
+        $this->assertSame(1, app(RecurringJournalRunner::class)->runDue(Carbon::parse('2026-07-01')));
+        $this->assertNull($saved->fresh()->last_error);
+        $this->assertLine($this->linesSince($mark), $costed, 300, 0);
+    }
+
+    /**
+     * Once the recurring entries on an account are stopped, the chart lets it be switched off, made a group or made to
+     * need a cost center. Switched on again, such an entry would fail at its next run: it stays stopped, and the message
+     * names the account and what to do (an entry's lines are not edited). Stopping is never refused, and once its
+     * accounts take its lines again the entry is switched on and runs.
+     */
+    public function test_a_stopped_recurring_entry_is_not_switched_on_while_a_line_would_fail(): void
+    {
+        $this->world();
+        $this->inBranch($this->owner, $this->a->id);
+        $utilities = (int) Account::where('code', '525')->value('id');
+        $entry = function (int $account): RecurringJournal {
+            $this->post(route('accounting.recurring.store'), ['name' => 'كهرباء', 'description' => 'كهرباء', 'frequency' => 'monthly', 'next_run_date' => '2026-07-01', 'lines' => [
+                ['account_id' => $account, 'debit' => 300, 'credit' => 0], ['account_id' => $this->role('payables'), 'debit' => 0, 'credit' => 300],
+            ]])->assertSessionHasNoErrors();
+
+            return RecurringJournal::withoutGlobalScopes()->latest('id')->firstOrFail();
+        };
+        $power = $entry($utilities);
+        $toggle = fn (RecurringJournal $entry, bool $on) => $this->put(route('accounting.recurring.update', $entry->id), ['is_active' => $on]);
+        $toggle($power, false)->assertSessionHas('success');
+        $refused = 'لا يمكن تفعيل القيد المتكرر لأن الحساب «525 - الكهرباء والمياه والاتصالات» في أسطره ';
+
+        $this->inBranch($this->userIn([$this->a], 'accountant'));
+        foreach ([
+            "{$refused}موقوف؛ فعّله من «دليل الحسابات» أولًا." => [['is_active' => false], ['is_active' => true]],
+            "{$refused}حساب رئيسي؛ أنشئ قيدًا متكررًا جديدًا بحساب فرعي." => [['is_parent' => true], ['is_parent' => false]],
+            "{$refused}يتطلب مركز تكلفة وسطره بلا مركز تكلفة؛ أنشئ قيدًا متكررًا جديدًا بمركز تكلفة للسطر." => [['requires_cost_center' => true], ['requires_cost_center' => false]],
+        ] as $message => [$change, $undo]) {
+            $this->editAccount($utilities, $change)->assertSessionHasNoErrors()->assertSessionMissing('error');
+            $toggle($power, true)->assertSessionHas('error', $message);
+            $this->assertFalse($power->fresh()->is_active);
+            $this->editAccount($utilities, $undo)->assertSessionMissing('error');
+        }
+
+        // An account deleted under a stopped entry by older data (the chart keeps the accounts of every entry since then).
+        $gone = (int) Account::create(['code' => '5299', 'name_ar' => 'مصروف محذوف', 'type' => 'expense', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true])->id;
+        $old = $entry($gone);
+        $toggle($old, false)->assertSessionHas('success');
+        DB::table('accounts')->where('id', $gone)->delete();
+        $toggle($old, true)->assertSessionHas('error', 'لا يمكن تفعيل القيد المتكرر لأن أحد حسابات أسطره حُذف من الدليل؛ أنشئ قيدًا متكررًا جديدًا.');
+        $this->assertFalse($old->fresh()->is_active);
+        // Stopping one that would fail is fine (an active entry on a switched-off account: older data).
+        $toggle($power, true)->assertSessionHas('success');
+        DB::table('accounts')->where('id', $utilities)->update(['is_active' => false]);
+        $toggle($power, false)->assertSessionHas('success');
+        DB::table('accounts')->where('id', $utilities)->update(['is_active' => true]);
+
+        // Its accounts fit again: switched on, it runs.
+        $toggle($power, true)->assertSessionHas('success');
+        $this->assertTrue($power->fresh()->is_active);
+        auth()->logout();
+        $mark = $this->mark();
+        $this->assertSame(1, app(RecurringJournalRunner::class)->runDue(Carbon::parse('2026-07-01')));
+        $this->assertNull($power->fresh()->last_error);
+        $this->assertLine($this->linesSince($mark), $utilities, 300, 0);
+    }
+
+    /**
+     * Every credit sale, receipt and return of a group's customers posts their receivables to its account by itself,
+     * with no cost center (DocumentPoster): switched off («موقوف») or requiring a cost center, the account would refuse
+     * them all. A group takes neither as a new choice, and its form and quick-create list neither. A group already on such
+     * an account (older data) is still saved as it is: its account is put right in the chart.
+     */
+    public function test_a_customer_group_takes_no_switched_off_account_nor_one_that_needs_a_cost_center(): void
+    {
+        $this->world();
+        $this->inBranch($this->userIn([$this->a], 'accountant', ['sales.customer_groups.view', 'sales.customer_groups.create', 'sales.customer_groups.edit']));
+        $leaf = fn (string $code, string $name, array $state = []) => (int) Account::create($state + ['code' => $code, 'name_ar' => $name, 'type' => 'asset', 'nature' => 'debit', 'is_parent' => false, 'balance' => 0, 'is_active' => true])->id;
+        [$off, $costed] = [$leaf('11297', 'ذمم موقوفة', ['is_active' => false]), $leaf('11298', 'ذمم الفروع', ['requires_cost_center' => true])];
+        $group = fn (string $code, int $account, string $name = 'كبار') => ['code' => $code, 'name' => $name, 'account_id' => $account, 'is_active' => true];
+        $costMessage = 'هذا الحساب يتطلب مركز تكلفة، والنظام يرحّل ذمم العملاء بلا مركز تكلفة؛ اختر حساب ذمم لا يتطلب مركز تكلفة.';
+
+        $this->post(route('sales.customer-groups.store'), $group('G1', $off))->assertSessionHasErrors(['account_id' => 'هذا الحساب موقوف؛ اختر حسابًا نشطًا.']);
+        $this->post(route('sales.customer-groups.store'), $group('G2', $costed))->assertSessionHasErrors(['account_id' => $costMessage]);
+        $this->assertSame(0, CustomerGroup::withoutGlobalScopes()->count());
+        $ids = fn ($rows) => collect($rows)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        foreach ([$ids($this->get(route('sales.customer-groups.create'))->assertOk()->viewData('page')['props']['accounts']), $ids($this->getJson(route('lookup.list', 'accounts').'?type=asset&receivables=1')->assertOk()->json('data'))] as $listed) {
+            $this->assertSame([], array_values(array_intersect($listed, [$off, $costed])));
+            $this->assertContains($this->role('receivables'), $listed);
+        }
+
+        // Older data: the group's own account needs a cost center. Saved as it is (renamed), it keeps showing on the form;
+        // moved to another such account, it is refused.
+        $vipAccount = $leaf('11299', 'ذمم كبار العملاء');
+        $this->post(route('sales.customer-groups.store'), $group('VIP', $vipAccount))->assertSessionHasNoErrors();
+        $vip = CustomerGroup::where('code', 'VIP')->firstOrFail();
+        DB::table('accounts')->where('id', $vipAccount)->update(['requires_cost_center' => true]);
+        $this->put(route('sales.customer-groups.update', $vip->id), $group('VIP', $vipAccount, 'كبار العملاء'))->assertSessionHasNoErrors();
+        $this->assertSame(['كبار العملاء', $vipAccount], [$vip->fresh()->name, (int) $vip->fresh()->account_id]);
+        $this->assertContains($vipAccount, $ids($this->get(route('sales.customer-groups.edit', $vip->id))->assertOk()->viewData('page')['props']['accounts']));
+        $this->put(route('sales.customer-groups.update', $vip->id), $group('VIP', $costed))->assertSessionHasErrors(['account_id' => $costMessage]);
+        $this->assertSame($vipAccount, (int) $vip->fresh()->account_id);
+    }
+
+    /**
+     * Each depreciation run and disposal of a category's assets posts its accumulated-depreciation line with no cost
+     * center, and the expense line of an asset without one (assets need none and are not edited); scheduled runs do it
+     * unattended. An account that requires a cost center would refuse them, so a category takes none, and its form and
+     * quick-create list none. The same accounts without that requirement are taken.
+     */
+    public function test_an_asset_category_takes_no_account_that_needs_a_cost_center(): void
+    {
+        $this->world();
+        $this->inBranch($this->userIn([$this->a], 'accountant'));
+        $costed = fn (string $code, string $name, string $type, string $nature = 'debit') => (int) Account::create(['code' => $code, 'name_ar' => $name, 'type' => $type, 'nature' => $nature, 'is_parent' => false, 'balance' => 0, 'is_active' => true, 'requires_cost_center' => true])->id;
+        $accounts = ['asset_account_id' => $costed('1216', 'معدات الفروع', 'asset'), 'accumulated_account_id' => $costed('1222', 'مجمع إهلاك معدات الفروع', 'asset', 'credit'), 'expense_account_id' => $costed('5291', 'إهلاك معدات الفروع', 'expense')];
+        $category = fn (array $accounts) => $this->post(route('accounting.fixed-assets.categories.store'), $accounts + ['name_ar' => 'معدات', 'useful_life_months' => 60, 'depreciation_method' => 'straight_line']);
+
+        foreach ($accounts as $field => $account) {
+            $category([$field => $account])->assertSessionHasErrors([$field => 'هذا الحساب يتطلب مركز تكلفة، والنظام يرحّل عليه قيود الأصول ولو بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.']);
+        }
+        $this->assertSame(0, AssetCategory::withoutGlobalScopes()->count());
+        $offered = collect($this->get(route('accounting.fixed-assets.index'))->assertOk()->viewData('page')['props']['categoryAccounts']);
+        foreach ($accounts as $field => $account) {
+            $looked = collect($this->getJson(route('lookup.list', 'accounts').'?asset_category='.$field)->assertOk()->json('data'))->pluck('id')->map(fn ($id) => (int) $id);
+            $this->assertNotContains($account, collect($offered[$field])->pluck('id')->map(fn ($id) => (int) $id)->all(), $field);
+            $this->assertNotContains($account, $looked->all(), $field);
+        }
+
+        DB::table('accounts')->whereIn('id', $accounts)->update(['requires_cost_center' => false]);
+        $category($accounts)->assertSessionHasNoErrors();
+        $this->assertSame(1, AssetCategory::withoutGlobalScopes()->count());
+    }
+
+    /**
+     * Most roles get lines without a cost center from the documents that post to them: receivables, output VAT and stock
+     * on every invoice, payables on every bill, sales revenue on debit notes and POS sales, the cost of sales on returns,
+     * the accumulated depreciation and impairment of assets without one... Their account made to require one, each of
+     * those postings would be refused (a credit invoice: «يتطلب تحديد مركز تكلفة»). So the chart does not make it need one
+     * until the role is mapped elsewhere, and the account mapping and company settings take no such account as a new
+     * choice for the role. Roles whose postings carry the cost center of their record (an expense voucher's, a project's,
+     * an employee's) are not concerned.
+     */
+    public function test_an_account_a_role_posts_to_without_a_cost_center_is_not_made_to_need_one(): void
+    {
+        $this->world();
+        $this->inBranch($this->userIn([$this->a], 'accountant', ['admin.settings.view', 'admin.settings.edit']));
+        $label = fn (string $role) => AccountMap::ROLES[$role][0];
+        $needs = fn (int $account) => (bool) Account::withoutGlobalScopes()->whereKey($account)->value('requires_cost_center');
+
+        foreach (['receivables', 'vat_output', 'inventory', 'payables', 'sales_revenue', 'cogs', 'accumulated_depreciation', 'depreciation_expense', 'impairment_loss'] as $role) {
+            $this->editAccount($this->role($role), ['requires_cost_center' => true])
+                ->assertSessionHas('error', "هذا الحساب مربوط في «ربط الحسابات» بدور يرحّل عليه النظام بلا مركز تكلفة: «{$label($role)}»؛ لا يُشترط له مركز تكلفة. اربط الدور بحساب آخر من «ربط الحسابات» أولًا.");
+            $this->assertFalse($needs($this->role($role)), $role);
+        }
+        foreach (['general_expense', 'project_costs', 'salaries_expense'] as $role) {
+            $this->editAccount($this->role($role), ['requires_cost_center' => true])->assertSessionHasNoErrors()->assertSessionMissing('error');
+            $this->assertTrue($needs($this->role($role)), $role);
+        }
+
+        $costed = fn (string $code, string $type, string $nature) => (int) Account::create(['code' => $code, 'name_ar' => 'حساب بمركز تكلفة', 'type' => $type, 'nature' => $nature, 'is_parent' => false, 'balance' => 0, 'is_active' => true, 'requires_cost_center' => true])->id;
+        [$receivables, $vat, $expense] = [$costed('11296', 'asset', 'debit'), $costed('2121', 'liability', 'credit'), $costed('5293', 'expense', 'debit')];
+        $mapping = fn (string $role) => "يرحّل النظام على حساب «{$label($role)}» بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.";
+        $this->put(route('accounting.mappings.update'), ['mapping' => ['receivables' => $receivables]])->assertSessionHasErrors(['mapping.receivables' => $mapping('receivables')]);
+        $this->put(route('accounting.mappings.update'), ['mapping' => ['vat_output' => $vat]])->assertSessionHasErrors(['mapping.vat_output' => $mapping('vat_output')]);
+        $settings = ['name' => $this->company->name];
+        foreach (['sales_revenue', 'purchases_cogs', 'vat_output', 'vat_input', 'receivables', 'payables', 'default_cash', 'default_bank'] as $role) {
+            $settings["acc_{$role}_id"] = $this->role($role);
+        }
+        $this->put(route('settings.update'), ['acc_receivables_id' => $receivables] + $settings)->assertSessionHasErrors(['acc_receivables_id' => $mapping('receivables')]);
+        app(AccountMap::class)->flush();
+        $this->assertSame([], array_values(array_intersect([$receivables, $vat], array_map('intval', array_filter(app(AccountMap::class)->all())))));
+        // A role whose postings carry the voucher's cost center takes one; an account already mapped that needs one (older
+        // data) is saved as it is.
+        $this->put(route('accounting.mappings.update'), ['mapping' => ['general_expense' => $expense]])->assertSessionHasNoErrors();
+        DB::table('accounts')->where('id', $this->role('receivables'))->update(['requires_cost_center' => true]);
+        $this->put(route('accounting.mappings.update'), ['mapping' => ['receivables' => $this->role('receivables')]])->assertSessionHasNoErrors();
+        DB::table('accounts')->where('id', $this->role('receivables'))->update(['requires_cost_center' => false]);
+
+        // So the branch's credit invoices still post their receivables.
+        $this->inBranch($this->owner, $this->a->id);
+        $mark = $this->mark();
+        $invoice = $this->salesInvoiceA();
+        $this->assertLine($this->linesSince($mark), $this->role('receivables'), round((float) $invoice->total, 2), 0);
+    }
+
+    /** The refusals of the recurring entries, customer groups, asset categories and role accounts read in English too. */
+    public function test_the_refusals_for_accounts_unattended_postings_cannot_use_read_in_english(): void
+    {
+        $refused = 'The recurring entry cannot be switched on because account “525 - الكهرباء” in its lines';
+        foreach ([
+            'لا يمكن تفعيل القيد المتكرر لأن الحساب «525 - الكهرباء» في أسطره موقوف؛ فعّله من «دليل الحسابات» أولًا.' => "{$refused} is switched off; switch it on from “Chart of accounts” first.",
+            'لا يمكن تفعيل القيد المتكرر لأن الحساب «525 - الكهرباء» في أسطره حساب رئيسي؛ أنشئ قيدًا متكررًا جديدًا بحساب فرعي.' => "{$refused} is a parent account; create a new recurring entry with a sub-account.",
+            'لا يمكن تفعيل القيد المتكرر لأن الحساب «525 - الكهرباء» في أسطره يتطلب مركز تكلفة وسطره بلا مركز تكلفة؛ أنشئ قيدًا متكررًا جديدًا بمركز تكلفة للسطر.' => "{$refused} requires a cost center and its line has none; create a new recurring entry with a cost center on the line.",
+            'لا يمكن تفعيل القيد المتكرر لأن أحد حسابات أسطره حُذف من الدليل؛ أنشئ قيدًا متكررًا جديدًا.' => 'The recurring entry cannot be switched on because one of the accounts in its lines was deleted from the chart; create a new recurring entry.',
+            'هذا الحساب يتطلب مركز تكلفة، والنظام يرحّل ذمم العملاء بلا مركز تكلفة؛ اختر حساب ذمم لا يتطلب مركز تكلفة.' => 'This account requires a cost center, but the system posts customer receivables without one; choose a receivables account that does not require one.',
+            'هذا الحساب يتطلب مركز تكلفة، والنظام يرحّل عليه قيود الأصول ولو بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.' => 'This account requires a cost center, but the system posts asset entries to it even without one; choose an account that does not require one.',
+            'يرحّل النظام على حساب «العملاء (الذمم المدينة)» بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.' => 'The system posts to the “العملاء (الذمم المدينة)” account without a cost center; choose an account that does not require one.',
+            'هذا الحساب مربوط في «ربط الحسابات» بدور يرحّل عليه النظام بلا مركز تكلفة: «العملاء (الذمم المدينة)»؛ لا يُشترط له مركز تكلفة. اربط الدور بحساب آخر من «ربط الحسابات» أولًا.' => 'This account is set in “Account mapping” for a role the system posts to without a cost center: «العملاء (الذمم المدينة)»; it cannot require one. Map the role to another account in “Account mapping” first.',
+        ] as $arabic => $english) {
+            $this->assertSame($english, ServerMessages::translate($arabic, 'en'));
+        }
+    }
+
     public function test_a_switched_off_account_is_never_a_new_choice_for_a_role(): void
     {
         $this->world();

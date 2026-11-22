@@ -100,14 +100,21 @@ class CustomerGroupController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:500',
             // Receipts and credit sales of the group's customers in every branch post here: a receivables account, never a
-            // box's ledger nor another account the system posts to (default cash, input VAT...).
-            'account_id' => ['nullable', 'tenant_exists:accounts,id', function ($attribute, $value, $fail) {
+            // box's ledger nor another account the system posts to (default cash, input VAT...). They post by themselves,
+            // without a cost center (DocumentPoster), so a new choice is active and needs none; the group's own account
+            // is left as it is (older data), as in CustomerGroup::accountOptions.
+            'account_id' => ['nullable', 'tenant_exists:accounts,id', function ($attribute, $value, $fail) use ($group) {
                 $account = $value ? Account::find($value) : null;
                 $roles = collect(app(AccountMap::class)->all())->except('receivables')->filter()->map(fn ($id) => (int) $id)->all();
+                $current = $account && (int) $account->id === (int) $group?->account_id;
                 if ($account && ($account->type !== 'asset' || $account->is_parent)) {
                     $fail('اختر حسابًا فرعيًا من الأصول (ذمم العملاء).');
                 } elseif ($account && (BankAccount::boxLedgers([$account->id]) || in_array((int) $account->id, $roles, true))) {
                     $fail('هذا الحساب حساب صندوق أو بنك أو حساب آلي آخر؛ اختر حساب ذمم عملاء.');
+                } elseif ($account && ! $current && ! $account->is_active) {
+                    $fail('هذا الحساب موقوف؛ اختر حسابًا نشطًا.');
+                } elseif ($account && ! $current && $account->requires_cost_center) {
+                    $fail('هذا الحساب يتطلب مركز تكلفة، والنظام يرحّل ذمم العملاء بلا مركز تكلفة؛ اختر حساب ذمم لا يتطلب مركز تكلفة.');
                 }
             }],
             'is_active' => 'boolean',
