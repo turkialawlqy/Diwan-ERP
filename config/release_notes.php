@@ -6,7 +6,7 @@
 | the next version's block can be written ahead, it shows once VERSION reaches it.
 */
 return [
-        [
+    [
         'version' => '1.8.1',
         'date' => '2026-11-20',
         'title' => 'أداء النماذج الطويلة والتقارير المالية مع نمو البيانات',

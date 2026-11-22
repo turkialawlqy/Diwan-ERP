@@ -86,7 +86,9 @@ class ReportExporter
 
     public function pdf(array $table): string
     {
-        @set_time_limit(180);
+        if (! app()->runningInConsole()) {
+            @set_time_limit(180);
+        }
         $rows = $table['rows'];
         if (count($rows) > self::PDF_MAX_ROWS) {
             // Keep the first rows and the closing (totals) row; say so in the subtitle.
