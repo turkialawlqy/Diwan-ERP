@@ -32,6 +32,8 @@ class TenantInvariantsTest extends TestCase
     protected const TABLES_WITHOUT_MODEL = [
         'document_sequences' => 'numbering counters, only touched by DocumentNumberService with the company id',
         'numbering_rules' => 'numbering prefixes, only touched by NumberingRules with the company id',
+        'branch_account_balances' => 'monthly totals per branch, written only by BranchBalances (posting, rebuild) and read by AccountingReports, always with the company id',
+        'cash_flow_balances' => 'monthly cash-flow totals per branch and shape of entry, written and read only by CashFlowBalances, always with the company id',
     ];
 
     /** Models with company_id that are deliberately not auto-scoped, each with the reason. */
