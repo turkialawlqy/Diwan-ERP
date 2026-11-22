@@ -4,10 +4,14 @@ namespace App\Http\Controllers\Accounting;
 
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use App\Models\AssetCategory;
 use App\Models\BankAccount;
+use App\Models\CustomerGroup;
+use App\Models\RecurringJournal;
 use App\Services\Accounting\AccountMap;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Unique;
@@ -301,9 +305,57 @@ class AccountController extends Controller
             return back()->with('error', 'هذا الحساب مربوط في «ربط الحسابات» ويرحّل عليه النظام؛ لا يُحذف. اربط الدور بحساب آخر من «ربط الحسابات» أولًا.');
         }
 
+        // Nor an account a setting posts to: an asset category's (the database refuses the delete), a recurring entry's
+        // line (the entry would fail at its next run) or a customer group's (its receivables would silently fall back to
+        // the general receivables account).
+        if ($problem = $this->settingsProblem($account)) {
+            return back()->with('error', $problem);
+        }
+
         $account->delete();
 
         return redirect()->route('accounting.accounts.index')
             ->with('success', 'تم حذف الحساب بنجاح');
+    }
+
+    /**
+     * Why $account may not be deleted, or null: a setting posts to it (the accounts of BankAccount::configuredAccounts,
+     * with the recurring entries of every branch), named so the user knows what to change first. Asset categories are
+     * not edited, so their accounts stay; a recurring entry's lines are not edited either, so it is deleted; a customer
+     * group is given another account. A recurring entry of a branch the user may not work in is not named.
+     */
+    protected function settingsProblem(Account $account): ?string
+    {
+        $id = (int) $account->id;
+
+        $categories = AssetCategory::where(fn ($q) => $q->where('asset_account_id', $id)->orWhere('accumulated_account_id', $id)->orWhere('expense_account_id', $id))
+            ->orderBy('id')->pluck('name_ar');
+        if ($categories->isNotEmpty()) {
+            return "لا يمكن حذف الحساب لأن فئات الأصول تستعمله: {$this->nameList($categories)}؛ يرحّل عليه النظام قيود أصولها.";
+        }
+
+        $allowed = auth()->user()?->allowedBranchIds();
+        [$seen, $unseen] = RecurringJournal::withoutGlobalScope('branch')->orderBy('id')->get(['id', 'branch_id', 'name', 'lines'])
+            ->filter(fn (RecurringJournal $entry) => in_array($id, array_map('intval', array_column((array) $entry->lines, 'account_id')), true))
+            ->partition(fn (RecurringJournal $entry) => $allowed === null || $entry->branch_id === null || in_array((int) $entry->branch_id, $allowed, true));
+        if ($seen->isNotEmpty()) {
+            return "لا يمكن حذف الحساب لأن القيود المتكررة تستعمله في أسطرها: {$this->nameList($seen->pluck('name'))}. احذفها من «القيود المتكررة» أولًا.";
+        }
+        if ($unseen->isNotEmpty()) {
+            return 'لا يمكن حذف الحساب لأن قيدًا متكررًا لفرع آخر يستعمله.';
+        }
+
+        $groups = CustomerGroup::where('account_id', $id)->orderBy('id')->pluck('name');
+        if ($groups->isNotEmpty()) {
+            return "لا يمكن حذف الحساب لأن مجموعات العملاء ترحّل ذممها عليه: {$this->nameList($groups)}. اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.";
+        }
+
+        return null;
+    }
+
+    /** «a»، «b»… : the first five names. */
+    protected function nameList(Collection $names): string
+    {
+        return $names->take(5)->map(fn ($name) => "«{$name}»")->implode('، ').($names->count() > 5 ? '…' : '');
     }
 }

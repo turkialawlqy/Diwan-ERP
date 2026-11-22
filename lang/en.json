@@ -794,5 +794,4 @@
     "مفتاح Tailscale غير صالح: يبدأ بـ tskey- ويُنشأ من Settings ← Keys في لوحة Tailscale.": "The Tailscale key is not valid: it starts with tskey- and is created under Settings → Keys in the Tailscale dashboard.",
     "هناك تطبيق جارٍ بالفعل، انتظر حتى ينتهي.": "A change is already being applied, wait until it finishes.",
     "أُرسل الطلب إلى الخادم؛ يستغرق التطبيق دقيقة أو دقيقتين.": "The request was sent to the server; applying takes a minute or two.",
-
 }

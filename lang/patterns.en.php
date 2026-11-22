@@ -299,4 +299,7 @@ return [
     'سطر {}: الحساب {} مربوط بصندوق أو بنك لفرع آخر.' => 'Row {}: account {} is linked to a cash box or bank account of another branch.',
     'سطر {}: الحساب الأب {} عليه قيود؛ لا يمكن أن يصبح حساباً رئيسياً.' => 'Row {}: parent account {} has postings; it cannot become a parent account.',
     'سطر {}: الحساب الأب {} يرحّل عليه النظام (صندوق أو بنك أو حساب مربوط في ربط الحسابات)؛ لا يمكن أن يصبح حساباً رئيسياً.' => 'Row {}: the system posts to parent account {} (a cash box, a bank, or an account in the account mapping); it cannot become a parent account.',
+    'لا يمكن حذف الحساب لأن فئات الأصول تستعمله: {}؛ يرحّل عليه النظام قيود أصولها.' => 'The account cannot be deleted because asset categories use it: {}; the system posts their assets\' entries to it.',
+    'لا يمكن حذف الحساب لأن القيود المتكررة تستعمله في أسطرها: {}. احذفها من «القيود المتكررة» أولًا.' => 'The account cannot be deleted because recurring entries use it in their lines: {}. Delete them from “Recurring entries” first.',
+    'لا يمكن حذف الحساب لأن مجموعات العملاء ترحّل ذممها عليه: {}. اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.' => 'The account cannot be deleted because customer groups post their receivables to it: {}. Choose another account for them from “Customer groups” first.',
 ];

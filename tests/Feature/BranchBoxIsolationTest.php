@@ -49,6 +49,7 @@ use App\Services\ActiveBranch;
 use App\Services\HR\EmployeeFinanceService;
 use App\Services\HR\PayrollService;
 use App\Services\TenantManager;
+use App\Support\ServerMessages;
 use Closure;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -1570,6 +1571,82 @@ class BranchBoxIsolationTest extends TestCase
         app(AccountMap::class)->flush();
         $this->delete(route('accounting.accounts.destroy', $petty))->assertSessionHas('success');
         $this->assertFalse(Account::withoutGlobalScopes()->whereKey($petty)->exists());
+    }
+
+    /**
+     * The settings post to accounts by themselves: an asset category's three accounts carry its assets (the database
+     * refused their delete, a server error), a recurring entry posts to the accounts of its lines (deleted, it failed at
+     * its next run) and a customer group's receivables go to its account (deleted, they fell back silently to the general
+     * receivables). None of them is deleted, and the message names what uses it (a recurring entry of a branch the user
+     * may not work in, without its name). Once nothing uses it, it goes.
+     */
+    public function test_an_account_the_settings_post_to_is_not_deleted_and_the_message_names_what_uses_it(): void
+    {
+        $this->world();
+        $this->inBranch($this->owner, $this->a->id);
+        $leaf = fn (string $code, string $name, string $type, string $nature = 'debit') => (int) Account::create(['code' => $code, 'name_ar' => $name, 'type' => $type, 'nature' => $nature, 'is_parent' => false, 'balance' => 0, 'is_active' => true])->id;
+        $delete = fn (int $account) => $this->delete(route('accounting.accounts.destroy', $account));
+        $exists = fn (int $account) => Account::withoutGlobalScopes()->whereKey($account)->exists();
+
+        // Asset categories are not edited, so their accounts stay.
+        [$vehicles, $accumulated, $depreciation] = [(int) Account::where('code', '1213')->value('id'), $leaf('1222', 'مجمع إهلاك السيارات', 'asset', 'credit'), $leaf('5291', 'إهلاك السيارات', 'expense')];
+        $category = fn (string $name, array $accounts) => $this->post(route('accounting.fixed-assets.categories.store'), $accounts + ['name_ar' => $name, 'useful_life_months' => 60, 'depreciation_method' => 'straight_line'])->assertSessionHasNoErrors();
+        $category('سيارات', ['asset_account_id' => $vehicles, 'accumulated_account_id' => $accumulated, 'expense_account_id' => $depreciation]);
+        $category('شاحنات', ['asset_account_id' => $vehicles]);
+        $categories = fn (string $names) => "لا يمكن حذف الحساب لأن فئات الأصول تستعمله: {$names}؛ يرحّل عليه النظام قيود أصولها.";
+        $delete($vehicles)->assertRedirect()->assertSessionHas('error', $categories('«سيارات»، «شاحنات»'));
+        foreach ([$accumulated, $depreciation] as $account) {
+            $delete($account)->assertSessionHas('error', $categories('«سيارات»'));
+        }
+        $this->assertTrue($exists($vehicles) && $exists($accumulated) && $exists($depreciation));
+
+        // Recurring entries of branches A and B on the same account (their lines are not edited: they are deleted).
+        $utilities = (int) Account::where('code', '525')->value('id');
+        $entry = function (string $name) use ($utilities): RecurringJournal {
+            $this->post(route('accounting.recurring.store'), ['name' => $name, 'description' => $name, 'frequency' => 'monthly', 'next_run_date' => '2026-07-01', 'lines' => [
+                ['account_id' => $utilities, 'debit' => 300, 'credit' => 0], ['account_id' => $this->role('payables'), 'debit' => 0, 'credit' => 300],
+            ]])->assertSessionHasNoErrors();
+
+            return RecurringJournal::withoutGlobalScopes()->latest('id')->firstOrFail();
+        };
+        $powerA = $entry('كهرباء أ');
+        $this->inBranch($this->owner, $this->b->id);
+        $powerB = $entry('كهرباء ب');
+        $this->assertSame([$this->a->id, $this->b->id], [(int) $powerA->branch_id, (int) $powerB->branch_id]);
+        $recurring = fn (string $names) => "لا يمكن حذف الحساب لأن القيود المتكررة تستعمله في أسطرها: {$names}. احذفها من «القيود المتكررة» أولًا.";
+        $delete($utilities)->assertSessionHas('error', $recurring('«كهرباء أ»، «كهرباء ب»'));
+
+        $this->inBranch($this->userIn([$this->a], 'accountant'));
+        $delete($utilities)->assertSessionHas('error', $recurring('«كهرباء أ»'));
+        $this->delete(route('accounting.recurring.destroy', $powerA->id))->assertSessionHas('success');
+        $otherBranch = 'لا يمكن حذف الحساب لأن قيدًا متكررًا لفرع آخر يستعمله.';
+        $delete($utilities)->assertSessionHas('error', $otherBranch);
+        $this->assertTrue($exists($utilities));
+        $this->inBranch($this->owner, $this->b->id);
+        $this->delete(route('accounting.recurring.destroy', $powerB->id))->assertSessionHas('success');
+        $delete($utilities)->assertSessionHas('success');
+        $this->assertFalse($exists($utilities));
+
+        // A customer group's receivables: the group is moved to another account (or to the general receivables) first.
+        $vipAccount = $leaf('11299', 'ذمم كبار العملاء', 'asset');
+        $group = ['code' => 'VIP', 'name' => 'كبار', 'is_active' => true];
+        $this->post(route('sales.customer-groups.store'), $group + ['account_id' => $vipAccount])->assertSessionHasNoErrors();
+        $vip = CustomerGroup::where('code', 'VIP')->firstOrFail();
+        $groups = fn (string $names) => "لا يمكن حذف الحساب لأن مجموعات العملاء ترحّل ذممها عليه: {$names}. اختر لها حسابًا آخر من «مجموعات العملاء» أولًا.";
+        $delete($vipAccount)->assertSessionHas('error', $groups('«كبار»'));
+        $this->assertSame($vipAccount, (int) $vip->fresh()->account_id);
+        $this->put(route('sales.customer-groups.update', $vip->id), $group + ['account_id' => null])->assertSessionHasNoErrors();
+        $delete($vipAccount)->assertSessionHas('success');
+        $this->assertFalse($exists($vipAccount));
+
+        foreach ([
+            $categories('«سيارات»') => "The account cannot be deleted because asset categories use it: «سيارات»; the system posts their assets' entries to it.",
+            $recurring('«كهرباء أ»') => 'The account cannot be deleted because recurring entries use it in their lines: «كهرباء أ». Delete them from “Recurring entries” first.',
+            $otherBranch => 'The account cannot be deleted because a recurring entry of another branch uses it.',
+            $groups('«كبار»') => 'The account cannot be deleted because customer groups post their receivables to it: «كبار». Choose another account for them from “Customer groups” first.',
+        ] as $arabic => $english) {
+            $this->assertSame($english, ServerMessages::translate($arabic, 'en'));
+        }
     }
 
     public function test_a_switched_off_account_is_never_a_new_choice_for_a_role(): void
