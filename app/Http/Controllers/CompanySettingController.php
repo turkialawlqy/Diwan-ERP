@@ -35,8 +35,10 @@ class CompanySettingController extends Controller
             ->pluck('value', 'key')
             ->toArray();
 
+        // The role pickers: AccountMap::problem() takes no switched-off account as a new choice; the ones mapped now stay shown.
         $accounts = Account::where('company_id', $company->id)
             ->where('is_parent', false)
+            ->where(fn ($q) => $q->where('is_active', true)->orWhereIn('id', array_values(array_filter(app(AccountMap::class)->all($company->id)))))
             ->orderBy('code')
             ->get(['id', 'code', 'name_ar', 'name_en', 'type', 'nature']);
 

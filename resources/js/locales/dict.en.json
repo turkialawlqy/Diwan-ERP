@@ -494,5 +494,9 @@
  "تحضير معدة": "Prepare equipment",
  "تحضير المعدات": "Equipment preparation",
  "إدخال مواد للمستودع": "Stock-in to the warehouse",
- "مسودات فواتير المشتريات": "Purchase invoice drafts"
+ "مسودات فواتير المشتريات": "Purchase invoice drafts",
+ "حساب الأصل": "Asset account",
+ "حساب مجمع الإهلاك": "Accumulated depreciation account",
+ "حساب مصروف الإهلاك": "Depreciation expense account",
+ "الحساب الافتراضي": "Default account"
 }
