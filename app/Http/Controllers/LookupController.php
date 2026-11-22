@@ -31,6 +31,9 @@ class LookupController extends Controller
 {
     protected const LIMIT = 20;
 
+    /** Forms that only name the record they pick: whoever holds nothing else gets no more than its name, as those forms always showed. */
+    protected const NAME_ONLY = ['finance.payment_requests.create', 'finance.payment_requests.edit', 'sales.promotions.create', 'sales.promotions.edit'];
+
     public function customers(Request $request): JsonResponse
     {
         $q = $this->term($request);
@@ -59,6 +62,9 @@ class LookupController extends Controller
         // Average cost only for those who build bills of materials: their form shows it.
         if ($request->boolean('cost') && $this->mayUse($request, ['manufacturing.boms.create', 'manufacturing.boms.edit'])) {
             $columns[] = 'average_cost';
+        }
+        if ($this->namesOnly($request, 'lookup.products')) {
+            $columns = ['id', 'name_ar', 'sku'];
         }
 
         $results = Product::query()
@@ -89,7 +95,7 @@ class LookupController extends Controller
                 ->orWhere('tax_number', 'like', "{$q}%")))
             ->orderBy('name')
             ->limit(self::LIMIT)
-            ->get();
+            ->get($this->namesOnly($request, 'lookup.suppliers') ? ['id', 'name'] : ['*']);
 
         return response()->json(['data' => $results]);
     }
@@ -164,6 +170,12 @@ class LookupController extends Controller
         $user = $request->user();
 
         return $user && ($user->isCompanyOwner() || collect($permissions)->contains(fn ($permission) => $user->can($permission)));
+    }
+
+    /** Whether the user reaches this lookup only through forms that just name the record (NAME_ONLY). */
+    protected function namesOnly(Request $request, string $route): bool
+    {
+        return ! $this->mayUse($request, array_diff((array) config('erp_permissions.routes')[$route], self::NAME_ONLY));
     }
 
     protected function term(Request $request): string

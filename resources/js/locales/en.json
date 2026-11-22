@@ -894,6 +894,7 @@
         "suggested_selling_price_sar": "Suggested selling price (SAR)",
         "tax_rate": "Tax rate (%)",
         "item_code_sku": "Item code (SKU)",
+        "sku_auto": "Numbered automatically from the Numbering Guide",
         "barcode": "Barcode",
         "item_description_extra_details": "Item description / extra details",
         "save_and_insert_into_the_invoice": "Save and insert into the invoice",
