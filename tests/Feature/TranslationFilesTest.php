@@ -17,7 +17,7 @@ class TranslationFilesTest extends TestCase
     {
         $files = [];
         foreach ([...File::glob(lang_path('*.json')), ...File::glob(resource_path('js/locales/*.json'))] as $path) {
-            $files[str_replace(base_path().DIRECTORY_SEPARATOR, '', $path)] = File::get($path);
+            $files[str_replace('\\', '/', substr($path, strlen(base_path()) + 1))] = File::get($path);
         }
 
         return $files;
