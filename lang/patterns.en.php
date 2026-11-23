@@ -249,7 +249,7 @@ return [
     'سطر {}: الحساب {} غير موجود.' => 'Line {}: account {} does not exist.',
     'سطر {}: الحساب {} رئيسي؛ استخدم حساباً فرعياً.' => 'Line {}: account {} is a parent account; use a sub-account.',
     'سطر {}: ضع مبلغاً موجباً في المدين أو الدائن فقط.' => 'Line {}: enter a positive amount in either the debit or the credit only.',
-    'سطر {}: مركز التكلفة {} غير موجود.' => 'Line {}: cost center {} does not exist.',
+    // The journal lines' missing cost center error is word for word the expense import's: one entry, below ("Row {}").
 
     'تم إنشاء أمر البيع {} وإرساله للاعتماد{}' => 'Sales order {} created and sent for approval{}',
     'تم إنشاء أمر البيع {} واعتماده{}' => 'Sales order {} created and approved{}',
@@ -315,8 +315,7 @@ return [
     // own messages, a quotation carrying a line-import error; the {} that follows is translated in turn
     'سطر {}: {}' => 'Row {}: {}',
     'العرض {}: {}' => 'Quotation {}: {}',
-    // E-invoicing «send now»: the summary is the second {} of «أُرسل {} مستند: {}»
-    'أُرسل {} مستند: {}' => 'Sent {} documents: {}',
+    // E-invoicing «send now»: the summary is the second {} of «أُرسل {} مستند: {}» (E-invoicing, above)
     'قُبل {}' => '{} accepted',
     'رُفض {}' => '{} rejected',
     'تعذّر إرسال {}' => '{} could not be sent',
@@ -353,7 +352,6 @@ return [
     'كل الفروع ترحّل على حساب «{}»: لا يكون حساب صندوق أو بنك لفرع واحد.' => 'Every branch posts to the “{}” account: it cannot be the account of one branch\'s cash box or bank.',
     'حساب «{}» لا يكون حساب صندوق أو بنك.' => 'The “{}” account cannot be the account of a cash box or bank.',
     'سطر {}: الحساب {} مربوط بصندوق أو بنك لفرع آخر.' => 'Row {}: account {} is linked to a cash box or bank account of another branch.',
-    'سطر {}: الحساب الأب {} عليه قيود؛ لا يمكن أن يصبح حساباً رئيسياً.' => 'Row {}: parent account {} has postings; it cannot become a parent account.',
     'سطر {}: الحساب الأب {} يرحّل عليه النظام (صندوق أو بنك أو حساب مربوط في ربط الحسابات)؛ لا يمكن أن يصبح حساباً رئيسياً.' => 'Row {}: the system posts to parent account {} (a cash box, a bank, or an account in the account mapping); it cannot become a parent account.',
     'لا يمكن حذف الحساب لأن فئات الأصول تستعمله: {}؛ يرحّل عليه النظام قيود أصولها.' => 'The account cannot be deleted because asset categories use it: {}; the system posts their assets\' entries to it.',
     'لا يمكن حذف الحساب لأن القيود المتكررة تستعمله في أسطرها: {}. احذفها من «القيود المتكررة» أولًا.' => 'The account cannot be deleted because recurring entries use it in their lines: {}. Delete them from “Recurring entries” first.',
