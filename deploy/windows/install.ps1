@@ -6,6 +6,7 @@
     Sets up everything under C:\Diwan, on a computer with nothing installed:
       - Microsoft Visual C++ runtime (needed by PHP)
       - portable PHP 8.3, MariaDB (MySQL-compatible) and the Caddy web server
+        (its official release on github.com/caddyserver/caddy, checked by SHA-512)
       - the latest ready-built release of the system (libraries + interface)
       - database, .env (local install mode), database tables
       - background tasks at start-up: database service, web server (Caddy +
@@ -19,6 +20,9 @@
 .NOTES
     Options (environment variables): DIWAN_DIR (C:\Diwan), DIWAN_PORT (8000),
     DIWAN_PACKAGE (path or URL of diwan-erp.zip).
+    What the window shows also goes to logs\install.log (C:\Diwan\logs\install.log).
+    The last line marks the end of the file: Diwan-Setup.bat runs only a complete download.
+    The functions are tested on Windows by tests/windows (Pester, CI "Windows installer").
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -40,6 +44,7 @@ $Logs = Join-Path $Root 'logs'
 $ConfigFile = Join-Path $Root 'diwan.json'
 $DbService = 'DiwanDB'
 $Workers = 6
+$LogFile = Join-Path $Logs 'install.log'
 
 function Step($n, $text) { Write-Host ''; Write-Host "==> [$n/9] $text" -ForegroundColor Cyan }
 function Ok($text) { Write-Host "    OK  $text" -ForegroundColor Green }
@@ -47,7 +52,7 @@ function Warn($text) { Write-Host "    !   $text" -ForegroundColor Yellow }
 function Fail($text) {
     Write-Host ''
     Write-Host "    ERROR: $text" -ForegroundColor Red
-    Write-Host '    Take a screenshot of this window to ask for help, then run Diwan-Setup.bat again (it is safe to repeat).' -ForegroundColor Red
+    Write-Host "    Take a screenshot of this window (or send $LogFile) to ask for help, then run Diwan-Setup.bat again (it is safe to repeat)." -ForegroundColor Red
     throw $text
 }
 
@@ -91,12 +96,266 @@ function Set-Junction($link, $target) {
     cmd /c mklink /J "$link" "$target" | Out-Null
 }
 
+# ------------------------------------------------------------------ Caddy (the web server)
+# The official ready-built releases of github.com/caddyserver/caddy. The latest stable version is
+# where its releases/latest page redirects (releases/tag/v2.x.y), not the GitHub REST API (which
+# limits anonymous calls). The zip for this processor must match the checksum its release lists,
+# and its caddy.exe must run, before it takes the place of anything. (The download service of the
+# Caddy website, used before, builds Caddy on demand and answers 401 Unauthorized without an API key.)
+$CaddyReleases = 'https://github.com/caddyserver/caddy/releases'
+
+# The processor of Windows itself (AMD64, ARM64...), whatever kind of PowerShell runs this.
+function Get-WindowsArch {
+    $arch = $null
+    try { $arch = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -Name PROCESSOR_ARCHITECTURE -ErrorAction Stop).PROCESSOR_ARCHITECTURE } catch { }
+    if (-not $arch) { $arch = $env:PROCESSOR_ARCHITEW6432 }
+    if (-not $arch) { $arch = $env:PROCESSOR_ARCHITECTURE }
+    return "$arch".ToUpperInvariant()
+}
+
+# How the files of a Caddy release name that processor; $null when Caddy has no Windows build for it.
+function ConvertTo-CaddyArch($windowsArch) {
+    switch ("$windowsArch".ToUpperInvariant()) {
+        'AMD64' { return 'amd64' }
+        'ARM64' { return 'arm64' }
+    }
+    return $null
+}
+
+# 2.11.9 from https://github.com/caddyserver/caddy/releases/tag/v2.11.9; $null for a pre-release or any other page.
+function Get-ReleaseVersion($url) {
+    if ("$url" -match '^https://github\.com/caddyserver/caddy/releases/tag/v(\d+\.\d+\.\d+)$') { return $Matches[1] }
+    return $null
+}
+
+function Get-LatestCaddyVersion {
+    $page = "$CaddyReleases/latest"
+    $final = $null
+    $curl = Join-Path $env:SystemRoot 'System32\curl.exe'
+    if (Test-Path $curl) {
+        $final = & $curl -fsSL --retry 3 -A 'Diwan-Installer' -o NUL -w '%{url_effective}' $page
+        if ($LASTEXITCODE -ne 0) { $final = $null }
+    }
+    if (-not $final) {
+        # Through the proxy settings of Windows, which curl does not read.
+        $request = [Net.WebRequest]::Create($page)
+        $request.UserAgent = 'Diwan-Installer'
+        $response = $request.GetResponse()
+        try { $final = $response.ResponseUri.AbsoluteUri } finally { $response.Close() }
+    }
+    $version = Get-ReleaseVersion $final
+    if (-not $version) { throw "the latest release page led to $final, not to a stable release of caddyserver/caddy" }
+    return $version
+}
+
+# The digest a checksums file of a release lists for one of its files ("<hex>  <name>" lines:
+# SHA-512 for Caddy, SHA-256 read too): @{ Algorithm; Hash }, or $null when the file is not listed.
+function Find-ReleaseChecksum($checksumFile, $fileName) {
+    foreach ($line in [IO.File]::ReadAllLines($checksumFile)) {
+        if ($line -match '^\s*([0-9A-Fa-f]{128}|[0-9A-Fa-f]{64})\s+\*?(\S+)\s*$' -and $Matches[2] -eq $fileName) {
+            $algorithm = 'SHA256'
+            if ($Matches[1].Length -eq 128) { $algorithm = 'SHA512' }
+            return @{ Algorithm = $algorithm; Hash = $Matches[1].ToUpperInvariant() }
+        }
+    }
+    return $null
+}
+
+# The version a caddy.exe reports ("v2.11.9 h1:..." gives 2.11.9), or $null when it is missing,
+# does not run (damaged, blocked by an antivirus) or does not answer within 30 seconds.
+function Get-CaddyVersion($exe) {
+    if (-not $exe -or -not (Test-Path -LiteralPath $exe -PathType Leaf)) { return $null }
+    try {
+        $info = New-Object Diagnostics.ProcessStartInfo
+        $info.FileName = $exe
+        $info.Arguments = 'version'
+        $info.UseShellExecute = $false
+        $info.CreateNoWindow = $true
+        $info.RedirectStandardOutput = $true
+        $info.RedirectStandardError = $true
+        $process = [Diagnostics.Process]::Start($info)
+        $output = $process.StandardOutput.ReadToEndAsync()
+        $null = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit(30000)) {
+            try { $process.Kill() } catch { }
+            return $null
+        }
+        if ($process.ExitCode -eq 0 -and $output.Result -match 'v?(\d+\.\d+\.\d+)') { return $Matches[1] }
+    } catch { }
+    return $null
+}
+
+# Puts the official Caddy release for this processor at $destination (absent when called), after
+# checking the download against the checksums of its release and running it. Returns its version.
+function Install-Caddy($destination) {
+    $windowsArch = Get-WindowsArch
+    $arch = ConvertTo-CaddyArch $windowsArch
+    if (-not $arch) { Fail "Caddy, the web server, has no Windows build for this processor ($windowsArch). Diwan needs a 64-bit Intel, AMD or ARM processor." }
+    try { $version = Get-LatestCaddyVersion }
+    catch { Fail "Could not find the latest Caddy release on github.com ($($_.Exception.Message)). Check the internet connection (github.com must open), then run Diwan-Setup.bat again." }
+    $asset = "caddy_$($version)_windows_$arch.zip"
+    $base = "$CaddyReleases/download/v$version"
+    $temp = Join-Path $env:TEMP ('diwan-caddy-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Force -Path $temp | Out-Null
+    try {
+        $sums = Join-Path $temp 'checksums.txt'
+        try { Download "$base/caddy_$($version)_checksums.txt" $sums }
+        catch { Fail "Could not download the checksums of Caddy $version ($($_.Exception.Message)). Check the internet connection, then run Diwan-Setup.bat again." }
+        $expected = Find-ReleaseChecksum $sums $asset
+        if (-not $expected) { Fail "Caddy $version has no Windows build for this processor ($arch): its release has no $asset." }
+        $zip = Join-Path $temp $asset
+        Write-Host "    Downloading Caddy $version ($arch) from its official release on github.com"
+        try { Download "$base/$asset" $zip }
+        catch { Fail "Could not download Caddy $version ($($_.Exception.Message)). Check the internet connection, then run Diwan-Setup.bat again." }
+        if (-not (Test-Path -LiteralPath $zip -PathType Leaf) -or (Get-FileHash -LiteralPath $zip -Algorithm $expected.Algorithm).Hash -ne $expected.Hash) {
+            Fail "The Caddy download is damaged: it does not match the $($expected.Algorithm) checksum of its release. Run Diwan-Setup.bat again."
+        }
+        $unpacked = Join-Path $temp 'unpacked'
+        try { Expand-Zip $zip $unpacked }
+        catch { Fail "Could not unpack $asset ($($_.Exception.Message))." }
+        $exe = Join-Path $unpacked 'caddy.exe'
+        if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { Fail "$asset has no caddy.exe." }
+        $got = Get-CaddyVersion $exe
+        if (-not $got) { Fail "The downloaded caddy.exe does not run on this computer. If an antivirus blocked it, allow $Root in it, then run Diwan-Setup.bat again." }
+        if ($got -ne $version) { Fail "The downloaded caddy.exe reports version $got instead of $version." }
+        Copy-Item -LiteralPath $exe -Destination "$destination.new" -Force
+        Move-Item -LiteralPath "$destination.new" -Destination $destination -Force
+        return $version
+    } finally {
+        Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath "$destination.new" -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Keeps the caddy.exe already here when it runs (a run again of the installer), otherwise installs
+# the official release. A copy that does not run (left by an interrupted earlier attempt, say) is
+# set aside rather than deleted, and comes back if the new one cannot be installed. Returns the version.
+function Initialize-Caddy($caddyExe) {
+    $have = Get-CaddyVersion $caddyExe
+    if ($have) { return $have }
+    $aside = $null
+    if (Test-Path -LiteralPath $caddyExe) {
+        Warn "$caddyExe does not run (damaged or incomplete): it is replaced by the official release."
+        # The web task keeps trying to start it: stop the task and what it started from this file.
+        Stop-ScheduledTask -TaskName 'Diwan Web' -ErrorAction SilentlyContinue
+        Get-CimInstance Win32_Process -Filter "Name = 'caddy.exe'" -ErrorAction SilentlyContinue |
+            Where-Object { $_.ExecutablePath -eq $caddyExe } |
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+        $aside = "$caddyExe.damaged"
+        try { Move-Item -LiteralPath $caddyExe -Destination $aside -Force }
+        catch { Fail "Could not replace $caddyExe ($($_.Exception.Message)). Restart the computer, then run Diwan-Setup.bat again." }
+    }
+    try { $version = Install-Caddy $caddyExe }
+    catch {
+        if ($aside -and -not (Test-Path -LiteralPath $caddyExe)) { Move-Item -LiteralPath $aside -Destination $caddyExe -Force -ErrorAction SilentlyContinue }
+        throw
+    }
+    if ($aside) { Remove-Item -LiteralPath $aside -Force -ErrorAction SilentlyContinue }
+    return $version
+}
+
+# ------------------------------------------------------------------ shortcuts
+# English names: WScript.Shell saves a shortcut only when its path fits the code page of Windows,
+# so the Arabic names of earlier installers failed on Windows in another language ("Unable to
+# save shortcut", FileNotFoundException). Those earlier shortcuts, and the .lnk files of the
+# interim fixed installer, go once their replacement exists. Each shortcut is checked once saved.
+
+# A folder of Windows for all users (CommonDesktopDirectory, CommonPrograms), made when missing.
+function Get-CommonFolder($name, $fallback) {
+    $path = $null
+    try { $path = [Environment]::GetFolderPath([Environment+SpecialFolder]$name, [Environment+SpecialFolderOption]::Create) } catch { }
+    if (-not $path) { $path = $fallback }
+    return $path
+}
+
+# An internet shortcut (.url) that opens $url in the default browser. $true when it exists afterwards.
+function New-UrlShortcut($path, $url) {
+    try {
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
+        Write-Utf8 $path "[InternetShortcut]`r`nURL=$url`r`n"
+        if (Test-Path -LiteralPath $path -PathType Leaf) { return $true }
+        Warn "Shortcut not created: $path"
+    } catch { Warn "Shortcut not created: $path ($($_.Exception.Message))" }
+    return $false
+}
+
+# A shortcut (.lnk) that runs $target with $arguments. $true when it exists afterwards.
+function New-ProgramShortcut($path, $target, $arguments, $workingDirectory, $description) {
+    try {
+        if (-not (Test-Path -LiteralPath $target -PathType Leaf)) { throw "its program is missing: $target" }
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path) | Out-Null
+        $link = (New-Object -ComObject WScript.Shell).CreateShortcut($path)
+        $link.TargetPath = $target
+        $link.Arguments = $arguments
+        $link.WorkingDirectory = $workingDirectory
+        $link.Description = $description
+        $link.Save()
+        if (Test-Path -LiteralPath $path -PathType Leaf) { return $true }
+        Warn "Shortcut not created: $path"
+    } catch { Warn "Shortcut not created: $path ($($_.Exception.Message))" }
+    return $false
+}
+
+# The desktop shortcut and the Start menu folder "Diwan ERP": open Diwan, and the tools of
+# local-tools.ps1 when it is there. Never stops the installation; returns the shortcuts not created.
+function Install-Shortcuts($url, $desktop, $programs, $toolsScript, $powershell, $workingDirectory) {
+    $failed = New-Object 'System.Collections.Generic.List[string]'
+    # $old: the shortcuts the new one at $path replaces, removed once $path exists.
+    function Add-Result($made, $path, $old) {
+        if (-not $made) { $failed.Add($path); return }
+        foreach ($o in @($old)) { if ($o -and (Test-Path -LiteralPath $o)) { Remove-Item -LiteralPath $o -Force -ErrorAction SilentlyContinue } }
+    }
+    if ($desktop) {
+        $path = Join-Path $desktop 'Diwan ERP.url'
+        Add-Result (New-UrlShortcut $path $url) $path @((Join-Path $desktop 'Diwan ERP.lnk'), (Join-Path $desktop 'الديوان.url'))
+    } else {
+        Warn 'Windows has no desktop folder for all users here: no desktop shortcut.'
+        $failed.Add('Desktop\Diwan ERP.url')
+    }
+    if (-not $programs) {
+        Warn 'Windows has no Start menu folder for all users here: no Start menu shortcuts.'
+        $failed.Add('Start menu\Diwan ERP')
+        return $failed.ToArray()
+    }
+    $menu = Join-Path $programs 'Diwan ERP'
+    $oldMenu = Join-Path $programs 'الديوان'
+    $path = Join-Path $menu 'Open Diwan ERP.url'
+    Add-Result (New-UrlShortcut $path $url) $path @((Join-Path $menu 'Open Diwan ERP.lnk'), (Join-Path $oldMenu 'فتح الديوان.url'))
+    if (Test-Path -LiteralPath $toolsScript -PathType Leaf) {
+        $tools = @(
+            @{ Action = 'update'; Name = 'Update Diwan'; Old = 'تحديث الديوان' },
+            @{ Action = 'backup'; Name = 'Backup Diwan'; Old = 'نسخة احتياطية الآن' },
+            @{ Action = 'restart'; Name = 'Restart Diwan'; Old = 'إعادة تشغيل الديوان' },
+            @{ Action = 'uninstall'; Name = 'Uninstall Diwan'; Old = 'إلغاء تثبيت الديوان' }
+        )
+        foreach ($tool in $tools) {
+            $path = Join-Path $menu "$($tool.Name).lnk"
+            $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$toolsScript`" -Action $($tool.Action)"
+            Add-Result (New-ProgramShortcut $path $powershell $arguments $workingDirectory "Diwan ERP: $($tool.Name)") $path (Join-Path $oldMenu "$($tool.Old).lnk")
+        }
+    } else {
+        Warn "The Diwan tools are missing ($toolsScript): no Update, Backup, Restart and Uninstall shortcuts."
+        $failed.Add("$menu\(tools)")
+    }
+    # The Start menu folder of earlier installers goes once it is empty.
+    if ((Test-Path -LiteralPath $oldMenu) -and -not (Get-ChildItem -LiteralPath $oldMenu -Force -ErrorAction SilentlyContinue)) {
+        Remove-Item -LiteralPath $oldMenu -Force -ErrorAction SilentlyContinue
+    }
+    return $failed.ToArray()
+}
+
 # ------------------------------------------------------------------ checks
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host 'Please double-click Diwan-Setup.bat and answer "Yes" when Windows asks for permission.' -ForegroundColor Yellow
     exit 1
 }
+
+# What this window shows also goes to logs\install.log, for warnings that scroll away and for asking for help.
+try {
+    New-Item -ItemType Directory -Force -Path $Logs | Out-Null
+    Start-Transcript -Path $LogFile -Append | Out-Null
+} catch { Write-Host "    !   No log file ($($_.Exception.Message)); the installation goes on." -ForegroundColor Yellow }
 
 Write-Host '==============================================' -ForegroundColor Cyan
 Write-Host '   Diwan ERP setup' -ForegroundColor Cyan
@@ -289,7 +548,8 @@ Ok "Ready. Passwords saved in $Root\secrets.txt"
 # ------------------------------------------------------------------ background tasks
 Step 7 'Starting Diwan automatically with Windows'
 $caddyExe = Join-Path $Bin 'caddy.exe'
-if (-not (Test-Path $caddyExe)) { Download 'https://caddyserver.com/api/download?os=windows&arch=amd64' $caddyExe }
+$caddyVersion = Initialize-Caddy $caddyExe
+Ok "Web server: Caddy $caddyVersion ($caddyExe)"
 $upstreams = (1..$Workers | ForEach-Object { "127.0.0.1:$(9000 + $_)" }) -join ' '
 $publicDir = (Join-Path $Current 'public').Replace('\', '/')
 $caddyLog = (Join-Path $Logs 'web.log').Replace('\', '/')
@@ -389,24 +649,12 @@ Ok "The firewall allows port $($config.port) on private networks only."
 # ------------------------------------------------------------------ shortcuts
 Step 9 'Shortcuts'
 $url = "http://localhost:$($config.port)"
-$desktop = [Environment]::GetFolderPath('CommonDesktopDirectory')
-# Shortcut names are Arabic: Windows Explorer shows them correctly (only consoles do not).
-Write-Utf8 (Join-Path $desktop 'الديوان.url') "[InternetShortcut]`r`nURL=$url`r`n"
-$menu = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'الديوان'
-New-Item -ItemType Directory -Force -Path $menu | Out-Null
-Write-Utf8 (Join-Path $menu 'فتح الديوان.url') "[InternetShortcut]`r`nURL=$url`r`n"
-$shell = New-Object -ComObject WScript.Shell
-function Add-Shortcut($name, $action) {
-    $lnk = $shell.CreateShortcut((Join-Path $menu "$name.lnk"))
-    $lnk.TargetPath = $psExe
-    $lnk.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $Current 'deploy\windows\local-tools.ps1')`" -Action $action"
-    $lnk.Save()
-}
-Add-Shortcut 'تحديث الديوان' 'update'
-Add-Shortcut 'نسخة احتياطية الآن' 'backup'
-Add-Shortcut 'إعادة تشغيل الديوان' 'restart'
-Add-Shortcut 'إلغاء تثبيت الديوان' 'uninstall'
-Ok 'Desktop shortcut created; tools are in Start menu > Diwan.'
+# Diwan runs already (step 7): a shortcut that cannot be made is reported, it does not fail the installation.
+$desktop = Get-CommonFolder 'CommonDesktopDirectory' $(if ($env:PUBLIC) { Join-Path $env:PUBLIC 'Desktop' })
+$programs = Get-CommonFolder 'CommonPrograms' $(if ($env:ProgramData) { Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs' })
+$missingShortcuts = @(Install-Shortcuts $url $desktop $programs (Join-Path $Current 'deploy\windows\local-tools.ps1') $psExe $Root)
+if ($missingShortcuts.Count -eq 0) { Ok 'Desktop shortcut "Diwan ERP"; tools in Start menu > Diwan ERP.' }
+else { Warn "$($missingShortcuts.Count) shortcut(s) could not be created (see above and $LogFile). Diwan itself is installed and running." }
 
 $lan = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
     Where-Object { $_.IPAddress -match '^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)' } |
@@ -419,5 +667,11 @@ if ($lan) { Write-Host "   From office devices/phones: http://$($lan):$($config.
 Write-Host '   First time: enter your company details and the manager account'
 Write-Host '   in the page that opens now.'
 Write-Host "   Passwords: $Root\secrets.txt (copy it somewhere safe)"
+if ($missingShortcuts.Count -gt 0) { Write-Host '   Some shortcuts are missing: open the address above in a browser.' -ForegroundColor Yellow }
+Write-Host "   Log of this installation: $LogFile"
 Write-Host '======================================================' -ForegroundColor Green
-Start-Process $url
+try { Start-Process $url } catch { Warn "Could not open the browser ($($_.Exception.Message)): open $url in it." }
+try { Stop-Transcript | Out-Null } catch { }
+exit 0
+# Diwan-Setup.bat runs a downloaded installer only when its last line, the one below, arrived.
+# Diwan installer end

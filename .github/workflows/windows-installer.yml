@@ -1,0 +1,76 @@
+name: Windows installer
+
+# The Windows installer (deploy/windows) on real Windows, in Windows PowerShell 5.1 as on the offices'
+# computers: its functions with Pester (tests/windows/Installer.Tests.ps1), then a full install with
+# Diwan-Setup.bat from a folder with spaces, damage on purpose and a run again over it
+# (tests/windows/Test-FullInstall.ps1). Runs when those files change, and by hand (Run workflow).
+
+on:
+  push:
+    paths:
+      - 'deploy/windows/**'
+      - 'tests/windows/**'
+      - '.github/workflows/windows-installer.yml'
+  pull_request:
+    paths:
+      - 'deploy/windows/**'
+      - 'tests/windows/**'
+      - '.github/workflows/windows-installer.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: windows-installer-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  functions:
+    name: Installer functions (Pester)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pester 5
+        shell: powershell
+        run: |
+          if (-not (Get-Module -ListAvailable Pester | Where-Object { $_.Version -ge [version]'5.5.0' })) {
+            Install-Module Pester -MinimumVersion 5.5.0 -Force -SkipPublisherCheck -Scope CurrentUser
+          }
+      - name: Tests
+        shell: powershell
+        run: |
+          Import-Module Pester -MinimumVersion 5.5.0
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'tests/windows'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
+
+  install:
+    name: Full install and a run again
+    needs: functions
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install, damage, run again, check
+        shell: powershell
+        run: .\tests\windows\Test-FullInstall.ps1 -ThrowawayWindows
+      - name: Logs of the installation
+        if: always()
+        shell: powershell
+        run: |
+          Get-ChildItem C:\Diwan\logs -File -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "==== $($_.FullName)"
+            Get-Content -LiteralPath $_.FullName -Tail 300
+          }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: windows-install-logs
+          path: |
+            C:\Diwan\logs
+            C:\Diwan\shared\storage\logs
+          retention-days: 7
