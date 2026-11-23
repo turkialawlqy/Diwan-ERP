@@ -188,7 +188,15 @@
         "consolidated_statement": "Consolidated statement",
         "equipment_preparations": "Equipment preparation",
         "stock_in": "Stock-in",
-        "purchase_drafts": "Purchase drafts"
+        "purchase_drafts": "Purchase drafts",
+        "sec_general": "General",
+        "sec_statements": "Financial statements",
+        "sec_accounting": "Accounting",
+        "sec_tax": "Tax",
+        "sec_inventory": "Inventory",
+        "sec_operations": "Equipment & manufacturing",
+        "sec_hr": "Human resources",
+        "sec_other": "Real estate & work orders"
     },
     "common": {
         "search": "Search...",
@@ -4071,7 +4079,12 @@
         "hours_reading": "Hour meter reading",
         "km_reading": "Kilometers reading",
         "save": "Save the preparation",
-        "notes": "Notes"
+        "notes": "Notes",
+        "select_all": "Select unprepared",
+        "selected_n": "Selected: {n}",
+        "bulk_prepare": "Prepare selected",
+        "bulk_title": "Bulk preparation",
+        "bulk_hint": "Everything selected is prepared with the same status in one go; equipment already prepared is skipped."
     },
     "stockin": {
         "title": "Stock-in requests",
@@ -4239,7 +4252,12 @@
         "automatic": "Automatic",
         "save_attendance": "Save attendance",
         "attendance": "Attendance",
-        "lateness_and_overtime_follow_the": "Lateness and overtime follow the employee’s shift; absence is deducted in the payroll run"
+        "lateness_and_overtime_follow_the": "Lateness and overtime follow the employee’s shift; absence is deducted in the payroll run",
+        "select_all": "Select all",
+        "selected_n": "Selected: {n}",
+        "apply_selected": "Apply to selected",
+        "bulk_all_present": "Present for selected",
+        "pick_status": "— Status —"
     },
     "hr_employees_form": {
         "personal_data_and_id": "Personal data and ID",
@@ -5608,7 +5626,9 @@
         "from_the_meter": "From the meter",
         "working_hours_n": "Working hours {n0}",
         "operator_n": "Operator {n0}",
-        "n_of_n_equipment_entered_empty_f": "{n0} of {n1} equipment entered · empty fields are ignored"
+        "n_of_n_equipment_entered_empty_f": "{n0} of {n1} equipment entered · empty fields are ignored",
+        "check_in": "Check-in",
+        "check_out": "Check-out"
     },
     "eq2_equipment_rentals_index": {
         "new_contract": "+ New contract",
@@ -8659,5 +8679,50 @@
     "z_equipment_reports": {
         "text": ", "
     },
-    "z_equipment_show": {}
+    "z_equipment_show": {},
+    "reports_hub": {
+        "title": "All reports",
+        "subtitle": "Every report in one place, grouped by the areas you may open.",
+        "search": "Search reports",
+        "empty": "No matching reports."
+    },
+    "eq_reports2": {
+        "attendance": "Daily attendance",
+        "attendance_hint": "Every piece of equipment on every day: worked (with time in and out), prepared, in the workshop, deployed without work, or idle.",
+        "maintenance_log": "Maintenance detail",
+        "maintenance_log_hint": "Every maintenance order of the period with downtime, technician and cost, and a breakdown summary per equipment.",
+        "preparation": "Daily preparation",
+        "preparation_hint": "Days prepared against days worked, days worked without preparation, and what needs follow-up.",
+        "operators": "Operators & assignments",
+        "operators_hint": "Each operator's hours and days, and the history of equipment assigned to customers and projects.",
+        "attendance_insight": "Over {days} days: {worked} equipment work-days, {idle} idle days, {hours} worked hours in total.",
+        "maintenance_insight": "{orders} maintenance orders, {days} days of downtime and {cost} in parts.",
+        "maintenance_worst": "Most downtime: {code} ({days} days).",
+        "preparation_insight": "{prepared} days prepared, {attention} need follow-up; days worked without preparation: {missed}.",
+        "operators_insight": "{n} operators, {hours} worked hours in total.",
+        "by_equipment": "Summary per equipment",
+        "deployments": "Assignment history (customers and projects)",
+        "st_worked": "Worked",
+        "st_prepared": "Prepared",
+        "st_maintenance": "Workshop",
+        "st_deployed": "Deployed",
+        "st_idle": "Idle",
+        "hours": "Hours",
+        "orders": "Orders",
+        "corrective": "Repairs",
+        "preventive": "Preventive",
+        "open": "Open",
+        "downtime_days": "Downtime days",
+        "avg_repair_days": "Avg repair time",
+        "parts_cost": "Parts cost",
+        "rental_no": "Rental no.",
+        "kind": "Type",
+        "assigned_to": "Assigned to",
+        "site": "Site",
+        "start": "Start",
+        "end": "End",
+        "days_in_period": "Days in period",
+        "status": "Status",
+        "code": "Code"
+    }
 }

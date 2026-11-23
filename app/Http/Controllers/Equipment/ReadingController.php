@@ -49,14 +49,16 @@ class ReadingController extends Controller
             'rows.*.hours_reading' => 'nullable|numeric|min:0',
             'rows.*.km_reading' => 'nullable|numeric|min:0',
             'rows.*.worked_hours' => 'nullable|numeric|min:0|max:24',
+            'rows.*.check_in' => 'nullable|date_format:H:i',
+            'rows.*.check_out' => 'nullable|date_format:H:i',
             'rows.*.operator' => 'nullable|string|max:100',
             'rows.*.notes' => 'nullable|string|max:500',
-        ], [], ['rows.*.worked_hours' => 'ساعات العمل', 'date' => 'التاريخ']);
+        ], [], ['rows.*.worked_hours' => 'ساعات العمل', 'rows.*.check_in' => 'وقت الدخول', 'rows.*.check_out' => 'وقت الخروج', 'date' => 'التاريخ']);
 
         $saved = 0;
         $errors = [];
         foreach ($request->input('rows') as $i => $row) {
-            if (($row['hours_reading'] ?? '') === '' && ($row['km_reading'] ?? '') === '' && ($row['worked_hours'] ?? '') === '') {
+            if (($row['hours_reading'] ?? '') === '' && ($row['km_reading'] ?? '') === '' && ($row['worked_hours'] ?? '') === '' && ($row['check_in'] ?? '') === '' && ($row['check_out'] ?? '') === '') {
                 continue;
             }
             try {
