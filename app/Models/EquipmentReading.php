@@ -10,7 +10,7 @@ class EquipmentReading extends Model
 {
     use BelongsToCompany;
 
-    protected $fillable = ['company_id', 'equipment_id', 'rental_id', 'date', 'hours_reading', 'km_reading', 'worked_hours', 'operator', 'notes', 'created_by'];
+    protected $fillable = ['company_id', 'equipment_id', 'rental_id', 'date', 'hours_reading', 'km_reading', 'worked_hours', 'check_in', 'check_out', 'operator', 'notes', 'created_by'];
 
     protected $casts = ['date' => 'date', 'hours_reading' => 'float', 'km_reading' => 'float', 'worked_hours' => 'float'];
 

@@ -32,3 +32,28 @@ test('prepare a piece of equipment with two cards attached', async ({ page }) =>
     await expect(page.locator('[data-prep-do]')).toHaveCount(missingBefore - 1);
     expect(errors).toEqual([]);
 });
+
+/* Bulk: tick several unprepared pieces of equipment and prepare them in one request. */
+test('prepare a group of equipment in one go', async ({ page }) => {
+    const errors = watchErrors(page);
+    const stamp = Date.now().toString().slice(-5);
+    const codes = [`BLK-A${stamp}`, `BLK-B${stamp}`];
+    for (const code of codes) {
+        await page.goto('/equipment');
+        await page.getByRole('button', { name: 'معدة جديدة' }).click();
+        const dialog = page.locator('div.fixed.inset-0').last();
+        await dialog.getByLabel('رمز المعدة').fill(code);
+        await dialog.getByLabel('اسم المعدة').fill('معدة جماعية');
+        await dialog.getByRole('button', { name: 'حفظ' }).click();
+        await expect(page).toHaveURL(/\/equipment\/\d+$/);
+    }
+
+    await page.goto('/equipment/preparations');
+    const missingBefore = await page.locator('[data-prep-do]').count();
+    for (const code of codes) await page.locator('[data-prep-row]', { hasText: code }).locator('[data-prep-check]').check();
+    await page.locator('[data-prep-bulk-do]').click();
+
+    await expect(page.locator('[data-prep-do]')).toHaveCount(missingBefore - 2);
+    for (const code of codes) await expect(page.locator('[data-prep-row]', { hasText: code }).locator('[data-prep-do]')).toHaveCount(0);
+    expect(errors).toEqual([]);
+});

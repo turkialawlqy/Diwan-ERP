@@ -14,13 +14,17 @@ const types = computed(() => ({
     utilization: [t('eq2_equipment_reports.utilization_rate'), t('eq2_equipment_reports.actual_working_hours_against_ava')],
     compliance: [t('eq2_equipment_reports.maintenance_compliance'), t('eq2_equipment_reports.items_done_on_time_against_late')],
     parts: [t('eq2_equipment_reports.spare_parts_consumption'), t('eq2_equipment_reports.items_issued_for_maintenance_by')],
+    attendance: [t('eq_reports2.attendance'), t('eq_reports2.attendance_hint')],
+    maintenance_log: [t('eq_reports2.maintenance_log'), t('eq_reports2.maintenance_log_hint')],
+    preparation: [t('eq_reports2.preparation'), t('eq_reports2.preparation_hint')],
+    operators: [t('eq_reports2.operators'), t('eq_reports2.operators_hint')],
 }));
 const f = reactive({ ...props.filters });
 const go = (type = props.type) => router.get(route('equipment.reports.index'), { type, ...f }, { preserveState: false });
 const exportUrl = computed(() => route('equipment.reports.export', { type: props.type, ...f }));
 
 const moneyKeys = ['revenue', 'recovery', 'income', 'maintenance', 'rent_in', 'depreciation', 'costs', 'net', 'cost_per_hour', 'parts_cost', 'amount'];
-const percentKeys = ['margin', 'utilization', 'on_time_rate'];
+const percentKeys = ['margin', 'utilization', 'on_time_rate', 'rate'];
 const cell = (key, value) => {
     if (value === null || value === undefined || value === '') return '—';
     if (moneyKeys.includes(key)) return money(value);
@@ -31,10 +35,16 @@ const cell = (key, value) => {
 const tone = (key, row) => {
     if (key === 'net' || key === 'margin') return Number(row[key]) < 0 ? 'text-rose-600 font-bold' : 'text-emerald-700 font-bold';
     if (key === 'late' || key === 'overdue_now') return Number(row[key]) > 0 ? 'text-rose-600 font-bold' : '';
+    if (key === 'status' && props.type === 'attendance') return { worked: 'text-emerald-700 font-bold', maintenance: 'text-amber-700 font-bold', idle: 'text-slate-400' }[row.state] || '';
+    if (['downtime_days', 'worked_unprepared', 'needs_attention'].includes(key)) return Number(row[key]) > 0 ? 'text-rose-600 font-bold' : '';
     if (key === 'utilization') return Number(row[key]) < 40 ? 'text-amber-700 font-bold' : 'text-emerald-700 font-bold';
     return '';
 };
 const linkable = (key) => ['code', 'name', 'equipment'].includes(key);
+const byColumns = computed(() => props.type === 'attendance'
+    ? { code: t('eq_reports2.code'), name: t('eq2_equipment_reports.equipment'), worked: t('eq_reports2.st_worked'), prepared: t('eq_reports2.st_prepared'), maintenance: t('eq_reports2.st_maintenance'), deployed: t('eq_reports2.st_deployed'), idle: t('eq_reports2.st_idle'), hours: t('eq_reports2.hours') }
+    : { code: t('eq_reports2.code'), name: t('eq2_equipment_reports.equipment'), orders: t('eq_reports2.orders'), corrective: t('eq_reports2.corrective'), preventive: t('eq_reports2.preventive'), open: t('eq_reports2.open'), downtime_days: t('eq_reports2.downtime_days'), avg_repair_days: t('eq_reports2.avg_repair_days'), parts_cost: t('eq_reports2.parts_cost') });
+const deployColumns = computed(() => ({ number: t('eq_reports2.rental_no'), code: t('eq_reports2.code'), name: t('eq2_equipment_reports.equipment'), type: t('eq_reports2.kind'), to: t('eq_reports2.assigned_to'), site: t('eq_reports2.site'), start_date: t('eq_reports2.start'), end_date: t('eq_reports2.end'), days_in_period: t('eq_reports2.days_in_period'), status: t('eq_reports2.status') }));
 const rowId = (row) => row.equipment_id || row.id;
 
 // Short management readout above the table.
@@ -58,6 +68,22 @@ const insights = computed(() => {
         return [t('eq2_equipment_reports.n_items_done_n_of_them_late_n_co', { n0: tot.serviced, n1: tot.late, n2: tot.serviced ? Math.round(((tot.serviced - tot.late) / tot.serviced) * 100) : 100 }),
             tot.overdue_now && t('eq2_equipment_reports.n_items_overdue_now', { n0: tot.overdue_now }), t('eq2_equipment_reports.breakdown_repair_orders_n_agains', { n0: tot.corrective, n1: tot.preventive })].filter(Boolean);
     }
+    if (props.type === 'attendance') {
+        const by = props.report.by_equipment || [];
+        const worked = by.reduce((n, r) => n + r.worked, 0);
+        const idle = by.reduce((n, r) => n + r.idle, 0);
+        return [t('eq_reports2.attendance_insight', { days: props.report.days, worked, idle, hours: props.report.totals.worked_hours })];
+    }
+    if (props.type === 'maintenance_log') {
+        const by = props.report.by_equipment || [];
+        const worst = by[0];
+        return [t('eq_reports2.maintenance_insight', { orders: props.report.rows.length, days: props.report.totals.downtime_days, cost: money(props.report.totals.parts_cost) }), worst && t('eq_reports2.maintenance_worst', { code: worst.code, days: worst.downtime_days })].filter(Boolean);
+    }
+    if (props.type === 'preparation') {
+        const tot = props.report.totals;
+        return [t('eq_reports2.preparation_insight', { prepared: tot.prepared_days, attention: tot.needs_attention, missed: tot.worked_unprepared })];
+    }
+    if (props.type === 'operators') return [t('eq_reports2.operators_insight', { n: props.report.rows.length, hours: props.report.totals.hours })];
     const top = props.report.by_product?.[0];
     return [t('eq2_equipment_reports.total_spare_parts_n', { n0: money(props.report.totals.amount) }), top && t('eq2_equipment_reports.highest_cost_n_n', { n0: top.product, n1: money(top.amount) })].filter(Boolean);
 });
@@ -107,6 +133,26 @@ const insights = computed(() => {
                 </tfoot>
             </table>
         </div>
+
+        <section v-if="report.by_equipment?.length" class="mt-4 text-xs" data-by-equipment>
+            <h3 class="font-black text-slate-700 mb-2">{{ $t('eq_reports2.by_equipment') }}</h3>
+            <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-slate-50 text-slate-500"><tr><th v-for="(l, k) in byColumns" :key="k" class="px-3 py-2 text-start whitespace-nowrap">{{ l }}</th></tr></thead>
+                    <tbody><tr v-for="r in report.by_equipment" :key="r.code" class="border-t border-slate-100"><td v-for="(l, k) in byColumns" :key="k" :class="['px-3 py-2 whitespace-nowrap', typeof r[k] === 'number' ? 'font-mono' : '']">{{ k === 'parts_cost' ? money(r[k]) : (r[k] ?? '—') }}</td></tr></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section v-if="type === 'operators' && report.deployments?.length" class="mt-4 text-xs" data-deployments>
+            <h3 class="font-black text-slate-700 mb-2">{{ $t('eq_reports2.deployments') }}</h3>
+            <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-slate-50 text-slate-500"><tr><th v-for="(l, k) in deployColumns" :key="k" class="px-3 py-2 text-start whitespace-nowrap">{{ l }}</th></tr></thead>
+                    <tbody><tr v-for="d in report.deployments" :key="d.number" class="border-t border-slate-100"><td v-for="(l, k) in deployColumns" :key="k" class="px-3 py-2 whitespace-nowrap">{{ d[k] ?? '—' }}</td></tr></tbody>
+                </table>
+            </div>
+        </section>
 
         <section v-if="type === 'parts' && report.by_product?.length" class="mt-4 text-xs">
             <h3 class="font-black text-slate-700 mb-2">{{ $t('eq2_equipment_reports.by_item') }}</h3>

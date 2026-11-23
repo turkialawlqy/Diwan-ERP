@@ -20,6 +20,12 @@ use Inertia\Response;
 
 class ReportController extends Controller
 {
+    /** «كل التقارير»: the hub page; the cards come from the sidebar definition and are filtered by the user's permissions in the page. */
+    public function index()
+    {
+        return Inertia::render('Reports/Index');
+    }
+
     /**
      * Period for the summary reports (default: this year to date). Figures come
      * from the ledger, so they agree with the financial statements: net of

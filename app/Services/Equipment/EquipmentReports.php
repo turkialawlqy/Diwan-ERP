@@ -5,12 +5,15 @@ namespace App\Services\Equipment;
 use App\Models\AssetDepreciation;
 use App\Models\Equipment;
 use App\Models\EquipmentBilling;
+use App\Models\EquipmentPreparation;
 use App\Models\EquipmentReading;
+use App\Models\EquipmentRental;
 use App\Models\MaintenanceOrder;
 use App\Models\MaintenanceOrderItem;
 use App\Services\TenantManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Management reports for the equipment fleet. Amounts are in base currency
@@ -161,6 +164,144 @@ class EquipmentReports
             'quantity' => round($g->sum('quantity'), 3), 'amount' => round($g->sum('amount'), 2), 'equipment_count' => $g->count()])->sortByDesc('amount')->values()->all();
 
         return ['rows' => $rows, 'by_product' => $byProduct, 'totals' => $this->totals($rows, ['quantity', 'amount'])];
+    }
+
+    /** The daily rows list at most this many equipment-days; wider ranges stop with a message. */
+    public const ATTENDANCE_MAX_DAYS = 62;
+
+    public const STATUS_LABELS = ['worked' => 'عملت', 'prepared' => 'محضَّرة', 'maintenance' => 'في الصيانة', 'deployed' => 'مُسنَدة بلا عمل', 'idle' => 'متوقفة'];
+
+    /** Equipment × day: worked (with time in and out), prepared only, in the workshop, deployed without work, or idle. */
+    public function attendance(Carbon $from, Carbon $to): array
+    {
+        $days = (int) $from->diffInDays($to) + 1;
+        $max = self::ATTENDANCE_MAX_DAYS;
+        if ($days > $max) {
+            throw ValidationException::withMessages(['to' => "تقرير الحضور اليومي لا يتجاوز {$max} يومًا؛ قصّر الفترة."]);
+        }
+        $f = $from->toDateString();
+        $t = $to->toDateString();
+        $equipment = Equipment::where('status', '!=', 'out_of_service')->orderBy('code')->get(['id', 'code', 'name', 'category']);
+        $readings = EquipmentReading::whereBetween('date', [$f, $t])->get()->groupBy('equipment_id')->map(fn ($g) => $g->keyBy(fn ($r) => $r->date->toDateString()));
+        $preps = EquipmentPreparation::whereBetween('prep_date', [$f, $t])->get()->groupBy('equipment_id')->map(fn ($g) => $g->keyBy(fn ($p) => $p->prep_date->toDateString()));
+        $orders = MaintenanceOrder::whereDate('date', '<=', $t)->where(fn ($q) => $q->whereNull('completed_at')->orWhereDate('completed_at', '>=', $f))->get(['equipment_id', 'date', 'completed_at'])->groupBy('equipment_id');
+        $rentals = EquipmentRental::with(['customer:id,name', 'project:id,name'])->whereDate('start_date', '<=', $t)
+            ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $f))->get()->groupBy('equipment_id');
+
+        $rows = [];
+        $summary = [];
+        foreach ($equipment as $e) {
+            $sum = ['id' => $e->id, 'code' => $e->code, 'name' => $e->name, 'worked' => 0, 'prepared' => 0, 'maintenance' => 0, 'deployed' => 0, 'idle' => 0, 'hours' => 0.0];
+            for ($d = $from->copy(); $d->lte($to); $d->addDay()) {
+                $day = $d->toDateString();
+                $reading = $readings[$e->id][$day] ?? null;
+                $prep = $preps[$e->id][$day] ?? null;
+                $inShop = ($orders[$e->id] ?? collect())->contains(fn ($o) => Carbon::parse($o->date)->lte($d) && (! $o->completed_at || Carbon::parse($o->completed_at)->startOfDay()->gte($d)));
+                $rental = ($rentals[$e->id] ?? collect())->first(fn ($r) => Carbon::parse($r->start_date)->lte($d) && (! $r->end_date || Carbon::parse($r->end_date)->gte($d)));
+                $status = ($reading && ($reading->worked_hours > 0 || $reading->check_in)) ? 'worked' : ($inShop ? 'maintenance' : ($prep ? 'prepared' : ($rental ? 'deployed' : 'idle')));
+                $sum[$status]++;
+                $sum['hours'] += (float) ($reading?->worked_hours ?? 0);
+                $rows[] = [
+                    'id' => $e->id, 'date' => $day, 'code' => $e->code, 'name' => $e->name,
+                    'status' => self::STATUS_LABELS[$status], 'state' => $status,
+                    'check_in' => $reading?->check_in ? substr($reading->check_in, 0, 5) : null,
+                    'check_out' => $reading?->check_out ? substr($reading->check_out, 0, 5) : null,
+                    'worked_hours' => $reading ? round((float) $reading->worked_hours, 2) : null,
+                    'prepared' => $prep ? ($prep->status === 'ready' ? 'جاهزة' : 'تحتاج متابعة') : null,
+                    'operator' => $reading?->operator ?: $prep?->operator,
+                    'site' => $rental ? ($rental->customer?->name ?: $rental->project?->name ?: $rental->site) : null,
+                ];
+            }
+            $sum['hours'] = round($sum['hours'], 1);
+            $summary[] = $sum;
+        }
+
+        return ['rows' => $rows, 'by_equipment' => $summary, 'days' => $days,
+            'totals' => ['worked_hours' => round(collect($rows)->sum('worked_hours'), 2)]];
+    }
+
+    /** Every maintenance order of the period with its downtime, and per equipment: orders, breakdowns, downtime, average repair time. */
+    public function maintenanceLog(Carbon $from, Carbon $to): array
+    {
+        $orders = MaintenanceOrder::with('equipment:id,code,name')->whereBetween('date', [$from->toDateString(), $to->toDateString()])->orderByDesc('date')->orderByDesc('id')->get();
+        $items = MaintenanceOrderItem::whereIn('maintenance_order_id', $orders->pluck('id'))->groupBy('maintenance_order_id')->selectRaw('maintenance_order_id, SUM(amount) s')->pluck('s', 'maintenance_order_id');
+        $now = now()->startOfDay();
+
+        $rows = $orders->map(function ($o) use ($items, $now) {
+            $start = Carbon::parse($o->date)->startOfDay();
+            $end = $o->completed_at ? Carbon::parse($o->completed_at)->startOfDay() : $now;
+
+            return [
+                'id' => $o->equipment_id, 'number' => $o->number, 'code' => $o->equipment?->code, 'name' => $o->equipment?->name,
+                'type' => $o->type === 'preventive' ? 'وقائية' : 'إصلاح', 'date' => $start->toDateString(),
+                'completed_at' => $o->completed_at ? Carbon::parse($o->completed_at)->toDateString() : null,
+                'downtime_days' => $end->gte($start) ? (int) $start->diffInDays($end) + 1 : 0,
+                'technician' => $o->technician, 'status' => $o->status === 'completed' ? 'منفَّذ' : 'مفتوح',
+                'parts_cost' => round((float) ($items[$o->id] ?? $o->parts_cost ?? 0), 2), 'notes' => $o->notes,
+            ];
+        })->all();
+
+        $byEquipment = collect($rows)->groupBy('code')->map(function ($g) {
+            $closed = $g->where('status', 'منفَّذ');
+
+            return ['id' => $g[0]['id'], 'code' => $g[0]['code'], 'name' => $g[0]['name'], 'orders' => $g->count(),
+                'corrective' => $g->where('type', 'إصلاح')->count(), 'preventive' => $g->where('type', 'وقائية')->count(),
+                'open' => $g->where('status', 'مفتوح')->count(), 'downtime_days' => $g->sum('downtime_days'),
+                'avg_repair_days' => $closed->count() ? round($closed->avg('downtime_days'), 1) : null, 'parts_cost' => round($g->sum('parts_cost'), 2)];
+        })->sortByDesc('downtime_days')->values()->all();
+
+        return ['rows' => $rows, 'by_equipment' => $byEquipment, 'totals' => $this->totals($rows, ['downtime_days', 'parts_cost'])];
+    }
+
+    /** Daily preparation discipline: days prepared against days worked, and the days worked with no preparation. */
+    public function preparation(Carbon $from, Carbon $to): array
+    {
+        $f = $from->toDateString();
+        $t = $to->toDateString();
+        $preps = EquipmentPreparation::whereBetween('prep_date', [$f, $t])->get()->groupBy('equipment_id');
+        $worked = EquipmentReading::whereBetween('date', [$f, $t])->where('worked_hours', '>', 0)->get()->groupBy('equipment_id');
+
+        $rows = Equipment::orderBy('code')->get()->map(function (Equipment $e) use ($preps, $worked) {
+            $p = $preps[$e->id] ?? collect();
+            $w = $worked[$e->id] ?? collect();
+            $prepDays = $p->map(fn ($x) => $x->prep_date->toDateString())->unique();
+            $workDays = $w->map(fn ($x) => $x->date->toDateString())->unique();
+            $unprepared = $workDays->diff($prepDays)->count();
+
+            return ['id' => $e->id, 'code' => $e->code, 'name' => $e->name, 'prepared_days' => $prepDays->count(),
+                'ready' => $p->where('status', 'ready')->count(), 'needs_attention' => $p->where('status', 'needs_attention')->count(),
+                'work_days' => $workDays->count(), 'worked_unprepared' => $unprepared,
+                'rate' => $workDays->count() ? round(($workDays->count() - $unprepared) / $workDays->count() * 100, 1) : null,
+                'operators' => $p->pluck('operator')->filter()->unique()->implode('، ')];
+        })->filter(fn ($r) => $r['prepared_days'] || $r['work_days'])->values()->all();
+
+        return ['rows' => $rows, 'totals' => $this->totals($rows, ['prepared_days', 'ready', 'needs_attention', 'work_days', 'worked_unprepared'])];
+    }
+
+    /** Per operator: days, hours and equipment worked; and the assignment (rental / project deployment) history of the period. */
+    public function operators(Carbon $from, Carbon $to): array
+    {
+        $f = $from->toDateString();
+        $t = $to->toDateString();
+        $readings = EquipmentReading::whereBetween('date', [$f, $t])->whereNotNull('operator')->where('operator', '!=', '')->get();
+        $rows = $readings->groupBy(fn ($r) => trim($r->operator))->map(fn ($g, $name) => [
+            'operator' => $name, 'days' => $g->where('worked_hours', '>', 0)->count(), 'hours' => round($g->sum('worked_hours'), 1),
+            'equipment_count' => $g->pluck('equipment_id')->unique()->count(),
+            'equipment' => $g->pluck('equipment_id')->unique()->map(fn ($id) => Equipment::find($id)?->code)->filter()->implode('، '),
+        ])->sortByDesc('hours')->values()->all();
+
+        $deployments = EquipmentRental::with(['equipment:id,code,name', 'customer:id,name', 'project:id,name'])->whereDate('start_date', '<=', $t)
+            ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $f))->orderBy('start_date')->get()->map(function ($r) use ($from, $to) {
+                $start = Carbon::parse($r->start_date)->max($from);
+                $end = ($r->end_date ? Carbon::parse($r->end_date) : $to->copy())->min($to);
+
+                return ['number' => $r->number, 'code' => $r->equipment?->code, 'name' => $r->equipment?->name, 'id' => $r->equipment_id,
+                    'type' => $r->type === 'customer' ? 'عميل' : 'مشروع', 'to' => $r->customer?->name ?: $r->project?->name, 'site' => $r->site,
+                    'start_date' => Carbon::parse($r->start_date)->toDateString(), 'end_date' => $r->end_date ? Carbon::parse($r->end_date)->toDateString() : null,
+                    'days_in_period' => $start->lte($end) ? (int) $start->diffInDays($end) + 1 : 0, 'status' => $r->status === 'active' ? 'نشط' : 'مُنهى'];
+            })->all();
+
+        return ['rows' => $rows, 'deployments' => $deployments, 'totals' => $this->totals($rows, ['days', 'hours'])];
     }
 
     protected function workedHours(Carbon $from, Carbon $to)
