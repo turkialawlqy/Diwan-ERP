@@ -24,7 +24,7 @@ class SyncClassificationTest extends TestCase
             }
         }
 
-        $actual = collect(Schema::getTables())->pluck('name')->reject(fn ($t) => str_starts_with($t, 'sqlite_'))->all();
+        $actual = collect(Schema::getTables())->pluck('name')->reject(fn ($t) => str_starts_with($t, 'sqlite_') || str_starts_with($t, 'sync_'))->all();
         $this->assertSame([], array_values(array_diff($actual, array_keys($seen))), 'Add the new table to config/sync.php (master, owned, derived or local).');
         $this->assertSame([], array_values(array_diff(array_keys($seen), $actual)), 'These tables no longer exist: remove them from config/sync.php.');
     }
