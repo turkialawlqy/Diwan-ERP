@@ -800,6 +800,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
 
     // 10. Reports Module
     Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('/', [ReportController::class, 'index'])->name('index');
         Route::get('/sales', [ReportController::class, 'sales'])->name('sales');
         Route::get('/purchases', [ReportController::class, 'purchases'])->name('purchases');
         Route::get('/insights', [InsightsController::class, 'index'])->name('insights');

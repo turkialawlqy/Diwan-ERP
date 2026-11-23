@@ -188,7 +188,15 @@
         "consolidated_statement": "كشف حساب مجمع",
         "equipment_preparations": "تحضير المعدات",
         "stock_in": "إدخال مواد للمستودع",
-        "purchase_drafts": "مسودات المشتريات"
+        "purchase_drafts": "مسودات المشتريات",
+        "sec_general": "عامة",
+        "sec_statements": "القوائم المالية",
+        "sec_accounting": "المحاسبة",
+        "sec_tax": "الضرائب",
+        "sec_inventory": "المخزون",
+        "sec_operations": "المعدات والتصنيع",
+        "sec_hr": "الموارد البشرية",
+        "sec_other": "العقارات وأوامر العمل"
     },
     "common": {
         "search": "بحث...",
@@ -8669,5 +8677,11 @@
     "z_equipment_reports": {
         "text": "، "
     },
-    "z_equipment_show": {}
+    "z_equipment_show": {},
+    "reports_hub": {
+        "title": "كل التقارير",
+        "subtitle": "كل تقارير النظام في مكان واحد بحسب الأقسام التي تملك صلاحيتها.",
+        "search": "ابحث عن تقرير",
+        "empty": "لا توجد تقارير مطابقة."
+    }
 }

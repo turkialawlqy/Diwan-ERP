@@ -188,7 +188,15 @@
         "consolidated_statement": "Consolidated statement",
         "equipment_preparations": "Equipment preparation",
         "stock_in": "Stock-in",
-        "purchase_drafts": "Purchase drafts"
+        "purchase_drafts": "Purchase drafts",
+        "sec_general": "General",
+        "sec_statements": "Financial statements",
+        "sec_accounting": "Accounting",
+        "sec_tax": "Tax",
+        "sec_inventory": "Inventory",
+        "sec_operations": "Equipment & manufacturing",
+        "sec_hr": "Human resources",
+        "sec_other": "Real estate & work orders"
     },
     "common": {
         "search": "Search...",
@@ -8669,5 +8677,11 @@
     "z_equipment_reports": {
         "text": ", "
     },
-    "z_equipment_show": {}
+    "z_equipment_show": {},
+    "reports_hub": {
+        "title": "All reports",
+        "subtitle": "Every report in one place, grouped by the areas you may open.",
+        "search": "Search reports",
+        "empty": "No matching reports."
+    }
 }

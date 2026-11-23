@@ -5,7 +5,7 @@ import BrandLogo from './BrandLogo.vue';
 import WorkspaceContext from './WorkspaceContext.vue';
 import { ChevronDownIcon, ChevronRightIcon, ChevronLeftIcon, XMarkIcon, ShieldCheckIcon, ArrowUpIcon, ArrowDownIcon, Bars3Icon, PencilSquareIcon } from '@heroicons/vue/24/outline';
 import navigation from '@/navigation';
-import { canRoute } from '@/permissions';
+import { useVisibleNav } from '@/composables/useVisibleNav';
 import { sidebarCollapsed, toggleSidebar } from '@/composables/useSidebar';
 import { useUnreadNotes } from '@/composables/useWhatsNew';
 
@@ -37,12 +37,7 @@ const isCurrent = (path, exact = false) => {
 
 // Only items the user may open (and, for country-specific ones, where the branch being worked in is);
 // groups without any visible child are hidden.
-const inCountry = (item) => !item.feature || (page.props.features || []).includes(item.feature);
-const visibleItems = computed(() => navigation
-    .map((item) => item.children
-        ? { ...item, children: item.children.filter((child) => canRoute(child.route) && inCountry(child)) }
-        : item)
-    .filter((item) => item.children ? item.children.length > 0 : canRoute(item.route)));
+const visibleItems = useVisibleNav();
 
 // The user's own order (saved on the account): items missing from it keep their default place, after the rest.
 const sortBy = (list, order, keyOf) => {
@@ -265,9 +260,9 @@ const slim = computed(() => sidebarCollapsed.value);
                     </button>
 
                     <div v-show="openMenus[item.key] && !slim" class="mt-1 ps-9 pe-2 space-y-0.5 text-[13px]">
+                        <template v-for="(child, ci) in item.children" :key="child.route">
+                        <p v-if="child.section && child.section !== item.children[ci - 1]?.section" class="px-3 pt-2 pb-0.5 text-[11px] font-bold text-slate-500" data-nav-section>{{ $t(child.section) }}</p>
                         <Link
-                            v-for="child in item.children"
-                            :key="child.route"
                             :href="route(child.route)"
                             :data-nav-current="isCurrent(child.path, child.exact) ? '' : null"
                             :class="[
@@ -279,6 +274,7 @@ const slim = computed(() => sidebarCollapsed.value);
                         >
                             {{ $t(child.label) }}
                         </Link>
+                        </template>
                     </div>
                 </div>
             </template>
