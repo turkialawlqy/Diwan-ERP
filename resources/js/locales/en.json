@@ -8724,5 +8724,23 @@
         "days_in_period": "Days in period",
         "status": "Status",
         "code": "Code"
+    },
+    "pos_offline": {
+        "online": "Online",
+        "offline": "Offline",
+        "pending_n": "{n} waiting to be sent",
+        "rejected_n": "{n} refused",
+        "close_blocked": "Send the saved sales and get online before closing the shift",
+        "saved_offline": "The sale is kept on this device and is sent when the link returns (temporary receipt)",
+        "title": "Cashier sales without a connection",
+        "hint_online": "Online: saved sales are sent automatically every few seconds; you can send them now.",
+        "hint_offline": "No connection: keep selling; sales are kept on this device and sent automatically when the link returns.",
+        "empty": "No sales are waiting to be sent.",
+        "retry": "Try again",
+        "discard": "Delete",
+        "sync_now": "Send now",
+        "syncing": "Sending...",
+        "signed_out": "The login expired; sign in again (the saved sales stay on this device).",
+        "refused": "The sale was refused."
     }
 }

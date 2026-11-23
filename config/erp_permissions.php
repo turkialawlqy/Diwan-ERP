@@ -906,6 +906,7 @@ return [
         'pos.history' => 'pos.history.view',
         'pos.products.search' => 'pos.terminal.use',
         'pos.order.process' => 'pos.terminal.use',
+        'pos.order.sync' => 'pos.terminal.use',
         'pos.session.open' => 'pos.sessions.create',
         'pos.session.close' => 'pos.sessions.edit',
         'pos.open-sessions.index' => 'pos.sessions.manage',

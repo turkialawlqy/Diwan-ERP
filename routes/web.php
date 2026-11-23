@@ -432,6 +432,9 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::post('/order', [PosController::class, 'processOrder'])
             ->name('order.process')
             ->middleware('throttle:pos-orders');
+        Route::post('/order/sync', [PosController::class, 'syncOrder'])
+            ->name('order.sync')
+            ->middleware('throttle:pos-sync');
         Route::get('/history', [PosController::class, 'history'])->name('history');
         Route::get('/open-sessions', [PosController::class, 'managedSessions'])->name('open-sessions.index');
         Route::post('/open-sessions/{session}/close', [PosController::class, 'closeManagedSession'])->whereNumber('session')->name('open-sessions.close');
