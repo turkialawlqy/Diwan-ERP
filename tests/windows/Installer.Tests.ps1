@@ -148,9 +148,11 @@ Describe 'Installing Caddy' {
             Set-Content -Path (Join-Path $Dir "caddy_$($Version)_checksums.txt") -Value $lines -Encoding Ascii
         }
 
-        # What an antivirus does to a program it sees run for the first time: it holds caddy.exe
-        # open a moment longer, here until Stop-Hold. Mock Get-CaddyVersion { Get-CaddyVersionThenHold $exe }
-        # gives the real version, and then holds the copy in %TEMP% open without sharing its deletion.
+        # What an antivirus does to a program it sees run for the first time, and what made the test of
+        # the real release below fail now and then on GitHub's runners (there it is the runner's own
+        # provjobd.exe, for a fraction of a second): caddy.exe is held open a moment longer, here until
+        # Stop-Hold. Mock Get-CaddyVersion { Get-CaddyVersionThenHold $exe } gives the real version, and
+        # then holds the copy in %TEMP% open without sharing its deletion.
         $script:RealCaddyVersion = ${function:Get-CaddyVersion}
         function Get-CaddyVersionThenHold($exe) {
             $version = & $script:RealCaddyVersion $exe
