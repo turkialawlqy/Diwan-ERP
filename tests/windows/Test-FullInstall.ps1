@@ -36,11 +36,18 @@ function Check($ok, $what) {
     else { Write-Host "  FAIL  $what" -ForegroundColor Red; $failures.Add($what) }
 }
 
-# cmd /c ""<bat>" /local < NUL": the pause at its end reads NUL and returns at once.
+# cmd /c ""<bat>" /local < NUL": the pause at its end reads NUL and returns at once. It waits for cmd
+# alone: Start-Process -Wait of Windows PowerShell 5.1 also waits for what cmd started and left running
+# (the browser the installer opens at its end), which kept this test waiting until the job's time limit.
 function Invoke-Setup {
     Write-Host ''
     Write-Host "==== $bat /local" -ForegroundColor Cyan
-    $process = Start-Process -FilePath $env:ComSpec -ArgumentList ('/d /c ""' + $bat + '" /local < NUL"') -Wait -PassThru -NoNewWindow
+    $process = Start-Process -FilePath $env:ComSpec -ArgumentList ('/d /c ""' + $bat + '" /local < NUL"') -PassThru -NoNewWindow
+    $null = $process.Handle # without it, ExitCode stays empty once the process has ended
+    if (-not $process.WaitForExit(30 * 60000)) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        throw "Diwan-Setup.bat did not end within 30 minutes: see $Root\logs\install.log"
+    }
     if ($process.ExitCode -ne 0) { throw "Diwan-Setup.bat ended with exit code $($process.ExitCode): see $Root\logs\install.log" }
     Write-Host '  ok    Diwan-Setup.bat ended with exit code 0' -ForegroundColor Green
 }
