@@ -14,6 +14,9 @@ use Mpdf\Mpdf;
  */
 class PdfRenderer
 {
+    /** A comfortable margin under the 1,000,000-byte regex limit mPDF works with. */
+    protected const CHUNK_BYTES = 200000;
+
     /**
      * @param  array  $attachments  [['name' => 'x.xml', 'content' => '...', 'mime' => 'text/xml', 'description' => '...']]
      */
@@ -37,9 +40,31 @@ class PdfRenderer
             ], $attachments));
         }
 
-        $mpdf->WriteHTML(view($view, $data)->render());
+        $this->write($mpdf, view($view, $data)->render());
 
         return $mpdf->Output('', 'S');
+    }
+
+    /** mPDF refuses one WriteHTML() string above pcre.backtrack_limit (1 MB): a long report goes in pieces cut between table rows. */
+    protected function write(Mpdf $mpdf, string $html): void
+    {
+        if (strlen($html) <= self::CHUNK_BYTES) {
+            $mpdf->WriteHTML($html);
+
+            return;
+        }
+
+        $chunk = '';
+        foreach (preg_split('~(?<=</tr>)~', $html) as $piece) {
+            $chunk .= $piece;
+            if (strlen($chunk) >= self::CHUNK_BYTES) {
+                $mpdf->WriteHTML($chunk);
+                $chunk = '';
+            }
+        }
+        if ($chunk !== '') {
+            $mpdf->WriteHTML($chunk);
+        }
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Customer;
 use App\Services\Accounting\AccountingReports;
 use App\Services\Accounting\AccountingSetupService;
+use App\Services\Reports\ReportExporter;
 use App\Services\Sales\InvoiceService;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -111,5 +112,29 @@ class ConsolidatedStatementTest extends TestCase
 
         $this->actingAs($this->userWithRole($this->company, 'sales'));
         $this->get(route('accounting.statements.consolidated'))->assertForbidden();
+    }
+
+    public function test_the_pdf_export_works_for_accounts_and_for_a_parent_account(): void
+    {
+        $ids = $this->usedAccounts()->pluck('id')->take(2)->all();
+        $pdf = $this->get(route('reports.export', ['report' => 'consolidated-statement', 'format' => 'pdf', 'account_ids' => $ids, 'start_date' => '2026-01-01', 'end_date' => '2026-11-16']))->assertOk();
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+
+        $parent = Account::where('is_parent', true)->get()->first(fn ($p) => Account::where('parent_id', $p->id)->exists());
+        $pdf = $this->get(route('reports.export', ['report' => 'consolidated-statement', 'format' => 'pdf', 'account_ids' => [$parent->id], 'start_date' => '2026-01-01', 'end_date' => '2026-11-16']))->assertOk();
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+    }
+
+    public function test_a_very_long_pdf_is_cut_with_a_note_instead_of_failing(): void
+    {
+        $rows = [];
+        for ($i = 0; $i < 4600; $i++) {
+            $rows[] = ['date' => '2026-03-01', 'entry' => 'JE-'.$i, 'debit' => 10.5, 'balance' => $i];
+        }
+        $rows[] = ['date' => '', 'entry' => 'الإجمالي', 'debit' => 1, 'balance' => 2];
+        $table = ['title' => 'كشف طويل', 'subtitle' => 'اختبار', 'columns' => [['key' => 'date', 'label' => 'التاريخ', 'type' => 'text'], ['key' => 'entry', 'label' => 'القيد', 'type' => 'text'], ['key' => 'debit', 'label' => 'مدين', 'type' => 'money'], ['key' => 'balance', 'label' => 'الرصيد', 'type' => 'money']], 'rows' => $rows, 'bold' => [4600]];
+
+        $pdf = app(ReportExporter::class)->pdf($table);
+        $this->assertStringStartsWith('%PDF', $pdf);
     }
 }

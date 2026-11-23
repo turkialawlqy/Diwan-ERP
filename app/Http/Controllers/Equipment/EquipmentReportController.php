@@ -20,6 +20,13 @@ class EquipmentReportController extends Controller
         'compliance' => ['code' => 'الرمز', 'name' => 'المعدة', 'serviced' => 'بنود منفذة', 'on_time' => 'في موعدها', 'late' => 'متأخرة', 'on_time_rate' => 'الالتزام %',
             'overdue_now' => 'متأخرة الآن', 'due_soon_now' => 'تستحق قريباً', 'preventive' => 'أوامر وقائية', 'corrective' => 'أوامر إصلاح', 'parts_cost' => 'تكلفة القطع',
             'cost_per_hour' => 'تكلفة/ساعة', 'cost_per_km' => 'تكلفة/كم'],
+        'attendance' => ['date' => 'التاريخ', 'code' => 'الرمز', 'name' => 'المعدة', 'status' => 'الحالة', 'check_in' => 'الدخول', 'check_out' => 'الخروج',
+            'worked_hours' => 'ساعات العمل', 'prepared' => 'التحضير', 'operator' => 'المشغّل', 'site' => 'الجهة/الموقع'],
+        'maintenance_log' => ['number' => 'أمر الصيانة', 'code' => 'الرمز', 'name' => 'المعدة', 'type' => 'النوع', 'date' => 'التاريخ', 'completed_at' => 'تاريخ الإنهاء',
+            'downtime_days' => 'أيام التوقف', 'technician' => 'الفني', 'status' => 'الحالة', 'parts_cost' => 'تكلفة القطع', 'notes' => 'ملاحظات'],
+        'preparation' => ['code' => 'الرمز', 'name' => 'المعدة', 'prepared_days' => 'أيام التحضير', 'ready' => 'جاهزة', 'needs_attention' => 'تحتاج متابعة',
+            'work_days' => 'أيام العمل', 'worked_unprepared' => 'عمل بلا تحضير', 'rate' => 'الالتزام %', 'operators' => 'المشغّلون'],
+        'operators' => ['operator' => 'المشغّل', 'days' => 'أيام العمل', 'hours' => 'ساعات العمل', 'equipment_count' => 'عدد المعدات', 'equipment' => 'المعدات'],
         'parts' => ['product' => 'الصنف', 'sku' => 'الرمز', 'code' => 'رمز المعدة', 'equipment' => 'المعدة', 'quantity' => 'الكمية', 'amount' => 'التكلفة', 'orders' => 'أوامر الصيانة'],
     ];
 
@@ -77,6 +84,10 @@ class EquipmentReportController extends Controller
             'utilization' => $reports->utilization($from, $to, $hours),
             'compliance' => $reports->compliance($from, $to),
             'parts' => $reports->parts($from, $to),
+            'attendance' => $reports->attendance($from, $to),
+            'maintenance_log' => $reports->maintenanceLog($from, $to),
+            'preparation' => $reports->preparation($from, $to),
+            'operators' => $reports->operators($from, $to),
             default => $reports->profitability($from, $to),
         };
     }

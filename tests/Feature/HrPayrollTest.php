@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
+use App\Models\AttendanceRecord;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Employee;
@@ -280,6 +281,26 @@ class HrPayrollTest extends TestCase
         $attendance = app(AttendanceService::class);
         $this->assertThrows(fn () => $attendance->record($employee, '2026-06-10', '08:00', '16:00'), ValidationException::class);
         $this->assertThrows(fn () => $attendance->import("employee_number,date,check_in,check_out\n{$employee->employee_number},2026-06-11,08:00,16:00"), ValidationException::class);
+    }
+
+    public function test_attendance_is_saved_for_a_group_and_a_closed_month_only_refuses_its_own_rows(): void
+    {
+        $a = $this->employee();
+        $b = $this->employee();
+        $rows = [['employee_id' => $a->id, 'status' => 'present', 'check_in' => '08:00', 'check_out' => '16:00'], ['employee_id' => $b->id, 'status' => 'present', 'check_in' => '08:00', 'check_out' => '16:00']];
+
+        $this->post(route('hr.attendance.store'), ['date' => '2026-06-10', 'rows' => $rows])->assertSessionHasNoErrors();
+        $this->assertSame(2, AttendanceRecord::whereDate('date', '2026-06-10')->count());
+
+        $service = app(PayrollService::class);
+        $service->approve($service->generate(2026, 6));
+        $this->post(route('hr.attendance.store'), ['date' => '2026-06-11', 'rows' => $rows])->assertSessionHasErrors('rows');
+        $this->assertSame(0, AttendanceRecord::whereDate('date', '2026-06-11')->count());
+
+        $this->post(route('hr.attendance.store'), ['date' => '2026-06-10', 'rows' => [['employee_id' => 999999, 'status' => 'present']]])->assertSessionHasErrors('rows.0.employee_id');
+
+        $this->actingAs($this->userWithRole($this->company, 'sales'));
+        $this->post(route('hr.attendance.store'), ['date' => '2026-06-09', 'rows' => $rows])->assertForbidden();
     }
 
     public function test_penalties_above_the_deduction_cap_carry_to_next_month_and_come_back_on_reopen(): void

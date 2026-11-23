@@ -101,6 +101,42 @@ class EquipmentPreparationTest extends TestCase
         $this->get(route('equipment.preparations.edit', $prep->id))->assertForbidden();
     }
 
+    public function test_a_group_is_prepared_in_one_request_skipping_the_prepared_and_out_of_service(): void
+    {
+        $a = $this->equipment('A');
+        $b = $this->equipment('B');
+        $c = $this->equipment('C');
+        $off = $this->equipment('D', 'out_of_service');
+        $today = now()->toDateString();
+        $this->post(route('equipment.preparations.store'), ['equipment_id' => $c->id, 'prep_date' => $today, 'operator' => 'سالم', 'status' => 'ready']);
+
+        $this->post(route('equipment.preparations.bulk'), ['prep_date' => $today, 'status' => 'needs_attention', 'operator' => 'ناصر', 'equipment_ids' => [$a->id, $b->id, $c->id, $off->id, $a->id]])
+            ->assertSessionHasNoErrors()->assertRedirect();
+
+        $this->assertSame(3, EquipmentPreparation::count());
+        $this->assertSame(['needs_attention', 'needs_attention'], EquipmentPreparation::whereIn('equipment_id', [$a->id, $b->id])->pluck('status')->all());
+        $this->assertSame('ready', EquipmentPreparation::where('equipment_id', $c->id)->value('status')); // not overwritten
+        $this->assertSame(3, EquipmentPreparation::distinct('number')->count('number'));
+        $this->get(route('equipment.preparations.index'))->assertInertia(fn ($p) => $p->where('counts.missing', 0));
+    }
+
+    public function test_a_group_is_refused_for_foreign_equipment_future_dates_and_users_without_permission(): void
+    {
+        $a = $this->equipment('A');
+        $other = Company::factory()->create();
+        $foreign = app(TenantManager::class)->runAs($other, fn () => Equipment::create(['code' => 'ZZ', 'name' => 'x', 'status' => 'available', 'ownership' => 'owned', 'meter_type' => 'hours']));
+        $today = now()->toDateString();
+
+        $this->post(route('equipment.preparations.bulk'), ['prep_date' => $today, 'status' => 'ready', 'equipment_ids' => [$a->id, $foreign->id]])->assertSessionHasErrors('equipment_ids.1');
+        $this->post(route('equipment.preparations.bulk'), ['prep_date' => now()->addDay()->toDateString(), 'status' => 'ready', 'equipment_ids' => [$a->id]])->assertSessionHasErrors('prep_date');
+        $this->post(route('equipment.preparations.bulk'), ['prep_date' => $today, 'status' => 'ready', 'equipment_ids' => []])->assertSessionHasErrors('equipment_ids');
+        $this->assertSame(0, EquipmentPreparation::count());
+
+        $this->actingAs($this->userWithRole($this->company, 'sales'));
+        $this->post(route('equipment.preparations.bulk'), ['prep_date' => $today, 'status' => 'ready', 'equipment_ids' => [$a->id]])->assertForbidden();
+        $this->assertSame(0, EquipmentPreparation::count());
+    }
+
     public function test_the_morning_alert_names_working_equipment_not_prepared_yesterday(): void
     {
         $a = $this->equipment('A', 'internal');

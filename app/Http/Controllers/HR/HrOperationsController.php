@@ -21,6 +21,7 @@ use App\Services\HR\LeaveService;
 use App\Services\TenantManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 /**
@@ -116,8 +117,24 @@ class HrOperationsController extends Controller
             'rows.*.status' => 'nullable|in:present,absent,leave,holiday,weekend',
         ]);
 
+        // One refused row (a closed month, say) does not stop the rest: the saved ones stay and the refusals are reported once.
+        $saved = 0;
+        $refused = [];
         foreach ($validated['rows'] as $row) {
-            $service->record(Employee::find($row['employee_id']), $validated['date'], $row['check_in'] ?? null, $row['check_out'] ?? null, 'manual', $row['status'] ?? null);
+            try {
+                $service->record(Employee::find($row['employee_id']), $validated['date'], $row['check_in'] ?? null, $row['check_out'] ?? null, 'manual', $row['status'] ?? null);
+                $saved++;
+            } catch (ValidationException $e) {
+                $refused[] = collect($e->errors())->flatten()->first();
+            }
+        }
+
+        if ($refused) {
+            $count = count($refused);
+            $reasons = implode('؛ ', array_values(array_unique($refused)));
+
+            return back()->with('success', $saved ? "تم حفظ {$saved} من سجلات الحضور" : null)
+                ->withErrors(['rows' => "تعذّر حفظ {$count} من السجلات: {$reasons}"]);
         }
 
         return back()->with('success', 'تم حفظ الحضور');
