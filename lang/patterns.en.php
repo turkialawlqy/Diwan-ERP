@@ -376,4 +376,8 @@ return [
     'لا يمكن تفعيل القيد المتكرر لأن الحساب «{} - {}» في أسطره يتطلب مركز تكلفة وسطره بلا مركز تكلفة؛ أنشئ قيدًا متكررًا جديدًا بمركز تكلفة للسطر.' => 'The recurring entry cannot be switched on because account “{} - {}” in its lines requires a cost center and its line has none; create a new recurring entry with a cost center on the line.',
     'يرحّل النظام على حساب «{}» بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.' => 'The system posts to the “{}” account without a cost center; choose an account that does not require one.',
     'هذا الحساب مربوط في «ربط الحسابات» بدور يرحّل عليه النظام بلا مركز تكلفة: {}؛ لا يُشترط له مركز تكلفة. اربط الدور بحساب آخر من «ربط الحسابات» أولًا.' => 'This account is set in “Account mapping” for a role the system posts to without a cost center: {}; it cannot require one. Map the role to another account in “Account mapping” first.',
+    'تم تحضير {} معدة دفعة واحدة وتخطي {} (محضَّرة في هذا اليوم أو خارج الخدمة)' => '{} equipment prepared in one go; {} skipped (already prepared that day or out of service)',
+    'تم تحضير {} معدة دفعة واحدة' => '{} equipment prepared in one go',
+    'تم حفظ {} من سجلات الحضور' => '{} attendance records saved',
+    'تعذّر حفظ {} من السجلات: {}' => '{} records could not be saved: {}',
 ];

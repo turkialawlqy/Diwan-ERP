@@ -1,6 +1,7 @@
 <script setup>
 import DatePicker from '@/Components/UI/DatePicker.vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { ref, computed } from 'vue';
 import { PaperClipIcon } from '@heroicons/vue/24/outline';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/UI/PageHeader.vue';
@@ -13,6 +14,17 @@ const props = defineProps({ date: String, rows: Array, counts: Object });
 
 const changeDate = (value) => router.get(route('equipment.preparations.index'), { date: value }, { preserveState: false });
 const remove = (p) => route('equipment.preparations.destroy', p.id);
+
+// Bulk preparation: tick unprepared equipment and prepare them all in one request (same permission as a single one).
+const selected = ref([]);
+const pending = computed(() => props.rows.filter((r) => !r.preparation).map((r) => r.equipment.id));
+const allSelected = computed(() => pending.value.length > 0 && pending.value.every((id) => selected.value.includes(id)));
+const toggleAll = () => { selected.value = allSelected.value ? [] : [...pending.value]; };
+const bulk = useForm({ status: 'ready', operator: '', notes: '' });
+const prepareSelected = () => {
+    bulk.transform((data) => ({ ...data, prep_date: props.date, equipment_ids: selected.value }))
+        .post(route('equipment.preparations.bulk'), { preserveScroll: true, onSuccess: () => { selected.value = []; } });
+};
 </script>
 
 <template>
@@ -32,10 +44,25 @@ const remove = (p) => route('equipment.preparations.destroy', p.id);
             <StatCard :label="$t('eq_prep.missing')" :value="counts.missing" :tone="counts.missing ? 'rose' : 'emerald'" />
         </div>
 
+        <div v-if="$can('equipment.preparations.create') && pending.length" class="bg-white border border-slate-200 rounded-2xl p-3 mb-3 text-xs flex flex-wrap items-end gap-3" data-prep-bulk>
+            <button type="button" @click="toggleAll" class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200" data-prep-select-all>{{ $t('eq_prep.select_all') }}</button>
+            <span class="font-bold text-slate-600">{{ $t('eq_prep.selected_n', { n: selected.length }) }}</span>
+            <template v-if="selected.length">
+                <select v-model="bulk.status" class="rounded-xl border-slate-200 text-xs">
+                    <option value="ready">{{ $t('eq_prep.ready_one') }}</option>
+                    <option value="needs_attention">{{ $t('eq_prep.needs_attention_one') }}</option>
+                </select>
+                <input v-model="bulk.operator" type="text" :placeholder="$t('eq_prep.operator')" class="rounded-xl border-slate-200 text-xs" />
+                <input v-model="bulk.notes" type="text" :placeholder="$t('eq_prep.notes')" class="rounded-xl border-slate-200 text-xs" />
+                <button type="button" :disabled="bulk.processing" @click="prepareSelected" class="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 disabled:opacity-50" data-prep-bulk-do>{{ $t('eq_prep.bulk_prepare') }}</button>
+            </template>
+        </div>
+
         <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto text-xs" data-prep-sheet>
             <table class="w-full">
                 <thead class="bg-slate-50 text-slate-500">
                     <tr>
+                        <th v-if="$can('equipment.preparations.create')" class="px-3 py-2 w-8"></th>
                         <th class="px-3 py-2 text-start">{{ $t('eq_prep.equipment') }}</th>
                         <th class="px-3 py-2 text-start">{{ $t('ui.status') }}</th>
                         <th class="px-3 py-2 text-start">{{ $t('eq_prep.operator') }}</th>
@@ -46,6 +73,7 @@ const remove = (p) => route('equipment.preparations.destroy', p.id);
                 </thead>
                 <tbody>
                     <tr v-for="r in rows" :key="r.equipment.id" class="border-t border-slate-100" data-prep-row>
+                        <td v-if="$can('equipment.preparations.create')" class="px-3 py-2"><input v-if="!r.preparation" v-model="selected" type="checkbox" :value="r.equipment.id" class="rounded border-slate-300" data-prep-check /></td>
                         <td class="px-3 py-2"><Link :href="route('equipment.show', r.equipment.id)" class="font-bold text-slate-800 hover:text-indigo-700">{{ r.equipment.code }} — {{ r.equipment.name }}</Link></td>
                         <td class="px-3 py-2">
                             <span v-if="!r.preparation" class="px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 font-bold border border-rose-100">{{ $t('eq_prep.not_prepared') }}</span>
@@ -61,7 +89,7 @@ const remove = (p) => route('equipment.preparations.destroy', p.id);
                             <RowActions v-else-if="r.preparation" :edit="$can('equipment.preparations.edit') ? route('equipment.preparations.edit', r.preparation.id) : null" :remove="$can('equipment.preparations.delete') ? remove(r.preparation) : null" :confirm="$t('eq_prep.confirm_delete', { number: r.preparation.number })" />
                         </td>
                     </tr>
-                    <tr v-if="!rows.length"><td colspan="6" class="px-4 py-8 text-center text-slate-400">{{ $t('eq_prep.no_equipment') }}</td></tr>
+                    <tr v-if="!rows.length"><td colspan="7" class="px-4 py-8 text-center text-slate-400">{{ $t('eq_prep.no_equipment') }}</td></tr>
                 </tbody>
             </table>
         </div>

@@ -4071,7 +4071,12 @@
         "hours_reading": "Hour meter reading",
         "km_reading": "Kilometers reading",
         "save": "Save the preparation",
-        "notes": "Notes"
+        "notes": "Notes",
+        "select_all": "Select unprepared",
+        "selected_n": "Selected: {n}",
+        "bulk_prepare": "Prepare selected",
+        "bulk_title": "Bulk preparation",
+        "bulk_hint": "Everything selected is prepared with the same status in one go; equipment already prepared is skipped."
     },
     "stockin": {
         "title": "Stock-in requests",
@@ -4239,7 +4244,12 @@
         "automatic": "Automatic",
         "save_attendance": "Save attendance",
         "attendance": "Attendance",
-        "lateness_and_overtime_follow_the": "Lateness and overtime follow the employee’s shift; absence is deducted in the payroll run"
+        "lateness_and_overtime_follow_the": "Lateness and overtime follow the employee’s shift; absence is deducted in the payroll run",
+        "select_all": "Select all",
+        "selected_n": "Selected: {n}",
+        "apply_selected": "Apply to selected",
+        "bulk_all_present": "Present for selected",
+        "pick_status": "— Status —"
     },
     "hr_employees_form": {
         "personal_data_and_id": "Personal data and ID",

@@ -4071,7 +4071,12 @@
         "hours_reading": "قراءة عداد الساعات",
         "km_reading": "قراءة الكيلومترات",
         "save": "حفظ التحضير",
-        "notes": "ملاحظات"
+        "notes": "ملاحظات",
+        "select_all": "تحديد غير المحضَّر",
+        "selected_n": "المحدد: {n}",
+        "bulk_prepare": "حضِّر المحدد",
+        "bulk_title": "تحضير جماعي",
+        "bulk_hint": "يُحضَّر كل المحدد بالحالة نفسها دفعة واحدة، وتُتخطى المعدة المحضَّرة سابقًا."
     },
     "stockin": {
         "title": "إدخال مواد للمستودع",
@@ -4239,7 +4244,12 @@
         "automatic": "تلقائي",
         "save_attendance": "حفظ الحضور",
         "attendance": "الحضور والانصراف",
-        "lateness_and_overtime_follow_the": "يُحتسب التأخير والإضافي حسب وردية الموظف؛ الغياب يُخصم في المسير"
+        "lateness_and_overtime_follow_the": "يُحتسب التأخير والإضافي حسب وردية الموظف؛ الغياب يُخصم في المسير",
+        "select_all": "تحديد الكل",
+        "selected_n": "المحدد: {n}",
+        "apply_selected": "تطبيق على المحدد",
+        "bulk_all_present": "حضور للمحدد",
+        "pick_status": "— الحالة —"
     },
     "hr_employees_form": {
         "personal_data_and_id": "البيانات الشخصية والهوية",
