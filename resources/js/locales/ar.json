@@ -188,7 +188,15 @@
         "consolidated_statement": "كشف حساب مجمع",
         "equipment_preparations": "تحضير المعدات",
         "stock_in": "إدخال مواد للمستودع",
-        "purchase_drafts": "مسودات المشتريات"
+        "purchase_drafts": "مسودات المشتريات",
+        "sec_general": "عامة",
+        "sec_statements": "القوائم المالية",
+        "sec_accounting": "المحاسبة",
+        "sec_tax": "الضرائب",
+        "sec_inventory": "المخزون",
+        "sec_operations": "المعدات والتصنيع",
+        "sec_hr": "الموارد البشرية",
+        "sec_other": "العقارات وأوامر العمل"
     },
     "common": {
         "search": "بحث...",
@@ -4071,7 +4079,12 @@
         "hours_reading": "قراءة عداد الساعات",
         "km_reading": "قراءة الكيلومترات",
         "save": "حفظ التحضير",
-        "notes": "ملاحظات"
+        "notes": "ملاحظات",
+        "select_all": "تحديد غير المحضَّر",
+        "selected_n": "المحدد: {n}",
+        "bulk_prepare": "حضِّر المحدد",
+        "bulk_title": "تحضير جماعي",
+        "bulk_hint": "يُحضَّر كل المحدد بالحالة نفسها دفعة واحدة، وتُتخطى المعدة المحضَّرة سابقًا."
     },
     "stockin": {
         "title": "إدخال مواد للمستودع",
@@ -4239,7 +4252,12 @@
         "automatic": "تلقائي",
         "save_attendance": "حفظ الحضور",
         "attendance": "الحضور والانصراف",
-        "lateness_and_overtime_follow_the": "يُحتسب التأخير والإضافي حسب وردية الموظف؛ الغياب يُخصم في المسير"
+        "lateness_and_overtime_follow_the": "يُحتسب التأخير والإضافي حسب وردية الموظف؛ الغياب يُخصم في المسير",
+        "select_all": "تحديد الكل",
+        "selected_n": "المحدد: {n}",
+        "apply_selected": "تطبيق على المحدد",
+        "bulk_all_present": "حضور للمحدد",
+        "pick_status": "— الحالة —"
     },
     "hr_employees_form": {
         "personal_data_and_id": "البيانات الشخصية والهوية",
@@ -5608,7 +5626,9 @@
         "from_the_meter": "من العداد",
         "working_hours_n": "ساعات عمل {n0}",
         "operator_n": "مشغّل {n0}",
-        "n_of_n_equipment_entered_empty_f": "{n0} من {n1} معدة مُدخلة · الحقول الفارغة تُتجاهل"
+        "n_of_n_equipment_entered_empty_f": "{n0} من {n1} معدة مُدخلة · الحقول الفارغة تُتجاهل",
+        "check_in": "الدخول",
+        "check_out": "الخروج"
     },
     "eq2_equipment_rentals_index": {
         "new_contract": "+ عقد جديد",
@@ -8659,5 +8679,50 @@
     "z_equipment_reports": {
         "text": "، "
     },
-    "z_equipment_show": {}
+    "z_equipment_show": {},
+    "reports_hub": {
+        "title": "كل التقارير",
+        "subtitle": "كل تقارير النظام في مكان واحد بحسب الأقسام التي تملك صلاحيتها.",
+        "search": "ابحث عن تقرير",
+        "empty": "لا توجد تقارير مطابقة."
+    },
+    "eq_reports2": {
+        "attendance": "الحضور اليومي",
+        "attendance_hint": "كل معدة في كل يوم: عملت (بوقت الدخول والخروج)، محضَّرة، في الصيانة، مُسنَدة بلا عمل، أو متوقفة.",
+        "maintenance_log": "الصيانة التفصيلية",
+        "maintenance_log_hint": "كل أوامر الصيانة في الفترة بمدة التوقف والفني والتكلفة، وملخص الأعطال لكل معدة.",
+        "preparation": "التحضير اليومي",
+        "preparation_hint": "أيام التحضير مقابل أيام العمل، وأيام العمل بلا تحضير، وما يحتاج متابعة.",
+        "operators": "المشغّلون والإسناد",
+        "operators_hint": "ساعات وأيام كل مشغّل، وسجل إسناد المعدات للعملاء والمشاريع.",
+        "attendance_insight": "خلال {days} يومًا: {worked} يوم عمل للمعدات، و{idle} يوم توقف، وإجمالي ساعات العمل {hours}.",
+        "maintenance_insight": "{orders} أمر صيانة بمدة توقف {days} يومًا وتكلفة قطع {cost}.",
+        "maintenance_worst": "أكثر معدة توقفًا: {code} ({days} يومًا).",
+        "preparation_insight": "أيام التحضير {prepared}، منها {attention} تحتاج متابعة؛ وأيام عمل بلا تحضير: {missed}.",
+        "operators_insight": "{n} مشغّل بإجمالي {hours} ساعة عمل.",
+        "by_equipment": "ملخص لكل معدة",
+        "deployments": "سجل الإسناد (العملاء والمشاريع)",
+        "st_worked": "عملت",
+        "st_prepared": "محضَّرة",
+        "st_maintenance": "صيانة",
+        "st_deployed": "مُسنَدة",
+        "st_idle": "متوقفة",
+        "hours": "الساعات",
+        "orders": "الأوامر",
+        "corrective": "إصلاح",
+        "preventive": "وقائية",
+        "open": "مفتوحة",
+        "downtime_days": "أيام التوقف",
+        "avg_repair_days": "متوسط مدة الإصلاح",
+        "parts_cost": "تكلفة القطع",
+        "rental_no": "رقم الإيجار",
+        "kind": "النوع",
+        "assigned_to": "مُسنَدة إلى",
+        "site": "الموقع",
+        "start": "البداية",
+        "end": "النهاية",
+        "days_in_period": "أيام في الفترة",
+        "status": "الحالة",
+        "code": "الرمز"
+    }
 }

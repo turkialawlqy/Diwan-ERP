@@ -386,6 +386,7 @@ return [
         'dashboard' => 'dashboard.main.view',
         // Each result group re-checks its own view permission in SearchController.
         'search' => '@authenticated',
+        'reports.index' => '@authenticated',
         'context.update' => '@authenticated',
         'context.branch' => '@authenticated',
         'system.update.status' => '@authenticated',
@@ -513,6 +514,7 @@ return [
         'equipment.preparations.index' => 'equipment.preparations.view',
         'equipment.preparations.create' => 'equipment.preparations.create',
         'equipment.preparations.store' => 'equipment.preparations.create',
+        'equipment.preparations.bulk' => 'equipment.preparations.create',
         'equipment.preparations.edit' => 'equipment.preparations.edit',
         'equipment.preparations.update' => 'equipment.preparations.edit',
         'equipment.preparations.destroy' => 'equipment.preparations.delete',

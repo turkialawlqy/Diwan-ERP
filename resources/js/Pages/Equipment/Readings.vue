@@ -22,6 +22,8 @@ const form = useForm({
         hours_reading: r.reading?.hours_reading ?? '',
         km_reading: r.reading?.km_reading ?? '',
         worked_hours: r.reading ? r.reading.worked_hours : '',
+        check_in: r.reading?.check_in?.substring(0, 5) ?? '',
+        check_out: r.reading?.check_out?.substring(0, 5) ?? '',
         operator: r.reading?.operator ?? '',
     })),
 });
@@ -37,7 +39,7 @@ const delta = (i, field, prevKey) => {
     const v = form.rows[i][field];
     return v !== '' && v !== null && prev !== undefined && prev !== null ? Number(v) - Number(prev) : null;
 };
-const filled = computed(() => form.rows.filter((r) => r.hours_reading !== '' || r.km_reading !== '' || r.worked_hours !== '').length);
+const filled = computed(() => form.rows.filter((r) => r.hours_reading !== '' || r.km_reading !== '' || r.worked_hours !== '' || r.check_in !== '' || r.check_out !== '').length);
 </script>
 
 <template>
@@ -54,7 +56,7 @@ const filled = computed(() => form.rows.filter((r) => r.hours_reading !== '' || 
         <form @submit.prevent="save" class="bg-white border border-slate-200 rounded-2xl overflow-x-auto text-xs">
             <table class="w-full">
                 <thead class="bg-slate-50 text-slate-500">
-                    <tr><th class="px-3 py-2 text-start">{{ $t('eq2_equipment_readings.equipment') }}</th><th class="px-3 py-2 text-start">{{ $t('eq2_equipment_readings.last_reading') }}</th><th class="px-3 py-2 text-start w-36">{{ $t('eq2_equipment_readings.hour_meter') }}</th><th class="px-3 py-2 text-start w-36">{{ $t('eq2_equipment_readings.kilometers') }}</th><th class="px-3 py-2 text-start w-28">{{ $t('eq2_equipment_readings.working_hours') }}</th><th class="px-3 py-2 text-start w-40">{{ $t('eq2_equipment_readings.operator') }}</th></tr>
+                    <tr><th class="px-3 py-2 text-start">{{ $t('eq2_equipment_readings.equipment') }}</th><th class="px-3 py-2 text-start">{{ $t('eq2_equipment_readings.last_reading') }}</th><th class="px-3 py-2 text-start w-36">{{ $t('eq2_equipment_readings.hour_meter') }}</th><th class="px-3 py-2 text-start w-36">{{ $t('eq2_equipment_readings.kilometers') }}</th><th class="px-3 py-2 text-start w-28">{{ $t('eq2_equipment_readings.working_hours') }}</th><th class="px-3 py-2 text-start w-28">{{ $t('eq2_equipment_readings.check_in') }}</th><th class="px-3 py-2 text-start w-28">{{ $t('eq2_equipment_readings.check_out') }}</th><th class="px-3 py-2 text-start w-40">{{ $t('eq2_equipment_readings.operator') }}</th></tr>
                 </thead>
                 <tbody>
                     <tr v-for="(r, i) in rows" :key="r.equipment.id" class="border-t border-slate-100 align-top">
@@ -84,9 +86,11 @@ const filled = computed(() => form.rows.filter((r) => r.hours_reading !== '' || 
                             <input v-model.number="form.rows[i].worked_hours" type="text" inputmode="decimal" data-num min="0" max="24" step="0.5" :placeholder="usesHours(r.equipment) ? $t('eq2_equipment_readings.from_the_meter') : ''" :aria-label="$t('eq2_equipment_readings.working_hours_n', { n0: r.equipment.code })" :class="['w-full rounded-lg text-xs font-mono', err(i, 'worked_hours') ? 'border-rose-400 bg-rose-50' : 'border-slate-200']" />
                             <div v-if="err(i, 'worked_hours')" class="text-[10px] text-rose-600">{{ err(i, 'worked_hours') }}</div>
                         </td>
+                        <td class="px-3 py-2"><input v-model="form.rows[i].check_in" type="time" :aria-label="$t('eq2_equipment_readings.check_in')" :class="['w-full rounded-lg text-xs', err(i, 'check_in') ? 'border-rose-400 bg-rose-50' : 'border-slate-200']" data-check-in /></td>
+                        <td class="px-3 py-2"><input v-model="form.rows[i].check_out" type="time" :aria-label="$t('eq2_equipment_readings.check_out')" :class="['w-full rounded-lg text-xs', err(i, 'check_out') ? 'border-rose-400 bg-rose-50' : 'border-slate-200']" data-check-out /><div v-if="err(i, 'check_out')" class="text-[10px] text-rose-600">{{ err(i, 'check_out') }}</div></td>
                         <td class="px-3 py-2"><input v-model="form.rows[i].operator" :aria-label="$t('eq2_equipment_readings.operator_n', { n0: r.equipment.code })" class="w-full rounded-lg border-slate-200 text-xs" /></td>
                     </tr>
-                    <tr v-if="!rows.length"><td colspan="6" class="px-3 py-10 text-center text-slate-400">{{ $t('eq2_equipment_readings.no_equipment_with_meters_add_equ') }}</td></tr>
+                    <tr v-if="!rows.length"><td colspan="8" class="px-3 py-10 text-center text-slate-400">{{ $t('eq2_equipment_readings.no_equipment_with_meters_add_equ') }}</td></tr>
                 </tbody>
             </table>
             <div v-if="rows.length && $can('equipment.readings.create')" class="flex items-center justify-between gap-3 p-3 border-t border-slate-100 bg-slate-50">

@@ -72,6 +72,50 @@ class PreparationController extends Controller
         return redirect()->route('equipment.preparations.index', ['date' => $preparation->prep_date->toDateString()])->with('success', "تم تسجيل تحضير المعدة {$preparation->number}");
     }
 
+    /**
+     * Prepares a group of equipment for one day in a single request. Needs the same permission as a single preparation
+     * (equipment.preparations.create); equipment already prepared that day or out of service is skipped, never overwritten.
+     */
+    public function bulk(Request $request)
+    {
+        $data = $request->validate([
+            'prep_date' => 'required|date|before_or_equal:today',
+            'status' => 'required|in:ready,needs_attention',
+            'operator' => 'nullable|string|max:120',
+            'notes' => 'nullable|string|max:2000',
+            'equipment_ids' => 'required|array|min:1|max:500',
+            'equipment_ids.*' => 'required|tenant_exists:equipment,id',
+        ]);
+        $date = Carbon::parse($data['prep_date'])->toDateString();
+
+        [$created, $skipped] = DB::transaction(function () use ($data, $date) {
+            $ids = collect($data['equipment_ids'])->map(fn ($i) => (int) $i)->unique()->values();
+            $active = Equipment::whereIn('id', $ids)->where('status', '!=', 'out_of_service')->pluck('id');
+            $done = EquipmentPreparation::whereIn('equipment_id', $ids)->whereDate('prep_date', $date)->pluck('equipment_id');
+            $todo = $active->diff($done)->values();
+            foreach ($todo as $id) {
+                EquipmentPreparation::create([
+                    'equipment_id' => $id,
+                    'prep_date' => $date,
+                    'status' => $data['status'],
+                    'operator' => $data['operator'] ?? null,
+                    'notes' => $data['notes'] ?? null,
+                    'number' => $this->nextNumber('equipment_preparation', $date),
+                    'created_by' => auth()->id(),
+                ]);
+            }
+
+            return [$todo->count(), $ids->count() - $todo->count()];
+        });
+
+        $message = "تم تحضير {$created} معدة دفعة واحدة";
+        if ($skipped > 0) {
+            $message .= " وتخطي {$skipped} (محضَّرة في هذا اليوم أو خارج الخدمة)";
+        }
+
+        return redirect()->route('equipment.preparations.index', ['date' => $date])->with('success', $message);
+    }
+
     public function edit(EquipmentPreparation $preparation)
     {
         return Inertia::render('Equipment/Preparations/Form', [

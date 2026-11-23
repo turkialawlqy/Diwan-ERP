@@ -622,6 +622,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
         Route::get('/preparations', [EQ\PreparationController::class, 'index'])->name('preparations.index');
         Route::get('/preparations/create', [EQ\PreparationController::class, 'create'])->name('preparations.create');
         Route::post('/preparations', [EQ\PreparationController::class, 'store'])->name('preparations.store');
+        Route::post('/preparations/bulk', [EQ\PreparationController::class, 'bulk'])->name('preparations.bulk');
         Route::get('/preparations/{preparation}/edit', [EQ\PreparationController::class, 'edit'])->name('preparations.edit');
         Route::put('/preparations/{preparation}', [EQ\PreparationController::class, 'update'])->name('preparations.update');
         Route::delete('/preparations/{preparation}', [EQ\PreparationController::class, 'destroy'])->name('preparations.destroy');
@@ -799,6 +800,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
 
     // 10. Reports Module
     Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('/', [ReportController::class, 'index'])->name('index');
         Route::get('/sales', [ReportController::class, 'sales'])->name('sales');
         Route::get('/purchases', [ReportController::class, 'purchases'])->name('purchases');
         Route::get('/insights', [InsightsController::class, 'index'])->name('insights');
