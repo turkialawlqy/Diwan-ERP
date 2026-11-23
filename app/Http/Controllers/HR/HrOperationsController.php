@@ -130,8 +130,11 @@ class HrOperationsController extends Controller
         }
 
         if ($refused) {
+            $count = count($refused);
+            $reasons = implode('؛ ', array_values(array_unique($refused)));
+
             return back()->with('success', $saved ? "تم حفظ {$saved} من سجلات الحضور" : null)
-                ->withErrors(['rows' => 'تعذّر حفظ '.count($refused).' من السجلات: '.implode('؛ ', array_values(array_unique($refused)))]);
+                ->withErrors(['rows' => "تعذّر حفظ {$count} من السجلات: {$reasons}"]);
         }
 
         return back()->with('success', 'تم حفظ الحضور');

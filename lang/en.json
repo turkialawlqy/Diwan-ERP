@@ -1014,5 +1014,8 @@
     "الصندوق والبنك الافتراضيان والعهد النقدية يرحّل عليها النظام بلا مركز تكلفة؛ اختر حسابًا لا يتطلب مركز تكلفة.": "The system posts to the default cash, the default bank and petty cash without a cost center; choose an account that does not require one.",
     "لا يمكن تحويل حساب يرحّل عليه النظام (صندوق أو بنك أو حساب مربوط في ربط الحسابات) إلى حساب رئيسي.": "An account the system posts to (a cash box, a bank, or an account in the account mapping) cannot become a parent account.",
     "هذا الحساب مربوط في «ربط الحسابات» ويرحّل عليه النظام لكل الفروع؛ لا يُوقف ولا يتغير نوعه أو طبيعته. اربط الدور بحساب آخر من «ربط الحسابات» أولًا.": "This account is set in “Account mapping” and the system posts to it for every branch; it cannot be switched off, and its type and nature cannot change. Map the role to another account in “Account mapping” first.",
-    "هذا الحساب حساب صندوق أو بنك مشترك بين كل الفروع؛ لا يُوقف.": "This is the account of a cash box or bank shared by all branches; it cannot be switched off."
+    "هذا الحساب حساب صندوق أو بنك مشترك بين كل الفروع؛ لا يُوقف.": "This is the account of a cash box or bank shared by all branches; it cannot be switched off.",
+    "وقت الخروج يجب أن يكون بعد وقت الدخول.": "The check-out time must be after the check-in time.",
+    "وقت الدخول": "Check-in time",
+    "وقت الخروج": "Check-out time"
 }

@@ -17,7 +17,7 @@ class ReadingService
     public function __construct(protected MaintenanceTracker $tracker) {}
 
     /**
-     * @param  array  $data  date, hours_reading?, km_reading?, worked_hours?, operator?, notes?
+     * @param  array  $data  date, hours_reading?, km_reading?, worked_hours?, check_in?, check_out? (H:i), operator?, notes?
      */
     public function record(Equipment $equipment, array $data): EquipmentReading
     {
@@ -41,6 +41,15 @@ class ReadingService
             if ($worked === null && $hours !== null && $floorHours !== null) {
                 $worked = max(0, round($hours - $floorHours, 2));
             }
+            // The time in and out: out must come after in, and with no meter or hours entered they give the worked hours.
+            $in = $this->time($data['check_in'] ?? null);
+            $out = $this->time($data['check_out'] ?? null);
+            if ($in && $out && $out <= $in) {
+                throw ValidationException::withMessages(['check_out' => 'وقت الخروج يجب أن يكون بعد وقت الدخول.']);
+            }
+            if ($worked === null && $in && $out) {
+                $worked = round((strtotime($out) - strtotime($in)) / 3600, 2);
+            }
             if ($worked !== null && $worked > 24) {
                 throw ValidationException::withMessages(['worked_hours' => "ساعات العمل المحسوبة من العداد ({$worked}) تتجاوز 24 ساعة؛ أدخل ساعات العمل الفعلية لهذا اليوم."]);
             }
@@ -57,7 +66,7 @@ class ReadingService
             }
 
             $reading = $existing ?? new EquipmentReading(['equipment_id' => $equipment->id, 'date' => $date]);
-            $reading->fill(['rental_id' => $rental?->id, 'hours_reading' => $hours, 'km_reading' => $km, 'worked_hours' => $worked ?? 0,
+            $reading->fill(['rental_id' => $rental?->id, 'hours_reading' => $hours, 'km_reading' => $km, 'worked_hours' => $worked ?? 0, 'check_in' => $in, 'check_out' => $out,
                 'operator' => $data['operator'] ?? null, 'notes' => $data['notes'] ?? null, 'created_by' => auth()->id()])->save();
 
             $this->syncMeters($equipment);
@@ -92,6 +101,11 @@ class ReadingService
         if ($next !== null && $value > $next) {
             throw ValidationException::withMessages([$field => "قراءة {$label} ({$value}) أكبر من قراءة لاحقة مسجلة ({$next})."]);
         }
+    }
+
+    protected function time($value): ?string
+    {
+        return $value === null || $value === '' ? null : substr((string) $value, 0, 5);
     }
 
     protected function number($value): ?float

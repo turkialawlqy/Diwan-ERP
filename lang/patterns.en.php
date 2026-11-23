@@ -380,4 +380,5 @@ return [
     'تم تحضير {} معدة دفعة واحدة' => '{} equipment prepared in one go',
     'تم حفظ {} من سجلات الحضور' => '{} attendance records saved',
     'تعذّر حفظ {} من السجلات: {}' => '{} records could not be saved: {}',
+    'تقرير الحضور اليومي لا يتجاوز {} يومًا؛ قصّر الفترة.' => 'The daily attendance report covers at most {} days; shorten the period.',
 ];
