@@ -162,9 +162,11 @@ function Find-ReleaseChecksum($checksumFile, $fileName) {
 }
 
 # The version a caddy.exe reports ("v2.11.9 h1:..." gives 2.11.9), or $null when it is missing,
-# does not run (damaged, blocked by an antivirus) or does not answer within 30 seconds.
+# does not run (damaged, blocked by an antivirus) or does not answer within 30 seconds. One that
+# does not answer is stopped and waited for: a caddy.exe that still runs cannot be deleted.
 function Get-CaddyVersion($exe) {
     if (-not $exe -or -not (Test-Path -LiteralPath $exe -PathType Leaf)) { return $null }
+    $process = $null
     try {
         $info = New-Object Diagnostics.ProcessStartInfo
         $info.FileName = $exe
@@ -177,12 +179,33 @@ function Get-CaddyVersion($exe) {
         $output = $process.StandardOutput.ReadToEndAsync()
         $null = $process.StandardError.ReadToEndAsync()
         if (-not $process.WaitForExit(30000)) {
-            try { $process.Kill() } catch { }
+            try { $process.Kill(); $null = $process.WaitForExit(10000) } catch { }
             return $null
         }
         if ($process.ExitCode -eq 0 -and $output.Result -match 'v?(\d+\.\d+\.\d+)') { return $Matches[1] }
-    } catch { }
+    } catch {
+    } finally {
+        if ($process) { $process.Dispose() }
+    }
     return $null
+}
+
+# Deletes a temporary folder of the installer. Right after caddy.exe ran from it, Windows or an
+# antivirus can still hold that file for a moment, so a folder that does not go at once is tried
+# again for about 10 seconds. One that still cannot be deleted is reported: nothing needs it any
+# more, so that never stops the installation. Writes nothing to the output (it runs in finally).
+function Remove-TempFolder($path) {
+    $problem = $null
+    for ($attempt = 1; $attempt -le 10; $attempt++) {
+        if ($attempt -gt 1) { Start-Sleep -Milliseconds (250 * ($attempt - 1)) }
+        $failures = $null
+        Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue -ErrorVariable failures
+        if (-not (Test-Path -LiteralPath $path)) { return }
+        if ($failures) { $problem = "$($failures[0].Exception.Message)".Trim().TrimEnd('.') }
+    }
+    $why = ''
+    if ($problem) { $why = " ($problem)" }
+    Warn "Temporary folder not deleted: $path$why. Nothing needs it any more: delete it later."
 }
 
 # Puts the official Caddy release for this processor at $destination (absent when called), after
@@ -222,7 +245,7 @@ function Install-Caddy($destination) {
         Move-Item -LiteralPath "$destination.new" -Destination $destination -Force
         return $version
     } finally {
-        Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-TempFolder $temp
         Remove-Item -LiteralPath "$destination.new" -Force -ErrorAction SilentlyContinue
     }
 }
