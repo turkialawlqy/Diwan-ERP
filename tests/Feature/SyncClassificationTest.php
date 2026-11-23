@@ -19,7 +19,7 @@ class SyncClassificationTest extends TestCase
         $seen = [];
         foreach ($classes as $class => $tables) {
             foreach ($tables as $table) {
-                $this->assertArrayNotHasKey($table, $seen, "{$table} is in both {$seen[$table] ?? ""} and {$class}");
+                $this->assertArrayNotHasKey($table, $seen, $table.' is in two classes: '.($seen[$table] ?? '').' and '.$class);
                 $seen[$table] = $class;
             }
         }
