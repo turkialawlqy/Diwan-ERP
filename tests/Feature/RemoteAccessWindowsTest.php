@@ -126,7 +126,7 @@ class RemoteAccessWindowsTest extends TestCase
         $status = json_decode(file_get_contents($dir.'/shared/storage/app/remote-access-status.json'), true);
         File::deleteDirectory($dir);
 
-        $this->assertTrue($result->successful(), $result->output().$result->errorOutput());
+        $this->assertTrue($result->successful(), 'exit '.$result->exitCode().' | '.$result->output().' | '.$result->errorOutput().' | status: '.json_encode($status));
         $this->assertStringContainsString('APP_URL=https://erp.example.com', $env);
         $this->assertStringContainsString('TRUSTED_PROXIES=127.0.0.1', $env);
         $this->assertSame('done', $status['state']);

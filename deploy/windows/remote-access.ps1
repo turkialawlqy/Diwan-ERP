@@ -228,8 +228,10 @@ try {
     $suffix = if ($script:Url) { " ($($script:Url))" } else { '' }
     Write-Host "Internet access: $($script:Mode)$suffix"
 } catch {
+    $failure = "Stopped: " + ($_.Exception.Message -replace '["\\\r\n]', ' ') + ' at ' + ($_.InvocationInfo.PositionMessage -replace '["\\\r\n]', ' ')
+    Write-Host $failure
     Clear-Request
-    Write-Status 'failed' ("Stopped: " + ($_.Exception.Message -replace '["\\\r\n]', ' '))
+    Write-Status 'failed' $failure
     exit 1
 } finally {
     $mutex.ReleaseMutex()
