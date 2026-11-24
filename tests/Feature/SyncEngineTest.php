@@ -81,9 +81,12 @@ class SyncEngineTest extends TestCase
         $this->doc('branch', 102);
         $this->hub->apply($this->branch->pending());
 
-        // The head office's own feed holds nothing of what it merely received, so two nodes never ping-pong.
-        $this->assertSame([], $this->hub->pending());
-        $this->assertSame(0, DB::connection('sync_hub')->table('sync_outbox')->count());
+        // The head office relays what it accepted (for the other branches) but never back to the node that made it, and
+        // a branch relays nothing: two nodes never ping-pong.
+        $this->assertCount(1, $this->hub->pending());
+        $this->assertSame([], $this->hub->pending(0, 500, 2));
+        $this->assertSame(1, $this->branch->apply($this->hub->pending())['skipped']);
+        $this->assertSame(1, DB::connection('sync_branch')->table('sync_outbox')->count());
     }
 
     public function test_a_delete_travels_and_an_update_before_its_insert_still_lands(): void
@@ -137,7 +140,7 @@ class SyncEngineTest extends TestCase
             $this->doc('branch', 2 + 100 * $i);
         }
         $this->assertSame(['applied' => 5, 'skipped' => 0, 'conflicts' => 0], $this->hub->apply($this->branch->pending()));
-        $this->assertSame(['applied' => 5, 'skipped' => 0, 'conflicts' => 0], $this->branch->apply($this->hub->pending()));
+        $this->assertSame(['applied' => 5, 'skipped' => 0, 'conflicts' => 0], $this->branch->apply($this->hub->pending(0, 500, 2)));
         $this->assertSame($this->ids('hub'), $this->ids('branch'));
         $this->assertCount(10, $this->ids('hub'));
     }

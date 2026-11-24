@@ -33,6 +33,8 @@ class SyncSchema
                 $t->unsignedBigInteger('pk');
                 $t->char('op', 1);
                 $t->longText('payload')->nullable();
+                // A change the head office relays from another node keeps that node's own sequence number (its identity).
+                $t->unsignedBigInteger('origin_seq')->nullable();
                 $t->timestamp('created_at')->useCurrent();
                 $t->index(['node_id', 'id']);
             });
@@ -43,6 +45,26 @@ class SyncSchema
                 $t->unsignedBigInteger('seq');
                 $t->timestamp('applied_at')->useCurrent();
                 $t->primary(['node_id', 'seq']);
+            });
+        }
+        if (! $schema->hasTable('sync_cursors')) {
+            // On a branch: how far its feed was pushed to the head office and how far the head office's feed was pulled.
+            $schema->create('sync_cursors', function (Blueprint $t) {
+                $t->string('peer', 60)->primary();
+                $t->unsignedBigInteger('pushed')->default(0);
+                $t->unsignedBigInteger('pulled')->default(0);
+            });
+        }
+        if (! $schema->hasTable('sync_nodes')) {
+            // On the head office: the branches allowed to sync, by a hashed token, and how far each has pulled.
+            $schema->create('sync_nodes', function (Blueprint $t) {
+                $t->unsignedInteger('node_id')->primary();
+                $t->string('name', 100);
+                $t->unsignedBigInteger('company_id')->nullable();
+                $t->string('token_hash', 64)->unique();
+                $t->unsignedBigInteger('acknowledged')->default(0);
+                $t->timestamp('last_seen_at')->nullable();
+                $t->timestamp('created_at')->useCurrent();
             });
         }
         if (! $schema->hasTable('sync_conflicts')) {
@@ -63,7 +85,7 @@ class SyncSchema
 
     public static function drop(Connection $db): void
     {
-        foreach (['sync_conflicts', 'sync_applied', 'sync_outbox', 'sync_state'] as $table) {
+        foreach (['sync_conflicts', 'sync_nodes', 'sync_cursors', 'sync_applied', 'sync_outbox', 'sync_state'] as $table) {
             $db->getSchemaBuilder()->dropIfExists($table);
         }
     }

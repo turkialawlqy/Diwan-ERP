@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\V1\ApiController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,4 +18,14 @@ Route::prefix('v1')->name('api.v1.')->middleware(['auth:sanctum', 'tenant.resolv
     Route::get('/invoices', [ApiController::class, 'invoices'])->name('invoices.index');
     Route::post('/invoices', [ApiController::class, 'storeInvoice'])->name('invoices.store');
     Route::get('/invoices/{invoice}', [ApiController::class, 'invoice'])->name('invoices.show');
+});
+
+/*
+| Offline branches: a branch server's calls to the head office (node token, 404 unless this server is the hub). Not a user session,
+| so it has no permission map; SyncHub allows a node to write only what it made, in its own company.
+*/
+Route::prefix('sync')->name('api.sync.')->middleware(['throttle:240,1', 'sync.node'])->group(function () {
+    Route::post('/handshake', [SyncController::class, 'handshake'])->name('handshake');
+    Route::post('/push', [SyncController::class, 'push'])->name('push');
+    Route::post('/pull', [SyncController::class, 'pull'])->name('pull');
 });

@@ -32,15 +32,44 @@ class SyncEngine
         $this->db()->table('sync_state')->updateOrInsert(['id' => 1], ['node_id' => $nodeId, 'applying' => 0]);
     }
 
-    /** @return list<array<string, mixed>> this node's changes after $afterSeq, oldest first, only for tables that travel */
-    public function pending(int $afterSeq = 0, int $limit = 500): array
+    /**
+     * The change feed after $afterFeed, oldest first, only for tables that travel. `seq` is the change's identity (the node that made it
+     * and its own sequence number); `feed` is the position in this server's feed, which is what a cursor counts.
+     * The head office also relays what it received, so a branch asks for everything except its own changes ($exceptNode).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function pending(int $afterFeed = 0, int $limit = 500, ?int $exceptNode = null): array
     {
         $travels = array_merge(config('sync.master', []), config('sync.owned', []));
 
-        return $this->db()->table('sync_outbox')->where('id', '>', $afterSeq)->whereIn('table_name', $travels)
+        return $this->settled($this->db()->table('sync_outbox'))->where('id', '>', $afterFeed)->whereIn('table_name', $travels)
+            ->when($exceptNode !== null, fn ($q) => $q->where('node_id', '!=', $exceptNode))
             ->orderBy('id')->limit($limit)->get()
-            ->map(fn ($r) => ['node_id' => (int) $r->node_id, 'seq' => (int) $r->id, 'table' => $r->table_name, 'pk' => (int) $r->pk, 'op' => $r->op,
-                'payload' => $r->payload ? json_decode($r->payload, true) : null, 'at' => $r->created_at])->all();
+            ->map(fn ($r) => ['node_id' => (int) $r->node_id, 'seq' => (int) ($r->origin_seq ?? $r->id), 'feed' => (int) $r->id, 'table' => $r->table_name, 'pk' => (int) $r->pk,
+                'op' => $r->op, 'payload' => $r->payload ? json_decode($r->payload, true) : null, 'at' => $r->created_at])->all();
+    }
+
+    /**
+     * Rows still inside the settle window are not served: two transactions can take ids 10 and 11 and commit in the order 11, 10,
+     * and a cursor that moved past 11 would never see 10. Waiting a few seconds (SYNC_SETTLE) lets every such transaction finish.
+     */
+    protected function settled($query)
+    {
+        $seconds = (int) config('sync-node.settle', 5);
+        if ($seconds <= 0) {
+            return $query;
+        }
+
+        return $this->db()->getDriverName() === 'sqlite'
+            ? $query->whereRaw("created_at <= datetime('now', '-{$seconds} seconds')")
+            : $query->whereRaw("created_at <= (NOW() - INTERVAL {$seconds} SECOND)");
+    }
+
+    /** The newest feed position that is settled: a cursor may safely move up to it even when nothing new was served. */
+    public function ceiling(): int
+    {
+        return (int) $this->settled($this->db()->table('sync_outbox'))->max('id');
     }
 
     /** @return array{applied: int, skipped: int, conflicts: int} */
@@ -59,6 +88,11 @@ class SyncEngine
                 $class = $this->classOf($change['table']);
                 $outcome = $class === null ? 'skipped' : $this->write($db, $change, $class);
                 $db->table('sync_applied')->insert(['node_id' => $change['node_id'], 'seq' => $change['seq']]);
+                // The head office passes on what it accepted, so the other branches receive it too.
+                if ($outcome === 'applied' && $this->role === 'hub') {
+                    $db->table('sync_outbox')->insert(['node_id' => $change['node_id'], 'origin_seq' => $change['seq'], 'table_name' => $change['table'], 'pk' => $change['pk'],
+                        'op' => $change['op'], 'payload' => $change['payload'] ? json_encode($change['payload'], JSON_UNESCAPED_UNICODE) : null]);
+                }
 
                 return $outcome;
             });

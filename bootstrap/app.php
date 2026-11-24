@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\BranchRequiredException;
+use App\Http\Middleware\AuthenticateSyncNode;
 use App\Http\Middleware\AuthorizeRoutePermission;
 use App\Http\Middleware\EnsureCountryFeature;
 use App\Http\Middleware\EnsurePlanAccess;
@@ -74,6 +75,7 @@ return Application::configure(basePath: dirname(__DIR__))
         );
 
         $middleware->alias([
+            'sync.node' => AuthenticateSyncNode::class,
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
