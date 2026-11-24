@@ -124,6 +124,11 @@ class SyncEngine
         if ($class === 'master' && $this->role === 'hub' && $change['op'] !== 'I') {
             return $this->conflict($db, $change, 'master_edited_on_branch');
         }
+        // The head office's books are closed by its own rule: a branch entry dated in a closed period (or a line of one already held)
+        // is not posted behind the accountant's back; it waits for a person.
+        if ($this->role === 'hub' && $change['op'] !== 'D' && $this->intoClosedPeriod($db, $change)) {
+            return $this->conflict($db, $change, 'closed_period');
+        }
         // An id taken by another row: never overwrite it.
         if ($change['op'] === 'I' && $exists) {
             return $this->conflict($db, $change, 'id_collision');
@@ -166,6 +171,23 @@ class SyncEngine
         }
 
         return 'applied';
+    }
+
+    protected function intoClosedPeriod(Connection $db, array $change): bool
+    {
+        $row = $change['payload'] ?? [];
+        if ($change['table'] === 'journal_entries') {
+            $date = $row['date'] ?? null;
+            $company = $row['company_id'] ?? null;
+
+            return $date && $company && $db->table('fiscal_periods')->where('company_id', $company)->where('status', '!=', 'open')
+                ->where('start_date', '<=', $date)->where('end_date', '>=', $date)->exists();
+        }
+        if ($change['table'] === 'journal_entry_lines' && isset($row['journal_entry_id'])) {
+            return $db->table('sync_conflicts')->where('table_name', 'journal_entries')->where('pk', $row['journal_entry_id'])->where('reason', 'closed_period')->whereNull('resolved_at')->exists();
+        }
+
+        return false;
     }
 
     protected function conflict(Connection $db, array $change, string $reason): string

@@ -179,4 +179,22 @@ class SyncTransportTest extends TestCase
         $this->artisan('sync:prune')->assertSuccessful();
         $this->assertGreaterThan(0, DB::table('sync_outbox')->count());
     }
+
+    public function test_a_branch_entry_dated_in_a_closed_period_waits_for_a_person_with_its_lines(): void
+    {
+        $year = DB::table('fiscal_years')->insertGetId(['company_id' => $this->company, 'name' => '2026', 'start_date' => '2026-01-01', 'end_date' => '2026-12-31', 'status' => 'open', 'created_at' => now(), 'updated_at' => now()]);
+        foreach ([['2026-01-01', '2026-01-31', 'closed'], ['2026-02-01', '2026-02-28', 'open']] as [$from, $to, $status]) {
+            DB::table('fiscal_periods')->insert(['company_id' => $this->company, 'fiscal_year_id' => $year, 'name' => $from, 'start_date' => $from, 'end_date' => $to, 'status' => $status, 'created_at' => now(), 'updated_at' => now()]);
+        }
+        $entry = fn (int $id, string $date) => ['node_id' => 2, 'seq' => $id, 'table' => 'journal_entries', 'pk' => $id, 'op' => 'I', 'payload' => ['id' => $id, 'company_id' => $this->company, 'date' => $date, 'entry_number' => "E{$id}", 'description' => 'x', 'status' => 'posted']];
+        $line = fn (int $id, int $entryId) => ['node_id' => 2, 'seq' => 100 + $id, 'table' => 'journal_entry_lines', 'pk' => $id, 'op' => 'I', 'payload' => ['id' => $id, 'journal_entry_id' => $entryId, 'account_id' => 1, 'debit' => 5, 'credit' => 0]];
+
+        $engine = new SyncEngine(config('database.default'), 'hub');
+        $result = $engine->apply([$entry(1, '2026-01-15'), $line(1, 1), $entry(2, '2026-02-10')]);
+
+        $this->assertSame(['applied' => 1, 'skipped' => 0, 'conflicts' => 2], $result);
+        $this->assertSame([2], DB::table('journal_entries')->pluck('id')->all());
+        $this->assertSame(0, DB::table('journal_entry_lines')->count());
+        $this->assertSame(['closed_period', 'closed_period'], DB::table('sync_conflicts')->pluck('reason')->all());
+    }
 }
