@@ -29,6 +29,7 @@ class SyncTransportTest extends TestCase
     {
         parent::setUp();
         config(['sync-node.settle' => 0]);
+        $this->useSqliteHub();
         foreach ([2 => 'sync_b', 3 => 'sync_c'] as $node => $name) {
             config(["database.connections.{$name}" => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => false]]);
             DB::purge($name);
@@ -42,6 +43,32 @@ class SyncTransportTest extends TestCase
         $this->company = Company::factory()->create()->id;   // the hub keeps its foreign keys: the rows need their company
         $this->hub = new SyncHub(config('database.default'));
         $this->tokens = [2 => $this->hub->register(2, 'Branch B'), 3 => $this->hub->register(3, 'Branch C')];
+    }
+
+    protected string $originalConnection;
+
+    protected function tearDown(): void
+    {
+        // The transaction RefreshDatabase opened is on the original connection: it must be the default again to be rolled back.
+        config(['database.default' => $this->originalConnection]);
+        DB::setDefaultConnection($this->originalConnection);
+        parent::tearDown();
+    }
+
+    /**
+     * The head office of these tests is its own in-memory SQLite database, made the default connection for the test. Creating the
+     * change-capture triggers and sync tables is DDL: on a shared MySQL test database it would commit the test transaction and leave
+     * triggers behind for every later test. (The MySQL form of the triggers is therefore not exercised by this class.)
+     */
+    protected function useSqliteHub(): void
+    {
+        $this->originalConnection = config('database.default');
+        config(['database.connections.sync_hub' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => false]]);
+        DB::purge('sync_hub');
+        $this->artisan('migrate', ['--database' => 'sync_hub', '--force' => true])->assertSuccessful();
+        DB::connection('sync_hub')->statement('PRAGMA foreign_keys = ON');
+        config(['database.default' => 'sync_hub']);
+        DB::setDefaultConnection('sync_hub');
     }
 
     protected function client(int $node, string $connection, ?string $token = null, int $batch = 200): SyncClient
