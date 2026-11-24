@@ -102,6 +102,46 @@ class SyncEngine
         return $result;
     }
 
+    /**
+     * Columns of master tables that each server keeps for itself because its own activity moves them (a running balance, a moving
+     * average cost, a last-seen time). They never overwrite another server's value and are not a master edit when a branch changes
+     * them; the head office's totals for them are rebuilt from the books (erp balances reconcile), not copied.
+     */
+    public const NODE_LOCAL = [
+        'products' => ['average_cost'],
+        'customers' => ['current_balance'],
+        'suppliers' => ['current_balance'],
+        'bank_accounts' => ['current_balance'],
+        'accounts' => ['balance'],
+        'users' => ['last_login_at'],
+        'portal_users' => ['last_login_at'],
+        'equipment' => ['last_reading_date'],
+        'webhook_endpoints' => ['last_delivery_at', 'last_status'],
+    ];
+
+    /** True when the only differences from the stored row are this node's own columns (or timestamps). */
+    protected function onlyNodeLocalDiffers(Connection $db, string $table, array $change): bool
+    {
+        $current = (array) $db->table($table)->where('id', $change['pk'])->first();
+        if (! $current || $change['op'] !== 'U') {
+            return false;
+        }
+        $ignore = array_merge(self::NODE_LOCAL[$table] ?? [], ['updated_at']);
+        foreach ($change['payload'] as $column => $value) {
+            if (in_array($column, $ignore, true)) {
+                continue;
+            }
+            $stored = $current[$column] ?? null;
+            $same = $stored === $value || (string) $stored === (string) $value
+                || (is_numeric($stored) && is_numeric($value) && (float) $stored === (float) $value);
+            if (! $same) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     protected function classOf(string $table): ?string
     {
         foreach (['master', 'owned'] as $class) {
@@ -122,6 +162,10 @@ class SyncEngine
 
         // The head office alone writes master data: a branch's edit of an existing master row waits for a person.
         if ($class === 'master' && $this->role === 'hub' && $change['op'] !== 'I') {
+            if (isset(self::NODE_LOCAL[$table]) && $this->onlyNodeLocalDiffers($db, $table, $change)) {
+                return 'skipped';   // a balance or cost moved by the branch's own work: not an edit of the master data
+            }
+
             return $this->conflict($db, $change, 'master_edited_on_branch');
         }
         // The head office's books are closed by its own rule: a branch entry dated in a closed period (or a line of one already held)
@@ -161,7 +205,9 @@ class SyncEngine
             } else {
                 $row = $change['payload'];
                 // An update that arrives before its insert is still applied (out-of-order delivery).
-                $db->table($table)->upsert([$row], ['id'], array_values(array_diff(array_keys($row), ['id'])));
+                // An existing row keeps this server's own columns (balances, average cost...); a new row takes the sender's.
+                $keep = $exists ? (self::NODE_LOCAL[$table] ?? []) : [];
+                $db->table($table)->upsert([$row], ['id'], array_values(array_diff(array_keys($row), ['id'], $keep)));
             }
         } finally {
             if ($mysql) {

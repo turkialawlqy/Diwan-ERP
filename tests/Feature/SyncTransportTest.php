@@ -197,4 +197,27 @@ class SyncTransportTest extends TestCase
         $this->assertSame(0, DB::table('journal_entry_lines')->count());
         $this->assertSame(['closed_period', 'closed_period'], DB::table('sync_conflicts')->pluck('reason')->all());
     }
+
+    public function test_balances_and_costs_each_server_keeps_for_itself_are_not_master_edits_and_never_overwritten(): void
+    {
+        $base = ['company_id' => $this->company, 'name' => 'عميل', 'customer_type' => 'commercial', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()];
+        $id = DB::table('customers')->insertGetId($base + ['current_balance' => 100]);
+        $hub = new SyncEngine(config('database.default'), 'hub');
+        $row = fn (array $over) => ['node_id' => 2, 'seq' => random_int(1000, 9999), 'table' => 'customers', 'pk' => $id, 'op' => 'U', 'payload' => ['id' => $id] + $over + $base + ['current_balance' => 100]];
+
+        // A branch sale moved only the balance: dropped quietly, not a conflict, not relayed.
+        $this->assertSame(['applied' => 0, 'skipped' => 1, 'conflicts' => 0], $hub->apply([$row(['current_balance' => 340])]));
+        $this->assertSame(100.0, (float) DB::table('customers')->where('id', $id)->value('current_balance'));
+        $this->assertSame(0, DB::table('sync_outbox')->where('table_name', 'customers')->where('op', 'U')->count());
+
+        // A branch that really edited the customer still waits for a person.
+        $this->assertSame(1, $hub->apply([$row(['name' => 'اسم مغيّر', 'current_balance' => 340])])['conflicts']);
+
+        // The head office's edit reaches a branch without overwriting the branch's own balance.
+        DB::connection('sync_b')->table('customers')->insert(['id' => $id] + $base + ['current_balance' => 777]);
+        $branch = new SyncEngine('sync_b', 'branch');
+        $update = ['node_id' => 1, 'seq' => 5000, 'table' => 'customers', 'pk' => $id, 'op' => 'U', 'payload' => ['id' => $id] + ['name' => 'اسم المركز'] + $base + ['current_balance' => 100]];
+        $this->assertSame(1, $branch->apply([$update])['applied']);
+        $this->assertSame(['اسم المركز', 777.0], [DB::connection('sync_b')->table('customers')->where('id', $id)->value('name'), (float) DB::connection('sync_b')->table('customers')->where('id', $id)->value('current_balance')]);
+    }
 }

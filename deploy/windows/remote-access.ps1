@@ -143,7 +143,8 @@ try {
 
     $cloudflared = Join-Path $Bin 'cloudflared.exe'
     $programFiles = if ($env:ProgramFiles) { $env:ProgramFiles } else { 'C:\Program Files' }
-    $tailscale = Join-Path (Join-Path $programFiles 'Tailscale') 'tailscale.exe'
+    # Plain concatenation: Join-Path fails on a drive that does not exist (the dry run in CI runs PowerShell on Linux).
+    $tailscale = $programFiles.TrimEnd('\') + '\Tailscale\tailscale.exe'
     function Get-Arch { if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } elseif ([Environment]::Is64BitOperatingSystem) { 'amd64' } else { '386' } }
     function Get-File($url, $out) {
         Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $out -TimeoutSec 600
