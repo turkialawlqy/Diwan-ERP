@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Services\Documents\DocumentNumberService;
+use App\Services\Sync\SyncEngine;
 use App\Services\TenantManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -166,5 +167,19 @@ class DocumentNumberingTest extends TestCase
 
         $this->assertSame('C-00001', $a->code);
         $this->assertSame('C-00002', $b->code);
+    }
+
+    public function test_a_branch_server_numbers_with_its_node_so_two_servers_never_issue_the_same_number(): void
+    {
+        $date = Carbon::parse('2026-03-01');
+        (new SyncEngine(config('database.default'), 'branch'))->join(2);
+
+        // Not a branch yet: the plain form.
+        $this->assertSame('INV-26-000001', $this->numbers()->next('sales_invoice', $date));
+
+        config(['sync-node.role' => 'branch']);
+        $this->assertSame('INV-26-B2-000001', $this->numbers()->next('sales_invoice', $date));
+        $this->assertSame('INV-26-B2-000002', $this->numbers()->next('sales_invoice', $date));
+        $this->assertSame('INV-26-B2-000003', $this->numbers()->peek('sales_invoice', $date));
     }
 }
