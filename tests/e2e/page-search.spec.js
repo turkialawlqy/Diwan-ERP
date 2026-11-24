@@ -3,10 +3,10 @@ import { execFileSync } from 'node:child_process';
 import { watchErrors } from './helpers.js';
 
 /*
- * Global search, «الصفحات» tab (resources/js/pageIndex.js + pageSearch.js): sections and pages the user may
- * open, found by name with Arabic-aware matching, opened with the keyboard; the «السجلات» tab, the «إضافة» and
- * «عرض» menus and Ctrl/⌘+K keep working as before. The engine has its own unit tests (npm run test:js) and the
- * server side is PageSearchIndexTest; this spec drives the real screen.
+ * Global search: tab 1 «السجلات» (the default, as before) and tab 2 «الصفحات» (resources/js/pageIndex.js +
+ * pageSearch.js): sections and pages the user may open, found by name with Arabic-aware matching, opened with the
+ * keyboard; the records, the «إضافة» and «عرض» menus and Ctrl/⌘+K keep working as before. The engine has its own
+ * unit tests (npm run test:js) and the server side is PageSearchIndexTest; this spec drives the real screen.
  */
 const tinker = (code) => execFileSync('php', ['artisan', 'tinker', `--execute=${code}`], {
     env: { ...process.env, DB_CONNECTION: 'sqlite', DB_DATABASE: `${process.cwd()}/database/e2e.sqlite`, APP_ENV: 'local', CACHE_STORE: 'array' }, encoding: 'utf8',
@@ -18,27 +18,37 @@ const statusOf = (page, url) => page.evaluate(async (u) => (await fetch(u, { hea
 const palette = (page) => page.locator('[data-search-palette]');
 const input = (page) => palette(page).getByRole('combobox');
 const rows = (page) => page.locator('#gsearch-pages [role=treeitem]');
+// Every opening starts on «السجلات» (the first tab and the default).
 const openWithKeyboard = async (page) => {
     await page.evaluate(() => document.activeElement?.blur());
     await page.keyboard.press('Control+k');
     await expect(palette(page)).toBeVisible();
+    await expect(palette(page).locator('[data-search-tab=records]')).toHaveAttribute('aria-selected', 'true');
+};
+// Open, then the second tab, «الصفحات».
+const openPages = async (page) => {
+    await openWithKeyboard(page);
+    await palette(page).locator('[data-search-tab=pages]').click();
+    await expect(palette(page).locator('[data-search-tab=pages]')).toHaveAttribute('aria-selected', 'true');
+    await expect(input(page)).toBeFocused();
 };
 const searchPages = async (page, text) => {
     await input(page).fill(text);
     await expect(palette(page).locator('[data-search-tab=pages]')).toHaveAttribute('aria-selected', 'true');
 };
 
-test.beforeEach(async ({ page }) => {
-    // Every test starts on the pages tab (the palette remembers the last tab in localStorage).
-    await page.addInitScript(() => { try { localStorage.removeItem('diwan.search.tab'); } catch { /* */ } });
-});
-
 test('pages: a page by name, a section with its pages, keyboard to open it', async ({ page }) => {
     const errors = watchErrors(page);
     await page.goto('/dashboard', { waitUntil: 'networkidle' });
     await expect(page.locator('[data-search-open]')).toContainText('ابحث عن صفحة أو سجل');
 
+    // Tab 1 «السجلات» (the default), tab 2 «الصفحات».
     await openWithKeyboard(page);
+    await expect(palette(page).getByRole('tab')).toHaveCount(2);
+    await expect(palette(page).getByRole('tab').nth(0)).toHaveAttribute('data-search-tab', 'records');
+    await expect(palette(page).getByRole('tab').nth(1)).toHaveAttribute('data-search-tab', 'pages');
+    await expect(input(page)).toBeFocused();
+    await palette(page).locator('[data-search-tab=pages]').click();
     await expect(palette(page).locator('[data-search-tab=pages]')).toHaveAttribute('aria-selected', 'true');
     await expect(input(page)).toBeFocused();
 
@@ -72,7 +82,7 @@ test('pages: a page by name, a section with its pages, keyboard to open it', asy
     await expect(palette(page)).toHaveCount(0);
 
     // T04, T05, T25: a menu with the page registered under it; other names; a page outside the sidebar.
-    await openWithKeyboard(page);
+    await openPages(page);
     await searchPages(page, 'الإعدادات العامة');
     await expect(rows(page).nth(0)).toHaveAttribute('data-route', 'settings.index');
     await expect(rows(page).nth(1)).toHaveAttribute('data-route', 'settings.sector-packs');
@@ -90,16 +100,18 @@ test('pages: a page by name, a section with its pages, keyboard to open it', asy
     await expect(rows(page).nth(0)).toContainText('القوائم المالية');
     await expect(rows(page).nth(1)).toContainText('التقارير');
 
-    // Esc closes.
+    // Esc closes; opening again (same page) starts on «السجلات» again.
     await page.keyboard.press('Escape');
     await expect(palette(page)).toHaveCount(0);
+    await openWithKeyboard(page);
+    await page.keyboard.press('Escape');
     expect(errors).toEqual([]);
 });
 
 test('pages: no made-up result; Enter then searches the records, which work as before', async ({ page }) => {
     const errors = watchErrors(page);
     await page.goto('/dashboard', { waitUntil: 'networkidle' });
-    await openWithKeyboard(page);
+    await openPages(page);
 
     // T06: no supplier groups page in Diwan: no result, no link.
     await searchPages(page, 'مجموعات الموردين');
@@ -120,10 +132,8 @@ test('pages: no made-up result; Enter then searches the records, which work as b
     await record.click();
     await expect(page).toHaveURL(/\/sales\/clients\/\d+$/);
 
-    // The palette opens on the last tab used; the pages tab sends no request while typing.
-    await openWithKeyboard(page);
-    await expect(palette(page).locator('[data-search-tab=records]')).toHaveAttribute('aria-selected', 'true');
-    await palette(page).locator('[data-search-tab=pages]').click();
+    // The palette opens on «السجلات» again; the pages tab sends no request while typing.
+    await openPages(page);
     let requests = 0;
     page.on('request', (r) => { if (r.url().includes('/search?')) requests += 1; });
     await input(page).pressSequentially('القيود اليومية', { delay: 20 });
@@ -146,7 +156,7 @@ test('pages: a module switched off leaves the search and its URL is refused; swi
     try {
         setDisabled(`['manufacturing']`);
         await page.goto('/dashboard', { waitUntil: 'networkidle' });
-        await openWithKeyboard(page);
+        await openPages(page);
         await searchPages(page, 'أوامر الإنتاج');
         await expect(palette(page).locator('[data-search-pages-empty]')).toBeVisible();
         await searchPages(page, 'التصنيع');
@@ -155,7 +165,7 @@ test('pages: a module switched off leaves the search and its URL is refused; swi
 
         setDisabled('[]');
         await page.reload({ waitUntil: 'networkidle' });
-        await openWithKeyboard(page);
+        await openPages(page);
         await searchPages(page, 'التصنيع');
         await expect(rows(page).first()).toHaveAttribute('data-section', 'manufacturing');
         await searchPages(page, 'أوامر الإنتاج');
@@ -181,7 +191,7 @@ test('pages: a cashier sees only what a cashier may open, and a granted permissi
     await page.goto('/notifications', { waitUntil: 'networkidle' });
     await expect(page).toHaveURL(/\/notifications$/);
     const errors = watchErrors(page);
-    await openWithKeyboard(page);
+    await openPages(page);
     // T08: not the ledger, not the accounting section (T26), but the cashier's own pages.
     await searchPages(page, 'دفتر الأستاذ');
     await expect(palette(page).locator('[data-search-pages-empty]')).toBeVisible();
@@ -196,7 +206,7 @@ test('pages: a cashier sees only what a cashier may open, and a granted permissi
     tinker(`$u = App\\Models\\User::where('email', '${email}')->first(); app(Spatie\\Permission\\PermissionRegistrar::class)->setPermissionsTeamId($u->company_id); $u->givePermissionTo('accounting.ledger.view'); echo 'ok';`);
     await page.keyboard.press('Escape');
     await page.goto('/notifications', { waitUntil: 'networkidle' });
-    await openWithKeyboard(page);
+    await openPages(page);
     await searchPages(page, 'دفتر الأستاذ');
     await expect(rows(page).first()).toHaveAttribute('data-route', 'accounting.ledger.index');
     await page.keyboard.press('Enter');
@@ -210,7 +220,7 @@ test('pages: the index follows an Inertia visit that changes the modules, withou
     try {
         setDisabled('[]');
         await page.goto('/settings/modules', { waitUntil: 'networkidle' });
-        await openWithKeyboard(page);
+        await openPages(page);
         await searchPages(page, 'التصنيع');
         await expect(rows(page).first()).toHaveAttribute('data-section', 'manufacturing');
         await page.keyboard.press('Escape');
@@ -221,7 +231,7 @@ test('pages: the index follows an Inertia visit that changes the modules, withou
         await page.locator('[data-save-modules]').click();
         await saved;
         await page.waitForLoadState('networkidle');
-        await openWithKeyboard(page);
+        await openPages(page);
         await searchPages(page, 'التصنيع');
         await expect(page.locator('#gsearch-pages [data-section="manufacturing"]')).toHaveCount(0);
         await searchPages(page, 'أوامر الإنتاج');
@@ -234,7 +244,7 @@ test('pages: the index follows an Inertia visit that changes the modules, withou
         await page.locator('[data-save-modules]').click();
         await back;
         await page.waitForLoadState('networkidle');
-        await openWithKeyboard(page);
+        await openPages(page);
         await searchPages(page, 'أوامر الإنتاج');
         await expect(rows(page).first()).toHaveAttribute('data-route', 'manufacturing.orders.index');
     } finally {
@@ -246,7 +256,7 @@ test('pages: the index follows an Inertia visit that changes the modules, withou
 test('pages: mouse — a section click keeps the keyboard, right click stays, middle click and Ctrl/⌘ open a new tab', async ({ page, context }) => {
     const errors = watchErrors(page);
     await page.goto('/dashboard', { waitUntil: 'networkidle' });
-    await openWithKeyboard(page);
+    await openPages(page);
     await searchPages(page, 'المحاسبة');
     const section = rows(page).first();
     await section.click();
@@ -282,7 +292,7 @@ test('Ctrl/⌘+Enter in the palette on a create page does not submit the form un
     await page.goto('/sales/clients/create', { waitUntil: 'networkidle' });
     let posted = 0;
     page.on('request', (r) => { if (r.method() === 'POST' && /\/sales\/clients$/.test(new URL(r.url()).pathname)) posted += 1; });
-    await openWithKeyboard(page);
+    await openPages(page);
     await searchPages(page, 'دفتر الأستاذ');
     await expect(rows(page).first()).toHaveAttribute('data-route', 'accounting.ledger.index');
     const newTab = context.waitForEvent('page');
@@ -351,6 +361,8 @@ test.describe('phone', () => {
         await page.goto('/dashboard', { waitUntil: 'networkidle' });
         await page.locator('[data-search-open]').tap();
         await expect(palette(page)).toBeVisible();
+        await expect(palette(page).locator('[data-search-tab=records]')).toHaveAttribute('aria-selected', 'true');
+        await palette(page).locator('[data-search-tab=pages]').tap();
         await input(page).fill('المبيعات');
         await expect(rows(page).first()).toHaveAttribute('data-section', 'sales');
         const box = await palette(page).locator('[role=dialog]').boundingBox();

@@ -6,12 +6,11 @@ import { ChevronDownIcon, DocumentTextIcon, MagnifyingGlassIcon, XMarkIcon } fro
 
 /**
  * Global search palette (Ctrl/⌘+K or "/"), with two tabs; ↑ ↓ to move, Enter to open, Esc to close.
- *  - «الصفحات»: the sections, sidebar pages and registered pages outside the sidebar that the user may open
- *    (resources/js/pageIndex.js, engine resources/js/pageSearch.js). Local, no request. A matched section is a
- *    group of its pages: Enter or a click folds it; it is never a link itself.
- *  - «السجلات»: every record the user may see; a chip narrows the search to one kind. Records are registered in
- *    App\Http\Controllers\SearchController::kinds().
- * The palette opens on the tab used last in this browser (the pages tab the first time).
+ *  1. «السجلات» (the default, every time the palette opens): every record the user may see; a chip narrows the
+ *     search to one kind. Records are registered in App\Http\Controllers\SearchController::kinds().
+ *  2. «الصفحات»: the sections, sidebar pages and registered pages outside the sidebar that the user may open
+ *     (resources/js/pageIndex.js, engine resources/js/pageSearch.js). Local, no request. A matched section is a
+ *     group of its pages: Enter or a click folds it; it is never a link itself.
  */
 const open = ref(false);
 const query = ref('');
@@ -24,12 +23,10 @@ const input = ref(null);
 let timer = null;
 let latest = 0;
 
-const TABS = ['pages', 'records'];
-const TAB_KEY = 'diwan.search.tab';
-const readTab = () => {
-    try { return localStorage.getItem(TAB_KEY) === 'records' ? 'records' : 'pages'; } catch { return 'pages'; }
-};
-const tab = ref(readTab());
+// In reading order: «السجلات» first (on the right in Arabic) and the default, then «الصفحات».
+const TABS = ['records', 'pages'];
+const DEFAULT_TAB = 'records';
+const tab = ref(DEFAULT_TAB);
 
 // ---- Records ----
 const flat = computed(() => groups.value.flatMap((g) => g.items.map((item) => ({ ...item, group: g.label }))));
@@ -184,7 +181,6 @@ let opener = null;
 const setTab = (name, { focusTab = false } = {}) => {
     if (tab.value !== name) {
         tab.value = name;
-        try { localStorage.setItem(TAB_KEY, name); } catch { /* storage unavailable */ }
         clearTimeout(timer);
         if (name === 'records') {
             groups.value = [];
@@ -198,6 +194,8 @@ const otherTab = () => setTab(tab.value === 'pages' ? 'records' : 'pages', { foc
 
 const show = async () => {
     opener = document.activeElement;
+    // Every opening starts on «السجلات», as the search did before the pages tab existed.
+    tab.value = DEFAULT_TAB;
     engineFailed.value = false;
     loadEngine();
     open.value = true;
