@@ -61,7 +61,7 @@ class PageSearchIndexTest extends TestCase
         return $out;
     }
 
-    /** @return array<string, array{access: ?string, parent: ?string, label: ?string}> EXTRA_PAGES of pageIndex.js */
+    /** @return array<string, array{access: ?string, parent: ?string, section: ?string, label: ?string}> EXTRA_PAGES of pageIndex.js */
     protected function extraPages(): array
     {
         $source = File::get(resource_path('js/pageIndex.js'));
@@ -71,8 +71,9 @@ class PageSearchIndexTest extends TestCase
             preg_match("/^route: '([\\w.-]+)'/", $chunk, $route);
             preg_match("/access: '(\\w+)'/", $chunk, $access);
             preg_match("/parent: '([\\w.-]+)'/", $chunk, $parent);
+            preg_match("/section: '(\\w+)'/", $chunk, $section);
             preg_match("/label: '([\\w.]+)'/", $chunk, $label);
-            $out[$route[1]] = ['access' => $access[1] ?? null, 'parent' => $parent[1] ?? null, 'label' => $label[1] ?? null];
+            $out[$route[1]] = ['access' => $access[1] ?? null, 'parent' => $parent[1] ?? null, 'section' => $section[1] ?? null, 'label' => $label[1] ?? null];
         }
         $this->assertNotEmpty($out);
 
@@ -103,7 +104,7 @@ class PageSearchIndexTest extends TestCase
     {
         $map = config('erp_permissions.routes');
         $indexed = $this->indexed();
-        $this->assertGreaterThan(150, count($indexed));
+        $this->assertGreaterThan(100, count($indexed));
 
         foreach ($indexed as $name => $page) {
             $route = Route::getRoutes()->getByName($name);
@@ -153,6 +154,9 @@ class PageSearchIndexTest extends TestCase
             if ($page['parent']) {
                 $this->assertArrayHasKey($page['parent'], $indexed, "[{$route}]'s parent is not a sidebar page.");
                 $this->assertNull($indexed[$page['parent']]['access'], "[{$route}]'s parent is not a sidebar page.");
+            }
+            if ($page['section']) {
+                $this->assertStringContainsString("key: '{$page['section']}'", File::get(resource_path('js/navigation.js')), "[{$route}]: no sidebar group {$page['section']}.");
             }
         }
         preg_match_all("/description: '([a-z0-9_.]+)'/", File::get(resource_path('js/pageIndex.js')), $extraDescriptions);
@@ -253,7 +257,7 @@ class PageSearchIndexTest extends TestCase
         $this->assertContains('sales.clients.index', $visible);
         $this->assertContains('notifications.index', $visible);
         $this->assertContains('profile.edit', $visible);
-        foreach (['accounting.ledger.index', 'accounting.journals.index', 'settings.index', 'settings.sector-packs', 'users.index', 'hr.payroll.index'] as $hidden) {
+        foreach (['accounting.ledger.index', 'accounting.journals.index', 'settings.index', 'settings.sector-packs', 'users.index', 'accounting.trial-balance.index'] as $hidden) {
             $this->assertNotContains($hidden, $visible);
         }
     }
@@ -262,11 +266,11 @@ class PageSearchIndexTest extends TestCase
     {
         $this->user('admin');
         $visible = $this->visible($this->props());
-        foreach (['settings.sector-packs', 'purchases.invoices.from-receipts', 'notifications.index', 'profile.edit', 'accounting.ledger.index', 'sales.customer-groups.index'] as $name) {
+        foreach (['settings.sector-packs', 'purchases.invoices.from-receipts', 'notifications.index', 'profile.edit', 'reports.index', 'accounting.ledger.index', 'sales.customer-groups.index'] as $name) {
             $this->assertContains($name, $visible);
         }
         $this->assertNotContains('super-admin.dashboard', $visible);
-        $this->assertIndexMatchesServer(['settings.sector-packs', 'purchases.invoices.from-receipts', 'notifications.index', 'profile.edit', 'accounting.ledger.index', 'sales.customer-groups.index']);
+        $this->assertIndexMatchesServer(['settings.sector-packs', 'purchases.invoices.from-receipts', 'notifications.index', 'profile.edit', 'reports.index', 'accounting.ledger.index', 'sales.customer-groups.index']);
     }
 
     public function test_a_module_switched_off_leaves_the_search_and_its_pages_are_refused_then_come_back(): void

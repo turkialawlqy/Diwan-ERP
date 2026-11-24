@@ -12,11 +12,15 @@ import { createPageSearch, normalize } from './pageSearch.js';
  * the route exists and opens without parameters. Labels, routes and permissions are never repeated here.
  * The «إضافة» / «عرض» menus (quickMenus.js) are only read, for other names of the same pages.
  *
+ * A sidebar page with a `section` (a sub-heading inside its group, e.g. «التقارير» ← «المحاسبة») is a page of
+ * that sub-menu: its path shows the sub-heading, and the sub-heading's name finds it.
+ *
  * This file only adds what the sidebar cannot say:
- *  - EXTRA_PAGES: real pages outside the sidebar, under the sidebar page they belong to (`parent`).
+ *  - EXTRA_PAGES: real pages outside the sidebar, under the sidebar page they belong to (`parent`), at the
+ *    top of a sidebar group (`section`: the group's key), or on their own.
  *    `access`: 'authenticated' (any signed-in user, route outside erp.authorize) or 'super_admin'.
- *  - PAGE_KEYWORDS / SECTION_KEYWORDS: other names people search by (Arabic and English);
- *    't:key' is an i18n key whose text in both languages is used.
+ *  - PAGE_KEYWORDS / SECTION_KEYWORDS / SUBSECTION_KEYWORDS: other names people search by (Arabic and
+ *    English); 't:key' is an i18n key whose text in both languages is used.
  *  - PAGE_DESCRIPTIONS: the subtitle the page itself shows (its PageHeader), as an i18n key.
  *  - PAGE_WORD_FORMS: forms of one word no rule derives (broken plurals: فاتورة/فواتير).
  *  - PAGE_SYNONYMS: different words with one meaning (زبون/عميل).
@@ -30,6 +34,10 @@ import { createPageSearch, normalize } from './pageSearch.js';
 const KEY = 't:';
 
 export const EXTRA_PAGES = [
+    {
+        route: 'reports.index', label: 'reports_hub.title', section: 'reports', description: 'reports_hub.subtitle',
+        keywords: ['مركز التقارير', 'جميع التقارير', 'reports hub'],
+    },
     { route: 'notifications.index', label: 'x_notifications_index.notifications', icon: BellIcon, keywords: ['التنبيهات', 'alerts'] },
     {
         route: 'profile.edit', label: 'x_profile_edit.profile', icon: UserCircleIcon, access: 'authenticated',
@@ -53,9 +61,7 @@ export const SECTION_KEYWORDS = {
     purchases: ['الشراء'],
     finance: ['الخزينة', 'النقدية', 'البنوك والصناديق'],
     accounting: ['النظام المحاسبي'],
-    statements: ['التقارير المحاسبية', 'التقارير المالية', 'المحاسبة', 'financial reports'],
     reports: ['تقارير'],
-    hr: ['شؤون الموظفين', 'الموظفين', 'HR'],
     settings: ['الضبط', 'التهيئة', 'preferences'],
     updates: ['الجديد', 'التحديثات'],
     pos: ['الكاشير', 'POS'],
@@ -66,6 +72,17 @@ export const SECTION_KEYWORDS = {
     bookings: ['المواعيد'],
     support: ['الدعم الفني', 'التذاكر'],
     work_orders: ['الفنيين', 'الأعمال الميدانية'],
+};
+
+/** Other names of the sub-headings inside a sidebar group (navigation.js `section`), by their i18n key. */
+export const SUBSECTION_KEYWORDS = {
+    'nav.sec_accounting': ['التقارير المحاسبية', 'تقارير محاسبية', 'accounting reports'],
+    'nav.sec_statements': ['التقارير المالية', 'تقارير مالية', 'financial reports'],
+    'nav.sec_tax': ['التقارير الضريبية', 'الإقرارات الضريبية', 'tax reports'],
+    'nav.sec_inventory': ['تقارير المستودعات', 'inventory reports'],
+    'nav.sec_operations': ['تقارير المعدات', 'تقارير التصنيع'],
+    'nav.sec_hr': ['تقارير الموارد البشرية', 'تقارير الموظفين', 'HR reports'],
+    'nav.sec_other': ['تقارير العقارات', 'تقارير أوامر العمل'],
 };
 
 export const PAGE_KEYWORDS = {
@@ -153,20 +170,9 @@ export const PAGE_KEYWORDS = {
     'reports.purchases': ['تحليل المشتريات'],
     'reports.inventory': ['تحليل المخزون'],
     'reports.vat': ['تقرير الضريبة', 'الإقرار الضريبي'],
-    // HR
-    'hr.employees.index': ['الموظفون', 'شؤون الموظفين', 'staff'],
-    'hr.payroll.index': ['مسير الرواتب', 'كشف الرواتب'],
-    'hr.attendance.index': ['الدوام', 'البصمة'],
-    'hr.leaves.index': ['إجازة'],
-    'hr.loans.index': ['سلفة', 'قروض الموظفين'],
-    'hr.admin-requests.index': ['طلب إداري'],
-    'hr.settlements.index': ['مكافأة نهاية الخدمة'],
+    // HR reports (under «التقارير»)
     'hr.reports.gosi': ['التأمينات الاجتماعية', 'GOSI'],
     'hr.reports.saudization': ['نطاقات', 'السعودة'],
-    'hr.organization': ['t:nav.departments', 'الإدارات'],
-    'hr.nationalities.index': ['جنسية'],
-    'hr.settings': ['إعدادات الموارد البشرية', 'نظام العمل'],
-    'hr.me': ['الخدمة الذاتية', 'طلباتي'],
     // Settings
     'settings.index': [
         't:setidx.company_details', 't:setidx.invoicing_and_tax', 't:setidx.invoicing_and_zatca', 't:setidx.accounting_mapping',
@@ -278,15 +284,7 @@ export const PAGE_DESCRIPTIONS = {
     'accounting.fiscal-years.index': 'a_years.closing_periods_blocks_posting_o',
     'accounting.mappings.index': 'a_mappings.the_accounts_the_system_posts_in',
     'reports.financial': 'rep2_reports_financial.a_comprehensive_financial_perfor',
-    'hr.employees.index': 'hr_employees_index.employee_files_documents_salarie',
-    'hr.payroll.index': 'hr_payroll_index.payroll_with_overtime_absence_le',
-    'hr.attendance.index': 'hr_attendance.lateness_and_overtime_follow_the',
-    'hr.leaves.index': 'hr_leaves.per_the_labor_law_annual_21_30_d',
-    'hr.loans.index': 'hr_loans.paid_on_approval_installments_ar',
-    'hr.admin-requests.index': 'hr_adminrequests_index.summon_employees_to_attend_and_f',
-    'hr.settlements.index': 'hr_settlements.article_84_half_a_month_per_year',
     'hr.reports.saudization': 'hr_reports_saudization.an_estimate_from_employee_data_t',
-    'hr.nationalities.index': 'hr_nationalities_index.the_list_of_nationalities_availa',
     'branches.index': 'x_branches_index.each_branch_is_in_a_country_its',
     'settings.modules': 'set2_settings_modules.a_disabled_module_disappears_fro',
     'settings.messaging': 'set2_settings_messaging.the_company_s_own_mail_smtp_and',
@@ -359,12 +357,13 @@ export function candidatePages() {
     const out = [];
     for (const item of navigation) {
         if (!item.children) out.push({ route: item.route });
+        else out.push(...EXTRA_PAGES.filter((p) => p.section === item.key));
         for (const child of item.children || []) {
             out.push({ route: child.route, feature: child.feature });
             for (const x of EXTRA_PAGES.filter((p) => p.parent === child.route)) out.push(under(x, child));
         }
     }
-    return [...out, ...EXTRA_PAGES.filter((p) => !p.parent)];
+    return [...out, ...EXTRA_PAGES.filter((p) => !p.parent && !p.section)];
 }
 
 /** What the index depends on, as a string: rebuilt only when it changes (cheap, no translation). */
@@ -426,9 +425,15 @@ export function buildPageEntries(env) {
         });
     };
 
+    // A sub-heading inside a group (navigation.js `section`): its name in both languages and its other names.
+    const subheadingOf = (child) => (child.section ? {
+        title: env.t(child.section),
+        names: [env.t(child.section), env.tOther(child.section), ...words(SUBSECTION_KEYWORDS[child.section])].filter(Boolean).join(' '),
+    } : null);
+
     const placed = new Set();
     let order = 0;
-    const makePage = (spec, { section = null, parent = null, level }) => {
+    const makePage =(spec, { section = null, parent = null, subheading = null, level }) => {
         if (placed.has(spec.route)) return null;
         const url = openUrl(env, spec.route, spec);
         const title = url ? env.t(spec.label) : '';
@@ -444,8 +449,9 @@ export function buildPageEntries(env) {
             category: section?.title || '',
             sectionId: section?.id || null,
             parent: parent?.id || section?.id || null,
-            parentTitle: parent?.title || '',
-            path: [section?.title, parent?.title, title].filter(Boolean),
+            // The parent page's name, or the sub-heading's names: what the «parent» tier of the search matches.
+            parentTitle: parent?.title || subheading?.names || '',
+            path: [section?.title, parent?.title || subheading?.title, title].filter(Boolean),
             keywords: uniqueWords(title, [
                 env.tOther(spec.label),
                 ...words(PAGE_KEYWORDS[spec.route]),
@@ -490,8 +496,13 @@ export function buildPageEntries(env) {
             children: [],
         };
         const pages = [];
+        // Pages registered at the top of this group (e.g. «كل التقارير»).
+        for (const extra of EXTRA_PAGES.filter((p) => p.section === item.key)) {
+            const page = makePage(extra, { section, level: 2 });
+            if (page) pages.push(page);
+        }
         for (const child of item.children) {
-            const page = makePage(child, { section, level: 2 });
+            const page = makePage(child, { section, subheading: subheadingOf(child), level: 2 });
             if (page) pages.push(page);
             for (const extra of EXTRA_PAGES.filter((p) => p.parent === child.route)) {
                 // Under its parent when the user may open the parent; else straight under the section.
@@ -504,7 +515,7 @@ export function buildPageEntries(env) {
             entries.push(section, ...pages);
         }
     }
-    for (const extra of EXTRA_PAGES.filter((p) => !p.parent)) {
+    for (const extra of EXTRA_PAGES.filter((p) => !p.parent && !p.section)) {
         const page = makePage(extra, { level: 1 });
         if (page) entries.push(page);
     }

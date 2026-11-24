@@ -62,23 +62,24 @@ test('pages: a page by name, a section with its pages, keyboard to open it', asy
     await expect(section).toHaveAttribute('data-section', 'accounting');
     await expect(section).toHaveAttribute('aria-expanded', 'true');
     await expect(section.locator('a')).toHaveCount(0);
+    // The group's pages, then the accounting reports through their sub-heading («التقارير / المحاسبة»).
     for (const route of ['accounting.accounts.index', 'accounting.journals.index', 'accounting.ledger.index', 'accounting.trial-balance.index']) {
         await expect(rows(page).and(page.locator(`[data-route="${route}"]`))).toHaveCount(1);
     }
+    await expect(page.locator('#gsearch-pages [data-route="accounting.ledger.index"]')).toContainText('التقارير / المحاسبة');
     await page.keyboard.press('Enter');
     await expect(section).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.locator('#gsearch-pages [data-route="accounting.ledger.index"]')).toHaveCount(0);
+    await expect(page.locator('#gsearch-pages [data-route="accounting.journals.index"]')).toHaveCount(0);
     await page.keyboard.press('Enter');
     await expect(section).toHaveAttribute('aria-expanded', 'true');
 
     // T17: ↓ moves, Enter opens the page.
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
-    await expect(page.locator('#gsearch-pages [aria-selected=true]')).toHaveAttribute('data-route', 'accounting.ledger.index');
-    await expect(input(page)).toHaveAttribute('aria-activedescendant', 'gsearch-row-3');
+    await expect(page.locator('#gsearch-pages [aria-selected=true]')).toHaveAttribute('data-route', 'accounting.journals.index');
+    await expect(input(page)).toHaveAttribute('aria-activedescendant', 'gsearch-row-2');
     await page.keyboard.press('Enter');
-    await expect(page).toHaveURL(/\/accounting\/ledger$/);
+    await expect(page).toHaveURL(/\/accounting\/journals$/);
     await expect(palette(page)).toHaveCount(0);
 
     // T04, T05, T25: a menu with the page registered under it; other names; a page outside the sidebar.
@@ -97,8 +98,8 @@ test('pages: a page by name, a section with its pages, keyboard to open it', asy
     // T15: same name, two places: both, each with its path.
     await searchPages(page, 'إقرار ضريبة القيمة المضافة');
     await expect(rows(page)).toHaveCount(2);
-    await expect(rows(page).nth(0)).toContainText('القوائم المالية');
-    await expect(rows(page).nth(1)).toContainText('التقارير');
+    await expect(rows(page).nth(0)).toContainText('التقارير / عامة');
+    await expect(rows(page).nth(1)).toContainText('التقارير / الضرائب');
 
     // Esc closes; opening again (same page) starts on «السجلات» again.
     await page.keyboard.press('Escape');

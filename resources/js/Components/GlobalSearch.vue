@@ -140,9 +140,10 @@ watch(query, () => {
 });
 watch(rows, (list) => { if (pageActive.value >= list.length) pageActive.value = Math.max(0, list.length - 1); });
 
-// The section, parent page and description under a page's name (a page inside its section group needs no section).
+// The section, sub-heading or parent page, and description under a page's name. Inside its section group a page
+// needs no section, only its sub-heading (a nested page sits under its parent already).
 const subline = (row) => {
-    const path = row.inGroup ? [] : row.entry.path.slice(0, -1);
+    const path = row.inGroup ? (row.level === 2 ? row.entry.path.slice(1, -1) : []) : row.entry.path.slice(0, -1);
     return [path.join(' / '), row.entry.description].filter(Boolean).join(' — ');
 };
 

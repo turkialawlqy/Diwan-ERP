@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import navigation from '../../resources/js/navigation.js';
 import { addMenu, viewMenu } from '../../resources/js/quickMenus.js';
-import { buildPageEntries, candidatePages, EXTRA_PAGES, PAGE_DESCRIPTIONS, PAGE_KEYWORDS, PAGE_SYNONYMS, PAGE_WORD_FORMS, pageSearchFor, visibilityKey } from '../../resources/js/pageIndex.js';
+import { buildPageEntries, candidatePages, EXTRA_PAGES, PAGE_DESCRIPTIONS, PAGE_KEYWORDS, PAGE_SYNONYMS, PAGE_WORD_FORMS, pageSearchFor, SUBSECTION_KEYWORDS, visibilityKey } from '../../resources/js/pageIndex.js';
 import { createPageSearch, normalize, tokenize } from '../../resources/js/pageSearch.js';
 
 const json = (file) => JSON.parse(readFileSync(new URL(`../../resources/js/locales/${file}`, import.meta.url)));
@@ -76,7 +76,8 @@ test('T01 an exact page name opens that page first', () => {
     assert.equal(first(r).kind, 'page');
     assert.equal(first(r).entry.routeName, 'accounting.ledger.index');
     assert.equal(first(r).tier, 1);
-    assert.deepEqual(first(r).entry.path, ['المحاسبة', 'دفتر الأستاذ']);
+    // The ledger sits in «التقارير» under the sub-heading «المحاسبة».
+    assert.deepEqual(first(r).entry.path, ['التقارير', 'المحاسبة', 'دفتر الأستاذ']);
 });
 
 test('T02 without hamza, with diacritics or tatweel: the same page', () => {
@@ -98,9 +99,24 @@ test('T03 a section name shows the section with every page the user may open, in
     // Its pages are inside the group, not listed a second time.
     const flatRoutes = r.items.filter((i) => i.kind === 'page').map((i) => i.entry.routeName);
     assert.ok(!flatRoutes.some((name) => name.startsWith('accounting.') && sectionOf('accounting').children.some((c) => c.route === name)));
-    // The financial statements are «التقارير المحاسبية»: offered folded, under their own section.
-    const statements = r.items.find((i) => i.kind === 'section' && i.entry.key === 'statements');
-    assert.ok(statements && !statements.expanded);
+    // The accounting reports («التقارير» ← «المحاسبة» ← دفتر الأستاذ، ميزان المراجعة…) follow, with their path.
+    const ledger = r.items.find((i) => i.kind === 'page' && i.entry.routeName === 'accounting.ledger.index');
+    assert.ok(ledger, 'the ledger, through its sub-heading «المحاسبة»');
+    assert.equal(ledger.tier, 5);
+    assert.deepEqual(ledger.entry.path, ['التقارير', 'المحاسبة', 'دفتر الأستاذ']);
+    assert.ok(flatRoutes.includes('accounting.trial-balance.index'));
+});
+
+test('a sub-menu (sub-heading inside a group) shows its pages with their path', () => {
+    const statements = owner.search('القوائم المالية');
+    for (const route of ['accounting.reports.income-statement', 'accounting.reports.balance-sheet', 'accounting.reports.cash-flow']) {
+        const page = pagesOf(statements).find((e) => e.routeName === route);
+        assert.ok(page, route);
+        assert.deepEqual(page.path.slice(0, 2), ['التقارير', 'القوائم المالية']);
+    }
+    const accountingReports = pagesOf(owner.search('التقارير المحاسبية')).map((e) => e.routeName);
+    assert.ok(accountingReports.includes('accounting.ledger.index'));
+    assert.ok(accountingReports.includes('accounting.trial-balance.index'));
 });
 
 test('T04 a menu (sidebar page) name: the page, then the pages registered under it', () => {
@@ -177,6 +193,13 @@ test('T25 a registered page outside the sidebar shows when allowed', () => {
     assert.equal(first(owner.search('حزم القطاعات')).entry.routeName, 'settings.sector-packs');
     assert.equal(first(owner.search('كلمة المرور')).entry.routeName, 'profile.edit');
     assert.equal(first(owner.search('مطابقة ثلاثية')).entry.routeName, 'purchases.invoices.from-receipts');
+    // «كل التقارير» heads its group (it is not a sidebar link).
+    const hub = first(owner.search('كل التقارير')).entry;
+    assert.equal(hub.routeName, 'reports.index');
+    assert.deepEqual(hub.path, ['التقارير', 'كل التقارير']);
+    const reports = first(owner.search('التقارير'));
+    assert.equal(reports.entry.key, 'reports');
+    assert.equal(reports.children[0].entry.routeName, 'reports.index');
     const hidden = searchFor({ allowed: (name) => name !== 'settings.sector-packs' });
     assert.equal(hidden.search('حزم القطاعات').items.length, 0);
     // The platform panel only for super admins.
@@ -193,9 +216,10 @@ test('a page outside the sidebar whose parent the user may not open: no parent n
 });
 
 test('T26 a section without a page the user may open does not show', () => {
-    const s = searchFor({ allowed: (name) => !name.startsWith('hr.') });
-    assert.ok(!s.search('الموارد البشرية').items.some((i) => i.kind === 'section' && i.entry.key === 'hr'));
-    assert.ok(!buildPageEntries(env({ allowed: (name) => !name.startsWith('hr.') })).some((e) => e.id === 'section:hr'));
+    const s = searchFor({ allowed: (name) => !name.startsWith('inventory.') });
+    assert.ok(!s.search('المخزون').items.some((i) => i.kind === 'section' && i.entry.key === 'inventory'));
+    assert.ok(!buildPageEntries(env({ allowed: (name) => !name.startsWith('inventory.') })).some((e) => e.id === 'section:inventory'));
+    assert.ok(buildPageEntries(env()).some((e) => e.id === 'section:inventory'));
 });
 
 // ---------------------------------------------------------------- results (T15, T22–T24, ranking, limits)
@@ -205,7 +229,8 @@ test('T15 pages with the same name show with their paths', () => {
     const same = r.items.filter((i) => i.kind === 'page' && i.entry.title === 'إقرار ضريبة القيمة المضافة');
     assert.equal(same.length, 2);
     assert.notDeepEqual(same[0].entry.path, same[1].entry.path);
-    assert.deepEqual(same.map((i) => i.entry.path[0]).sort(), ['التقارير', 'القوائم المالية'].sort());
+    // Both in «التقارير», told apart by their sub-headings.
+    assert.deepEqual(same.map((i) => i.entry.path.slice(0, 2).join(' / ')).sort(), ['التقارير / الضرائب', 'التقارير / عامة'].sort());
 });
 
 test('T22 markup in the query or in names is plain text: nothing is built from it', () => {
@@ -322,9 +347,9 @@ test('short words are whole words, except the last one being typed: «P&L» is n
     assert.equal(first(owner.search('دفتر ا')).entry.routeName, 'accounting.ledger.index');
 });
 
-test('«شئون» and «شؤون», «الميزانية» and «الموازنة» go where an accountant expects', () => {
-    assert.equal(first(owner.search('شئون الموظفين')).entry.key, 'hr');
-    assert.equal(first(owner.search('شؤون الموظفين')).entry.key, 'hr');
+test('«القوائم» and «القوايم», «الميزانية» and «الموازنة» go where an accountant expects', () => {
+    const typed = pagesOf(owner.search('القوايم المالية')).map((e) => e.routeName);
+    assert.ok(typed.includes('accounting.reports.income-statement'), 'ئ typed as ي');
     assert.equal(first(owner.search('الميزانية')).entry.routeName, 'accounting.reports.balance-sheet');
     const budget = owner.search('الموازنة');
     assert.equal(first(budget).entry.routeName, 'accounting.budgets.index');
@@ -380,8 +405,12 @@ test('the registry names only pages of the index, once each', () => {
     for (const extra of EXTRA_PAGES) {
         assert.ok(!navRoutes.includes(extra.route), `${extra.route} is in the sidebar already`);
         if (extra.parent) assert.ok(navRoutes.includes(extra.parent), `${extra.route}: parent ${extra.parent} is not a sidebar page`);
+        if (extra.section) assert.ok(navigation.some((i) => i.key === extra.section && i.children), `${extra.route}: no sidebar group ${extra.section}`);
         assert.ok(get(ar, extra.label) && get(en, extra.label), `${extra.label} in both languages`);
     }
+    const subheadings = new Set(navigation.flatMap((i) => (i.children || []).map((c) => c.section).filter(Boolean)));
+    for (const key of Object.keys(SUBSECTION_KEYWORDS)) assert.ok(subheadings.has(key), `SUBSECTION_KEYWORDS names ${key}, which no sidebar item uses`);
+    for (const key of subheadings) assert.ok(get(ar, key) && get(en, key), `${key} in both languages`);
     assert.equal(new Set(navRoutes).size, navRoutes.length, 'a sidebar route appears twice');
 });
 
