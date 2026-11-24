@@ -389,11 +389,12 @@ class ZatcaTest extends TestCase
         $this->invoice();
         $mine = ZatcaDocument::firstOrFail();
         // As a branch's document arrives at the head office: a device id this server does not have.
-        DB::statement('PRAGMA defer_foreign_keys = ON');   // the test transaction never commits, so the dangling key is never checked
+        DB::getDriverName() === 'sqlite' ? DB::statement('PRAGMA defer_foreign_keys = ON') : DB::statement('SET FOREIGN_KEY_CHECKS = 0');   // the test transaction never commits, so the dangling key is never checked
         $theirs = $mine->replicate();
         $theirs->zatca_device_id = 987654;
         $theirs->uuid = (string) Str::uuid();
         $theirs->save();
+        DB::getDriverName() === 'sqlite' || DB::statement('SET FOREIGN_KEY_CHECKS = 1');
 
         // Two documents wait, but only the one this server's device signed is due here.
         $this->travel(10)->minutes();

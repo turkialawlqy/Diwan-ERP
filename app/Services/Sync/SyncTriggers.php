@@ -3,6 +3,7 @@
 namespace App\Services\Sync;
 
 use Illuminate\Database\Connection;
+use Illuminate\Database\QueryException;
 
 /**
  * Change capture in the database itself, so nothing that writes a row can skip it (Eloquent, saveQuietly, raw SQL, hard delete).
@@ -29,7 +30,14 @@ class SyncTriggers
                 continue;
             }
             foreach (self::statements($db->getDriverName(), $table, $columns, $pk) as $sql) {
-                $db->unprepared($sql);
+                try {
+                    $db->unprepared($sql);
+                } catch (QueryException $e) {
+                    if (str_contains($e->getMessage(), '1419')) {
+                        throw new \RuntimeException('MySQL refuses triggers while binary logging is on and the user lacks SUPER. Run once as an administrator: SET GLOBAL log_bin_trust_function_creators = 1; (and put log_bin_trust_function_creators=1 in my.cnf).', 0, $e);
+                    }
+                    throw $e;
+                }
             }
         }
 

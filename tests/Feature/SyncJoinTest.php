@@ -17,13 +17,27 @@ class SyncJoinTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['sync-node.settle' => 0]);
+    }
+
+    /** @return list<string> */
+    protected function triggerNames(): array
+    {
+        return DB::getDriverName() === 'sqlite'
+            ? collect(DB::select("select name from sqlite_master where type = 'trigger' and name like 'sync_%'"))->pluck('name')->all()
+            : collect(DB::select("select trigger_name as name from information_schema.triggers where trigger_schema = database() and trigger_name like 'sync\\_%'"))->pluck('name')->all();
+    }
+
     public function test_joining_installs_capture_on_every_replicated_table_and_a_real_save_is_captured(): void
     {
         $this->artisan('sync:join', ['node' => 3])->assertSuccessful();
 
         $travels = array_values(array_filter(array_merge(config('sync.master'), config('sync.owned')), fn ($t) => Schema::hasTable($t)));
         $this->assertGreaterThan(190, count($travels));
-        $triggers = collect(DB::select("select name from sqlite_master where type = 'trigger' and name like 'sync_%'"))->pluck('name')->all();
+        $triggers = $this->triggerNames();
         $this->assertCount(count($travels) * 3, $triggers);
 
         $company = Company::factory()->create();
@@ -40,7 +54,7 @@ class SyncJoinTest extends TestCase
         app(TenantManager::class)->forget();
 
         $this->artisan('sync:join', ['node' => 3, '--remove' => true])->assertSuccessful();
-        $this->assertSame([], DB::select("select name from sqlite_master where type = 'trigger' and name like 'sync_%'"));
+        $this->assertSame([], $this->triggerNames());
     }
 
     public function test_real_rows_travel_to_a_second_database_with_the_real_schema_unchanged(): void

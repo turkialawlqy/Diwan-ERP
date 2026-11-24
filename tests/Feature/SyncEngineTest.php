@@ -21,6 +21,7 @@ class SyncEngineTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['sync-node.settle' => 0]);
         config(['sync.master' => ['parties'], 'sync.owned' => ['docs'], 'sync.derived' => [], 'sync.local' => []]);
         foreach (['hub', 'branch'] as $name) {
             config(["database.connections.sync_{$name}" => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => false]]);
