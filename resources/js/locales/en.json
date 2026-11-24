@@ -8724,5 +8724,24 @@
         "days_in_period": "Days in period",
         "status": "Status",
         "code": "Code"
+    },
+    "gsearch": {
+        "open": "Search pages or records...",
+        "dialog": "Search pages and records",
+        "tabs": "Search in",
+        "tab_pages": "Pages",
+        "tab_records": "Records",
+        "pages_placeholder": "Search for a section, menu or page...",
+        "pages_hint": "Type the name of a section, menu or page, such as Accounting, General Ledger or Settings.",
+        "no_pages": "No page by this name among the pages you can open.",
+        "load_failed": "The page search could not load just now. Open the search again, or search the records.",
+        "search_records_for": "Search the records for “{q}”",
+        "results": "Page search results",
+        "section": "Section",
+        "pages_count": "Pages: {n}",
+        "matched_count": "Matches: {n}",
+        "show_more": "Show more ({n})",
+        "go": "Open",
+        "keys": "↑ ↓ to move · Enter to open or fold a section · Esc to close"
     }
 }

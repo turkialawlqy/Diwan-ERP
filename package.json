@@ -5,7 +5,8 @@
     "scripts": {
         "build": "vite build",
         "dev": "vite",
-        "test:e2e": "playwright test"
+        "test:e2e": "playwright test",
+        "test:js": "node --test tests/js/*.test.js"
     },
     "devDependencies": {
         "@inertiajs/vue3": "^2.0.0",
