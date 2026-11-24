@@ -12,8 +12,10 @@ use Illuminate\Database\Connection;
 class SyncTriggers
 {
     /**
-     * @return list<string> the tables left without capture: they have no single `id` key (link tables such as role_has_permissions),
-     *                      so the engine cannot name their rows yet; they need their own rule in the next phase
+     * Link tables (role_has_permissions...) have no single `id`: their rows are captured whole with pk = 0 (a row is its own key),
+     * as an insert or a delete; an update travels as delete-old + insert-new. Only a table with no `id` AND the pk asked for is skipped.
+     *
+     * @return list<string> the tables left without capture (none with the default `id` key: link tables are handled)
      */
     public static function install(Connection $db, array $tables, string $pk = 'id'): array
     {
@@ -21,7 +23,7 @@ class SyncTriggers
         $skipped = [];
         foreach ($tables as $table) {
             $columns = $schema->getColumnListing($table);
-            if (! in_array($pk, $columns, true)) {
+            if (! in_array($pk, $columns, true) && $pk !== 'id') {
                 $skipped[] = $table;
 
                 continue;
@@ -48,18 +50,25 @@ class SyncTriggers
     {
         $quote = $driver === 'sqlite' ? '"' : '`';
         $fn = $driver === 'sqlite' ? 'json_object' : 'JSON_OBJECT';
+        $link = ! in_array($pk, $columns, true);
         $json = fn (string $row) => $fn.'('.implode(', ', array_map(fn ($c) => "'{$c}', {$row}.{$quote}{$c}{$quote}", $columns)).')';
-        $insert = fn (string $op, string $row, bool $payload) => "INSERT INTO sync_outbox (node_id, table_name, pk, op, payload) SELECT node_id, '{$table}', {$row}.{$pk}, '{$op}', "
+        $pkExpr = fn (string $row) => $link ? '0' : "{$row}.{$pk}";
+        $insert = fn (string $op, string $row, bool $payload) => "INSERT INTO sync_outbox (node_id, table_name, pk, op, payload) SELECT node_id, '{$table}', {$pkExpr($row)}, '{$op}', "
             .($payload ? $json($row) : 'NULL').' FROM sync_state WHERE id = 1';
 
         $out = [];
-        foreach ([['ai', 'INSERT', 'I', 'NEW', true], ['au', 'UPDATE', 'U', 'NEW', true], ['ad', 'DELETE', 'D', 'OLD', false]] as [$suffix, $event, $op, $row, $payload]) {
+        // [suffix, event, statements run in the trigger body as [op, row, withPayload]]
+        $defs = $link
+            ? [['ai', 'INSERT', [['I', 'NEW', true]]], ['au', 'UPDATE', [['D', 'OLD', true], ['I', 'NEW', true]]], ['ad', 'DELETE', [['D', 'OLD', true]]]]
+            : [['ai', 'INSERT', [['I', 'NEW', true]]], ['au', 'UPDATE', [['U', 'NEW', true]]], ['ad', 'DELETE', [['D', 'OLD', false]]]];
+        foreach ($defs as [$suffix, $event, $parts]) {
             $name = "sync_{$table}_{$suffix}";
+            $body = implode('; ', array_map(fn ($p) => $insert($p[0], $p[1], $p[2]), $parts)).';';
             if ($driver === 'sqlite') {
-                $out[] = "CREATE TRIGGER IF NOT EXISTS {$name} AFTER {$event} ON {$table} WHEN (SELECT applying FROM sync_state WHERE id = 1) = 0 BEGIN ".$insert($op, $row, $payload).'; END';
+                $out[] = "CREATE TRIGGER IF NOT EXISTS {$name} AFTER {$event} ON {$table} WHEN (SELECT applying FROM sync_state WHERE id = 1) = 0 BEGIN {$body} END";
             } else {
                 $out[] = "DROP TRIGGER IF EXISTS {$name}";
-                $out[] = "CREATE TRIGGER {$name} AFTER {$event} ON {$table} FOR EACH ROW BEGIN IF (SELECT applying FROM sync_state WHERE id = 1) = 0 THEN ".$insert($op, $row, $payload).'; END IF; END';
+                $out[] = "CREATE TRIGGER {$name} AFTER {$event} ON {$table} FOR EACH ROW BEGIN IF (SELECT applying FROM sync_state WHERE id = 1) = 0 THEN {$body} END IF; END";
             }
         }
 

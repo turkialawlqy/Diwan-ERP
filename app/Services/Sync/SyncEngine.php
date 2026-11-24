@@ -117,7 +117,8 @@ class SyncEngine
     {
         $table = $change['table'];
         $pk = $change['pk'];
-        $exists = $db->table($table)->where('id', $pk)->exists();
+        $link = ! $db->getSchemaBuilder()->hasColumn($table, 'id');   // a link table: the row is its own key
+        $exists = ! $link && $db->table($table)->where('id', $pk)->exists();
 
         // The head office alone writes master data: a branch's edit of an existing master row waits for a person.
         if ($class === 'master' && $this->role === 'hub' && $change['op'] !== 'I') {
@@ -135,7 +136,22 @@ class SyncEngine
             $db->statement('SET FOREIGN_KEY_CHECKS=0');
         }
         try {
-            if ($change['op'] === 'D') {
+            if ($link) {
+                $row = $change['payload'];
+                if ($change['op'] === 'D') {
+                    $q = $db->table($table);
+                    foreach ($row as $column => $value) {
+                        $value === null ? $q->whereNull($column) : $q->where($column, $value);
+                    }
+                    $q->delete();
+                } else {
+                    $q = $db->table($table);
+                    foreach ($row as $column => $value) {
+                        $value === null ? $q->whereNull($column) : $q->where($column, $value);
+                    }
+                    $q->exists() || $db->table($table)->insert([$row]);
+                }
+            } elseif ($change['op'] === 'D') {
                 $db->table($table)->where('id', $pk)->delete();
             } else {
                 $row = $change['payload'];
