@@ -240,6 +240,23 @@ export default [
             { section: 'nav.sec_other', label: 'nav.timesheet', route: 'work-orders.timesheet', path: '/work-orders/timesheet' },
         ],
     },
+    {
+        key: 'hr', label: 'nav.hr', icon: IdentificationIcon, color: 'indigo',
+        children: [
+            { label: 'nav.employees', route: 'hr.employees.index', path: '/hr/employees' },
+            { label: 'nav.payroll', route: 'hr.payroll.index', path: '/hr/payroll' },
+            { label: 'nav.attendance', route: 'hr.attendance.index', path: '/hr/attendance' },
+            { label: 'nav.leaves', route: 'hr.leaves.index', path: '/hr/leaves' },
+            { label: 'nav.loans', route: 'hr.loans.index', path: '/hr/loans' },
+            { label: 'nav.admin_requests', route: 'hr.admin-requests.index', path: '/hr/admin-requests' },
+            { label: 'nav.admin_requests_inbox', route: 'hr.admin-requests.inbox', path: '/hr/admin-requests/inbox' },
+            { label: 'nav.settlements', route: 'hr.settlements.index', path: '/hr/settlements' },
+            { label: 'nav.organization', route: 'hr.organization', path: '/hr/organization' },
+            { label: 'nav.nationalities', route: 'hr.nationalities.index', path: '/hr/nationalities' },
+            { label: 'nav.hr_settings', route: 'hr.settings', path: '/hr/settings' },
+            { label: 'nav.self_service', route: 'hr.me', path: '/hr/me' },
+        ],
+    },
     { key: 'branches', label: 'nav.branches', icon: BuildingStorefrontIcon, route: 'branches.index', path: '/branches' },
     { key: 'templates', label: 'nav.templates', icon: PrinterIcon, route: 'templates.index', path: '/templates' },
     {
