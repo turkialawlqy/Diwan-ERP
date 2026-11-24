@@ -30,12 +30,12 @@ $Dry = ($env:DIWAN_DRY_RUN -eq '1')
 $DryLog = $env:DIWAN_DRY_LOG
 $Shared = Join-Path $Root 'shared'
 $EnvFile = Join-Path $Shared '.env'
-$Queue = Join-Path $Shared 'storage\app\remote-access-queue'
+$Queue = Join-Path (Join-Path (Join-Path $Shared 'storage') 'app') 'remote-access-queue'
 $Request = Join-Path $Queue 'request'
-$StatusFile = Join-Path $Shared 'storage\app\remote-access-status.json'
+$StatusFile = Join-Path (Join-Path (Join-Path $Shared 'storage') 'app') 'remote-access-status.json'
 $Caddyfile = Join-Path $Root 'Caddyfile'
 $Bin = Join-Path $Root 'bin'
-$Php = Join-Path $Bin 'php\php.exe'
+$Php = Join-Path (Join-Path $Bin 'php') 'php.exe'
 $Current = Join-Path $Root 'current'
 $Utf8 = New-Object System.Text.UTF8Encoding($false)
 
@@ -142,7 +142,8 @@ try {
     }
 
     $cloudflared = Join-Path $Bin 'cloudflared.exe'
-    $tailscale = Join-Path $env:ProgramFiles 'Tailscale\tailscale.exe'
+    $programFiles = if ($env:ProgramFiles) { $env:ProgramFiles } else { 'C:\Program Files' }
+    $tailscale = Join-Path (Join-Path $programFiles 'Tailscale') 'tailscale.exe'
     function Get-Arch { if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } elseif ([Environment]::Is64BitOperatingSystem) { 'amd64' } else { '386' } }
     function Get-File($url, $out) {
         Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $out -TimeoutSec 600
