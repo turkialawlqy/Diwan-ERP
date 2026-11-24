@@ -108,6 +108,7 @@ use App\Http\Controllers\SupplierPaymentController;
 use App\Http\Controllers\Support\SupportSettingsController;
 use App\Http\Controllers\Support\SurveyController;
 use App\Http\Controllers\Support\TicketController;
+use App\Http\Controllers\SyncStatusController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
@@ -274,6 +275,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     Route::post('/context/fiscal-year', [ActiveContextController::class, 'fiscalYear'])->name('context.fiscal-year');
     Route::get('/system/update', [SelfUpdateController::class, 'status'])->name('system.update.status');
     Route::post('/system/update', [SelfUpdateController::class, 'apply'])->middleware('throttle:6,1')->name('system.update.apply');
+    Route::get('/settings/sync', [SyncStatusController::class, 'index'])->name('settings.sync');
     Route::get('/settings/remote-access', [RemoteAccessController::class, 'edit'])->name('settings.remote-access');
     Route::get('/settings/remote-access/status', [RemoteAccessController::class, 'status'])->name('settings.remote-access.status');
     Route::post('/settings/remote-access', [RemoteAccessController::class, 'apply'])->middleware('throttle:6,1')->name('settings.remote-access.apply');

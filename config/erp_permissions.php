@@ -392,6 +392,7 @@ return [
         'system.update.status' => '@authenticated',
         'system.update.apply' => '@authenticated',
         // Owner-only (checked in the controller): it changes how the whole system is exposed.
+        'settings.sync' => '@authenticated',
         'settings.remote-access' => '@authenticated',
         'settings.remote-access.status' => '@authenticated',
         'settings.remote-access.apply' => '@authenticated',
