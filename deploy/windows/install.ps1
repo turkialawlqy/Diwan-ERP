@@ -541,6 +541,54 @@ Ok "Version $version"
 
 # ------------------------------------------------------------------ settings
 Step 6 'Settings and database tables'
+# Branch synchronisation (optional): asks whether this server is stand-alone, the head office or a branch of one, so nobody edits
+# .env by hand. A branch also gets its database's id stepping, so ids of two servers never meet.
+# Without a window to ask in, use DIWAN_SYNC_ROLE (hub|branch|standalone), DIWAN_SYNC_NODE, DIWAN_SYNC_HUB_URL, DIWAN_SYNC_TOKEN.
+function Get-EnvValue($file, $key) {
+    $line = Select-String -Path $file -Pattern "^$key=(.*)$" | Select-Object -Last 1
+    if ($line) { return $line.Matches[0].Groups[1].Value.Trim() }
+    return ''
+}
+function Configure-Sync($phpExe, $release, $envFile, $myIni, $dbService) {
+    $syncArgs = @('artisan', 'sync:setup', '--skip-join')
+    if ((-not $env:DIWAN_SYNC_ROLE) -and ((Get-EnvValue $envFile 'SYNC_ROLE') -match '^(hub|branch)$')) {
+        Ok 'Synchronisation is already set up on this server (left as it is).'
+        return
+    }
+    if ($env:DIWAN_SYNC_ROLE) {
+        $syncArgs += "--role=$($env:DIWAN_SYNC_ROLE)"
+        $syncArgs += '--no-interaction'
+        if ($env:DIWAN_SYNC_NODE) { $syncArgs += "--node=$($env:DIWAN_SYNC_NODE)" }
+        if ($env:DIWAN_SYNC_HUB_URL) { $syncArgs += "--hub-url=$($env:DIWAN_SYNC_HUB_URL)" }
+        if ($env:DIWAN_SYNC_TOKEN) { $syncArgs += "--token=$($env:DIWAN_SYNC_TOKEN)" }
+    } elseif ([Environment]::UserInteractive -and (-not [Console]::IsInputRedirected) -and (-not [Console]::IsOutputRedirected)) {
+        Write-Host ''
+        Write-Host 'Branch synchronisation (press Enter to keep a normal stand-alone server)' -ForegroundColor Cyan
+    } else {
+        return
+    }
+    & $phpExe @syncArgs
+    if ($LASTEXITCODE -ne 0) { Warn 'Branch synchronisation was not set up (see above). Run later: php artisan sync:setup'; return }
+    $releaseEnv = Join-Path $release '.env'
+    $role = Get-EnvValue $releaseEnv 'SYNC_ROLE'
+    $node = Get-EnvValue $releaseEnv 'SYNC_NODE'
+    Copy-Item $releaseEnv $envFile -Force
+    if (($role -ne 'hub') -and ($role -ne 'branch')) { return }
+    if (Test-Path $myIni) {
+        $ini = (Get-Content $myIni -Raw) -replace '(?m)^(auto_increment_increment|auto_increment_offset|log_bin_trust_function_creators)=.*\r?\n', ''
+        $ini = $ini -replace '\[mysqld\]', "[mysqld]`r`nauto_increment_increment=100`r`nauto_increment_offset=$node`r`nlog_bin_trust_function_creators=1"
+        Write-Utf8 $myIni $ini
+        Restart-Service -Name $dbService -ErrorAction SilentlyContinue
+    } else {
+        Warn "Set auto_increment_increment=100 and auto_increment_offset=$node in the database settings, then run: php artisan sync:join $node"
+    }
+    $joinArgs = @('artisan', 'sync:join', $node)
+    if ($env:DIWAN_SYNC_FORCE) { $joinArgs += '--force' }
+    & $phpExe @joinArgs
+    if ($LASTEXITCODE -ne 0) { Warn "Run again after fixing the message above: php artisan sync:join $node"; return }
+    & $phpExe artisan optimize | Out-Null
+    Ok "Synchronisation set up as $role (node $node)."
+}
 $envFile = Join-Path $Shared '.env'
 if (-not (Test-Path $envFile)) {
     $dumpExe = Join-Path $DbDir 'bin\mariadb-dump.exe'
@@ -561,6 +609,7 @@ try {
     & $phpExe artisan migrate --force --seed
     if ($LASTEXITCODE -ne 0) { Fail 'Could not create the database tables.' }
     & $phpExe artisan optimize | Out-Null
+    Configure-Sync $phpExe $release $envFile $myIni $DbService
 } finally { Pop-Location }
 Set-Junction $Current $release
 Write-Utf8 (Join-Path $Root 'secrets.txt') (

@@ -99,13 +99,23 @@ class SyncHub
         if (! SyncFiles::valid($table, $column, $path)) {
             return null;
         }
-        $row = $this->db()->table($table)->where($column, $path)->first();
-        if (! $row) {
-            return null;
+        $query = $this->db()->table($table);
+        // A JSON layout is searched for the path as text, then checked path by path.
+        // (JSON text usually has the slashes escaped as \/ : both spellings are looked for.)
+        $rows = SyncFiles::isJson($table)
+            ? $query->where(fn ($q) => $q->where($column, 'like', '%'.$path.'%')->orWhere($column, 'like', '%'.str_replace('/', '\\/', $path).'%'))->get()
+            : $query->where($column, $path)->get();
+        foreach ($rows as $row) {
+            if (! in_array($path, SyncFiles::pathsOf($table, $row->{$column}), true)) {
+                continue;
+            }
+            $company = $table === 'companies' ? $row->id : ($row->company_id ?? null);
+            if (! ($node->company_id && $company !== null && (int) $company !== (int) $node->company_id)) {
+                return $row;
+            }
         }
-        $company = $table === 'companies' ? $row->id : ($row->company_id ?? null);
 
-        return $node->company_id && $company !== null && (int) $company !== (int) $node->company_id ? null : $row;
+        return null;
     }
 
     /** @param list<array{table: string, path: string}> $items @return list<string> the paths whose file this server does not have */

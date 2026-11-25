@@ -43,10 +43,10 @@ class SyncTransportTest extends TestCase
             $this->artisan('migrate', ['--database' => $name, '--force' => true])->assertSuccessful();
             DB::connection($name)->statement('PRAGMA foreign_keys = OFF');
             (new SyncEngine($name, 'branch'))->join($node);
-            SyncTriggers::install(DB::connection($name), ['products', 'attachments']);
+            SyncTriggers::install(DB::connection($name), ['products', 'attachments', 'print_templates']);
         }
         (new SyncEngine(config('database.default'), 'hub'))->join(1);
-        SyncTriggers::install(DB::connection(), ['products', 'attachments']);
+        SyncTriggers::install(DB::connection(), ['products', 'attachments', 'print_templates']);
         $this->company = Company::factory()->create()->id;   // the hub keeps its foreign keys: the rows need their company
         $this->hub = new SyncHub(config('database.default'));
         $this->tokens = [2 => $this->hub->register(2, 'Branch B'), 3 => $this->hub->register(3, 'Branch C')];
@@ -307,6 +307,32 @@ class SyncTransportTest extends TestCase
         $this->serverDisk('c');
         $this->assertSame(1, $this->client(3, 'sync_c')->run()['files_fetched']);
         $this->assertSame('png-bytes', Storage::disk('public')->get('products/1/p.png'));
+    }
+
+    public function test_pictures_inside_a_print_template_layout_follow_the_template_and_a_changed_picture_is_caught_later(): void
+    {
+        $layout = fn (string $src) => json_encode(['mode' => 'freeform', 'freeform' => ['pages' => [['background' => ['src' => $src], 'elements' => [['type' => 'image', 'src' => 'logo']]]]]]);
+        $src = "templates/{$this->company}/abcdefgh12.png";
+        $this->serverDisk('b');
+        Storage::disk('public')->put($src, 'one');
+        $id = DB::connection('sync_b')->table('print_templates')->insertGetId(['company_id' => $this->company, 'template_type' => 'invoice_a4', 'name' => 'قالب', 'layout_data' => $layout($src), 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->currentServer = 'b';
+        $this->assertSame(1, $this->client(2, 'sync_b')->run()['files_sent']);
+        $this->currentServer = 'c';
+        $this->serverDisk('c');
+        $this->assertSame(1, $this->client(3, 'sync_c')->run()['files_fetched']);
+        $this->assertSame('one', Storage::disk('public')->get($src));
+
+        // The head office redraws the template with another picture: a row the file cursor already passed is still caught.
+        $second = "templates/{$this->company}/zyxwvuts98.png";
+        $this->serverDisk('hub');
+        Storage::disk('public')->put($second, 'two');
+        DB::table('print_templates')->where('id', $id)->update(['layout_data' => $layout($second), 'updated_at' => now()]);
+        $this->currentServer = 'c';
+        $this->serverDisk('c');
+        $this->assertSame(1, $this->client(3, 'sync_c')->run()['files_fetched']);
+        $this->assertSame('two', Storage::disk('public')->get($second));
     }
 
     public function test_the_hub_serves_and_accepts_only_files_a_row_points_at_and_only_safe_paths(): void

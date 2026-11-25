@@ -15,6 +15,8 @@
 # Options (environment variables): DIWAN_PORT=8000  DIWAN_DIR=/opt/diwan
 #   DIWAN_PACKAGE=path-or-url-of-the-zip   DIWAN_NO_SERVICES=1 (no services, for testing)
 #   DIWAN_BIND=0.0.0.0 (127.0.0.1 = only this computer, for use behind a tunnel)
+#   Branch synchronisation (asked on screen when run from a terminal; or set here):
+#   DIWAN_SYNC_ROLE=hub|branch|standalone  DIWAN_SYNC_NODE=2  DIWAN_SYNC_HUB_URL=https://...  DIWAN_SYNC_TOKEN=...
 
 set -Eeuo pipefail
 
@@ -169,6 +171,45 @@ cd "$RELEASE"
 grep -q '^APP_KEY=base64' "$ENV_FILE" || as_app php artisan key:generate --force > /dev/null
 as_app php artisan migrate --force --seed > /dev/null
 as_app php artisan optimize > /dev/null
+
+# Branch synchronisation (optional): asks whether this is a stand-alone server, the head office or a branch, so nobody edits
+# .env by hand. A branch also gets its database's id stepping, so ids of two servers never meet.
+configure_sync() {
+    local args=(--skip-join) role node
+    # Running the installer again keeps a server that is already a head office or a branch as it is.
+    if [[ -z ${DIWAN_SYNC_ROLE:-} ]] && grep -qE '^SYNC_ROLE=(hub|branch)$' "$ENV_FILE" 2> /dev/null; then
+        ok "Synchronisation is already set up on this server (left as it is)."
+        return 0
+    fi
+    if [[ -n ${DIWAN_SYNC_ROLE:-} ]]; then
+        args+=("--role=$DIWAN_SYNC_ROLE" --no-interaction)
+        [[ -n ${DIWAN_SYNC_NODE:-} ]] && args+=("--node=$DIWAN_SYNC_NODE")
+        [[ -n ${DIWAN_SYNC_HUB_URL:-} ]] && args+=("--hub-url=$DIWAN_SYNC_HUB_URL")
+        [[ -n ${DIWAN_SYNC_TOKEN:-} ]] && args+=("--token=$DIWAN_SYNC_TOKEN")
+        as_app php artisan sync:setup "${args[@]}" || { warn "Branch synchronisation was not set up (see above); run: php artisan sync:setup"; return 0; }
+    elif [[ -t 1 && -r /dev/tty ]]; then
+        echo; echo "${c_info}Branch synchronisation${c_off} (press Enter to keep a normal stand-alone server)"
+        as_app php artisan sync:setup "${args[@]}" < /dev/tty || { warn "Branch synchronisation was not set up; run later: php artisan sync:setup"; return 0; }
+    else
+        return 0
+    fi
+    role=$(grep -E '^SYNC_ROLE=' "$ENV_FILE" | tail -1 | cut -d= -f2 || true)
+    node=$(grep -E '^SYNC_NODE=' "$ENV_FILE" | tail -1 | cut -d= -f2 || true)
+    [[ $role == hub || $role == branch ]] || return 0
+    [[ -d /etc/mysql/conf.d ]] || { warn "No /etc/mysql/conf.d: set auto_increment_increment=100 and auto_increment_offset=$node in the database settings, then run: php artisan sync:join $node"; return 0; }
+    {
+        echo "[mysqld]"
+        echo "auto_increment_increment=100"
+        echo "auto_increment_offset=$node"
+        echo "log_bin_trust_function_creators=1"
+    } > /etc/mysql/conf.d/diwan-sync.cnf
+    systemctl restart mysql 2> /dev/null || systemctl restart mariadb 2> /dev/null || service mysql restart > /dev/null 2>&1 || service mariadb restart > /dev/null 2>&1 || warn "Restart the database so the id settings take effect."
+    as_app php artisan sync:join "$node" ${DIWAN_SYNC_FORCE:+--force} || warn "Run again after fixing the message above: php artisan sync:join $node"
+    as_app php artisan optimize > /dev/null
+    ok "Synchronisation set up as ${role} (node $node)."
+}
+configure_sync
+
 ln -sfn "$RELEASE" "$DIR/current.next" && mv -Tf "$DIR/current.next" "$DIR/current"
 ok "Database ready. Passwords saved in $DIR/secrets.txt"
 
