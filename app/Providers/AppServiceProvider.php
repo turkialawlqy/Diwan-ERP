@@ -22,6 +22,7 @@ use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Events\ConnectionEstablished;
 use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -59,6 +60,15 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->arabicAuthMails();
+
+        // Branch sync: ids of two servers must never meet. Every connection of a server that takes part steps its auto-increment by 100 from
+        // its own node number (session variables, so no database privileges or server settings are needed).
+        Event::listen(ConnectionEstablished::class, function ($event) {
+            $node = (int) config('sync-node.node');
+            if (in_array(config('sync-node.role'), ['hub', 'branch'], true) && $node >= 1 && $node <= 99 && in_array($event->connection->getDriverName(), ['mysql', 'mariadb'], true)) {
+                $event->connection->statement("SET SESSION auto_increment_increment = 100, auto_increment_offset = {$node}");
+            }
+        });
 
         // Every update runs the migrations: new permissions (new screens and actions) appear then on every platform.
         Event::listen(MigrationsEnded::class, function () {

@@ -146,4 +146,51 @@ class SyncHub
 
         return $this->fileOwner($node, $table, $column, $path) ? SyncFiles::read($table, $path) : null;
     }
+
+    /**
+     * The tables a new branch copies (in the order the head office lists them) and the feed position the copy starts from: whatever
+     * the head office changes after that position reaches the branch by the normal feed, so nothing is missed while it copies.
+     *
+     * @return array{tables: list<string>, ceiling: int}
+     */
+    public function snapshotInfo(object $node): array
+    {
+        $schema = $this->db()->getSchemaBuilder();
+        $tables = array_values(array_filter(array_merge(config('sync.master', []), config('sync.owned', [])), fn ($t) => $schema->hasTable($t)));
+
+        return ['tables' => $tables, 'ceiling' => $this->engine->ceiling()];
+    }
+
+    /**
+     * One page of one table. A table with an `id` is read from the id after $after; a link table (no id) by offset. A branch tied to one
+     * company gets only that company's rows where the table says whose they are.
+     *
+     * @return array{rows: list<array<string, mixed>>, next: int, more: bool}
+     */
+    public function snapshotPage(object $node, string $table, int $after, int $limit = 200): array
+    {
+        $info = $this->snapshotInfo($node);
+        abort_unless(in_array($table, $info['tables'], true), 404);
+        $limit = max(1, min($limit, 500));
+        $schema = $this->db()->getSchemaBuilder();
+        $query = $this->db()->table($table);
+        if ($node->company_id) {
+            $table === 'companies' ? $query->where('id', $node->company_id) : ($schema->hasColumn($table, 'company_id') ? $query->where('company_id', $node->company_id) : null);
+        }
+
+        if ($schema->hasColumn($table, 'id')) {
+            $rows = $query->where('id', '>', $after)->orderBy('id')->limit($limit + 1)->get();
+            $more = $rows->count() > $limit;
+            $rows = $rows->take($limit)->map(fn ($r) => (array) $r)->values();
+
+            return ['rows' => $rows->all(), 'next' => (int) ($rows->last()['id'] ?? $after), 'more' => $more];
+        }
+        foreach ($schema->getColumnListing($table) as $column) {
+            $query->orderBy($column);
+        }
+        $rows = $query->offset($after)->limit($limit + 1)->get();
+        $more = $rows->count() > $limit;
+
+        return ['rows' => $rows->take($limit)->map(fn ($r) => (array) $r)->values()->all(), 'next' => $after + min($rows->count(), $limit), 'more' => $more];
+    }
 }

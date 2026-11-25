@@ -142,6 +142,23 @@ class SyncEngine
         return true;
     }
 
+    /** True when the stored row has exactly the values of the change (ignoring the update time). */
+    protected function sameRow(Connection $db, string $table, array $change): bool
+    {
+        $current = (array) $db->table($table)->where('id', $change['pk'])->first();
+        foreach ($change['payload'] ?? [] as $column => $value) {
+            if ($column === 'updated_at') {
+                continue;
+            }
+            $stored = $current[$column] ?? null;
+            if (! ($stored === $value || (string) $stored === (string) $value || (is_numeric($stored) && is_numeric($value) && (float) $stored === (float) $value))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     protected function classOf(string $table): ?string
     {
         foreach (['master', 'owned'] as $class) {
@@ -174,6 +191,10 @@ class SyncEngine
             return $this->conflict($db, $change, 'closed_period');
         }
         // An id taken by another row: never overwrite it.
+        // The same row already here (a branch's first copy contains what its feed then repeats): nothing to do, not a collision.
+        if (! $force && $change['op'] === 'I' && $exists && $this->sameRow($db, $table, $change)) {
+            return 'skipped';
+        }
         if (! $force && $change['op'] === 'I' && $exists) {
             return $this->conflict($db, $change, 'id_collision');
         }

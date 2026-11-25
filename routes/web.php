@@ -276,6 +276,11 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     Route::get('/system/update', [SelfUpdateController::class, 'status'])->name('system.update.status');
     Route::post('/system/update', [SelfUpdateController::class, 'apply'])->middleware('throttle:6,1')->name('system.update.apply');
     Route::get('/settings/sync', [SyncStatusController::class, 'index'])->name('settings.sync');
+    Route::post('/settings/sync/hub', [SyncStatusController::class, 'enableHub'])->middleware('throttle:6,1')->name('settings.sync.hub');
+    Route::post('/settings/sync/branches', [SyncStatusController::class, 'addBranch'])->middleware('throttle:20,1')->name('settings.sync.branches.add');
+    Route::delete('/settings/sync/branches/{node}', [SyncStatusController::class, 'removeBranch'])->whereNumber('node')->name('settings.sync.branches.remove');
+    Route::post('/settings/sync/connect', [SyncStatusController::class, 'connect'])->middleware('throttle:6,1')->name('settings.sync.connect');
+    Route::post('/settings/sync/disconnect', [SyncStatusController::class, 'disconnect'])->middleware('throttle:6,1')->name('settings.sync.disconnect');
     Route::post('/settings/sync/conflicts/{id}/{action}', [SyncStatusController::class, 'resolve'])->whereNumber('id')->middleware('throttle:30,1')->name('settings.sync.resolve');
     Route::get('/settings/remote-access', [RemoteAccessController::class, 'edit'])->name('settings.remote-access');
     Route::get('/settings/remote-access/status', [RemoteAccessController::class, 'status'])->name('settings.remote-access.status');

@@ -26,6 +26,9 @@ class SyncClient
         $cursor = $db->table('sync_cursors')->where('peer', 'hub')->first();
         $version = trim((string) @file_get_contents(base_path('VERSION')));
 
+        if (! (new SyncBootstrap($this->connection, $this->transport))->done()) {
+            throw new \RuntimeException('The first copy of the head office data did not finish: run it again from Settings, Sync.');
+        }
         $hello = $this->transport->post('handshake', ['version' => $version]);
         if (! ($hello['ok'] ?? false)) {
             throw new \RuntimeException('The head office runs release '.($hello['version'] ?? '?')." and this branch runs {$version}: update the branch first.");

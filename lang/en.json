@@ -1020,5 +1020,10 @@
     "وقت الخروج": "Check-out time",
     "طُبّق التغيير المحجوز.": "The held change was applied.",
     "أُغلق التغيير المحجوز دون تطبيق.": "The held change was closed without applying.",
-    "تعذر معالجة هذا التغيير (عولج من قبل أو لا يمكن تطبيقه).": "This change could not be processed (already handled, or it cannot be applied)."
+    "تعذر معالجة هذا التغيير (عولج من قبل أو لا يمكن تطبيقه).": "This change could not be processed (already handled, or it cannot be applied).",
+    "هذا الخادم هو المكتب الرئيسي الآن. أضف فروعك من هنا.": "This server is the head office now. Add your branches from here.",
+    "بلغت الحد الأقصى من الفروع (98).": "You have reached the maximum number of branches (98).",
+    "فُصل الفرع: لم يعد رمزه مقبولًا.": "The branch was cut off: its token is no longer accepted.",
+    "رمز الاتصال غير صالح. انسخه كاملًا من المكتب الرئيسي.": "The connection code is not valid. Copy it whole from the head office.",
+    "فُصل هذا الخادم عن المزامنة. بياناته باقية كما هي.": "This server was unlinked from synchronisation. Its data stays as it is."
 }

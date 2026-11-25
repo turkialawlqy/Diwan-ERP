@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Company;
+use App\Services\Sync\SyncBootstrap;
 use App\Services\Sync\SyncClient;
 use App\Services\Sync\SyncEngine;
 use App\Services\Sync\SyncHub;
@@ -110,6 +111,8 @@ class SyncTransportTest extends TestCase
                         'handshake' => $this->hub->handshake($node, $payload),
                         'push' => $this->hub->receive($node, $payload['changes']),
                         'pull' => $this->hub->feed($node, $payload['after'], $payload['limit']),
+                        'snapshot-info' => $this->hub->snapshotInfo($node),
+                        'snapshot-page' => $this->hub->snapshotPage($node, $payload['table'], $payload['after'], $payload['limit']),
                         'files-missing' => ['missing' => $this->hub->filesMissing($node, $payload['items'])],
                         'files-put' => ['stored' => $this->hub->filePut($node, $payload['table'], $payload['path'], $payload['content'])],
                         'files-get' => ['content' => $this->hub->fileGet($node, $payload['table'], $payload['path'])],
@@ -333,6 +336,43 @@ class SyncTransportTest extends TestCase
         $this->serverDisk('c');
         $this->assertSame(1, $this->client(3, 'sync_c')->run()['files_fetched']);
         $this->assertSame('two', Storage::disk('public')->get($second));
+    }
+
+    public function test_a_new_branch_copies_the_head_office_data_first_then_follows_its_feed_without_conflicts(): void
+    {
+        $row = fn (string $sku) => ['company_id' => $this->company, 'name_ar' => $sku, 'sku' => $sku, 'selling_price' => 5, 'is_active' => 1, 'track_inventory' => 1, 'created_at' => now(), 'updated_at' => now()];
+        foreach (['H1', 'H2', 'H3'] as $sku) {
+            DB::table('products')->insert($row($sku));
+        }
+        $role = DB::table('roles')->insertGetId(['name' => 'r', 'guard_name' => 'web', 'team_id' => $this->company, 'created_at' => now(), 'updated_at' => now()]);
+        $permission = DB::table('permissions')->insertGetId(['name' => 'p', 'guard_name' => 'web', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('role_has_permissions')->insert([['permission_id' => $permission, 'role_id' => $role]]);
+        DB::connection('sync_b')->table('products')->insert($row('JUNK') + ['id' => 902]);   // a fresh install's own data
+
+        // The copy starts from the head office's feed position, then the head office changes one more product before the branch runs.
+        $client = $this->client(2, 'sync_b');
+        $transport = (new \ReflectionProperty($client, 'transport'))->getValue($client);
+        $result = (new SyncBootstrap('sync_b', $transport))->run();
+        DB::table('products')->insert($row('H4'));
+
+        $this->assertGreaterThanOrEqual(4, $result['rows']);
+        $this->assertSame(['H1', 'H2', 'H3'], DB::connection('sync_b')->table('products')->orderBy('id')->pluck('sku')->all());
+        $this->assertSame(1, DB::connection('sync_b')->table('role_has_permissions')->count());
+        $this->assertSame(0, DB::connection('sync_b')->table('sync_outbox')->count());   // the copy is nobody's change
+        $this->assertTrue((new SyncBootstrap('sync_b', $transport))->done());
+
+        // The normal run brings only what came after, and repeats of rows already copied are not collisions.
+        $run = $client->run();
+        $this->assertSame(0, $run['conflicts']);
+        $this->assertSame(['H1', 'H2', 'H3', 'H4'], DB::connection('sync_b')->table('products')->orderBy('id')->pluck('sku')->all());
+        $this->assertSame(0, DB::connection('sync_b')->table('sync_conflicts')->count());
+    }
+
+    public function test_a_copy_that_did_not_finish_blocks_the_normal_sync(): void
+    {
+        DB::connection('sync_b')->table('sync_cursors')->updateOrInsert(['peer' => 'snapshot'], ['pushed' => 0, 'pulled' => 0]);
+        $this->expectExceptionMessage('did not finish');
+        $this->client(2, 'sync_b')->run();
     }
 
     public function test_the_hub_serves_and_accepts_only_files_a_row_points_at_and_only_safe_paths(): void
