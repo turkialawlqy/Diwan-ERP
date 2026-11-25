@@ -136,4 +136,23 @@ class SyncJoinTest extends TestCase
         $branch->apply(array_values(array_filter($hub->pending($seen ? max(array_column($feed, 'feed')) : 0), fn ($c) => $c['table'] === 'role_has_permissions')));
         $this->assertSame([$p8], DB::connection('sync_b')->table('role_has_permissions')->pluck('permission_id')->all());
     }
+
+    public function test_a_copy_of_another_node_is_refused_unless_forced_and_then_its_feed_is_emptied(): void
+    {
+        $this->artisan('sync:join', ['node' => 1])->assertSuccessful();
+        DB::table('sync_outbox')->insert(['node_id' => 1, 'table_name' => 'products', 'pk' => 1, 'op' => 'I', 'payload' => '{}']);
+
+        $this->artisan('sync:join', ['node' => 2])->assertFailed();
+        $this->assertSame(1, (int) DB::table('sync_state')->value('node_id'));
+        $this->assertSame(1, DB::table('sync_outbox')->count());
+
+        $this->artisan('sync:join', ['node' => 2, '--force' => true])->assertSuccessful();
+        $this->assertSame(2, (int) DB::table('sync_state')->value('node_id'));
+        $this->assertSame(0, DB::table('sync_outbox')->count());
+
+        // Joining again as the same node never touches the feed.
+        DB::table('sync_outbox')->insert(['node_id' => 2, 'table_name' => 'products', 'pk' => 2, 'op' => 'I', 'payload' => '{}']);
+        $this->artisan('sync:join', ['node' => 2])->assertSuccessful();
+        $this->assertSame(1, DB::table('sync_outbox')->count());
+    }
 }
