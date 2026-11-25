@@ -209,6 +209,23 @@ class InventoryTest extends TestCase
         $this->assertSame(20.0, $this->balance('inventory_adjustment'));
     }
 
+    /** Saving a transfer order opens it; the redirect once named a route that does not exist (500 after the save, tempting a duplicate). */
+    public function test_a_new_transfer_order_opens_its_page(): void
+    {
+        $p = $this->product();
+
+        $response = $this->post(route('inventory.stock-transfers.store'), [
+            'from_warehouse_id' => $this->main->id, 'to_warehouse_id' => $this->branch->id, 'transfer_date' => '2026-06-15',
+            'items' => [['product_id' => $p->id, 'quantity' => 4]],
+        ]);
+
+        $transfer = StockTransfer::sole();
+        $response->assertRedirect(route('inventory.stock-transfers.show', $transfer->id))
+            ->assertSessionHas('success', 'تم إنشاء أمر التحويل');
+        $this->get(route('inventory.stock-transfers.show', $transfer->id))->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Inventory/Transfers/Show')->where('transfer.id', $transfer->id));
+    }
+
     public function test_transfers_between_branches_move_inventory_value_with_the_goods(): void
     {
         $riyadh = Branch::create(['name_ar' => 'الرياض', 'code' => 'RUH', 'is_main' => true, 'is_active' => true]);
