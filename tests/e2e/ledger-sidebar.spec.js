@@ -93,6 +93,63 @@ test('each user orders the side menu with the arrows, and it stays after a refre
     expect(errors).toEqual([]);
 });
 
+test('«الفروع», «قوالب الطباعة», «الإعدادات» and «التحديثات والطلبات» close the side menu, whatever order is saved', async ({ page }) => {
+    const errors = watchErrors(page);
+    const pinned = ['الفروع', 'قوالب الطباعة', 'الإعدادات', 'التحديثات والطلبات'];
+    const entries = async () => (await page.locator('[data-sidebar] nav > a, [data-sidebar] nav > div > button').allInnerTexts()).map((text) => text.trim());
+    // The saved order, sent from the page itself (its cookies and XSRF token; *.localhost resolves in the browser only).
+    const order = (method, body = null) => page.evaluate(async ([method, body]) => {
+        const xsrf = decodeURIComponent(document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/)?.[1] || '');
+        const headers = { 'Content-Type': 'application/json', Accept: 'application/json', 'X-XSRF-TOKEN': xsrf };
+        // Saved = redirected back (not followed: fetch would repeat a DELETE on the page it goes back to).
+        const response = await fetch('/preferences/sidebar', { method, headers, body: body && JSON.stringify(body), redirect: 'manual' });
+        return response.type === 'opaqueredirect';
+    }, [method, body]);
+    await page.goto('/dashboard');
+    expect((await entries()).slice(-4)).toEqual(pinned);
+
+    try {
+        // An order saved before the rule, with them on top, still shows them last; the other groups follow it.
+        expect(await order('POST', { groups: ['updates', 'settings', 'templates', 'branches', 'sales'] })).toBe(true);
+        await page.reload();
+        const texts = await entries();
+        expect(texts[0]).toBe('المبيعات');
+        expect(texts.slice(-4)).toEqual(pinned);
+
+        // While editing: no handle or arrows on them, and the last other group does not go down below them.
+        await page.locator('[data-sidebar-edit]').click();
+        const rows = page.locator('[data-sidebar-group-row]');
+        const fixed = page.locator('[data-sidebar-group-row][data-sidebar-pinned]');
+        await expect(fixed).toHaveCount(4);
+        await expect(fixed.locator('[data-sidebar-group-up], [data-sidebar-group-down]')).toHaveCount(0);
+        await expect(page.locator('[data-sidebar-pinned-note]')).toHaveCount(1);
+        const before = await rows.allInnerTexts();
+        const lastOther = before.length - 5;
+        await rows.nth(lastOther).locator('[data-sidebar-group-down]').click();
+        expect(await rows.allInnerTexts()).toEqual(before);
+        // Drag and drop by a group's own header (not one of its links), downwards so that the target scrolls in at
+        // the bottom and not under the sticky bar: nothing is dropped on them, they do not move, the others still do.
+        // The window is made tall so that each drag stays inside the menu: a drag that has to scroll it drops nothing.
+        const header = (row) => row.locator(':scope > div').first();
+        await page.setViewportSize({ width: 1440, height: 3200 });
+        await header(rows.nth(lastOther)).dragTo(header(fixed.nth(0)));
+        expect(await rows.allInnerTexts()).toEqual(before);
+        await header(fixed.nth(0)).dragTo(header(fixed.nth(3)));
+        expect(await rows.allInnerTexts()).toEqual(before);
+        await header(rows.nth(lastOther - 1)).dragTo(header(rows.nth(lastOther)));
+        const dragged = await rows.allInnerTexts();
+        expect([dragged[lastOther - 1], dragged[lastOther]]).toEqual([before[lastOther], before[lastOther - 1]]);
+        expect(dragged.slice(-4)).toEqual(before.slice(-4));
+        await page.locator('[data-sidebar-save]').click();
+        await expect(page.locator('[data-sidebar-edit-bar]')).toHaveCount(0);
+        expect((await entries()).slice(-4)).toEqual(pinned);
+    } finally {
+        // Back to the default order so other specs see the usual menu.
+        await order('DELETE');
+    }
+    expect(errors).toEqual([]);
+});
+
 test('drag and drop reorders the links inside a group', async ({ page }) => {
     await page.goto('/dashboard');
     await page.locator('[data-sidebar-edit]').click();

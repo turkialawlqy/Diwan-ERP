@@ -4056,7 +4056,8 @@
         "up": "Up",
         "down": "Down",
         "collapse": "Collapse the menu",
-        "expand": "Expand the menu"
+        "expand": "Expand the menu",
+        "pinned": "Always at the bottom of the menu"
     },
     "eq_prep": {
         "title": "Daily equipment preparation",
