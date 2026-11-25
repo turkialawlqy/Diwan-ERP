@@ -13,6 +13,7 @@ use App\Models\ZatcaDevice;
 use App\Models\ZatcaDocument;
 use App\Services\Accounting\AccountingSetupService;
 use App\Services\Inventory\StockService;
+use App\Services\Saas\AlertService;
 use App\Services\Sales\InvoiceService;
 use App\Services\Sales\SalesCycleService;
 use App\Services\TenantManager;
@@ -399,6 +400,22 @@ class ZatcaTest extends TestCase
         // Two documents wait, but only the one this server's device signed is due here.
         $this->travel(10)->minutes();
         $this->artisan('erp:zatca-submit')->assertSuccessful()->expectsOutputToContain('1 document(s) due');
+    }
+
+    public function test_simplified_invoices_warn_before_the_reporting_deadline_and_alarm_after_it(): void
+    {
+        $this->onboard();
+        $this->officeQueue();
+        $this->invoice('simplified');   // no worker runs: it waits unreported
+        $kinds = fn () => collect(app(AlertService::class)->collect())->pluck('kind')->all();
+
+        $this->assertNotContains('zatca_deadline_near', $kinds());
+        $this->travel(21)->hours();
+        $this->assertContains('zatca_deadline_near', $kinds());
+        $this->assertNotContains('zatca_overdue', $kinds());
+        $this->travel(4)->hours();
+        $this->assertContains('zatca_overdue', $kinds());
+        $this->assertNotContains('zatca_deadline_near', $kinds());
     }
 
     public function test_a_failing_document_is_sent_again_only_after_its_back_off(): void
