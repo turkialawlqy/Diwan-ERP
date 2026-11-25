@@ -147,6 +147,23 @@ Describe 'Installing Caddy' {
             }
             Set-Content -Path (Join-Path $Dir "caddy_$($Version)_checksums.txt") -Value $lines -Encoding Ascii
         }
+
+        # What an antivirus does to a program it sees run for the first time, and what made the test of
+        # the real release below fail now and then on GitHub's runners (there it is the runner's own
+        # provjobd.exe, for a fraction of a second): caddy.exe is held open a moment longer, here until
+        # Stop-Hold. Mock Get-CaddyVersion { Get-CaddyVersionThenHold $exe } gives the real version, and
+        # then holds the copy in %TEMP% open without sharing its deletion.
+        $script:RealCaddyVersion = ${function:Get-CaddyVersion}
+        function Get-CaddyVersionThenHold($exe) {
+            $version = & $script:RealCaddyVersion $exe
+            if (-not $script:Hold -and $exe.StartsWith("$env:TEMP\", [StringComparison]::OrdinalIgnoreCase)) {
+                $script:Hold = [IO.File]::Open($exe, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+            }
+            return $version
+        }
+        function Stop-Hold {
+            if ($script:Hold) { $script:Hold.Dispose(); $script:Hold = $null }
+        }
     }
 
     BeforeEach {
@@ -170,7 +187,10 @@ Describe 'Installing Caddy' {
         Mock Write-Host { }
     }
 
-    AfterEach { $env:TEMP = $script:SavedTemp }
+    AfterEach {
+        Stop-Hold
+        $env:TEMP = $script:SavedTemp
+    }
 
     It 'installs it where there is none (a first install), and leaves no temporary files' {
         New-CaddyRelease $Release $Caddy299
@@ -181,6 +201,39 @@ Describe 'Installing Caddy' {
         Should -Invoke Download -Times 1 -Exactly -ParameterFilter { $url -eq 'https://github.com/caddyserver/caddy/releases/download/v2.99.0/caddy_2.99.0_checksums.txt' }
         @(Get-ChildItem -LiteralPath $env:TEMP -Force) | Should -BeNullOrEmpty
         Test-Path -LiteralPath "$Caddy.new" | Should -BeFalse
+    }
+
+    It 'deletes its temporary folder although the caddy.exe there is still held for a moment after it ran' {
+        New-CaddyRelease $Release $Caddy299
+        Mock Get-CaddyVersion { Get-CaddyVersionThenHold $exe }
+        # The hold ends during the first pause between two tries.
+        Mock Start-Sleep { Stop-Hold }
+        Mock Warn { }
+        Initialize-Caddy $Caddy | Should -Be '2.99.0'
+        @(Get-ChildItem -LiteralPath $env:TEMP -Force) | Should -BeNullOrEmpty
+        Should -Invoke Start-Sleep -Times 1
+        Should -Invoke Warn -Times 0 -Exactly
+        Get-CaddyVersion $Caddy | Should -Be '2.99.0'
+    }
+
+    It 'tries for about 10 seconds, then names the temporary folder it could not delete, and installs all the same' {
+        New-CaddyRelease $Release $Caddy299
+        Mock Get-CaddyVersion { Get-CaddyVersionThenHold $exe }
+        $script:Paused = 0
+        Mock Start-Sleep { $script:Paused += $Milliseconds }
+        Mock Warn { }
+        Initialize-Caddy $Caddy | Should -Be '2.99.0'
+        Get-CaddyVersion $Caddy | Should -Be '2.99.0'
+        $left = @(Get-ChildItem -LiteralPath $env:TEMP -Force)
+        $left.Count | Should -Be 1
+        $left[0].Name | Should -Match '^diwan-caddy-[0-9a-f]{32}$'
+        $script:Left = $left[0].FullName
+        Should -Invoke Warn -Times 1 -Exactly -ParameterFilter { $text -like "Temporary folder not deleted: $script:Left (*caddy.exe*)*" }
+        Should -Invoke Start-Sleep -Times 9 -Exactly
+        $script:Paused | Should -BeGreaterOrEqual 10000
+        $script:Paused | Should -BeLessThan 15000
+        # What could go, went: only the file still held is left.
+        @(Get-ChildItem -LiteralPath $script:Left -Recurse -File | ForEach-Object { $_.Name }) | Should -Be @('caddy.exe')
     }
 
     It 'keeps a caddy.exe that runs, without downloading anything' {
