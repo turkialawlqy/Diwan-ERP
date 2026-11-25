@@ -3,9 +3,10 @@ import { ref, computed, onMounted, nextTick } from 'vue';
 import { Link, usePage, router } from '@inertiajs/vue3';
 import BrandLogo from './BrandLogo.vue';
 import WorkspaceContext from './WorkspaceContext.vue';
-import { ChevronDownIcon, ChevronRightIcon, ChevronLeftIcon, XMarkIcon, ShieldCheckIcon, ArrowUpIcon, ArrowDownIcon, Bars3Icon, PencilSquareIcon } from '@heroicons/vue/24/outline';
+import { ChevronDownIcon, ChevronRightIcon, ChevronLeftIcon, XMarkIcon, ShieldCheckIcon, ArrowUpIcon, ArrowDownIcon, Bars3Icon, PencilSquareIcon, LockClosedIcon } from '@heroicons/vue/24/outline';
 import navigation from '@/navigation';
 import { useVisibleNav } from '@/composables/useVisibleNav';
+import { isPinned, orderSidebar, reorder, reorderGroups } from '@/sidebarOrder';
 import { sidebarCollapsed, toggleSidebar } from '@/composables/useSidebar';
 import { useUnreadNotes } from '@/composables/useWhatsNew';
 
@@ -41,37 +42,25 @@ const isCurrent = (path, exact = false) => {
 // groups without any visible child are hidden.
 const visibleItems = useVisibleNav();
 
-// The user's own order (saved on the account): items missing from it keep their default place, after the rest.
-const sortBy = (list, order, keyOf) => {
-    if (!order?.length) return list;
-    const rank = new Map(order.map((k, i) => [k, i]));
-    return list
-        .map((item, i) => [item, rank.has(keyOf(item)) ? rank.get(keyOf(item)) : 1e6 + i])
-        .sort((a, b) => a[1] - b[1])
-        .map(([item]) => item);
-};
+// The user's own order (saved on the account), under the rule of sidebarOrder.js: «الفروع», «قوالب الطباعة»,
+// «الإعدادات» and «التحديثات والطلبات» always close the menu, and every other group renders above them.
 const savedOrder = computed(() => page.props.auth?.user?.sidebar_order || null);
-const orderedItems = computed(() => sortBy(visibleItems.value, savedOrder.value?.groups, (i) => i.key)
-    .map((item) => (item.children ? { ...item, children: sortBy(item.children, savedOrder.value?.children?.[item.key], (c) => c.route) } : item)));
+const orderedItems = computed(() => orderSidebar(visibleItems.value, savedOrder.value));
 
-// Edit mode: reorder groups and the links inside a group by drag and drop or with the arrows.
+// Edit mode: reorder groups and the links inside a group by drag and drop or with the arrows. The pinned groups
+// keep their place (no handle, no arrows, nothing dropped below them); the links inside them still move.
 const editing = ref(false);
 const draft = ref([]);
 const saving = ref(false);
 let dragging = null;
 const startEdit = () => {
     sidebarCollapsed.value = false;
-    draft.value = orderedItems.value.map((item) => ({ key: item.key, label: item.label, icon: item.icon, children: item.children ? item.children.map((c) => ({ route: c.route, label: c.label })) : null }));
+    draft.value = orderedItems.value.map((item) => ({ key: item.key, label: item.label, icon: item.icon, pinned: isPinned(item), children: item.children ? item.children.map((c) => ({ route: c.route, label: c.label })) : null }));
     editing.value = true;
 };
 const cancelEdit = () => { editing.value = false; };
-const swap = (list, from, to) => {
-    if (to < 0 || to >= list.length || from === to) return;
-    const [moved] = list.splice(from, 1);
-    list.splice(to, 0, moved);
-};
-const moveGroup = (gi, dir) => swap(draft.value, gi, gi + dir);
-const moveChild = (gi, ci, dir) => swap(draft.value[gi].children, ci, ci + dir);
+const moveGroup = (gi, dir) => reorderGroups(draft.value, gi, gi + dir);
+const moveChild = (gi, ci, dir) => reorder(draft.value[gi].children, ci, ci + dir);
 const dragStart = (event, info) => {
     dragging = info;
     event.dataTransfer.effectAllowed = 'move';
@@ -79,8 +68,8 @@ const dragStart = (event, info) => {
 };
 const dropOn = (info) => {
     if (!dragging || dragging.type !== info.type) return;
-    if (info.type === 'group') swap(draft.value, dragging.gi, info.gi);
-    else if (dragging.gi === info.gi) swap(draft.value[info.gi].children, dragging.ci, info.ci);
+    if (info.type === 'group') reorderGroups(draft.value, dragging.gi, info.gi);
+    else if (dragging.gi === info.gi) reorder(draft.value[info.gi].children, dragging.ci, info.ci);
     dragging = null;
 };
 const saveOrder = () => {
@@ -203,13 +192,21 @@ const slim = computed(() => sidebarCollapsed.value);
                     <button v-if="savedOrder" type="button" :disabled="saving" @click="resetOrder" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white" data-sidebar-reset>{{ $t('sidebar_edit.reset') }}</button>
                 </div>
                 <p class="text-[11px] text-slate-500 pb-2">{{ $t('sidebar_edit.hint') }}</p>
-                <div v-for="(g, gi) in draft" :key="g.key" data-sidebar-group-row class="mb-1 rounded-xl bg-slate-800/40" draggable="true" @dragstart.stop="dragStart($event, { type: 'group', gi })" @dragover.prevent @drop.prevent.stop="dropOn({ type: 'group', gi })">
-                    <div class="flex items-center gap-2 px-2.5 py-2">
-                        <Bars3Icon class="w-4 h-4 text-slate-500 cursor-grab flex-shrink-0" />
+                <template v-for="(g, gi) in draft" :key="g.key">
+                <!-- The pinned groups close the menu whatever the order (sidebarOrder.js): no handle, no arrows. -->
+                <p v-if="g.pinned && !draft[gi - 1]?.pinned" class="flex items-center gap-1.5 pt-2 pb-1.5 text-[11px] text-slate-500" data-sidebar-pinned-note>
+                    <LockClosedIcon class="w-3.5 h-3.5 flex-shrink-0" /> {{ $t('sidebar_edit.pinned') }}
+                </p>
+                <div data-sidebar-group-row :data-sidebar-pinned="g.pinned ? '' : null" class="mb-1 rounded-xl bg-slate-800/40" :draggable="g.pinned ? 'false' : 'true'" @dragstart.stop="dragStart($event, { type: 'group', gi })" @dragover="g.pinned || $event.preventDefault()" @drop.prevent.stop="dropOn({ type: 'group', gi })">
+                    <div class="flex items-center gap-2 px-2.5 py-2" :title="g.pinned ? $t('sidebar_edit.pinned') : null">
+                        <LockClosedIcon v-if="g.pinned" class="w-4 h-4 text-slate-500 flex-shrink-0" />
+                        <Bars3Icon v-else class="w-4 h-4 text-slate-500 cursor-grab flex-shrink-0" />
                         <component :is="g.icon" v-if="g.icon" class="w-5 h-5 text-slate-300 flex-shrink-0" />
                         <span class="flex-1 font-semibold text-slate-200 truncate">{{ $t(g.label) }}</span>
-                        <button type="button" :aria-label="$t('sidebar_edit.up')" class="p-1 rounded hover:bg-slate-700 text-slate-300" data-sidebar-group-up @click="moveGroup(gi, -1)"><ArrowUpIcon class="w-4 h-4" /></button>
-                        <button type="button" :aria-label="$t('sidebar_edit.down')" class="p-1 rounded hover:bg-slate-700 text-slate-300" data-sidebar-group-down @click="moveGroup(gi, 1)"><ArrowDownIcon class="w-4 h-4" /></button>
+                        <template v-if="!g.pinned">
+                            <button type="button" :aria-label="$t('sidebar_edit.up')" class="p-1 rounded hover:bg-slate-700 text-slate-300" data-sidebar-group-up @click="moveGroup(gi, -1)"><ArrowUpIcon class="w-4 h-4" /></button>
+                            <button type="button" :aria-label="$t('sidebar_edit.down')" class="p-1 rounded hover:bg-slate-700 text-slate-300" data-sidebar-group-down @click="moveGroup(gi, 1)"><ArrowDownIcon class="w-4 h-4" /></button>
+                        </template>
                     </div>
                     <div v-if="g.children" class="ps-6 pe-2 pb-2 space-y-0.5">
                         <div v-for="(c, ci) in g.children" :key="c.route" data-sidebar-child-row class="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-slate-900/40 text-[13px]" draggable="true" @dragstart.stop="dragStart($event, { type: 'child', gi, ci })" @dragover.prevent @drop.prevent.stop="dropOn({ type: 'child', gi, ci })">
@@ -220,6 +217,7 @@ const slim = computed(() => sidebarCollapsed.value);
                         </div>
                     </div>
                 </div>
+                </template>
             </template>
             <template v-else>
             <template v-for="item in orderedItems" :key="item.key">

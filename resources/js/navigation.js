@@ -28,6 +28,8 @@ import {
  * (see canRoute in permissions.js); groups with no visible item are hidden.
  * An item with `feature` shows only when that country feature is on for the
  * branch being worked in (config/country_features.php).
+ * branches, templates, settings and updates always close the menu, whatever
+ * order the user saved (PINNED_TAIL in sidebarOrder.js): add new groups above them.
  */
 export default [
     { key: 'dashboard', label: 'nav.dashboard', icon: HomeIcon, route: 'dashboard', path: '/dashboard' },
