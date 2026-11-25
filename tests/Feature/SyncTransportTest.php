@@ -10,6 +10,8 @@ use App\Services\Sync\SyncTransport;
 use App\Services\Sync\SyncTriggers;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /** Head office + two branches (three databases), talking through the hub's real classes: push, relay, resume, pruning, refusals. */
@@ -23,6 +25,10 @@ class SyncTransportTest extends TestCase
 
     public bool $down = false;
 
+    public string $currentServer = 'b';
+
+    protected string $disksRoot;
+
     protected int $company;
 
     protected function setUp(): void
@@ -30,16 +36,17 @@ class SyncTransportTest extends TestCase
         parent::setUp();
         config(['sync-node.settle' => 0]);
         $this->useSqliteHub();
+        $this->disksRoot = sys_get_temp_dir().'/diwan-sync-files-'.uniqid();
         foreach ([2 => 'sync_b', 3 => 'sync_c'] as $node => $name) {
             config(["database.connections.{$name}" => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => false]]);
             DB::purge($name);
             $this->artisan('migrate', ['--database' => $name, '--force' => true])->assertSuccessful();
             DB::connection($name)->statement('PRAGMA foreign_keys = OFF');
             (new SyncEngine($name, 'branch'))->join($node);
-            SyncTriggers::install(DB::connection($name), ['products']);
+            SyncTriggers::install(DB::connection($name), ['products', 'attachments']);
         }
         (new SyncEngine(config('database.default'), 'hub'))->join(1);
-        SyncTriggers::install(DB::connection(), ['products']);
+        SyncTriggers::install(DB::connection(), ['products', 'attachments']);
         $this->company = Company::factory()->create()->id;   // the hub keeps its foreign keys: the rows need their company
         $this->hub = new SyncHub(config('database.default'));
         $this->tokens = [2 => $this->hub->register(2, 'Branch B'), 3 => $this->hub->register(3, 'Branch C')];
@@ -49,6 +56,7 @@ class SyncTransportTest extends TestCase
 
     protected function tearDown(): void
     {
+        File::deleteDirectory($this->disksRoot);
         // The transaction RefreshDatabase opened is on the original connection: it must be the default again to be rolled back.
         config(['database.default' => $this->originalConnection]);
         DB::setDefaultConnection($this->originalConnection);
@@ -60,6 +68,13 @@ class SyncTransportTest extends TestCase
      * change-capture triggers and sync tables is DDL: on a shared MySQL test database it would commit the test transaction and leave
      * triggers behind for every later test. (The MySQL form of the triggers is therefore not exercised by this class.)
      */
+    /** Each server has its own storage folder; the "local" disk points at the one whose turn it is. */
+    public function serverDisk(string $server): void
+    {
+        config(['filesystems.disks.local.root' => "{$this->disksRoot}/{$server}"]);
+        Storage::purge('local');
+    }
+
     protected function useSqliteHub(): void
     {
         $this->originalConnection = config('database.default');
@@ -83,16 +98,24 @@ class SyncTransportTest extends TestCase
                 if ($this->test->down) {
                     throw new \RuntimeException('offline');
                 }
+                $this->test->serverDisk('hub');
                 $node = $this->hub->authenticate($this->token);
                 if (! $node) {
                     throw new \RuntimeException('401');
                 }
 
-                return match ($path) {
-                    'handshake' => $this->hub->handshake($node, $payload),
-                    'push' => $this->hub->receive($node, $payload['changes']),
-                    'pull' => $this->hub->feed($node, $payload['after'], $payload['limit']),
-                };
+                try {
+                    return match ($path) {
+                        'handshake' => $this->hub->handshake($node, $payload),
+                        'push' => $this->hub->receive($node, $payload['changes']),
+                        'pull' => $this->hub->feed($node, $payload['after'], $payload['limit']),
+                        'files-missing' => ['missing' => $this->hub->filesMissing($node, $payload['items'])],
+                        'files-put' => ['stored' => $this->hub->filePut($node, $payload['table'], $payload['path'], $payload['content'])],
+                        'files-get' => ['content' => $this->hub->fileGet($node, $payload['table'], $payload['path'])],
+                    };
+                } finally {
+                    $this->test->serverDisk($this->test->currentServer);
+                }
             }
         };
 
@@ -246,5 +269,39 @@ class SyncTransportTest extends TestCase
         $update = ['node_id' => 1, 'seq' => 5000, 'table' => 'customers', 'pk' => $id, 'op' => 'U', 'payload' => ['id' => $id] + ['name' => 'اسم المركز'] + $base + ['current_balance' => 100]];
         $this->assertSame(1, $branch->apply([$update])['applied']);
         $this->assertSame(['اسم المركز', 777.0], [DB::connection('sync_b')->table('customers')->where('id', $id)->value('name'), (float) DB::connection('sync_b')->table('customers')->where('id', $id)->value('current_balance')]);
+    }
+
+    public function test_uploaded_files_follow_their_rows_through_the_head_office_to_the_other_branch(): void
+    {
+        $row = ['company_id' => $this->company, 'attachable_type' => null, 'attachable_id' => null, 'path' => 'companies/1/docs/a.txt', 'original_name' => 'a.txt', 'mime' => 'text/plain', 'size' => 5, 'created_at' => now(), 'updated_at' => now()];
+        $this->serverDisk('b');
+        Storage::disk('local')->put('companies/1/docs/a.txt', 'hello');
+        DB::connection('sync_b')->table('attachments')->insert($row);
+
+        $this->currentServer = 'b';
+        $sent = $this->client(2, 'sync_b')->run();
+        $this->assertSame(1, $sent['files_sent']);
+        $this->serverDisk('hub');
+        $this->assertSame('hello', Storage::disk('local')->get('companies/1/docs/a.txt'));
+
+        // The other branch gets the row first, then the file; a second round sends and fetches nothing more.
+        $this->currentServer = 'c';
+        $this->serverDisk('c');
+        $got = $this->client(3, 'sync_c')->run();
+        $this->assertSame(1, $got['files_fetched']);
+        $this->assertSame('hello', Storage::disk('local')->get('companies/1/docs/a.txt'));
+        $again = $this->client(3, 'sync_c')->run();
+        $this->assertSame([0, 0], [$again['files_sent'], $again['files_fetched']]);
+    }
+
+    public function test_the_hub_serves_and_accepts_only_files_a_row_points_at_and_only_safe_paths(): void
+    {
+        $node = $this->hub->authenticate($this->tokens[2]);
+        $this->serverDisk('hub');
+        Storage::disk('local')->put('secret.txt', 'no');
+        $this->assertNull($this->hub->fileGet($node, 'attachments', 'secret.txt'));                 // no row points at it
+        $this->assertNull($this->hub->fileGet($node, 'attachments', '../.env'));                     // not a safe path
+        $this->assertFalse($this->hub->filePut($node, 'attachments', 'companies/1/x.txt', base64_encode('x')));   // no row yet
+        $this->assertNull($this->hub->fileGet($node, 'users', 'secret.txt'));                        // not a registered file column
     }
 }

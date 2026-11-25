@@ -51,6 +51,64 @@ class SyncClient
             $out['conflicts'] += $result['conflicts'];
         } while ($answer['more'] ?? false);
 
+        $out += $this->syncFiles();
+
+        return $out;
+    }
+
+    /**
+     * After the rows: for each table that points at uploaded files, walk its rows from a cursor and move the files — a file this
+     * server has and the head office lacks is sent, one this server lacks is fetched. The cursor stops at the first file that could
+     * not be fetched yet (its row can arrive before the sender's upload does) and gives up on one older than three days.
+     *
+     * @return array{files_sent: int, files_fetched: int}
+     */
+    public function syncFiles(): array
+    {
+        $db = DB::connection($this->connection);
+        $out = ['files_sent' => 0, 'files_fetched' => 0];
+        foreach (SyncFiles::FILES as $table => [$column]) {
+            if (! $db->getSchemaBuilder()->hasTable($table)) {
+                continue;
+            }
+            $peer = "files:{$table}.{$column}";
+            $db->table('sync_cursors')->insertOrIgnore(['peer' => $peer, 'pushed' => 0, 'pulled' => 0]);
+            $cursor = (int) $db->table('sync_cursors')->where('peer', $peer)->value('pushed');
+            $stuck = null;
+            $last = $cursor;
+            $rows = $db->table($table)->where('id', '>', $cursor)->whereNotNull($column)->orderBy('id')->limit(100)->get(['id', $column]);
+            $paths = $rows->filter(fn ($r) => SyncFiles::safe($r->{$column}))->map(fn ($r) => ['table' => $table, 'path' => $r->{$column}])->values()->all();
+            $lacking = $paths ? array_flip($this->transport->post('files-missing', ['items' => $paths])['missing'] ?? []) : [];
+            foreach ($rows as $row) {
+                $path = $row->{$column};
+                $last = $row->id;
+                if (! SyncFiles::safe($path)) {
+                    continue;
+                }
+                if (SyncFiles::has($table, $path)) {
+                    if (isset($lacking[$path]) && ($content = SyncFiles::read($table, $path)) !== null) {
+                        $this->transport->post('files-put', ['table' => $table, 'path' => $path, 'content' => $content]);
+                        $out['files_sent']++;
+                    }
+
+                    continue;
+                }
+                $got = $this->transport->post('files-get', ['table' => $table, 'path' => $path])['content'] ?? null;
+                if ($got && SyncFiles::write($table, $path, $got)) {
+                    $out['files_fetched']++;
+                } elseif ($stuck === null) {
+                    $stuck = $row->id;   // not there yet: hold the cursor before it, and look again next round
+                }
+            }
+            // Rows left behind a stuck file are looked at again, but never for ever: the cursor passes a file older than three days.
+            $next = $stuck !== null ? $stuck - 1 : $last;
+            if ($stuck !== null && $db->getSchemaBuilder()->hasColumn($table, 'created_at')
+                && $db->table($table)->where('id', $stuck)->where('created_at', '<', now()->subDays(3))->exists()) {
+                $next = $stuck;
+            }
+            $db->table('sync_cursors')->where('peer', $peer)->update(['pushed' => max($cursor, $next)]);
+        }
+
         return $out;
     }
 }
