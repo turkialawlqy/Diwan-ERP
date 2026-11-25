@@ -7,6 +7,7 @@
 */
 return [
     'role' => env('SYNC_ROLE', 'off'),
+    'node' => (int) env('SYNC_NODE', 0),   // written by sync:setup for the installers; the node itself lives in the database
     'hub_url' => env('SYNC_HUB_URL'),
     'token' => env('SYNC_TOKEN'),
     'batch' => (int) env('SYNC_BATCH', 200),
