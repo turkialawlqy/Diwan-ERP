@@ -31,4 +31,17 @@ class SyncStatusController extends Controller
             'conflicts' => DB::table('sync_conflicts')->whereNull('resolved_at')->orderByDesc('id')->limit(100)->get(['id', 'node_id', 'table_name', 'pk', 'op', 'reason', 'created_at']),
         ]);
     }
+
+    /** The owner's decision on one held change (see SyncEngine::resolveConflict). */
+    public function resolve(Request $request, int $id, string $action)
+    {
+        $role = config('sync-node.role');
+        abort_unless(in_array($role, ['branch', 'hub'], true) && $request->user()->isCompanyOwner() && in_array($action, ['accept', 'reject'], true), 404);
+
+        $done = (new SyncEngine(config('database.default'), $role))->resolveConflict($id, $action);
+
+        return back()->with($done ? 'success' : 'error', $done
+            ? ($action === 'accept' ? 'طُبّق التغيير المحجوز.' : 'أُغلق التغيير المحجوز دون تطبيق.')
+            : 'تعذر معالجة هذا التغيير (عولج من قبل أو لا يمكن تطبيقه).');
+    }
 }

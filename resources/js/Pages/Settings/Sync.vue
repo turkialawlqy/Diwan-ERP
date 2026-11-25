@@ -1,5 +1,6 @@
 <script setup>
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
+import { useDialog } from '@/composables/useDialog';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -7,7 +8,13 @@ import PageHeader from '@/Components/UI/PageHeader.vue';
 
 defineProps({ role: String, node: Number, queue: Number, cursor: Object, nodes: { type: Array, default: () => [] }, conflicts: { type: Array, default: () => [] } });
 const { t } = useI18n();
-const reasons = computed(() => ({ id_collision: t('syncpage.reason_id_collision'), master_edited_on_branch: t('syncpage.reason_master_edited_on_branch') }));
+const { confirmAction } = useDialog();
+const decide = async (c, action) => {
+    if (await confirmAction(t(action === 'accept' ? 'syncpage.accept_confirm' : 'syncpage.reject_confirm'), { danger: action === 'accept' })) {
+        router.post(route('settings.sync.resolve', { id: c.id, action }), {}, { preserveScroll: true });
+    }
+};
+const reasons = computed(() => ({ id_collision: t('syncpage.reason_id_collision'), master_edited_on_branch: t('syncpage.reason_master_edited_on_branch'), closed_period: t('syncpage.reason_closed_period') }));
 const cell = 'px-3 py-2 text-start';
 </script>
 
@@ -45,7 +52,7 @@ const cell = 'px-3 py-2 text-start';
                 <table v-else class="w-full">
                     <thead class="text-slate-500"><tr>
                         <th :class="cell">{{ $t('syncpage.node') }}</th><th :class="cell">{{ $t('syncpage.table') }}</th><th :class="cell">{{ $t('syncpage.record') }}</th>
-                        <th :class="cell">{{ $t('syncpage.op') }}</th><th :class="cell">{{ $t('syncpage.reason') }}</th><th :class="cell">{{ $t('syncpage.when') }}</th>
+                        <th :class="cell">{{ $t('syncpage.op') }}</th><th :class="cell">{{ $t('syncpage.reason') }}</th><th :class="cell">{{ $t('syncpage.when') }}</th><th :class="cell">{{ $t('syncpage.actions') }}</th>
                     </tr></thead>
                     <tbody>
                         <tr v-for="c in conflicts" :key="c.id" class="border-t border-slate-100" data-sync-conflict>
@@ -53,6 +60,10 @@ const cell = 'px-3 py-2 text-start';
                             <td :class="cell" class="font-mono">{{ c.pk }}</td><td :class="cell" class="font-mono">{{ c.op }}</td>
                             <td :class="cell">{{ reasons[c.reason] || c.reason }}</td>
                             <td :class="cell" dir="ltr">{{ c.created_at }}</td>
+                            <td :class="cell" class="whitespace-nowrap">
+                                <button type="button" class="font-bold text-emerald-700 me-3" data-sync-accept @click="decide(c, 'accept')">{{ $t('syncpage.accept') }}</button>
+                                <button type="button" class="font-bold text-rose-600" data-sync-reject @click="decide(c, 'reject')">{{ $t('syncpage.reject') }}</button>
+                            </td>
                         </tr>
                     </tbody>
                 </table>
