@@ -40,4 +40,25 @@ class SyncController extends Controller
 
         return response()->json($this->hub()->feed($request->attributes->get('sync_node'), (int) $data['after'], (int) ($data['limit'] ?? 200)));
     }
+
+    public function filesMissing(Request $request)
+    {
+        $data = $request->validate(['items' => 'required|array|max:200', 'items.*.table' => 'required|string', 'items.*.path' => 'required|string']);
+
+        return response()->json(['missing' => $this->hub()->filesMissing($request->attributes->get('sync_node'), $data['items'])]);
+    }
+
+    public function filePut(Request $request)
+    {
+        $data = $request->validate(['table' => 'required|string', 'path' => 'required|string', 'content' => 'required|string']);
+
+        return response()->json(['stored' => $this->hub()->filePut($request->attributes->get('sync_node'), $data['table'], $data['path'], $data['content'])]);
+    }
+
+    public function fileGet(Request $request)
+    {
+        $data = $request->validate(['table' => 'required|string', 'path' => 'required|string']);
+
+        return response()->json(['content' => $this->hub()->fileGet($request->attributes->get('sync_node'), $data['table'], $data['path'])]);
+    }
 }

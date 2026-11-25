@@ -4171,7 +4171,13 @@
         "reason": "Reason",
         "when": "When",
         "reason_id_collision": "The record number is taken by another record",
-        "reason_master_edited_on_branch": "Master data edited on a branch"
+        "reason_master_edited_on_branch": "Master data edited on a branch",
+        "accept": "Apply",
+        "reject": "Reject",
+        "actions": "Action",
+        "accept_confirm": "Apply this change as it was sent? It overwrites what this server holds and reaches the other branches.",
+        "reject_confirm": "Close this change without applying it?",
+        "reason_closed_period": "Entry in a closed period"
     },
     "remote": {
         "title": "Internet access",

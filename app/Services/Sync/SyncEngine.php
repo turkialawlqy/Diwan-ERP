@@ -153,7 +153,7 @@ class SyncEngine
         return null;
     }
 
-    protected function write(Connection $db, array $change, string $class): string
+    protected function write(Connection $db, array $change, string $class, bool $force = false): string
     {
         $table = $change['table'];
         $pk = $change['pk'];
@@ -161,7 +161,7 @@ class SyncEngine
         $exists = ! $link && $db->table($table)->where('id', $pk)->exists();
 
         // The head office alone writes master data: a branch's edit of an existing master row waits for a person.
-        if ($class === 'master' && $this->role === 'hub' && $change['op'] !== 'I') {
+        if (! $force && $class === 'master' && $this->role === 'hub' && $change['op'] !== 'I') {
             if (isset(self::NODE_LOCAL[$table]) && $this->onlyNodeLocalDiffers($db, $table, $change)) {
                 return 'skipped';   // a balance or cost moved by the branch's own work: not an edit of the master data
             }
@@ -170,11 +170,11 @@ class SyncEngine
         }
         // The head office's books are closed by its own rule: a branch entry dated in a closed period (or a line of one already held)
         // is not posted behind the accountant's back; it waits for a person.
-        if ($this->role === 'hub' && $change['op'] !== 'D' && $this->intoClosedPeriod($db, $change)) {
+        if (! $force && $this->role === 'hub' && $change['op'] !== 'D' && $this->intoClosedPeriod($db, $change)) {
             return $this->conflict($db, $change, 'closed_period');
         }
         // An id taken by another row: never overwrite it.
-        if ($change['op'] === 'I' && $exists) {
+        if (! $force && $change['op'] === 'I' && $exists) {
             return $this->conflict($db, $change, 'id_collision');
         }
 
@@ -217,6 +217,38 @@ class SyncEngine
         }
 
         return 'applied';
+    }
+
+    /**
+     * A person's decision on a held change: `accept` writes it as sent (over an id collision, into a closed period, as a master edit)
+     * and, on the head office, passes it on to the other branches; `reject` only closes it. Either way it is not asked about again.
+     */
+    public function resolveConflict(int $id, string $action): bool
+    {
+        $db = $this->db();
+
+        return $db->transaction(function () use ($db, $id, $action) {
+            $row = $db->table('sync_conflicts')->where('id', $id)->whereNull('resolved_at')->lockForUpdate()->first();
+            if (! $row) {
+                return false;
+            }
+            if ($action === 'accept') {
+                $change = ['node_id' => (int) $row->node_id, 'seq' => (int) $row->seq, 'table' => $row->table_name, 'pk' => (int) $row->pk,
+                    'op' => $row->op, 'payload' => $row->payload ? json_decode($row->payload, true) : null];
+                $class = $this->classOf($change['table']);
+                if ($class === null || ($change['op'] !== 'D' && ! is_array($change['payload']))) {
+                    return false;
+                }
+                $this->write($db, $change, $class, force: true);
+                if ($this->role === 'hub') {
+                    $db->table('sync_outbox')->insert(['node_id' => $change['node_id'], 'origin_seq' => $change['seq'], 'table_name' => $change['table'], 'pk' => $change['pk'],
+                        'op' => $change['op'], 'payload' => $change['payload'] ? json_encode($change['payload'], JSON_UNESCAPED_UNICODE) : null]);
+                }
+            }
+            $db->table('sync_conflicts')->where('id', $id)->update(['resolved_at' => now()]);
+
+            return true;
+        });
     }
 
     protected function intoClosedPeriod(Connection $db, array $change): bool

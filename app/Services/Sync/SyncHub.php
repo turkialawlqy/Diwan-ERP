@@ -92,4 +92,48 @@ class SyncHub
 
         return ['changes' => $changes, 'next' => $next, 'more' => $more];
     }
+
+    /** The row that owns a file path, if this node may touch it (a node tied to one company reaches only that company's rows). */
+    protected function fileOwner(object $node, string $table, string $column, string $path): ?object
+    {
+        if (! SyncFiles::valid($table, $column, $path)) {
+            return null;
+        }
+        $row = $this->db()->table($table)->where($column, $path)->first();
+        if (! $row) {
+            return null;
+        }
+        $company = $table === 'companies' ? $row->id : ($row->company_id ?? null);
+
+        return $node->company_id && $company !== null && (int) $company !== (int) $node->company_id ? null : $row;
+    }
+
+    /** @param list<array{table: string, path: string}> $items @return list<string> the paths whose file this server does not have */
+    public function filesMissing(object $node, array $items): array
+    {
+        $missing = [];
+        foreach ($items as $item) {
+            [$table, $path] = [$item['table'] ?? '', $item['path'] ?? ''];
+            $column = SyncFiles::FILES[$table][0] ?? '';
+            if ($this->fileOwner($node, $table, $column, $path) && ! SyncFiles::has($table, $path)) {
+                $missing[] = $path;
+            }
+        }
+
+        return $missing;
+    }
+
+    public function filePut(object $node, string $table, string $path, string $base64): bool
+    {
+        $column = SyncFiles::FILES[$table][0] ?? '';
+
+        return $this->fileOwner($node, $table, $column, $path) !== null && SyncFiles::write($table, $path, $base64);
+    }
+
+    public function fileGet(object $node, string $table, string $path): ?string
+    {
+        $column = SyncFiles::FILES[$table][0] ?? '';
+
+        return $this->fileOwner($node, $table, $column, $path) ? SyncFiles::read($table, $path) : null;
+    }
 }

@@ -139,6 +139,15 @@ class AlertService
             $alerts[] = $this->alert('zatca_overdue', 'admin.zatca.view', 'فواتير مبسطة تجاوزت مهلة الإبلاغ', "{$overdue} فاتورة مبسطة لم تُبلَّغ للهيئة خلال 24 ساعة", route('zatca.index', [], false), 'danger');
         }
 
+        // Hours before the deadline to start warning: a branch that was offline needs time to get its simplified invoices out.
+        $warnHours = (int) config('zatca.reporting_warning_hours', 4);
+        $near = ZatcaDocument::where('submission', 'reporting')->whereIn('status', ['pending', 'failed'])
+            ->where('created_at', '>=', EInvoiceManager::reportingDeadline())
+            ->where('created_at', '<', EInvoiceManager::reportingDeadline()->addHours($warnHours))->count();
+        if ($near) {
+            $alerts[] = $this->alert('zatca_deadline_near', 'admin.zatca.view', 'فواتير مبسطة تقترب من مهلة الإبلاغ', "{$near} فاتورة مبسطة لم تُبلَّغ بعد وتنتهي مهلتها خلال {$warnHours} ساعات: تأكد من اتصال الإنترنت", route('zatca.index', [], false), 'warning');
+        }
+
         // Automatic resubmission gives up after 20 attempts: someone must look.
         $stuck = ZatcaDocument::whereIn('status', ['pending', 'failed'])->where('attempts', '>=', 20)->count();
         if ($stuck) {

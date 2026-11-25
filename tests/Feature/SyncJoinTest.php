@@ -21,14 +21,39 @@ class SyncJoinTest extends TestCase
     {
         parent::setUp();
         config(['sync-node.settle' => 0]);
+        $this->useSqliteHub();
+    }
+
+    protected string $originalConnection;
+
+    protected function tearDown(): void
+    {
+        // The transaction RefreshDatabase opened is on the original connection: it must be the default again to be rolled back.
+        config(['database.default' => $this->originalConnection]);
+        DB::setDefaultConnection($this->originalConnection);
+        parent::tearDown();
+    }
+
+    /**
+     * The head office of these tests is its own in-memory SQLite database, made the default connection for the test. Creating the
+     * change-capture triggers and sync tables is DDL: on a shared MySQL test database it would commit the test transaction and leave
+     * triggers behind for every later test. (The MySQL form of the triggers is therefore not exercised by this class.)
+     */
+    protected function useSqliteHub(): void
+    {
+        $this->originalConnection = config('database.default');
+        config(['database.connections.sync_hub' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => false]]);
+        DB::purge('sync_hub');
+        $this->artisan('migrate', ['--database' => 'sync_hub', '--force' => true])->assertSuccessful();
+        DB::connection('sync_hub')->statement('PRAGMA foreign_keys = ON');
+        config(['database.default' => 'sync_hub']);
+        DB::setDefaultConnection('sync_hub');
     }
 
     /** @return list<string> */
     protected function triggerNames(): array
     {
-        return DB::getDriverName() === 'sqlite'
-            ? collect(DB::select("select name from sqlite_master where type = 'trigger' and name like 'sync_%'"))->pluck('name')->all()
-            : collect(DB::select("select trigger_name as name from information_schema.triggers where trigger_schema = database() and trigger_name like 'sync\\_%'"))->pluck('name')->all();
+        return collect(DB::select("select name from sqlite_master where type = 'trigger' and name like 'sync_%'"))->pluck('name')->all();
     }
 
     public function test_joining_installs_capture_on_every_replicated_table_and_a_real_save_is_captured(): void
@@ -110,5 +135,24 @@ class SyncJoinTest extends TestCase
         DB::table('role_has_permissions')->where('permission_id', $p7)->delete();
         $branch->apply(array_values(array_filter($hub->pending($seen ? max(array_column($feed, 'feed')) : 0), fn ($c) => $c['table'] === 'role_has_permissions')));
         $this->assertSame([$p8], DB::connection('sync_b')->table('role_has_permissions')->pluck('permission_id')->all());
+    }
+
+    public function test_a_copy_of_another_node_is_refused_unless_forced_and_then_its_feed_is_emptied(): void
+    {
+        $this->artisan('sync:join', ['node' => 1])->assertSuccessful();
+        DB::table('sync_outbox')->insert(['node_id' => 1, 'table_name' => 'products', 'pk' => 1, 'op' => 'I', 'payload' => '{}']);
+
+        $this->artisan('sync:join', ['node' => 2])->assertFailed();
+        $this->assertSame(1, (int) DB::table('sync_state')->value('node_id'));
+        $this->assertSame(1, DB::table('sync_outbox')->count());
+
+        $this->artisan('sync:join', ['node' => 2, '--force' => true])->assertSuccessful();
+        $this->assertSame(2, (int) DB::table('sync_state')->value('node_id'));
+        $this->assertSame(0, DB::table('sync_outbox')->count());
+
+        // Joining again as the same node never touches the feed.
+        DB::table('sync_outbox')->insert(['node_id' => 2, 'table_name' => 'products', 'pk' => 2, 'op' => 'I', 'payload' => '{}']);
+        $this->artisan('sync:join', ['node' => 2])->assertSuccessful();
+        $this->assertSame(1, DB::table('sync_outbox')->count());
     }
 }

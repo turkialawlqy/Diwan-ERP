@@ -276,6 +276,7 @@ Route::middleware(['auth', 'verified', 'two_factor', 'tenant', 'plan', 'country.
     Route::get('/system/update', [SelfUpdateController::class, 'status'])->name('system.update.status');
     Route::post('/system/update', [SelfUpdateController::class, 'apply'])->middleware('throttle:6,1')->name('system.update.apply');
     Route::get('/settings/sync', [SyncStatusController::class, 'index'])->name('settings.sync');
+    Route::post('/settings/sync/conflicts/{id}/{action}', [SyncStatusController::class, 'resolve'])->whereNumber('id')->middleware('throttle:30,1')->name('settings.sync.resolve');
     Route::get('/settings/remote-access', [RemoteAccessController::class, 'edit'])->name('settings.remote-access');
     Route::get('/settings/remote-access/status', [RemoteAccessController::class, 'status'])->name('settings.remote-access.status');
     Route::post('/settings/remote-access', [RemoteAccessController::class, 'apply'])->middleware('throttle:6,1')->name('settings.remote-access.apply');

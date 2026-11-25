@@ -4171,7 +4171,13 @@
         "reason": "السبب",
         "when": "الوقت",
         "reason_id_collision": "رقم السجل مأخوذ لسجل آخر",
-        "reason_master_edited_on_branch": "بيانات رئيسية عُدّلت في الفرع"
+        "reason_master_edited_on_branch": "بيانات رئيسية عُدّلت في الفرع",
+        "accept": "تطبيق",
+        "reject": "رفض",
+        "actions": "إجراء",
+        "accept_confirm": "تطبيق هذا التغيير كما أُرسل؟ سيُكتب فوق ما في هذا الخادم ويصل بقية الفروع.",
+        "reject_confirm": "إغلاق هذا التغيير دون تطبيقه؟",
+        "reason_closed_period": "قيد في فترة مقفلة"
     },
     "remote": {
         "title": "الوصول من الإنترنت",

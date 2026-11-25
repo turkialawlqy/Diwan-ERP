@@ -1017,5 +1017,8 @@
     "هذا الحساب حساب صندوق أو بنك مشترك بين كل الفروع؛ لا يُوقف.": "This is the account of a cash box or bank shared by all branches; it cannot be switched off.",
     "وقت الخروج يجب أن يكون بعد وقت الدخول.": "The check-out time must be after the check-in time.",
     "وقت الدخول": "Check-in time",
-    "وقت الخروج": "Check-out time"
+    "وقت الخروج": "Check-out time",
+    "طُبّق التغيير المحجوز.": "The held change was applied.",
+    "أُغلق التغيير المحجوز دون تطبيق.": "The held change was closed without applying.",
+    "تعذر معالجة هذا التغيير (عولج من قبل أو لا يمكن تطبيقه).": "This change could not be processed (already handled, or it cannot be applied)."
 }
