@@ -53,3 +53,9 @@ if (in_array(config('sync-node.role'), ['branch', 'hub'], true)) {
     }
     Schedule::command('sync:prune')->dailyAt('03:20')->withoutOverlapping();
 }
+// The head office's totals are rebuilt from the books, not copied from the branches: account / branch / cash-flow balances and the
+// customer and supplier balances (the branches keep their own figures; see SyncEngine::NODE_LOCAL).
+if (config('sync-node.role') === 'hub') {
+    Schedule::command('erp:accounting rebuild-balances')->dailyAt('03:30')->withoutOverlapping()->onOneServer();
+    Schedule::command('erp:accounting reconcile-parties --fix')->dailyAt('03:45')->withoutOverlapping()->onOneServer();
+}
