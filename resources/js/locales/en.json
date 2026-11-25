@@ -4054,7 +4054,9 @@
         "reset": "Default order",
         "hint": "Drag an item and drop it, or use the arrows to move it.",
         "up": "Up",
-        "down": "Down"
+        "down": "Down",
+        "collapse": "Collapse the menu",
+        "expand": "Expand the menu"
     },
     "eq_prep": {
         "title": "Daily equipment preparation",
@@ -4146,6 +4148,29 @@
         "close": "Close the split screen",
         "empty": "Choose a page from the list above (or Alt + click any link in the side menu).",
         "button": "Split screen"
+    },
+    "syncpage": {
+        "title": "Sync with head office",
+        "crumb": "Settings",
+        "role_branch": "This server is a branch",
+        "role_hub": "This server is the head office",
+        "node": "Node number",
+        "queue": "Changes waiting to be sent",
+        "pushed": "Last position sent",
+        "pulled": "Last position received",
+        "branches": "Connected branches",
+        "last_seen": "Last seen",
+        "never": "Not connected yet",
+        "name": "Name",
+        "conflicts": "Changes waiting for review",
+        "no_conflicts": "No conflicts.",
+        "table": "Table",
+        "record": "Record",
+        "op": "Operation",
+        "reason": "Reason",
+        "when": "When",
+        "reason_id_collision": "The record number is taken by another record",
+        "reason_master_edited_on_branch": "Master data edited on a branch"
     },
     "remote": {
         "title": "Internet access",
@@ -8743,5 +8768,23 @@
         "show_more": "Show more ({n})",
         "go": "Open",
         "keys": "↑ ↓ to move · Enter to open or fold a section · Esc to close"
+    "pos_offline": {
+        "online": "Online",
+        "offline": "Offline",
+        "pending_n": "{n} waiting to be sent",
+        "rejected_n": "{n} refused",
+        "close_blocked": "Send the saved sales and get online before closing the shift",
+        "saved_offline": "The sale is kept on this device and is sent when the link returns (temporary receipt)",
+        "title": "Cashier sales without a connection",
+        "hint_online": "Online: saved sales are sent automatically every few seconds; you can send them now.",
+        "hint_offline": "No connection: keep selling; sales are kept on this device and sent automatically when the link returns.",
+        "empty": "No sales are waiting to be sent.",
+        "retry": "Try again",
+        "discard": "Delete",
+        "sync_now": "Send now",
+        "syncing": "Sending...",
+        "signed_out": "The login expired; sign in again (the saved sales stay on this device).",
+        "refused": "The sale was refused."
+
     }
 }

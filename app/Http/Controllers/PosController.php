@@ -24,6 +24,8 @@ use App\Services\Zatca\EInvoiceManager;
 use App\Services\Zatca\VatClassifier;
 use App\Support\BranchScopeSwitch;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -231,6 +233,28 @@ class PosController extends Controller
      */
     public function processOrder(Request $request)
     {
+        [$order] = $this->placeOrder($request);
+
+        return back()->with([
+            'success' => 'تم إصدار الفاتورة وحفظ الطلب بنجاح',
+            'latest_order' => $order,
+        ]);
+    }
+
+    /**
+     * The same sale as JSON, for the terminal's queue: a sale made without a connection is sent again and again until it is
+     * accepted, and the client_uuid it carries makes that safe (a repeat returns the sale already recorded, never a second one).
+     */
+    public function syncOrder(Request $request)
+    {
+        [$order, $duplicate] = $this->placeOrder($request);
+
+        return response()->json(['ok' => true, 'duplicate' => $duplicate, 'order' => $order]);
+    }
+
+    /** @return array{0: PosOrder|RedirectResponse, 1: bool} the sale, and whether it was already recorded */
+    protected function placeOrder(Request $request): array
+    {
         $validated = $request->validate([
             'session_id' => 'required|tenant_exists:pos_sessions,id',
             'customer_id' => 'nullable|tenant_exists:customers,id',
@@ -246,13 +270,23 @@ class PosController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
             'items.*.tax_rate' => 'nullable|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
+            // A sale made without a connection: its own id (the same sale is never recorded twice) and when it was made.
+            'client_uuid' => 'nullable|uuid',
+            'sold_at' => 'nullable|date|before_or_equal:now|after:-7 days',
         ]);
+
+        // A sale already recorded under this id is returned as it is.
+        $existing = ! empty($validated['client_uuid']) ? PosOrder::where('client_uuid', $validated['client_uuid'])->first() : null;
+        if ($existing) {
+            return [$existing->load(['items', 'customer']), true];
+        }
 
         $session = PosSession::with('register')->findOrFail($validated['session_id']);
         $company = app(TenantManager::class)->getCompany();
         if (! $company) {
-            return back()->with('error', 'لم يتم تحديد المنشأة.');
+            throw ValidationException::withMessages(['session_id' => 'لم يتم تحديد المنشأة.']);
         }
+        $soldAt = ! empty($validated['sold_at']) ? Carbon::parse($validated['sold_at'])->setTimezone(config('app.timezone')) : Carbon::now();
 
         // Only the cashier who opened the session may sell on it, and only while it is open.
         if ((int) $session->user_id !== (int) auth()->id() || $session->status !== 'opened') {
@@ -260,184 +294,191 @@ class PosController extends Controller
         }
         $warehouseId = $session->register?->warehouse_id;
 
-        $order = DB::transaction(function () use ($validated, $session, $company, $warehouseId) {
-            // A manager can close this shift from another screen: under the row lock a sale is either
-            // complete before the close (and counted in its expected cash) or refused.
-            if (PosSession::whereKey($session->id)->lockForUpdate()->value('status') !== 'opened') {
-                throw ValidationException::withMessages(['session_id' => 'جلسة نقطة البيع غير صالحة أو مغلقة.']);
-            }
-
-            $subtotal = 0;
-            $taxAmount = 0;
-            $totalDiscount = (float) ($validated['discount'] ?? 0);
-
-            // Lines: net after line discount, the order discount spread over the
-            // lines by value, VAT per line on its net (rounded per line), so the
-            // invoice lines add up to the header and a return credits real value.
-            $classifier = app(VatClassifier::class);
-            $profile = TaxProfile::forBranch($session->register?->branch_id ? (int) $session->register->branch_id : null);
-            $lines = [];
-            foreach ($validated['items'] as $item) {
-                $qty = (float) $item['quantity'];
-                $price = (float) $item['unit_price'];
-                $disc = round((float) ($item['discount'] ?? 0), 2);
-                if ($disc > round($qty * $price, 2)) {
-                    throw ValidationException::withMessages(['items' => "خصم «{$item['item_name']}» أكبر من قيمته."]);
+        try {
+            $order = DB::transaction(function () use ($validated, $session, $company, $warehouseId, $soldAt) {
+                // A manager can close this shift from another screen: under the row lock a sale is either
+                // complete before the close (and counted in its expected cash) or refused.
+                if (PosSession::whereKey($session->id)->lockForUpdate()->value('status') !== 'opened') {
+                    throw ValidationException::withMessages(['session_id' => 'جلسة نقطة البيع غير صالحة أو مغلقة.']);
                 }
-                $requested = (float) ($item['tax_rate'] ?? $profile->standardRate());
-                [$category, $code] = $classifier->classify(Product::find($item['product_id']), $requested, null, null, $profile);
-                $lines[] = ['item' => $item, 'qty' => $qty, 'price' => $price, 'disc' => $disc, 'net' => round($qty * $price - $disc, 2),
-                    'rate' => $category === 'S' ? $profile->rateFor($requested) : 0.0, 'category' => $category, 'code' => $code];
-            }
 
-            $this->guardDiscounts($lines, $totalDiscount, $company);
-            $gross = round(array_sum(array_column($lines, 'net')), 2);
-            if ($totalDiscount > $gross) {
-                throw ValidationException::withMessages(['discount' => 'الخصم لا يمكن أن يتجاوز قيمة الطلب.']);
-            }
-            $left = $totalDiscount;
-            foreach ($lines as $i => &$line) {
-                $share = $i === array_key_last($lines) ? $left : ($gross > 0 ? round($totalDiscount * $line['net'] / $gross, 2) : 0);
-                $share = min($share, $line['net']);
-                $left = round($left - $share, 2);
-                $line['disc'] = round($line['disc'] + $share, 2);
-                $line['net'] = round($line['net'] - $share, 2);
-                $line['tax'] = round($line['net'] * $line['rate'] / 100, 2);
-            }
-            unset($line);
+                $subtotal = 0;
+                $taxAmount = 0;
+                $totalDiscount = (float) ($validated['discount'] ?? 0);
 
-            $orderItems = [];
-            $invoiceItems = [];
-            foreach ($lines as $line) {
-                $base = ['product_id' => $line['item']['product_id'], 'item_name' => $line['item']['item_name'], 'quantity' => $line['qty'], 'unit_price' => $line['price'],
-                    'discount' => $line['disc'], 'tax_rate' => $line['rate'], 'tax_amount' => $line['tax'], 'total' => round($line['net'] + $line['tax'], 2)];
-                $orderItems[] = $base;
-                $invoiceItems[] = $base + ['subtotal' => $line['net'], 'vat_category' => $line['category'], 'vat_exemption_code' => $line['code']];
-            }
-            $subtotal = round(array_sum(array_column($lines, 'net')), 2);
-            $taxAmount = round(array_sum(array_column($lines, 'tax')), 2);
-            $total = round($subtotal + $taxAmount, 2);
-
-            // Tender: change is only given from cash, a card never pays more than the total.
-            [$cashTender, $cardTender] = match ($validated['payment_method']) {
-                'multiple' => [(float) ($validated['cash_amount'] ?? 0), (float) ($validated['card_amount'] ?? 0)],
-                'card' => [0.0, min((float) $validated['paid_amount'], $total)],
-                default => [(float) $validated['paid_amount'], 0.0], // cash, or the down payment of a credit sale
-            };
-            if ($cardTender > $total + 0.001) {
-                throw ValidationException::withMessages(['card_amount' => 'مبلغ البطاقة أكبر من إجمالي الفاتورة.']);
-            }
-            // Cash goes to the register's box, which must be of the shift's branch.
-            if ($cashTender > 0 && $session->register?->bank_account_id) {
-                $this->drawer($session, 'session_id');
-            }
-            $paidAmount = round($cashTender + $cardTender, 2);
-            $changeAmount = max(0, round($paidAmount - $total, 2));
-            $collected = min($paidAmount, $total);
-            $remaining = round($total - $collected, 2);
-
-            // A short payment (or an explicit «آجل» sale) is on credit: only for a named
-            // customer, and only when the company switched POS credit on.
-            $isCredit = $validated['payment_method'] === 'credit' || $remaining > 0;
-            if ($isCredit && $remaining > 0) {
-                if (! $company->setting('pos_allow_credit', false)) {
-                    throw ValidationException::withMessages(['paid_amount' => $validated['payment_method'] === 'credit'
-                        ? 'البيع الآجل غير مفعّل في نقاط البيع (الإعدادات ← نقاط البيع).' : 'المبلغ المدفوع أقل من إجمالي الفاتورة.']);
+                // Lines: net after line discount, the order discount spread over the
+                // lines by value, VAT per line on its net (rounded per line), so the
+                // invoice lines add up to the header and a return credits real value.
+                $classifier = app(VatClassifier::class);
+                $profile = TaxProfile::forBranch($session->register?->branch_id ? (int) $session->register->branch_id : null);
+                $lines = [];
+                foreach ($validated['items'] as $item) {
+                    $qty = (float) $item['quantity'];
+                    $price = (float) $item['unit_price'];
+                    $disc = round((float) ($item['discount'] ?? 0), 2);
+                    if ($disc > round($qty * $price, 2)) {
+                        throw ValidationException::withMessages(['items' => "خصم «{$item['item_name']}» أكبر من قيمته."]);
+                    }
+                    $requested = (float) ($item['tax_rate'] ?? $profile->standardRate());
+                    [$category, $code] = $classifier->classify(Product::find($item['product_id']), $requested, null, null, $profile);
+                    $lines[] = ['item' => $item, 'qty' => $qty, 'price' => $price, 'disc' => $disc, 'net' => round($qty * $price - $disc, 2),
+                        'rate' => $category === 'S' ? $profile->rateFor($requested) : 0.0, 'category' => $category, 'code' => $code];
                 }
-                if (empty($validated['customer_id']) || (int) $validated['customer_id'] === (int) Customer::walkIn()->id) {
-                    throw ValidationException::withMessages(['customer_id' => 'اختر العميل أولًا: البيع الآجل لا يكون للعميل النقدي.']);
+
+                $this->guardDiscounts($lines, $totalDiscount, $company);
+                $gross = round(array_sum(array_column($lines, 'net')), 2);
+                if ($totalDiscount > $gross) {
+                    throw ValidationException::withMessages(['discount' => 'الخصم لا يمكن أن يتجاوز قيمة الطلب.']);
                 }
-                app(InvoiceService::class)->checkCreditLimit(Customer::findOrFail($validated['customer_id']), $remaining);
-            } elseif ($validated['payment_method'] === 'credit') {
-                // Paid in full up front: it is just a cash sale.
-                $validated['payment_method'] = 'cash';
+                $left = $totalDiscount;
+                foreach ($lines as $i => &$line) {
+                    $share = $i === array_key_last($lines) ? $left : ($gross > 0 ? round($totalDiscount * $line['net'] / $gross, 2) : 0);
+                    $share = min($share, $line['net']);
+                    $left = round($left - $share, 2);
+                    $line['disc'] = round($line['disc'] + $share, 2);
+                    $line['net'] = round($line['net'] - $share, 2);
+                    $line['tax'] = round($line['net'] * $line['rate'] / 100, 2);
+                }
+                unset($line);
+
+                $orderItems = [];
+                $invoiceItems = [];
+                foreach ($lines as $line) {
+                    $base = ['product_id' => $line['item']['product_id'], 'item_name' => $line['item']['item_name'], 'quantity' => $line['qty'], 'unit_price' => $line['price'],
+                        'discount' => $line['disc'], 'tax_rate' => $line['rate'], 'tax_amount' => $line['tax'], 'total' => round($line['net'] + $line['tax'], 2)];
+                    $orderItems[] = $base;
+                    $invoiceItems[] = $base + ['subtotal' => $line['net'], 'vat_category' => $line['category'], 'vat_exemption_code' => $line['code']];
+                }
+                $subtotal = round(array_sum(array_column($lines, 'net')), 2);
+                $taxAmount = round(array_sum(array_column($lines, 'tax')), 2);
+                $total = round($subtotal + $taxAmount, 2);
+
+                // Tender: change is only given from cash, a card never pays more than the total.
+                [$cashTender, $cardTender] = match ($validated['payment_method']) {
+                    'multiple' => [(float) ($validated['cash_amount'] ?? 0), (float) ($validated['card_amount'] ?? 0)],
+                    'card' => [0.0, min((float) $validated['paid_amount'], $total)],
+                    default => [(float) $validated['paid_amount'], 0.0], // cash, or the down payment of a credit sale
+                };
+                if ($cardTender > $total + 0.001) {
+                    throw ValidationException::withMessages(['card_amount' => 'مبلغ البطاقة أكبر من إجمالي الفاتورة.']);
+                }
+                // Cash goes to the register's box, which must be of the shift's branch.
+                if ($cashTender > 0 && $session->register?->bank_account_id) {
+                    $this->drawer($session, 'session_id');
+                }
+                $paidAmount = round($cashTender + $cardTender, 2);
+                $changeAmount = max(0, round($paidAmount - $total, 2));
+                $collected = min($paidAmount, $total);
+                $remaining = round($total - $collected, 2);
+
+                // A short payment (or an explicit «آجل» sale) is on credit: only for a named
+                // customer, and only when the company switched POS credit on.
+                $isCredit = $validated['payment_method'] === 'credit' || $remaining > 0;
+                if ($isCredit && $remaining > 0) {
+                    if (! $company->setting('pos_allow_credit', false)) {
+                        throw ValidationException::withMessages(['paid_amount' => $validated['payment_method'] === 'credit'
+                            ? 'البيع الآجل غير مفعّل في نقاط البيع (الإعدادات ← نقاط البيع).' : 'المبلغ المدفوع أقل من إجمالي الفاتورة.']);
+                    }
+                    if (empty($validated['customer_id']) || (int) $validated['customer_id'] === (int) Customer::walkIn()->id) {
+                        throw ValidationException::withMessages(['customer_id' => 'اختر العميل أولًا: البيع الآجل لا يكون للعميل النقدي.']);
+                    }
+                    app(InvoiceService::class)->checkCreditLimit(Customer::findOrFail($validated['customer_id']), $remaining);
+                } elseif ($validated['payment_method'] === 'credit') {
+                    // Paid in full up front: it is just a cash sale.
+                    $validated['payment_method'] = 'cash';
+                }
+
+                $orderNumber = $this->nextNumber('pos_order');
+
+                // 1. Create linked Simplified Tax Invoice
+                $invoice = Invoice::create([
+                    'company_id' => $company->id,
+                    'branch_id' => $session->register?->branch_id ?? Branch::first()?->id,
+                    'customer_id' => $validated['customer_id'] ?? Customer::walkIn()->id,
+                    'user_id' => auth()->id(),
+                    'invoice_number' => $this->nextNumber('pos_invoice'),
+                    'invoice_date' => $soldAt->toDateString(),
+                    'supply_date' => $soldAt->toDateString(),
+                    'subtotal' => $subtotal,
+                    'discount_type' => 'fixed',
+                    'discount_value' => $totalDiscount,
+                    'discount_amount' => round(array_sum(array_column($lines, 'disc')), 2),
+                    'tax_rate' => $profile->standardRate(),
+                    'tax_amount' => $taxAmount,
+                    'total' => $total,
+                    'paid_amount' => $collected,
+                    'remaining_amount' => $remaining,
+                    'payment_status' => $remaining > 0 ? ($collected > 0 ? 'partially_paid' : 'unpaid') : 'paid',
+                    // The down payment of a credit sale goes to the drawer, so it posts as cash.
+                    'payment_method' => $validated['payment_method'] === 'credit' && $collected > 0 ? 'cash' : $validated['payment_method'],
+                    'bank_account_id' => $validated['payment_method'] === 'card' ? null : $session->register?->bank_account_id,
+                    'notes' => $profile->invoiceTitle(true)[0].' - نقطة بيع',
+                    'invoice_type' => $profile->simplifiedInvoices() ? 'simplified' : 'standard',
+                    'zatca_uuid' => (string) Str::uuid(),
+                ]);
+
+                // 2. Create PosOrder
+                $posOrder = PosOrder::create([
+                    'company_id' => $company->id,
+                    'pos_session_id' => $session->id,
+                    'customer_id' => $validated['customer_id'] ?? null,
+                    'user_id' => auth()->id(),
+                    'invoice_id' => $invoice->id,
+                    'order_number' => $orderNumber,
+                    'subtotal' => $subtotal,
+                    'discount' => $totalDiscount,
+                    'tax_amount' => $taxAmount,
+                    'total' => $total,
+                    'paid_amount' => $paidAmount,
+                    'change_amount' => $changeAmount,
+                    'cash_amount' => round($cashTender, 2),
+                    'card_amount' => round($cardTender, 2),
+                    'payment_method' => $validated['payment_method'],
+                    'status' => 'completed',
+                    'client_uuid' => $validated['client_uuid'] ?? null,
+                    'sold_at' => $soldAt,
+                ]);
+
+                foreach ($orderItems as $i => $oItem) {
+                    $posOrder->items()->create($oItem);
+                    $invoice->items()->create($invoiceItems[$i]);
+                }
+
+                if ($remaining > 0) {
+                    Customer::whereKey($validated['customer_id'])->increment('current_balance', $remaining);
+                }
+
+                // Stock leaves the register's warehouse at actual cost.
+                $documentStock = app(DocumentStock::class);
+                $warehouseId = $documentStock->warehouse($warehouseId);
+                $invoice->forceFill(['warehouse_id' => $warehouseId])->saveQuietly();
+                $cost = $documentStock->issue($orderItems, $warehouseId, 'sale', $invoice, $invoice->invoice_date, $orderNumber);
+
+                // Split tender: the cash part goes to the drawer, the card part to the bank.
+                $poster = app(DocumentPoster::class);
+                $cardPart = min($cardTender, $collected);
+                $poster->salesInvoice($invoice, $warehouseId, $cost, 'sales_revenue', $validated['payment_method'] === 'multiple' ? [
+                    [$poster->cashAccount($session->register?->bank_account_id, 'cash', 'session_id'), round($collected - $cardPart, 2)],
+                    [$poster->cashAccount(null, 'card'), round($cardPart, 2)],
+                ] : null);
+
+                // Simplified tax invoice: QR now, reported to ZATCA within 24h (phase 2).
+                app(EInvoiceManager::class)->stamp($invoice);
+                $posOrder->forceFill(['zatca_qr' => $invoice->zatca_qr])->saveQuietly();
+
+                return $posOrder;
+            });
+        } catch (QueryException $e) {
+            // Two requests with the same id at once: the loser finds the sale the winner recorded.
+            $winner = ! empty($validated['client_uuid']) ? PosOrder::where('client_uuid', $validated['client_uuid'])->first() : null;
+            if (! $winner) {
+                throw $e;
             }
 
-            $orderNumber = $this->nextNumber('pos_order');
+            return [$winner->load(['items', 'customer']), true];
+        }
 
-            // 1. Create linked Simplified Tax Invoice
-            $invoice = Invoice::create([
-                'company_id' => $company->id,
-                'branch_id' => $session->register?->branch_id ?? Branch::first()?->id,
-                'customer_id' => $validated['customer_id'] ?? Customer::walkIn()->id,
-                'user_id' => auth()->id(),
-                'invoice_number' => $this->nextNumber('pos_invoice'),
-                'invoice_date' => Carbon::now()->toDateString(),
-                'supply_date' => Carbon::now()->toDateString(),
-                'subtotal' => $subtotal,
-                'discount_type' => 'fixed',
-                'discount_value' => $totalDiscount,
-                'discount_amount' => round(array_sum(array_column($lines, 'disc')), 2),
-                'tax_rate' => $profile->standardRate(),
-                'tax_amount' => $taxAmount,
-                'total' => $total,
-                'paid_amount' => $collected,
-                'remaining_amount' => $remaining,
-                'payment_status' => $remaining > 0 ? ($collected > 0 ? 'partially_paid' : 'unpaid') : 'paid',
-                // The down payment of a credit sale goes to the drawer, so it posts as cash.
-                'payment_method' => $validated['payment_method'] === 'credit' && $collected > 0 ? 'cash' : $validated['payment_method'],
-                'bank_account_id' => $validated['payment_method'] === 'card' ? null : $session->register?->bank_account_id,
-                'notes' => $profile->invoiceTitle(true)[0].' - نقطة بيع',
-                'invoice_type' => $profile->simplifiedInvoices() ? 'simplified' : 'standard',
-                'zatca_uuid' => (string) Str::uuid(),
-            ]);
-
-            // 2. Create PosOrder
-            $posOrder = PosOrder::create([
-                'company_id' => $company->id,
-                'pos_session_id' => $session->id,
-                'customer_id' => $validated['customer_id'] ?? null,
-                'user_id' => auth()->id(),
-                'invoice_id' => $invoice->id,
-                'order_number' => $orderNumber,
-                'subtotal' => $subtotal,
-                'discount' => $totalDiscount,
-                'tax_amount' => $taxAmount,
-                'total' => $total,
-                'paid_amount' => $paidAmount,
-                'change_amount' => $changeAmount,
-                'cash_amount' => round($cashTender, 2),
-                'card_amount' => round($cardTender, 2),
-                'payment_method' => $validated['payment_method'],
-                'status' => 'completed',
-            ]);
-
-            foreach ($orderItems as $i => $oItem) {
-                $posOrder->items()->create($oItem);
-                $invoice->items()->create($invoiceItems[$i]);
-            }
-
-            if ($remaining > 0) {
-                Customer::whereKey($validated['customer_id'])->increment('current_balance', $remaining);
-            }
-
-            // Stock leaves the register's warehouse at actual cost.
-            $documentStock = app(DocumentStock::class);
-            $warehouseId = $documentStock->warehouse($warehouseId);
-            $invoice->forceFill(['warehouse_id' => $warehouseId])->saveQuietly();
-            $cost = $documentStock->issue($orderItems, $warehouseId, 'sale', $invoice, $invoice->invoice_date, $orderNumber);
-
-            // Split tender: the cash part goes to the drawer, the card part to the bank.
-            $poster = app(DocumentPoster::class);
-            $cardPart = min($cardTender, $collected);
-            $poster->salesInvoice($invoice, $warehouseId, $cost, 'sales_revenue', $validated['payment_method'] === 'multiple' ? [
-                [$poster->cashAccount($session->register?->bank_account_id, 'cash', 'session_id'), round($collected - $cardPart, 2)],
-                [$poster->cashAccount(null, 'card'), round($cardPart, 2)],
-            ] : null);
-
-            // Simplified tax invoice: QR now, reported to ZATCA within 24h (phase 2).
-            app(EInvoiceManager::class)->stamp($invoice);
-            $posOrder->forceFill(['zatca_qr' => $invoice->zatca_qr])->saveQuietly();
-
-            return $posOrder;
-        });
-
-        $order->load(['items', 'customer']);
-
-        return back()->with([
-            'success' => 'تم إصدار الفاتورة وحفظ الطلب بنجاح',
-            'latest_order' => $order,
-        ]);
+        return [$order->load(['items', 'customer']), false];
     }
 
     /**

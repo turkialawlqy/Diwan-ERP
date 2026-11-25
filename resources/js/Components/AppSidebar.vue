@@ -20,8 +20,10 @@ defineEmits(['closeSidebar']);
 
 const page = usePage();
 const unreadNotes = useUnreadNotes();
-// The text direction the page was actually rendered with (the drawer slides off the start side).
-const isRtl = computed(() => (typeof document !== 'undefined' ? document.documentElement.dir : 'rtl') === 'rtl' || (!document?.documentElement?.dir && (page.props.locale || 'ar') === 'ar'));
+// Text direction of the current language (the drawer slides off the start side). It follows page.props.locale,
+// which Vue tracks: the language switch (useLanguage) changes <html dir> without a reload, so a computed that read
+// document.documentElement.dir kept the direction the page was first rendered with.
+const isRtl = computed(() => (page.props.locale || 'ar') === 'ar');
 
 const currentPath = () => {
     // Inertia's page url (path + query) is what the server rendered; fall back to the address bar.
@@ -174,9 +176,10 @@ const slim = computed(() => sidebarCollapsed.value);
                 type="button"
                 data-sidebar-toggle
                 class="hidden lg:flex w-8 h-8 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-700 items-center justify-center transition-colors flex-shrink-0"
-                :title="slim ? 'توسيع القائمة' : 'طيّ القائمة'"
+                :title="slim ? $t('sidebar_edit.expand') : $t('sidebar_edit.collapse')"
             >
-                <component :is="(slim ? !isRtl : isRtl) ? ChevronLeftIcon : ChevronRightIcon" class="w-4 h-4" />
+                <!-- Points to the start edge when collapsing and away from it when expanding; rtl: mirrors it for Arabic. -->
+                <component :is="slim ? ChevronRightIcon : ChevronLeftIcon" class="w-4 h-4 rtl:rotate-180" />
             </button>
             <button
                 @click="$emit('closeSidebar')"

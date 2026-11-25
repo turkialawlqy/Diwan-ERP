@@ -67,7 +67,13 @@ switch ($Action) {
         if ($answer -ne 'YES') { exit }
         $keep = Read-Host "Keep your data (database, uploaded files, backups) in $Root for later? Type NO to delete everything"
         Stop-Diwan
-        foreach ($t in @('Diwan Web', 'Diwan Worker', 'Diwan Update')) { Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue }
+        foreach ($t in @('Diwan Web', 'Diwan Worker', 'Diwan Update', 'Diwan Remote Access')) { Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue }
+        # Internet access set up from the dashboard: the tunnel service, Tailscale and its firewall rule go with Diwan.
+        $cf = Join-Path $Root 'bin\cloudflared.exe'
+        if (Test-Path $cf) { & $cf service uninstall 2>&1 | Out-Null }
+        $ts = Join-Path $env:ProgramFiles 'Tailscale\tailscale.exe'
+        if (Test-Path $ts) { & $ts down 2>&1 | Out-Null }
+        Remove-NetFirewallRule -DisplayName 'Diwan ERP Tailscale' -ErrorAction SilentlyContinue
         Stop-Service DiwanDB -ErrorAction SilentlyContinue
         & sc.exe delete DiwanDB | Out-Null
         Remove-NetFirewallRule -DisplayName 'Diwan ERP' -ErrorAction SilentlyContinue

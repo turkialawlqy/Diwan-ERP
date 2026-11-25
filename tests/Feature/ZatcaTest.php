@@ -29,6 +29,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -379,6 +380,25 @@ class ZatcaTest extends TestCase
         $this->assertSame(['cleared', 'reported'], [$standard->fresh()->status, $simplified->fresh()->status]);
         $this->assertSame([1, 1], [$this->sent($standard), $this->sent($simplified)]);
         $this->assertSame([0, 0], [$this->queued(), DB::table('cache_locks')->count()]);
+    }
+
+    public function test_documents_signed_by_another_servers_device_are_left_to_that_server(): void
+    {
+        $this->onboard();
+        $this->officeQueue();
+        $this->invoice();
+        $mine = ZatcaDocument::firstOrFail();
+        // As a branch's document arrives at the head office: a device id this server does not have.
+        DB::getDriverName() === 'sqlite' ? DB::statement('PRAGMA defer_foreign_keys = ON') : DB::statement('SET FOREIGN_KEY_CHECKS = 0');   // the test transaction never commits, so the dangling key is never checked
+        $theirs = $mine->replicate();
+        $theirs->zatca_device_id = 987654;
+        $theirs->uuid = (string) Str::uuid();
+        $theirs->save();
+        DB::getDriverName() === 'sqlite' || DB::statement('SET FOREIGN_KEY_CHECKS = 1');
+
+        // Two documents wait, but only the one this server's device signed is due here.
+        $this->travel(10)->minutes();
+        $this->artisan('erp:zatca-submit')->assertSuccessful()->expectsOutputToContain('1 document(s) due');
     }
 
     public function test_a_failing_document_is_sent_again_only_after_its_back_off(): void

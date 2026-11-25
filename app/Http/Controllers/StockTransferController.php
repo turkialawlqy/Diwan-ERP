@@ -68,7 +68,7 @@ class StockTransferController extends Controller
             return $transfer;
         });
 
-        return redirect()->route('inventory.transfers.show', $transfer->id)->with('success', 'تم إنشاء أمر التحويل');
+        return redirect()->route('inventory.stock-transfers.show', $transfer->id)->with('success', 'تم إنشاء أمر التحويل');
     }
 
     public function show(StockTransfer $transfer): Response

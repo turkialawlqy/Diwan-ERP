@@ -8,7 +8,7 @@ import { watchErrors } from './helpers';
  * error. Catches broken pages the PHP tests cannot see (missing components,
  * bad props, template errors).
  */
-const SKIP = /(\{|^api|^sanctum|export|download|pdf|print|logout|csv|xml|imperson|super-admin|admin\/|lookup|files|^up$|storage|company\/logo|login|register|password|verify|confirm|_ignition|^\/$|backup|stop-impersonating|^auth\/|search|^system\/|settings\/remote-access)/;
+const SKIP = /(\{|^api|^sanctum|export|download|pdf|print|logout|csv|xml|imperson|super-admin|admin\/|lookup|files|^up$|storage|company\/logo|login|register|password|verify|confirm|_ignition|^\/$|backup|stop-impersonating|^auth\/|search|^system\/|settings\/remote-access|settings\/sync)/;
 
 const uris = JSON.parse(execSync('php artisan route:list --json --method=GET', { encoding: 'utf8' }))
     .map((r) => r.uri)

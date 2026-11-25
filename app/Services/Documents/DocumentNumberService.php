@@ -171,12 +171,30 @@ class DocumentNumberService
 
     protected function prefix(array $rule, ?CarbonInterface $date): string
     {
-        return $rule['with_year'] ? $rule['prefix'].($date ?? now())->format('y').'-' : $rule['prefix'];
+        $base = $rule['with_year'] ? $rule['prefix'].($date ?? now())->format('y').'-' : $rule['prefix'];
+
+        return $base.$this->nodeTag();
+    }
+
+    /**
+     * A branch server running offline numbers on its own (document_sequences never travels), so its numbers carry the branch's
+     * node: INV-26-B2-000123. Two servers can then never issue the same number, and the head office keeps the plain form.
+     */
+    protected function nodeTag(): string
+    {
+        if (config('sync-node.role') !== 'branch') {
+            return '';
+        }
+        $node = (int) DB::table('sync_state')->where('id', 1)->value('node_id');
+
+        return $node > 1 ? "B{$node}-" : '';
     }
 
     protected function scope(array $rule, ?CarbonInterface $date): string
     {
-        return $rule['with_year'] ? ($date ?? now())->format('Y') : 'all';
+        $scope = $rule['with_year'] ? ($date ?? now())->format('Y') : 'all';
+
+        return $this->nodeTag() === '' ? $scope : $scope.'-'.rtrim($this->nodeTag(), '-');
     }
 
     protected function format(string $prefix, int $number, int $pad): string

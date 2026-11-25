@@ -97,6 +97,21 @@ function Update-QueueWorker {
 }
 try { Update-QueueWorker } catch { Write-Host "Could not set up the queue worker again: $($_.Exception.Message)" -ForegroundColor Yellow }
 
+# Internet access (dashboard: Settings > Internet access): installs made before it have no "Diwan Remote Access" task.
+function Update-RemoteAccessTask {
+    $script = Join-Path $Current 'deploy\windows\remote-access.ps1'
+    if (-not (Test-Path $script)) { return }
+    $psExe = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $system = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 30) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
+    $action = New-ScheduledTaskAction -Execute $psExe -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$script`""
+    if (-not (Get-ScheduledTask -TaskName 'Diwan Remote Access' -ErrorAction SilentlyContinue)) {
+        Register-ScheduledTask -TaskName 'Diwan Remote Access' -Action $action -Principal $system -Settings $settings | Out-Null
+        Write-Host 'Internet access is now available in the dashboard (Settings > Internet access).' -ForegroundColor Green
+    }
+}
+try { Update-RemoteAccessTask } catch { Write-Host "Could not set up the internet access task: $($_.Exception.Message)" -ForegroundColor Yellow }
+
 $new = $null
 $switched = $false
 try {

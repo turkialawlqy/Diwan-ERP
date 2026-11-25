@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Jobs\SubmitZatcaDocument;
+use App\Models\ZatcaDevice;
 use App\Models\ZatcaDocument;
 use Illuminate\Console\Command;
 
@@ -21,6 +22,9 @@ class ZatcaSubmitPending extends Command
         $count = 0;
         ZatcaDocument::withoutGlobalScopes()
             ->where('attempts', '<', 20)
+            // Only what THIS server signed: with branch sync, documents of another server's device arrive here as records, and the
+            // device (certificate, chain) lives only on the server that signed them.
+            ->whereIn('zatca_device_id', ZatcaDevice::withoutGlobalScopes()->select('id'))
             // A failed document waits out its back-off: the job that failed it retries then, and this only steps in after the grace.
             ->where(fn ($q) => $q->due((int) $this->option('minutes') * 60)
                 // A worker that died mid-submission leaves "submitting" behind.

@@ -1,9 +1,10 @@
 name: Windows installer
 
 # The Windows installer (deploy/windows) on real Windows, in Windows PowerShell 5.1 as on the offices'
-# computers: its functions with Pester (tests/windows/Installer.Tests.ps1), then a full install with
-# Diwan-Setup.bat from a folder with spaces, damage on purpose and a run again over it
-# (tests/windows/Test-FullInstall.ps1). Runs when those files change, and by hand (Run workflow).
+# computers: its functions with Pester (tests/windows/Installer.Tests.ps1) on Windows Server 2025
+# (windows-latest) and 2022, then a full install with Diwan-Setup.bat from a folder with spaces,
+# damage on purpose and a run again over it (tests/windows/Test-FullInstall.ps1). Runs when those
+# files change, and by hand (Run workflow).
 
 on:
   push:
@@ -27,8 +28,12 @@ permissions:
 
 jobs:
   functions:
-    name: Installer functions (Pester)
-    runs-on: windows-latest
+    name: Installer functions (Pester, ${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-2022]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4

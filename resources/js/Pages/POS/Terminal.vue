@@ -24,6 +24,10 @@ import {
     UserIcon,
 } from '@heroicons/vue/24/outline';
 import { timeZone } from '@/utils/format';
+import { useI18n } from 'vue-i18n';
+import { pos as posStore, uuid, localIso } from '@/utils/posOffline';
+
+const { t } = useI18n();
 
 const props = defineProps({
     boxes: { type: Array, default: () => [] },
@@ -54,6 +58,7 @@ const receiptQrUrl = ref('');
 
 // Products are searched on the server (the catalogue can hold millions of items);
 // the page only ever keeps one bounded result set.
+const store = posStore(String(page.props.auth?.user?.id ?? 0));
 const products = ref(props.products || []);
 const isSearching = ref(false);
 let searchTimer = null;
@@ -62,16 +67,20 @@ let searchSeq = 0;
 const fetchProducts = async (params = {}) => {
     const seq = ++searchSeq;
     isSearching.value = true;
+    const q = params.q !== undefined ? params.q : (searchQuery.value.trim() || undefined);
+    const categoryId = selectedCategoryId.value !== 'all' ? selectedCategoryId.value : undefined;
     try {
-        const { data } = await axios.get(route('pos.products.search'), {
-            params: {
-                q: searchQuery.value.trim() || undefined,
-                category_id: selectedCategoryId.value !== 'all' ? selectedCategoryId.value : undefined,
-                ...params,
-            },
-        });
+        const { data } = await axios.get(route('pos.products.search'), { params: { q, category_id: categoryId, ...params } });
         if (seq === searchSeq) products.value = data.data;
+        store.cacheProducts(data.data).catch(() => {});
         return data.data;
+    } catch (e) {
+        // No connection: search what this till has seen so far.
+        if (e.response) throw e;
+        const found = await store.searchProducts(params.exact ? '' : q, params.category_id === undefined ? categoryId : params.category_id).catch(() => []);
+        const exact = params.exact ? found.filter((p) => String(p.barcode) === String(q) || String(p.sku).toLowerCase() === String(q).toLowerCase()) : found;
+        if (seq === searchSeq) products.value = exact;
+        return exact;
     } finally {
         if (seq === searchSeq) isSearching.value = false;
     }
@@ -240,35 +249,115 @@ const submitSplit = () => submitOrder('multiple', (Number(splitCash.value) || 0)
 
 // A refused sale (validation or posting rule: a drawer box of another branch, a credit limit...) is shown, never silent.
 const saleError = ref('');
-const submitOrder = (paymentMethod, paid, tender = {}) => {
-    if (cart.value.length === 0) return;
-    saleError.value = '';
 
-    router.post(route('pos.order.process'), {
-        session_id: props.session.id,
-        customer_id: selectedCustomerId.value,
-        payment_method: paymentMethod,
-        paid_amount: paid,
-        ...tender,
-        discount: 0,
-        items: cart.value,
-    }, {
-        preserveScroll: true,
-        onSuccess: (page) => {
-            isCashModalOpen.value = false;
-            isSplitModalOpen.value = false;
-            isCreditModalOpen.value = false;
-            const ord = page.props.flash?.latest_order;
-            if (ord) {
-                latestOrder.value = ord;
-                generateReceiptQr(ord.zatca_qr);
-                isReceiptModalOpen.value = true;
-            }
-            clearCart();
-        },
-        onError: (errors) => { saleError.value = Object.values(errors)[0] || ''; },
-    });
+// Offline: a sale made with no connection is kept on this device, with its own id, and sent when the link returns.
+const online = ref(typeof navigator === 'undefined' ? true : navigator.onLine);
+const queued = ref([]);
+const syncing = ref(false);
+const sending = ref(false);
+const showQueue = ref(false);
+const pendingCount = computed(() => queued.value.filter((q) => !q.rejected).length);
+const rejectedList = computed(() => queued.value.filter((q) => q.rejected));
+const refreshQueue = async () => { queued.value = await store.queue().catch(() => []); };
+
+const firstError = (response) => {
+    const errors = response?.data?.errors;
+    if (errors) return Object.values(errors)[0]?.[0] || '';
+    if (response?.status === 419 || response?.status === 401) return t('pos_offline.signed_out');
+    return response?.data?.message || t('pos_offline.refused');
 };
+
+const finishSale = (ord) => {
+    isCashModalOpen.value = false;
+    isSplitModalOpen.value = false;
+    isCreditModalOpen.value = false;
+    if (ord) {
+        latestOrder.value = ord;
+        receiptQrUrl.value = '';
+        generateReceiptQr(ord.zatca_qr);
+        isReceiptModalOpen.value = true;
+    }
+    clearCart();
+};
+
+// The receipt of a sale kept on this device: the same figures the server will compute, a temporary number, no ZATCA QR yet.
+const localReceipt = (payload) => {
+    const rate = taxRate();
+    const items = payload.items.map((i, n) => {
+        const net = Math.round((i.quantity * i.unit_price - (i.discount || 0)) * 100) / 100;
+        const tax = Math.round(net * rate) / 100;
+        return { id: n, item_name: i.item_name, quantity: i.quantity, unit_price: i.unit_price, total: Math.round((net + tax) * 100) / 100 };
+    });
+    const subtotal = Math.round(payload.items.reduce((a, i) => a + i.quantity * i.unit_price - (i.discount || 0), 0) * 100) / 100;
+    const tax = Math.round(subtotal * rate) / 100;
+    const total = Math.round((subtotal + tax) * 100) / 100;
+    const paid = Number(payload.paid_amount) || 0;
+    return {
+        offline: true, order_number: `OFF-${payload.client_uuid.slice(0, 6).toUpperCase()}`, created_at: payload.sold_at,
+        items, subtotal, tax_amount: tax, total, paid_amount: paid, change_amount: Math.max(0, Math.round((paid - total) * 100) / 100),
+        payment_method: payload.payment_method, customer: selectedCustomer.value ? { name: selectedCustomer.value.name } : null, zatca_qr: null,
+    };
+};
+
+const keepOffline = async (payload) => {
+    payload.sold_at = payload.sold_at || localIso();
+    const receipt = localReceipt(payload);
+    await store.add({ client_uuid: payload.client_uuid, payload, receipt, created_at: payload.sold_at });
+    await refreshQueue();
+    finishSale(receipt);
+};
+
+const submitOrder = async (paymentMethod, paid, tender = {}) => {
+    if (cart.value.length === 0 || sending.value) return;
+    saleError.value = '';
+    const payload = {
+        client_uuid: uuid(), session_id: props.session.id, customer_id: selectedCustomerId.value, payment_method: paymentMethod,
+        paid_amount: paid, ...tender, discount: 0, items: JSON.parse(JSON.stringify(cart.value)),
+    };
+    if (!online.value) return keepOffline(payload);
+
+    sending.value = true;
+    try {
+        const { data } = await axios.post(route('pos.order.sync'), payload);
+        finishSale(data.order);
+        // The customer's balance moved, and the credit limit check uses it.
+        if (payload.customer_id) router.reload({ only: ['customers'], preserveScroll: true, preserveState: true });
+    } catch (e) {
+        if (e.response) saleError.value = firstError(e.response);
+        else { online.value = false; await keepOffline(payload); } // the link dropped: keep the sale, it is sent with the same id
+    } finally {
+        sending.value = false;
+    }
+};
+
+// Sends the queue, oldest first. A refused sale stays with its reason; a dropped link or an expired login stops the run.
+const syncQueue = async () => {
+    if (syncing.value || !online.value) return;
+    syncing.value = true;
+    try {
+        await refreshQueue();
+        for (const sale of queued.value.filter((q) => !q.rejected)) {
+            try {
+                await axios.post(route('pos.order.sync'), sale.payload);
+                await store.remove(sale.client_uuid);
+            } catch (e) {
+                const status = e.response?.status;
+                if (status === 422) await store.reject(sale.client_uuid, firstError(e.response));
+                else break; // no link, not signed in, or too many requests: try again later
+            }
+        }
+    } finally {
+        syncing.value = false;
+        await refreshQueue();
+    }
+};
+const discardSale = async (uuid) => { await store.remove(uuid); await refreshQueue(); };
+const retrySale = async (sale) => { await store.add({ ...sale, rejected: undefined }); await syncQueue(); };
+
+const setOnline = (value) => { online.value = value; if (value) syncQueue(); };
+const goOnline = () => setOnline(true);
+const goOffline = () => setOnline(false);
+let syncTimer = null;
 
 const generateReceiptQr = async (qrString) => {
     if (!qrString) return;
@@ -308,11 +397,23 @@ const formatCurrency = (val) => {
 
 onMounted(() => {
     window.addEventListener('keydown', onKey);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    // The page and its files are kept by the service worker, so the till opens again with no link.
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/pos' }).catch(() => {});
+    store.cacheProducts(props.products || []).catch(() => {});
+    refreshQueue().then(syncQueue);
+    syncTimer = setInterval(syncQueue, 20000);
     nextTick(() => {
         barcodeInput.value?.focus();
     });
 });
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
+onBeforeUnmount(() => {
+    window.removeEventListener('keydown', onKey);
+    window.removeEventListener('online', goOnline);
+    window.removeEventListener('offline', goOffline);
+    clearInterval(syncTimer);
+});
 </script>
 
 <template>
@@ -336,6 +437,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                     <span>{{ $t('pos_terminal.session_active') }}</span>
                 </div>
+                <!-- Connection: offline sales are kept on this device and sent when the link returns. -->
+                <button type="button" data-pos-link @click="showQueue = true"
+                    :class="['flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-2xs font-bold border', online ? 'bg-white/10 text-indigo-100 border-white/20' : 'bg-amber-500/25 text-amber-200 border-amber-400/40']">
+                    <span :class="['w-2 h-2 rounded-full', online ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse']"></span>
+                    <span>{{ online ? $t('pos_offline.online') : $t('pos_offline.offline') }}</span>
+                    <span v-if="pendingCount" data-pos-pending class="px-1.5 rounded bg-white text-indigo-700">{{ $t('pos_offline.pending_n', { n: pendingCount }) }}</span>
+                    <span v-if="rejectedList.length" data-pos-rejected class="px-1.5 rounded bg-rose-500 text-white">{{ $t('pos_offline.rejected_n', { n: rejectedList.length }) }}</span>
+                </button>
             </div>
 
             <!-- Center (Customer Quick Selector) -->
@@ -364,7 +473,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
                 <button 
                     @click="isCloseSessionModalOpen = true"
-                    class="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold shadow-xs transition-colors"
+                    :disabled="!online || queued.length > 0"
+                    :title="!online || queued.length ? $t('pos_offline.close_blocked') : ''"
+                    class="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold shadow-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     {{ $t('pos_terminal.close_the_session') }}
                 </button>
@@ -569,6 +680,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                         <!-- Cash Button -->
                         <button 
                             @click="openCashCheckout"
+                            data-pos-cash
                             :disabled="cart.length === 0"
                             class="py-3 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-40"
                         >
@@ -671,6 +783,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                 <!-- Confirm & Issue Receipt -->
                 <button 
                     @click="submitOrder('cash', tenderAmount)"
+                    data-cash-confirm
                     :disabled="tenderAmount < cartTotal"
                     class="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm shadow-xs transition-all disabled:opacity-50"
                 >
@@ -713,6 +826,29 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
             </div>
         </div>
 
+        <!-- Offline queue: what waits to be sent, and what the server refused (with the reason). -->
+        <div v-if="showQueue" data-pos-queue class="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl max-w-md w-full p-6 space-y-3 shadow-2xl">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-black text-sm text-slate-800">{{ $t('pos_offline.title') }}</h3>
+                    <button type="button" @click="showQueue = false" class="text-slate-400 hover:text-slate-600"><XMarkIcon class="w-4 h-4" /></button>
+                </div>
+                <p class="text-xs text-slate-500">{{ online ? $t('pos_offline.hint_online') : $t('pos_offline.hint_offline') }}</p>
+                <p v-if="!queued.length" class="text-xs text-slate-400 py-4 text-center">{{ $t('pos_offline.empty') }}</p>
+                <ul class="space-y-2 max-h-72 overflow-y-auto">
+                    <li v-for="sale in queued" :key="sale.client_uuid" class="rounded-xl border p-3 text-xs" :class="sale.rejected ? 'border-rose-200 bg-rose-50' : 'border-slate-200'">
+                        <div class="flex justify-between font-bold"><span class="font-mono">{{ sale.receipt.order_number }}</span><span>{{ formatCurrency(sale.receipt.total) }} ﷼</span></div>
+                        <p v-if="sale.rejected" class="text-rose-700 mt-1">{{ sale.rejected }}</p>
+                        <div v-if="sale.rejected" class="flex gap-2 mt-2">
+                            <button type="button" class="px-2 py-1 rounded-lg bg-indigo-600 text-white font-bold" @click="retrySale(sale)">{{ $t('pos_offline.retry') }}</button>
+                            <button type="button" class="px-2 py-1 rounded-lg bg-white border border-rose-300 text-rose-700 font-bold" @click="discardSale(sale.client_uuid)">{{ $t('pos_offline.discard') }}</button>
+                        </div>
+                    </li>
+                </ul>
+                <button type="button" :disabled="!online || syncing || !pendingCount" data-pos-sync-now class="w-full py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-40" @click="syncQueue">{{ syncing ? $t('pos_offline.syncing') : $t('pos_offline.sync_now') }}</button>
+            </div>
+        </div>
+
         <!-- 4. Thermal 80mm ZATCA Receipt Modal -->
         <div 
             v-if="isReceiptModalOpen && latestOrder"
@@ -721,7 +857,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
             <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-100 animate-in zoom-in-95">
                 <!-- Actions Bar -->
                 <div class="flex items-center justify-between pb-3 border-b border-slate-100 print:hidden">
-                    <span class="text-xs font-bold text-emerald-700 flex items-center gap-1">
+                    <span v-if="latestOrder.offline" data-receipt-offline class="text-xs font-bold text-amber-700 flex items-center gap-1">
+                        <CheckCircleIcon class="w-4 h-4" />
+                        <span>{{ $t('pos_offline.saved_offline') }}</span>
+                    </span>
+                    <span v-else class="text-xs font-bold text-emerald-700 flex items-center gap-1">
                         <CheckCircleIcon class="w-4 h-4" />
                         <span>{{ $t('pos_terminal.invoice_issued_successfully') }}</span>
                     </span>

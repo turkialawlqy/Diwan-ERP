@@ -392,6 +392,7 @@ return [
         'system.update.status' => '@authenticated',
         'system.update.apply' => '@authenticated',
         // Owner-only (checked in the controller): it changes how the whole system is exposed.
+        'settings.sync' => '@authenticated',
         'settings.remote-access' => '@authenticated',
         'settings.remote-access.status' => '@authenticated',
         'settings.remote-access.apply' => '@authenticated',
@@ -906,6 +907,7 @@ return [
         'pos.history' => 'pos.history.view',
         'pos.products.search' => 'pos.terminal.use',
         'pos.order.process' => 'pos.terminal.use',
+        'pos.order.sync' => 'pos.terminal.use',
         'pos.session.open' => 'pos.sessions.create',
         'pos.session.close' => 'pos.sessions.edit',
         'pos.open-sessions.index' => 'pos.sessions.manage',
