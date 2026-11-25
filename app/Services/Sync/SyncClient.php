@@ -77,14 +77,41 @@ class SyncClient
             $stuck = null;
             $last = $cursor;
             $rows = $db->table($table)->where('id', '>', $cursor)->whereNotNull($column)->orderBy('id')->limit(100)->get(['id', $column]);
-            $paths = $rows->filter(fn ($r) => SyncFiles::safe($r->{$column}))->map(fn ($r) => ['table' => $table, 'path' => $r->{$column}])->values()->all();
-            $lacking = $paths ? array_flip($this->transport->post('files-missing', ['items' => $paths])['missing'] ?? []) : [];
             foreach ($rows as $row) {
-                $path = $row->{$column};
                 $last = $row->id;
-                if (! SyncFiles::safe($path)) {
-                    continue;
-                }
+            }
+            $stuck = $this->moveFiles($table, $column, $rows, $out);
+            // A picture replaced on a row the cursor has already passed (a product edited, a template redrawn) is caught here: rows
+            // changed in the last two days are looked at every round, whatever the cursor says.
+            if ($db->getSchemaBuilder()->hasColumn($table, 'updated_at')) {
+                $recent = $db->table($table)->where('id', '<=', $cursor)->whereNotNull($column)->where('updated_at', '>=', now()->subDays(2))->orderBy('id')->limit(200)->get(['id', $column]);
+                $this->moveFiles($table, $column, $recent, $out);
+            }
+            // Rows left behind a stuck file are looked at again, but never for ever: the cursor passes a file older than three days.
+            $next = $stuck !== null ? $stuck - 1 : $last;
+            if ($stuck !== null && $db->getSchemaBuilder()->hasColumn($table, 'created_at')
+                && $db->table($table)->where('id', $stuck)->where('created_at', '<', now()->subDays(3))->exists()) {
+                $next = $stuck;
+            }
+            $db->table('sync_cursors')->where('peer', $peer)->update(['pushed' => max($cursor, $next)]);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Sends / fetches the files the given rows point at. Returns the id of the first row whose file could not be fetched yet.
+     *
+     * @param  array{files_sent: int, files_fetched: int}  $out
+     */
+    protected function moveFiles(string $table, string $column, $rows, array &$out): ?int
+    {
+        $perRow = $rows->mapWithKeys(fn ($r) => [$r->id => SyncFiles::pathsOf($table, $r->{$column})]);
+        $paths = $perRow->flatten()->unique()->map(fn ($p) => ['table' => $table, 'path' => $p])->values()->all();
+        $lacking = $paths ? array_flip($this->transport->post('files-missing', ['items' => $paths])['missing'] ?? []) : [];
+        $stuck = null;
+        foreach ($rows as $row) {
+            foreach ($perRow[$row->id] as $path) {
                 if (SyncFiles::has($table, $path)) {
                     if (isset($lacking[$path]) && ($content = SyncFiles::read($table, $path)) !== null) {
                         $this->transport->post('files-put', ['table' => $table, 'path' => $path, 'content' => $content]);
@@ -97,18 +124,11 @@ class SyncClient
                 if ($got && SyncFiles::write($table, $path, $got)) {
                     $out['files_fetched']++;
                 } elseif ($stuck === null) {
-                    $stuck = $row->id;   // not there yet: hold the cursor before it, and look again next round
+                    $stuck = $row->id;
                 }
             }
-            // Rows left behind a stuck file are looked at again, but never for ever: the cursor passes a file older than three days.
-            $next = $stuck !== null ? $stuck - 1 : $last;
-            if ($stuck !== null && $db->getSchemaBuilder()->hasColumn($table, 'created_at')
-                && $db->table($table)->where('id', $stuck)->where('created_at', '<', now()->subDays(3))->exists()) {
-                $next = $stuck;
-            }
-            $db->table('sync_cursors')->where('peer', $peer)->update(['pushed' => max($cursor, $next)]);
         }
 
-        return $out;
+        return $stuck;
     }
 }

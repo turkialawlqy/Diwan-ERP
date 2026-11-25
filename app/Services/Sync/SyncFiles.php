@@ -17,6 +17,8 @@ class SyncFiles
         'work_orders' => ['customer_signature_path', 'local'],
         'companies' => ['logo', 'public'],
         'products' => ['image', 'public'],
+        // The picture paths sit inside the template's layout (JSON), not in a column of their own.
+        'print_templates' => ['layout_data', 'public', 'json'],
     ];
 
     /** Larger files are left on their own server: they would not fit one request (the attachment limit is 10 MB). */
@@ -33,6 +35,38 @@ class SyncFiles
     public static function valid(string $table, string $column, string $path): bool
     {
         return (self::FILES[$table][0] ?? null) === $column && self::safe($path);
+    }
+
+    /** True when the column holds a JSON layout with picture paths inside, rather than one path. */
+    public static function isJson(string $table): bool
+    {
+        return (self::FILES[$table][2] ?? null) === 'json';
+    }
+
+    /**
+     * The safe file paths a row points at: its column value, or every picture path inside its JSON layout.
+     *
+     * @return list<string>
+     */
+    public static function pathsOf(string $table, mixed $value): array
+    {
+        if (! self::isJson($table)) {
+            return self::safe(is_string($value) ? $value : null) ? [$value] : [];
+        }
+        $data = is_array($value) ? $value : json_decode((string) $value, true);
+        $found = [];
+        $walk = function ($node) use (&$walk, &$found) {
+            foreach ((array) $node as $key => $item) {
+                if (is_array($item)) {
+                    $walk($item);
+                } elseif ($key === 'src' && is_string($item) && preg_match('#^templates/\d+/[A-Za-z0-9_-]{8,80}\.(png|jpe?g|gif)$#', $item) && self::safe($item)) {
+                    $found[$item] = true;
+                }
+            }
+        };
+        $walk($data);
+
+        return array_keys($found);
     }
 
     public static function disk(string $table): string
