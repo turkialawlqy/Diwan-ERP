@@ -38,6 +38,8 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
+      # Unit tests of browser-side logic (node:test, no extra dependency): the page search.
+      - run: npm run test:js
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:
