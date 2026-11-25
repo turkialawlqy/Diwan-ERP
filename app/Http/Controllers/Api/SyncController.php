@@ -61,4 +61,16 @@ class SyncController extends Controller
 
         return response()->json(['content' => $this->hub()->fileGet($request->attributes->get('sync_node'), $data['table'], $data['path'])]);
     }
+
+    public function snapshotInfo(Request $request)
+    {
+        return response()->json($this->hub()->snapshotInfo($request->attributes->get('sync_node')));
+    }
+
+    public function snapshotPage(Request $request)
+    {
+        $data = $request->validate(['table' => 'required|string', 'after' => 'required|integer|min:0', 'limit' => 'nullable|integer|min:1|max:500']);
+
+        return response()->json($this->hub()->snapshotPage($request->attributes->get('sync_node'), $data['table'], (int) $data['after'], (int) ($data['limit'] ?? 200)));
+    }
 }

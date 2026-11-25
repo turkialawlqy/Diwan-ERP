@@ -28,6 +28,8 @@ Route::prefix('sync')->name('api.sync.')->middleware(['throttle:240,1', 'sync.no
     Route::post('/handshake', [SyncController::class, 'handshake'])->name('handshake');
     Route::post('/push', [SyncController::class, 'push'])->name('push');
     Route::post('/pull', [SyncController::class, 'pull'])->name('pull');
+    Route::post('/snapshot-info', [SyncController::class, 'snapshotInfo'])->name('snapshot-info');
+    Route::post('/snapshot-page', [SyncController::class, 'snapshotPage'])->name('snapshot-page');
     Route::post('/files-missing', [SyncController::class, 'filesMissing'])->name('files-missing');
     Route::post('/files-put', [SyncController::class, 'filePut'])->name('files-put');
     Route::post('/files-get', [SyncController::class, 'fileGet'])->name('files-get');
