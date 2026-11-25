@@ -8769,6 +8769,7 @@
         "show_more": "Show more ({n})",
         "go": "Open",
         "keys": "↑ ↓ to move · Enter to open or fold a section · Esc to close"
+    },
     "pos_offline": {
         "online": "Online",
         "offline": "Offline",
