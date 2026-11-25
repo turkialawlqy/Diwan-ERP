@@ -45,3 +45,11 @@ Schedule::command('erp:backup --verify')->weeklyOn(0, '04:20')->withoutOverlappi
 Schedule::call(fn () => Cache::put('scheduler:heartbeat', now()->timestamp, 3600))->everyMinute()->name('scheduler-heartbeat')->onOneServer();
 
 Schedule::command('attachments:prune-staged')->hourly()->withoutOverlapping();
+
+// Offline branches: a round with the head office every minute (a dropped link just ends the round), and a daily prune of the feed.
+if (in_array(config('sync-node.role'), ['branch', 'hub'], true)) {
+    if (config('sync-node.role') === 'branch') {
+        Schedule::command('sync:run')->everyMinute()->withoutOverlapping(10);
+    }
+    Schedule::command('sync:prune')->dailyAt('03:20')->withoutOverlapping();
+}

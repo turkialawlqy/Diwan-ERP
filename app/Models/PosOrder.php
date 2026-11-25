@@ -32,9 +32,12 @@ class PosOrder extends Model
         'payment_method',
         'status',
         'zatca_qr',
+        'client_uuid',
+        'sold_at',
     ];
 
     protected $casts = [
+        'sold_at' => 'datetime',
         'subtotal' => 'decimal:2',
         'discount' => 'decimal:2',
         'tax_amount' => 'decimal:2',

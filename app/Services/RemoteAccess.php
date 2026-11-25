@@ -6,19 +6,27 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Reaching a Linux local install from the internet without a fixed IP, through a Cloudflare Tunnel or Tailscale.
- * The web app never gets root and never keeps the secret: it drops a request (mode, domain, tunnel token or Tailscale
- * key, file mode 0600) in a folder the root helper `deploy/linux/remote-access.sh` watches (systemd path unit); the
- * helper installs and starts the connector, tunes `.env`, deletes the request and writes the status file read here.
+ * Reaching a local install (Linux or Windows) from the internet without a fixed IP, through a Cloudflare Tunnel or Tailscale.
+ * The web app never keeps the secret: it drops a request (mode, domain, tunnel token or Tailscale key) in a folder only the
+ * system may read. Linux: file mode 0600, and the root helper `deploy/linux/remote-access.sh` watches it (systemd path unit).
+ * Windows: the folder is limited to SYSTEM and Administrators and the app starts the SYSTEM task "Diwan Remote Access", which
+ * runs `deploy/windows/remote-access.ps1`. The helper installs and starts the connector, tunes `.env`, deletes the request
+ * and writes the status file read here.
  */
 class RemoteAccess
 {
     public const MODES = ['none', 'cloudflare', 'tailscale'];
 
-    /** Linux installs made by the installer only: the helper exists nowhere else. */
+    /** The operating system the app runs on (replaceable in tests). */
+    public function os(): string
+    {
+        return PHP_OS_FAMILY;
+    }
+
+    /** Installs made by the Linux or Windows installer only: the helper exists nowhere else. */
     public function enabled(): bool
     {
-        return (bool) config('app.local_install') && PHP_OS_FAMILY === 'Linux';
+        return (bool) config('app.local_install') && in_array($this->os(), ['Linux', 'Windows'], true);
     }
 
     protected function queueDir(): string
@@ -90,15 +98,55 @@ class RemoteAccess
         return ['mode' => $mode, 'domain' => $domain, 'secret' => $secret];
     }
 
-    /** Hand the (validated) request to the root helper. */
+    /** Hand the (validated) request to the privileged helper. */
     public function request(array $data): void
     {
         File::ensureDirectoryExists($this->queueDir());
         $file = $this->queueDir().'/request';
-        // 0600 before the secret is written, so it is never readable by others, not even briefly.
-        touch($file);
-        chmod($file, 0600);
+        if ($this->os() === 'Windows') {
+            // Only SYSTEM and Administrators may read the folder (the web workers run as SYSTEM), so the secret is never readable by others.
+            @exec('icacls '.escapeshellarg($this->queueDir()).' /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "Administrators:(OI)(CI)F" 2>&1');
+        } else {
+            // 0600 before the secret is written, so it is never readable by others, not even briefly.
+            touch($file);
+            chmod($file, 0600);
+        }
         file_put_contents($file, json_encode($data, JSON_UNESCAPED_SLASHES));
         file_put_contents($this->statusFile(), json_encode(['state' => 'requested', 'mode' => $data['mode'], 'domain' => $data['domain'], 'at' => time()]));
+        $this->trigger();
+    }
+
+    /** Linux: the systemd path unit fires on the file. Windows: start the SYSTEM task, as the self-update does. */
+    protected function trigger(): void
+    {
+        if ($this->os() !== 'Windows') {
+            return;
+        }
+        $this->ensureWindowsTask();
+        @pclose(popen('schtasks /run /tn "Diwan Remote Access"', 'r'));
+    }
+
+    /**
+     * Installs made before this feature have no "Diwan Remote Access" task, and the update that brings the feature runs the
+     * old update script: the web workers run as SYSTEM, so the app registers the task itself the first time it is needed.
+     */
+    protected function ensureWindowsTask(): void
+    {
+        @exec('schtasks /query /tn "Diwan Remote Access" 2>&1', $out, $code);
+        if ($code === 0) {
+            return;
+        }
+        $task = 'powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "'.$this->windowsScript().'"';
+        @exec('schtasks /create /tn "Diwan Remote Access" /tr '.escapeshellarg($task).' /sc ONCE /st 00:00 /ru SYSTEM /rl HIGHEST /f 2>&1');
+    }
+
+    /** Through the "current" junction (C:\Diwan\current), so the task survives the old release folder being deleted. */
+    public function windowsScript(?string $path = null): string
+    {
+        $base = str_replace('\\', '/', $path ?? base_path());
+        $parent = dirname($base);
+        $root = basename($parent) === 'releases' ? dirname($parent).'/current' : $base;
+
+        return str_replace('/', '\\', $root.'/deploy/windows/remote-access.ps1');
     }
 }

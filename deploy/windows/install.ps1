@@ -636,7 +636,7 @@ $system = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount 
 $forever = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1) `
     -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew
 # A re-run replaces the tasks: stop them, then the processes they started.
-foreach ($t in @('Diwan Web', 'Diwan Worker', 'Diwan Update')) {
+foreach ($t in @('Diwan Web', 'Diwan Worker', 'Diwan Update', 'Diwan Remote Access')) {
     Stop-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue
     Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue
 }
@@ -650,6 +650,9 @@ function Register-DiwanTask($name, $script, $trigger) {
 Register-DiwanTask 'Diwan Web' (Join-Path $Scripts 'run-web.ps1') (New-ScheduledTaskTrigger -AtStartup)
 Register-DiwanTask 'Diwan Worker' (Join-Path $Scripts 'run-worker.ps1') (New-ScheduledTaskTrigger -AtStartup)
 Register-DiwanTask 'Diwan Update' (Join-Path $Current 'deploy\windows\local-update.ps1') (New-ScheduledTaskTrigger -Daily -At '3:30AM')
+# Internet access (Cloudflare Tunnel / Tailscale): no trigger, the dashboard starts it when the owner asks (it runs as SYSTEM).
+$onDemand = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 30) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
+Register-ScheduledTask -TaskName 'Diwan Remote Access' -Action (New-ScheduledTaskAction -Execute $psExe -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$(Join-Path $Current 'deploy\windows\remote-access.ps1')`"") -Principal $system -Settings $onDemand | Out-Null
 Start-ScheduledTask -TaskName 'Diwan Web'
 Start-ScheduledTask -TaskName 'Diwan Worker'
 $up = $false

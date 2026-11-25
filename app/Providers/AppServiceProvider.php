@@ -220,6 +220,11 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(30)->by($request->user()?->id ?? $request->ip());
         });
 
+        // The terminal's queue of sales made without a connection: a whole queue is sent at once when the link returns.
+        RateLimiter::for('pos-sync', function (Request $request) {
+            return Limit::perMinute(240)->by($request->user()?->id ?? $request->ip());
+        });
+
         // Invoice creation: max 20 per minute per authenticated user
         RateLimiter::for('invoices', function (Request $request) {
             return Limit::perMinute(20)->by($request->user()?->id ?? $request->ip());
