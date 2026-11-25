@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Support\Facades\File;
+use PhpParser\Error;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Scalar;
 use PhpParser\NodeFinder;
@@ -70,7 +71,7 @@ class TranslationFilesTest extends TestCase
         foreach ($files as $file => $code) {
             try {
                 $repeats = self::duplicatePhpKeys($code);
-            } catch (\PhpParser\Error $e) {
+            } catch (Error $e) {
                 $problems[] = "{$file} is not valid PHP: {$e->getMessage()}";
 
                 continue;
