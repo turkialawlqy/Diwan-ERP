@@ -71,8 +71,9 @@ class SyncTransportTest extends TestCase
     /** Each server has its own storage folder; the "local" disk points at the one whose turn it is. */
     public function serverDisk(string $server): void
     {
-        config(['filesystems.disks.local.root' => "{$this->disksRoot}/{$server}"]);
+        config(['filesystems.disks.local.root' => "{$this->disksRoot}/{$server}/local", 'filesystems.disks.public.root' => "{$this->disksRoot}/{$server}/public"]);
         Storage::purge('local');
+        Storage::purge('public');
     }
 
     protected function useSqliteHub(): void
@@ -292,6 +293,20 @@ class SyncTransportTest extends TestCase
         $this->assertSame('hello', Storage::disk('local')->get('companies/1/docs/a.txt'));
         $again = $this->client(3, 'sync_c')->run();
         $this->assertSame([0, 0], [$again['files_sent'], $again['files_fetched']]);
+    }
+
+    public function test_a_product_picture_reaches_the_other_branch_through_the_head_office(): void
+    {
+        $this->serverDisk('b');
+        Storage::disk('public')->put('products/1/p.png', 'png-bytes');
+        DB::connection('sync_b')->table('products')->insert(['company_id' => $this->company, 'name_ar' => 'صنف', 'sku' => 'IMG1', 'selling_price' => 5, 'is_active' => 1, 'track_inventory' => 1, 'image' => 'products/1/p.png', 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->currentServer = 'b';
+        $this->assertSame(1, $this->client(2, 'sync_b')->run()['files_sent']);
+        $this->currentServer = 'c';
+        $this->serverDisk('c');
+        $this->assertSame(1, $this->client(3, 'sync_c')->run()['files_fetched']);
+        $this->assertSame('png-bytes', Storage::disk('public')->get('products/1/p.png'));
     }
 
     public function test_the_hub_serves_and_accepts_only_files_a_row_points_at_and_only_safe_paths(): void

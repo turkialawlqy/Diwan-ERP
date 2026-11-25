@@ -10,12 +10,13 @@ use Illuminate\Support\Facades\Storage;
  */
 class SyncFiles
 {
-    /** table => [column, disk] — only columns known to hold a file on that disk. Product images, templates and other uploads are not synced yet. */
+    /** table => [column, disk] — only columns known to hold a file on that disk. Print-template images (kept inside the template's layout) and other uploads are not synced yet. */
     public const FILES = [
         'attachments' => ['path', 'local'],
         'work_order_attachments' => ['path', 'local'],
         'work_orders' => ['customer_signature_path', 'local'],
         'companies' => ['logo', 'public'],
+        'products' => ['image', 'public'],
     ];
 
     /** Larger files are left on their own server: they would not fit one request (the attachment limit is 10 MB). */
