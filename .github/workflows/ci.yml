@@ -80,6 +80,9 @@ jobs:
           name: build
           path: public/build
       - run: cp .env.example .env && php artisan key:generate
+      - name: Allow change-capture triggers (MySQL 8 has binary logging on)
+        if: matrix.database == 'mysql'
+        run: mysql -h 127.0.0.1 -uroot -proot -e "SET GLOBAL log_bin_trust_function_creators = 1"
       - name: Run tests
         run: |
           if [ "${{ matrix.database }}" = "mysql" ]; then
