@@ -51,15 +51,32 @@ test('the top bar keeps its tools; company, branch and year are in the sidebar c
         .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().height)));
     expect(new Set(heights).size).toBe(1);
 
-    // Language is in the user menu; full screen (where the browser has it) in «عرض».
+    // Language is in the user menu; «عرض» holds only links.
     await header.locator('[data-user-menu]').click();
     await expect(page.locator('[data-language-toggle]')).toHaveText(/English/);
     await page.keyboard.press('Escape');
     await header.locator('[data-quick-view]').click();
-    if (await page.evaluate(() => document.fullscreenEnabled)) {
-        await expect(page.locator('[data-fullscreen-toggle]')).toHaveText(/ملء الشاشة/);
-    }
+    await expect(page.locator('[data-quick-view-panel] a').first()).toBeVisible();
+    await expect(page.locator('[data-quick-view-panel] button')).toHaveCount(0);
     await page.keyboard.press('Escape');
+
+    // Full screen (where the browser has it): an icon with its name on hover, between split screen and the notifications.
+    if (await page.evaluate(() => document.fullscreenEnabled)) {
+        const full = header.locator('[data-fullscreen-toggle]');
+        await expect(full).toHaveAttribute('title', 'ملء الشاشة');
+        await expect(full).toHaveAttribute('aria-label', 'ملء الشاشة');
+        await expect(full).toHaveText('');
+        const order = await header.locator('[data-split-toggle], [data-fullscreen-toggle], [title="الإشعارات"]')
+            .evaluateAll((els) => els.map((el) => ('splitToggle' in el.dataset ? 'split' : 'fullscreenToggle' in el.dataset ? 'full' : 'bell')));
+        expect(order).toEqual(['split', 'full', 'bell']);
+
+        await full.click();
+        await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+        await expect(full).toHaveAttribute('title', 'الخروج من ملء الشاشة');
+        await full.click();
+        await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+        await expect(full).toHaveAttribute('title', 'ملء الشاشة');
+    }
 
     await expect(card(page)).toContainText('مؤسسة أنس التجارية');
     await expect(summary(page)).toContainText(MAIN);

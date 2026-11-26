@@ -99,6 +99,10 @@ test('the quick add and view menus and the shared components follow the language
     const view = page.locator('[data-quick-view-panel]');
     await expect(view).toBeVisible();
     expect(await view.innerText()).not.toMatch(arabic);
+    if (await page.evaluate(() => document.fullscreenEnabled)) {
+        await expect(header.locator('[data-fullscreen-toggle]')).toHaveAttribute('title', 'Full screen');
+        await expect(header.locator('[data-fullscreen-toggle]')).toHaveAttribute('aria-label', 'Full screen');
+    }
 
     // Back to Arabic for the other specs.
     await header.locator('[data-user-menu]').click();

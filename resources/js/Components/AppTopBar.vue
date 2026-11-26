@@ -3,6 +3,8 @@ import GlobalSearch from '@/Components/GlobalSearch.vue';
 import QuickMenus from '@/Components/QuickMenus.vue';
 import { Link, usePage, router } from '@inertiajs/vue3';
 import {
+    ArrowsPointingInIcon,
+    ArrowsPointingOutIcon,
     Bars3Icon,
     BellIcon,
     DeviceTabletIcon,
@@ -17,6 +19,7 @@ import {
 import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/vue';
 import { useLanguage } from '@/composables/useLanguage';
 import { splitOpen, toggleSplit } from '@/composables/useSplitScreen';
+import { canFullscreen, isFullscreen, toggleFullscreen } from '@/composables/useFullscreen';
 
 // The company, branch and fiscal year are chosen in the sidebar («سياق العمل»).
 defineEmits(['toggleSidebar']);
@@ -48,7 +51,7 @@ const logout = () => {
             <GlobalSearch />
         </div>
 
-        <!-- End: POS, notifications, user menu -->
+        <!-- End: POS, split screen, full screen, notifications, user menu -->
         <div class="flex items-center gap-1 sm:gap-2 shrink-0">
             <!-- Quick POS Cashier Action Button -->
             <Link
@@ -73,6 +76,21 @@ const logout = () => {
                 @click="toggleSplit"
             >
                 <RectangleGroupIcon class="w-5 h-5" />
+            </button>
+
+            <!-- Full screen, where the browser allows it (not on iPhone): the icon only, its name on hover.
+                 Hidden below 360px, where the top bar has no room left for it. -->
+            <button
+                v-if="canFullscreen"
+                type="button"
+                class="hidden min-[360px]:flex w-9 h-9 items-center justify-center rounded-lg transition-colors"
+                :class="isFullscreen ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'"
+                :title="isFullscreen ? $t('topbar.fullscreen_exit') : $t('topbar.fullscreen')"
+                :aria-label="isFullscreen ? $t('topbar.fullscreen_exit') : $t('topbar.fullscreen')"
+                data-fullscreen-toggle
+                @click="toggleFullscreen"
+            >
+                <component :is="isFullscreen ? ArrowsPointingInIcon : ArrowsPointingOutIcon" class="w-5 h-5" />
             </button>
 
             <!-- Notifications Icon -->

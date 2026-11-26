@@ -397,6 +397,8 @@
         "pos_open": "Open the point of sale (cashier)",
         "pos": "Point of sale (POS)",
         "notifications": "Notifications",
+        "fullscreen": "Full screen",
+        "fullscreen_exit": "Exit full screen",
         "role_admin": "System admin",
         "role_owner": "Company manager",
         "profile": "Profile",

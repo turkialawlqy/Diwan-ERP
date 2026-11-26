@@ -397,6 +397,8 @@
         "pos_open": "فتح نقطة البيع (الكاشير)",
         "pos": "نقطة البيع (POS)",
         "notifications": "الإشعارات",
+        "fullscreen": "ملء الشاشة",
+        "fullscreen_exit": "الخروج من ملء الشاشة",
         "role_admin": "مدير النظام",
         "role_owner": "مدير المؤسسة",
         "profile": "الملف الشخصي",
