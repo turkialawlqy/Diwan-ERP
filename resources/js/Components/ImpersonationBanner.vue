@@ -17,9 +17,10 @@ const returnToSuperAdmin = () => {
 <template>
     <div 
         v-if="impersonation && impersonation.is_impersonating" 
-        class="bg-amber-400 border-b border-amber-500 text-slate-900 px-4 py-2 text-sm font-medium sticky top-0 z-50 shadow-sm"
+        class="bg-amber-400 border-b border-amber-500 text-slate-900 px-4 sm:px-8 py-2 text-sm font-medium shadow-sm"
+        data-impersonation-banner
     >
-        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-2">
             <div class="flex items-center gap-2">
                 <ShieldExclamationIcon class="w-5 h-5 text-amber-900 flex-shrink-0" />
                 <span>
@@ -30,9 +31,10 @@ const returnToSuperAdmin = () => {
                 </span>
             </div>
 
-            <button 
-                @click="returnToSuperAdmin" 
-                class="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-black text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow transition-colors"
+            <button
+                @click="returnToSuperAdmin"
+                data-impersonation-leave
+                class="shrink-0 self-end sm:self-auto inline-flex items-center gap-1.5 bg-slate-900 hover:bg-black text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow transition-colors"
             >
                 <ArrowUturnLeftIcon class="w-3.5 h-3.5" />
                 <span>{{ $t('cmp.back_to_the_main_dashboard') }}</span>

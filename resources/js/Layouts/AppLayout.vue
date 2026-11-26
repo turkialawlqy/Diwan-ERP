@@ -80,12 +80,6 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value, field
 
 <template>
     <div class="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white print:bg-white print:min-h-0 print:p-0 print:m-0 print:block">
-        <!-- Super Admin Impersonation Notice Banner -->
-        <ImpersonationBanner v-if="!embedded" class="print:hidden" :impersonation="impersonation" />
-        <div v-if="subscriptionNotice && !embedded" :class="subscriptionNotice.tone" class="text-white text-xs font-bold px-4 py-2 text-center print:hidden">
-            {{ subscriptionNotice.text }}
-            <a v-if="$canRoute('billing.index')" :href="route('billing.index')" class="underline ms-2">{{ $t('z_resources_js_layouts_applayout.manage_the_subscription') }}</a>
-        </div>
 
         <div class="flex-1 flex print:block">
             <!-- Right Navigation Sidebar (in RTL) -->
@@ -99,6 +93,13 @@ watch(() => [flash.value?.success, flash.value?.error, generalError.value, field
             <!-- Main Content Shell (Padded for the sidebar on the start side: Right in RTL, Left in LTR) -->
             <div :class="[embedded ? '' : (sidebarCollapsed ? 'lg:ps-20' : 'lg:ps-72'), splitActive ? (splitOrientation === 'h' ? 'lg:flex-row h-screen sticky top-0' : 'h-screen sticky top-0') : 'flex-col']" class="flex-1 flex min-w-0 transition-all duration-300 print:ps-0 print:p-0 print:m-0 print:block" :data-split-active="splitActive || null" :data-embedded="embedded || null">
               <div :class="splitActive ? 'overflow-auto' : ''" :style="splitActive ? { flexBasis: `${splitRatio * 100}%`, flexGrow: 0, flexShrink: 0 } : { flex: '1 1 0%' }" class="flex flex-col min-w-0 min-h-0">
+                <!-- Super Admin Impersonation Notice Banner and subscription notice: in the content column, so the fixed sidebar never covers them -->
+                <ImpersonationBanner v-if="!embedded" class="print:hidden" :impersonation="impersonation" />
+                <div v-if="subscriptionNotice && !embedded" :class="subscriptionNotice.tone" class="text-white text-xs font-bold px-4 py-2 text-center print:hidden">
+                    {{ subscriptionNotice.text }}
+                    <a v-if="$canRoute('billing.index')" :href="route('billing.index')" class="underline ms-2">{{ $t('z_resources_js_layouts_applayout.manage_the_subscription') }}</a>
+                </div>
+
                 <!-- Top Sticky Navbar -->
                 <AppTopBar v-if="!embedded" class="print:hidden" @toggle-sidebar="isSidebarOpen = !isSidebarOpen" />
 
