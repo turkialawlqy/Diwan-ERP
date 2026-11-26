@@ -109,22 +109,25 @@ const costOptions = computed(() => ({
     <AppLayout>
         <Head :title="$t('dash.main_dashboard')" />
 
-        <!-- Welcome banner: summary of the day and the quick actions -->
-        <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-navy-850 via-slate-900 to-brand-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden" data-welcome>
-            <div class="relative z-10">
+        <!-- Welcome banner: summary of the day and the quick actions. From md up the buttons sit beside the title and the
+             summary sentence runs under both, so it keeps to one line and the banner stays short; phones keep the order
+             title, sentence, buttons. -->
+        <div class="mb-6 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-x-4 bg-gradient-to-r from-navy-850 via-slate-900 to-brand-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden" data-welcome>
+            <div class="relative z-10 min-w-0">
                 <div class="flex items-center gap-2 text-brand-100 text-xs font-semibold mb-2">
                     <span class="bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">{{ $t('dash.financial_and_operating_performa') }}</span>
                     <span>•</span>
                     <span class="inline-flex items-center gap-1"><CalendarIcon class="w-4 h-4" /> {{ currentDate }}</span>
                 </div>
                 <h1 class="text-2xl font-bold tracking-tight">{{ $t('dash.welcome', { name: user?.name }) }}</h1>
-                <p class="text-slate-300 text-sm mt-1 max-w-xl">
-                    <template v-if="yearData?.pending">{{ $t('dash.you_have') }} <span class="text-amber-400 font-bold">{{ $t('dash.unpaid_invoices', { n: yearData.pending }) }}</span><template v-if="yearData.overdue"> {{ $t('dash.of_which') }} <span class="text-rose-300 font-bold">{{ $t('dash.overdue_n', { n: yearData.overdue }) }}</span></template>{{ $t('dash.text') }} </template>
-                    {{ $t('dash.and_this_month_s_sales') }} <span class="text-emerald-400 font-bold">{{ kpis.month_sales }} {{ $cur() }}</span>
-                    <template v-if="branchName">{{ $t('dash.in_branch', { name: branchName }) }}</template>.
-                </p>
             </div>
-            <div class="flex flex-wrap items-center gap-2.5 relative z-10 shrink-0">
+            <!-- The space before «منها» is inside the mustache: Vue drops a whitespace-only text node that opens a <template>. -->
+            <p class="text-slate-300 text-sm mt-1 relative z-10 md:col-span-2 md:row-start-2" data-welcome-summary>
+                <template v-if="yearData?.pending">{{ $t('dash.you_have') }} <span class="text-amber-400 font-bold">{{ $t('dash.unpaid_invoices', { n: yearData.pending }) }}</span><template v-if="yearData.overdue">{{ ' ' + $t('dash.of_which') }} <span class="text-rose-300 font-bold">{{ $t('dash.overdue_n', { n: yearData.overdue }) }}</span></template>{{ $t('dash.text') }} </template>
+                {{ $t('dash.and_this_month_s_sales') }} <span class="text-emerald-400 font-bold">{{ kpis.month_sales }} {{ $cur() }}</span>
+                <template v-if="branchName">{{ $t('dash.in_branch', { name: branchName }) }}</template>.
+            </p>
+            <div class="flex flex-wrap items-center gap-2.5 relative z-10 mt-4 md:mt-0 md:col-start-2 md:row-start-1">
                 <Link v-if="$canRoute('accounting.journals.index')" :href="route('accounting.journals.index')"
                     class="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold transition shadow-md shadow-brand-900/30 inline-flex items-center gap-2">
                     <PlusIcon class="w-4 h-4" /> {{ $t('dash.journal_entry') }}
